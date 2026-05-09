@@ -6,46 +6,46 @@ all: fmt check audit test
 
 ## Quality & Safety
 check:
-	@echo "🔍 Running semantic lints (Clippy)..."
+	@echo "[CHECK] Running semantic lints (Clippy)..."
 	cargo clippy --all-targets --all-features -- -D warnings
 
 fmt:
-	@echo "🎨 Enforcing style (rustfmt)..."
+	@echo "[FMT] Enforcing style (rustfmt)..."
 	cargo fmt --all -- --check
 
 ## Security
 audit:
-	@echo "🛡️  Checking dependency vulnerabilities..."
+	@echo "[SECURITY] Checking dependency vulnerabilities..."
 	# requires: cargo install cargo-audit
 	cargo audit
 
 ## Correctness
 test:
-	@echo "🧪 Running full regression suite..."
+	@echo "[TEST] Running full regression suite..."
 	cargo test
 
 test-update:
-	@echo "🧪 Updating snapshots..."
+	@echo "[TEST] Updating snapshots..."
 	UPDATE_SNAPSHOTS=1 cargo test
 
 ## Setup
 setup:
-	@echo "🔗 Installing local pre-commit hooks..."
+	@echo "[SETUP] Installing local pre-commit hooks..."
 	chmod +x scripts/setup-hooks.sh
 	./scripts/setup-hooks.sh
 
 ## Fuzzing
 fuzz-setup:
-	@echo "🧪 Setting up fuzzing environment..."
+	@echo "[FUZZ] Setting up fuzzing environment..."
 	cargo install cargo-fuzz
 
 fuzz:
-	@echo "🧪 Running parser fuzzer..."
+	@echo "[FUZZ] Running parser fuzzer..."
 	cargo fuzz run audit_parse
 
 ## Documentation
 doc:
-	@echo "📚 Generating institutional documentation..."
+	@echo "[DOC] Generating institutional documentation..."
 	cargo doc --no-deps --open
 
 help:
