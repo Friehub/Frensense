@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "napi build --release --features node",
+    "build": "napi build --release --features node,rust,typescript",
     "build:debug": "napi build --features node",
     "test": "node tests/node/test.js"
   },
