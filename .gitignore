@@ -26,6 +26,7 @@ test-*.js
 .vscode/
 .idea/
 *.swp
+TODO.md
 
 # Fuzzing
 fuzz/corpus
