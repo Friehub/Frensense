@@ -13,7 +13,7 @@ impl Reporter {
         md.push_str("> [!IMPORTANT]\n> This report contains automated structural observations. High-severity items should be prioritized for protocol stability.\n\n");
 
         if advisories.is_empty() {
-            md.push_str("**Analysis Complete:** No structural concerns identified. The code adheres to institutional standards!\n");
+            md.push_str("**Analysis Complete:** No structural concerns identified. The code adheres to standardized standards!\n");
             return md;
         }
 
@@ -32,7 +32,7 @@ impl Reporter {
             let title = match sev {
                 crate::Severity::Critical => "## Critical Security & Reliability Risks",
                 crate::Severity::Warning => "## Technical Debt & Quality Warnings",
-                crate::Severity::Info => "## Institutional & Style Suggestions",
+                crate::Severity::Info => "## Standardized & Style Suggestions",
             };
             md.push_str(&format!("{title}\n\n"));
 

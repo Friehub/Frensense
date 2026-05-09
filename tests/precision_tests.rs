@@ -34,10 +34,10 @@ fn test_false_positive_regression() {
     let advisories = engine.run(dir.path()).unwrap();
 
     // We expect 0 quality/security advisories.
-    // (Ignoring institutional ones for now)
+    // (Ignoring standardized ones for now)
     let filtered: Vec<_> = advisories
         .into_iter()
-        .filter(|a| !a.rule_id.starts_with("INSTITUTIONAL") && a.rule_id != "RUST_STD_OUTPUT")
+        .filter(|a| !a.rule_id.starts_with("PROTOCOL") && a.rule_id != "RUST_STD_OUTPUT")
         .collect();
 
     assert_eq!(

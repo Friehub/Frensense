@@ -19,7 +19,7 @@ pub use engine::{AstAuditor, Engine, FunctionFingerprint};
 pub use rules::core::CoreRule;
 pub use semantics::{DataFlowAnalyzer, Symbol, SymbolKind, SymbolRegistry, TaintRegistry};
 
-/// Static embed of institutional modular redline rules to ensure out-of-the-box functionality.
+/// Static embed of standardized modular safety rules to ensure out-of-the-box functionality.
 pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/rules");
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq)]

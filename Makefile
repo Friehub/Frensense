@@ -45,7 +45,7 @@ fuzz:
 
 ## Documentation
 doc:
-	@echo "[DOC] Generating institutional documentation..."
+	@echo "[DOC] Generating standardized documentation..."
 	cargo doc --no-deps --open
 
 help:
