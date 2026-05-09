@@ -31,7 +31,7 @@ async function runTest() {
     // 3. Verify specific findings (RUST_UNWRAP_SAFETY)
     const lockIo = advisories.find(a => a.ruleId === 'RUST_UNWRAP_SAFETY');
     if (lockIo) {
-      console.log(`✅ SUCCESS: Found ${lockIo.ruleId}`);
+      console.log(`SUCCESS: Found ${lockIo.ruleId}`);
       console.log(`   Observation: ${lockIo.observation}`);
     } else {
       console.error('❌ FAILURE: RUST_UNWRAP_SAFETY not found in advisories.');
@@ -44,7 +44,7 @@ async function runTest() {
         console.log(`- [${a.severity}] ${a.ruleId}: ${a.observation.substring(0, 50)}...`);
     });
 
-    console.log('✅ All API checks passed.');
+    console.log('All API checks passed.');
   } catch (err) {
     console.error('❌ Integration Test Failed:', err.message);
     process.exit(1);
