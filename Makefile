@@ -1,4 +1,4 @@
-# TaaS Static Auditor Integrity Stack
+# GenSense Integrity Stack
 
 .PHONY: all audit check test fmt clean help
 
@@ -44,9 +44,28 @@ fuzz:
 	cargo fuzz run audit_parse
 
 ## Documentation
-doc:
-	@echo "[DOC] Generating standardized documentation..."
-	cargo doc --no-deps --open
+docs:
+	@echo "[DOC] Generating GenSense Rule Catalog..."
+	cargo run -- --generate-docs
+
+## Security & Compliance
+sbom:
+	@echo "[SECURITY] Generating CycloneDX SBOM..."
+	./scripts/generate-sbom.sh
+
+## Distribution
+dist: docs sbom
+	@echo "[DIST] Bundling release artifacts..."
+	mkdir -p dist
+	cargo build --release --features full
+	cp target/release/gensense dist/
+	cp RULES.md dist/
+	cp bom.json dist/
+	@echo "[SUCCESS] Release artifacts bundled in dist/"
+
+docker:
+	@echo "[DOCKER] Building production image..."
+	docker build -t gensense:latest .
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

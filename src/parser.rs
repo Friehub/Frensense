@@ -1,7 +1,7 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{AuditorError, Result};
+use crate::{GenSenseError, Result};
 use std::path::Path;
 use tree_sitter::Language;
 
@@ -20,19 +20,23 @@ impl ParserRegistry {
         let ext = path
             .extension()
             .and_then(|s| s.to_str())
-            .ok_or_else(|| AuditorError::Config(format!("File has no extension: {path:?}")))?;
+            .ok_or_else(|| GenSenseError::Config(format!("File has no extension: {path:?}")))?;
 
         match ext {
+            #[cfg(feature = "rust")]
             "rs" => Ok(tree_sitter_rust::LANGUAGE.into()),
+            #[cfg(feature = "typescript")]
             "ts" | "tsx" => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
+            #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
-            "sol" => Err(AuditorError::Config(
-                "Solidity is temporarily disabled due to tree-sitter version incompatibility."
-                    .to_string(),
+            #[cfg(feature = "solidity")]
+            // "sol" => Ok(tree_sitter_solidity::language().into()),
+            "sol" => Err(GenSenseError::Config(
+                "Solidity parser is temporarily disabled due to version mismatch".to_string(),
             )),
             "yml" | "yaml" => Ok(tree_sitter_yaml::LANGUAGE.into()),
-            _ => Err(AuditorError::Config(format!(
-                "Unsupported file extension: {ext}"
+            _ => Err(GenSenseError::Config(format!(
+                "Unsupported file extension or feature not enabled: {ext}"
             ))),
         }
     }

@@ -1,0 +1,44 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:127767ef-ecd7-4267-92f1-d08bb2ba622b",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-09T10:37:35Z",
+    "component": {
+      "name": "gensense",
+      "version": "0.1.0",
+      "type": "application"
+    }
+  },
+  "components": [
+    { "name": "authors", "version": "Friehub Developers", "type": "library" },
+    { "name": "tree-sitter", "version": "0.23", "type": "library" },
+    { "name": "tree-sitter-rust", "version": "0.23", "type": "library" },
+    { "name": "tree-sitter-typescript", "version": "0.23", "type": "library" },
+    { "name": "tree-sitter-solidity", "version": "1.2", "type": "library" },
+    { "name": "tree-sitter-yaml", "version": "0.7", "type": "library" },
+    { "name": "tree-sitter-javascript", "version": "0.23", "type": "library" },
+    { "name": "anyhow", "version": "1.0", "type": "library" },
+    { "name": "thiserror", "version": "1.0", "type": "library" },
+    { "name": "tracing", "version": "0.1", "type": "library" },
+    { "name": "serde", "version": "1.0", "type": "library" },
+    { "name": "serde_json", "version": "1.0", "type": "library" },
+    { "name": "serde_yaml", "version": "0.9", "type": "library" },
+    { "name": "regex", "version": "1", "type": "library" },
+    { "name": "walkdir", "version": "2", "type": "library" },
+    { "name": "once_cell", "version": "1.19", "type": "library" },
+    { "name": "rayon", "version": "1.8", "type": "library" },
+    { "name": "diff", "version": "0.1", "type": "library" },
+    { "name": "include_dir", "version": "0.7", "type": "library" },
+    { "name": "glob", "version": "0.3", "type": "library" },
+    { "name": "default", "version": "rust", "type": "library" },
+    { "name": "rust", "version": "dep:tree-sitter-rust", "type": "library" },
+    { "name": "typescript", "version": "dep:tree-sitter-typescript", "type": "library" },
+    { "name": "solidity", "version": "dep:tree-sitter-solidity", "type": "library" },
+    { "name": "fingerprinting", "version": "fingerprinting = []", "type": "library" },
+    { "name": "remediation", "version": "dep:diff", "type": "library" },
+    { "name": "full", "version": "rust", "type": "library" },
+    { "name": "tempfile", "version": "3", "type": "library" }
+  ]
+}

@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct BlockingIoDetector;
 
-impl AuditorRule for BlockingIoDetector {
+impl GenSenseRule for BlockingIoDetector {
     fn id(&self) -> &str {
         "RUST_ASYNC_BLOCKING"
     }
@@ -23,7 +23,7 @@ impl AuditorRule for BlockingIoDetector {
         Some("(call_expression) @call")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         if self.is_in_async_scope(node, context.source_code) {

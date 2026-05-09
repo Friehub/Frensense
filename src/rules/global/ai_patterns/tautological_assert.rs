@@ -1,9 +1,9 @@
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct TautologicalAssert;
 
-impl AuditorRule for TautologicalAssert {
+impl GenSenseRule for TautologicalAssert {
     fn id(&self) -> &str {
         "AI_TAUTOLOGICAL_ASSERT"
     }
@@ -17,7 +17,7 @@ impl AuditorRule for TautologicalAssert {
         Some("(macro_invocation) @macro")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         if let Some(macro_name_node) = node.child(0) {
             let macro_name =

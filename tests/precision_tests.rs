@@ -1,9 +1,9 @@
+use gensense::{Engine, GenSenseAuditor, Severity};
 use std::fs;
-use taas_auditor::{AstAuditor, Engine, Severity};
 use tempfile::tempdir;
 
 fn setup_engine() -> Engine {
-    Engine::new(AstAuditor::default_auditor())
+    Engine::new(GenSenseAuditor::default_auditor())
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn test_modular_features() {
 
 /// INTEGRITY HELPER: Verifies that the audit findings match a known baseline.
 /// Use this to prevent regression in diagnostic quality.
-fn assert_snapshot(name: &str, advisories: &[taas_auditor::Advisory]) {
+fn assert_snapshot(name: &str, advisories: &[gensense::Advisory]) {
     let mut actual_ids: Vec<String> = advisories.iter().map(|a| a.rule_id.clone()).collect();
     actual_ids.sort();
 

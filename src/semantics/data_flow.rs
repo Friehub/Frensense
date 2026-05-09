@@ -1,7 +1,7 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule, CoreRule};
+use crate::{Advisory, CoreRule, GenSenseContext, GenSenseRule};
 use regex::Regex;
 use std::collections::HashMap;
 use tree_sitter::Node;
@@ -12,7 +12,7 @@ pub struct TaintRegistry {
 }
 
 pub struct DataFlowAnalyzer<'a> {
-    pub context: &'a AuditContext<'a>,
+    pub context: &'a GenSenseContext<'a>,
     pub root: Node<'a>,
     pub depth: usize,
 }
@@ -20,7 +20,7 @@ pub struct DataFlowAnalyzer<'a> {
 const MAX_TAINT_DEPTH: usize = 3;
 
 impl<'a> DataFlowAnalyzer<'a> {
-    pub fn new(context: &'a AuditContext<'a>, root: Node<'a>) -> Self {
+    pub fn new(context: &'a GenSenseContext<'a>, root: Node<'a>) -> Self {
         Self {
             context,
             root,
@@ -28,7 +28,7 @@ impl<'a> DataFlowAnalyzer<'a> {
         }
     }
 
-    pub fn with_depth(context: &'a AuditContext<'a>, root: Node<'a>, depth: usize) -> Self {
+    pub fn with_depth(context: &'a GenSenseContext<'a>, root: Node<'a>, depth: usize) -> Self {
         Self {
             context,
             root,

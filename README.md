@@ -1,26 +1,26 @@
-# TaaS Static Auditor
+# GenSense
 
-TaaS Static Auditor is a high-precision, production-grade semantic analysis engine designed for auditing protocol-level logic, security vulnerabilities, and standardized safety enforcement. Built in Rust for maximum performance and memory safety, it serves as the primary diagnostic layer for the Friehub TaaS Gateway ecosystem.
+GenSense is a high-precision, AI-aware semantic analysis engine designed to assist developers in validating and refining synthesized code. Built in Rust for maximum performance and memory safety, it serves as a lightweight diagnostic layer for identifying logical flaws, security vulnerabilities, and protocol-level safety gaps in modern codebases.
 
-## Rationale: Why TaaS Auditor Exists
+## Rationale: Why GenSense Exists
 
-Modern decentralized systems face a unique set of challenges that generic static analysis tools are not equipped to handle. While traditional linters focus on stylistic consistency and local syntax errors, the TaaS Auditor was engineered to address:
+Modern development increasingly relies on Large Language Models (LLMs) to synthesize complex logic. However, AI-generated code often introduces subtle semantic risks that traditional linters miss. GenSense was engineered to provide a "sense-check" for these patterns:
 
-1.  **Protocol-Level Semantic Risk**: Detecting logical flaws in cross-language environments where data from a web frontend (TypeScript) directly impacts high-stakes protocol logic (Rust/Solidity).
-2.  **Safety Standard Enforcement**: Providing a mechanism to enforce strict protocol safety standards (e.g., "no uninstrumented async calls") that are too specialized for general-purpose tools.
-3.  **Complexity at Scale**: Handling the semantic complexity of modern codebases, such as complex object destructuring and intermediate variable tainting, which often baffle standard AST-based search tools.
+1.  **AI Logic Validation**: Detecting logical flaws in synthesized code where data flows (TypeScript/Rust/Solidity) might violate protocol-level invariants.
+2.  **Safety Guardrails**: Providing a mechanism to enforce strict safety standards (e.g., "no uninstrumented async calls") that AI models frequently ignore.
+3.  **Structural Integrity**: Handling the semantic complexity of modern codebases, such as complex object destructuring and intermediate variable tainting, which often baffle standard AST-based search tools.
 
 ## Comparative Analysis
 
-| Feature | TaaS Auditor | Standard Linters (ESLint/Clippy) | Security Scanners (Slither) |
+| Feature | GenSense | Standard Linters (ESLint/Clippy) | Security Scanners (Slither) |
 | :--- | :--- | :--- | :--- |
-| **Scope** | Cross-Language Semantic Flow | Single-Language Syntax/Style | Domain-Specific (Smart Contracts) |
+| **Scope** | AI-Aware Semantic Flow | Single-Language Syntax/Style | Domain-Specific (Smart Contracts) |
 | **Taint Tracking** | Inter-procedural and Destructure-aware | Limited/Non-existent | Robust but Language-Locked |
 | **Safety Enforcement** | High (Custom YAML/Rust Rules) | Medium (Complex Plugin Setup) | Medium (Built-in Rules) |
 | **Boilerplate Detection** | Structural N-Gram Analysis | None | Basic Hash-based |
-| **Env Isolation** | Native Beta/Stable Filtering | None | None |
+| **Assistant Nature** | High (Diagnostic/Advisory) | High (Stylistic) | Medium (Security Only) |
 
-The TaaS Auditor is designed to complement, not replace, single-language linters. It acts as a specialized security and quality layer that sits above the standard toolchain.
+GenSense is designed to complement, not replace, single-language linters. It acts as a specialized assistant that sits above the standard toolchain to validate logic and intent.
 
 ## Key Capabilities
 
@@ -50,7 +50,7 @@ Deploy and test new audit rules safely using the built-in isolation system:
 
 ## Developer Integrity Suite
 
-The auditor includes a comprehensive developer toolset to ensure the diagnostic engine itself remains reliable:
+GenSense includes a comprehensive developer toolset to ensure the diagnostic engine itself remains reliable:
 
 | Tool | Feature | Purpose |
 | :--- | :--- | :--- |
@@ -70,18 +70,18 @@ The auditor includes a comprehensive developer toolset to ensure the diagnostic 
 ### Quick Start
 ```bash
 # Clone the repository
-git clone https://github.com/Friehub/auditor.git
-cd auditor
+git clone https://github.com/Friehub/gensense.git
+cd gensense
 
 # Install the Developer Integrity Suite (Hooks)
 make setup
 
-# Run a semantic audit on a target directory
+# Run a semantic insight check on a target directory
 cargo run -- /path/to/project
 ```
 
 ### Configuration
-The auditor can be configured via `.taas-suppress.yml` in your project root to handle intentional deviations:
+GenSense can be configured via `.gensense-suppress.yml` in your project root to handle intentional deviations:
 ```yaml
 suppressions:
   - rule_id: "RUST_CLONE_IN_LOOP"
@@ -104,10 +104,10 @@ must_not_contain: "console\\.log"
 ```
 
 ### Rust Rules (Procedural)
-For complex semantic checks, implement the `AuditorRule` trait:
+For complex semantic checks, implement the `GenSenseRule` trait:
 ```rust
-impl AuditorRule for SecretGuard {
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+impl GenSenseRule for SecretGuard {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         // High-precision procedural logic here
     }
 }
@@ -128,5 +128,5 @@ impl AuditorRule for SecretGuard {
 Proprietary - Friehub (TaaS Gateway).  
 Copyright (c) 2026 Friehub. All rights reserved.
 
-Designed and engineered for the Friehub TaaS Gateway ecosystem to ensure the safety and integrity of decentralized protocols.
+Designed and engineered as a diagnostic assistant to ensure the safety and integrity of modern, AI-augmented protocols.
 

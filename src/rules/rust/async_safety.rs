@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct AsyncPanicSafety;
 
-impl AuditorRule for AsyncPanicSafety {
+impl GenSenseRule for AsyncPanicSafety {
     fn id(&self) -> &str {
         "RUST_ASYNC_PANIC_PREVENTION"
     }
@@ -24,7 +24,7 @@ impl AuditorRule for AsyncPanicSafety {
         Some("[ (call_expression) (macro_invocation) ]")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         // The engine finds the node, we verify the scope and context.
@@ -56,7 +56,7 @@ impl AsyncPanicSafety {
         false
     }
 
-    fn verify_node(&self, node: Node, context: &AuditContext, advisories: &mut Vec<Advisory>) {
+    fn verify_node(&self, node: Node, context: &GenSenseContext, advisories: &mut Vec<Advisory>) {
         let kind = node.kind();
         if kind == "call_expression" {
             if let Some(func) = node.child_by_field_name("function") {

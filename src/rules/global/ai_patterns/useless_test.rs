@@ -1,9 +1,9 @@
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct UselessTest;
 
-impl AuditorRule for UselessTest {
+impl GenSenseRule for UselessTest {
     fn id(&self) -> &str {
         "AI_USELESS_TEST"
     }
@@ -17,7 +17,7 @@ impl AuditorRule for UselessTest {
         Some("(function_item) @func")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
         if code.contains("#[test]") || code.contains("#[tokio::test]") {

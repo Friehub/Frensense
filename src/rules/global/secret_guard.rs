@@ -1,7 +1,7 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use tree_sitter::Node;
@@ -14,7 +14,7 @@ static SECRET_RE: Lazy<Regex> = Lazy::new(|| {
         .expect("Institutional Alert: Failed to compile internal secret detection regex. This is a deployment blocker.")
 });
 
-impl AuditorRule for SecretGuard {
+impl GenSenseRule for SecretGuard {
     fn id(&self) -> &str {
         "SECRET_LEAK_DETECTION"
     }
@@ -38,7 +38,7 @@ impl AuditorRule for SecretGuard {
         true
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let kind = node.kind();

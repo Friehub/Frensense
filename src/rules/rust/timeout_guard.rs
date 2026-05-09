@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct TimeoutGuard;
 
-impl AuditorRule for TimeoutGuard {
+impl GenSenseRule for TimeoutGuard {
     fn id(&self) -> &str {
         "RUST_MISSING_TIMEOUT"
     }
@@ -28,7 +28,7 @@ impl AuditorRule for TimeoutGuard {
         Some("(await_expression) @await")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let code = &context.source_code[node.start_byte()..node.end_byte()];

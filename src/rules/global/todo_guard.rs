@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct TodoGuard;
 
-impl AuditorRule for TodoGuard {
+impl GenSenseRule for TodoGuard {
     fn id(&self) -> &str {
         "GLOBAL_TODO_PLACEHOLDER"
     }
@@ -23,7 +23,7 @@ impl AuditorRule for TodoGuard {
         true
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         if node.kind().contains("comment") {

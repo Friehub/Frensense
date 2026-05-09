@@ -1,10 +1,10 @@
 #!/bin/bash
-# TaaS Static Auditor Pre-Commit Hook
+# GenSense Pre-Commit Hook
 # Standardizes integrity checks before local commits.
 
 set -e
 
-echo "[TAAS] Starting pre-commit checks..."
+echo "[GENSENSE] Starting pre-commit checks..."
 
 # 1. Format Check
 echo "[FMT] Checking formatting..."
