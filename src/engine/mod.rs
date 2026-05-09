@@ -415,7 +415,8 @@ impl Engine {
         self.enabled_categories.insert(cat.to_string());
     }
 
-    pub fn enable_tag(&mut self, tag: &str) {
+    #[allow(dead_code)]
+    fn enable_tag_internal(&mut self, tag: &str) {
         self.enabled_tags.insert(tag.to_string());
     }
 
@@ -588,6 +589,27 @@ impl Engine {
         advisories
     }
 
+    pub fn run_content(&self, file_path: &Path, content: &str) -> Result<Vec<Advisory>> {
+        let mut symbols = crate::semantics::SymbolRegistry::new();
+        let discovered = self.auditor.discover_symbols(file_path, content)?;
+        for sym in discovered {
+            symbols.insert(sym);
+        }
+
+        let (advisories, _) = self.auditor.audit(
+            file_path,
+            content,
+            &symbols,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            crate::GenSenseEnvironment::Development,
+        )?;
+        Ok(advisories)
+    }
+
+    pub fn enable_tag(&mut self, tag: &str) {
+        self.enabled_tags.insert(tag.to_string());
+    }
     fn collect_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
         if root.is_file() {
             return Ok(vec![root.to_path_buf()]);
