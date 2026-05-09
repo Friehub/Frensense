@@ -1,6 +1,6 @@
 # GenSense
 
-GenSense is a **high-precision semantic diagnostic engine** designed to detect logical flaws and security risks in codebases, particularly those influenced by AI-generated patterns. It uses Tree-sitter for industrial-grade AST traversal and provides a lightweight, developer-centric way to enforce safety standards.
+GenSense is an **experimental semantic diagnostic engine** designed to detect logical flaws and security risks in codebases. It uses Tree-sitter for AST traversal and provides a lightweight, developer-centric way to enforce safety standards.
 
 > [!TIP]
 > GenSense acts as a **Semantic Linter**. It complements existing tools like Clippy or ESLint by focusing on architectural risks (e.g., deadlocks, async safety) that traditional syntax-based linters often miss.
@@ -102,5 +102,4 @@ GenSense enforces high standards on its own codebase:
 ---
 
 ## License
-Proprietary - Friehub (TaaS Gateway).  
-Copyright (c) 2026 Friehub. All rights reserved.
+MIT License
