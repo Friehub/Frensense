@@ -57,6 +57,12 @@ impl GenSenseRule for CoreRule {
     fn severity(&self) -> crate::Severity {
         self.severity.unwrap_or(crate::Severity::Warning)
     }
+    fn impact(&self) -> &str {
+        &self.impact
+    }
+    fn improvement(&self) -> &str {
+        &self.improvement
+    }
 
     fn query(&self) -> Option<&str> {
         if self.on_node.contains("|") || !self.on_node.contains(" ") {

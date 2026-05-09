@@ -30,21 +30,21 @@ pub const GENSENSE_VERSION: &str = "0.1.7";
 /// Static embed of standardized modular safety rules to ensure out-of-the-box functionality.
 pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/rules");
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
     Critical,
     Warning,
     Info,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GenSenseEnvironment {
     Production,
     Staging,
     Development,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct Advisory {
     pub rule_id: String,
     pub severity: Severity,
@@ -82,6 +82,12 @@ pub trait GenSenseRule: Send + Sync {
     fn tags(&self) -> Vec<&str> {
         vec![]
     }
+    fn impact(&self) -> &str {
+        ""
+    }
+    fn improvement(&self) -> &str {
+        ""
+    }
     fn query(&self) -> Option<&str> {
         None
     }
@@ -99,7 +105,7 @@ pub trait GenSenseRule: Send + Sync {
         context.file_path.extension().and_then(|s| s.to_str()) == Some(expected)
     }
 
-    /// DRY Helper: Creates a standard narrative advisory.
+    /// DRY Helper: Create a new advisory for this rule.
     fn new_advisory(
         &self,
         node: &Node,
@@ -107,15 +113,14 @@ pub trait GenSenseRule: Send + Sync {
         impact: String,
         improvement: String,
     ) -> Advisory {
-        let pos = node.start_position();
         Advisory {
             rule_id: self.id().to_string(),
             severity: self.severity(),
             observation,
             impact,
             improvement,
-            line: pos.row + 1,
-            column: pos.column + 1,
+            line: node.start_position().row + 1,
+            column: node.start_position().column + 1,
             file_path: String::new(),
             original_content: String::new(),
             proposed_replacement: None,
