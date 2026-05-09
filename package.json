@@ -1,15 +1,11 @@
 {
   "name": "@friehub/gensense",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GenSense: Semantic Diagnostic Engine",
   "main": "gensense.js",
   "types": "gensense.d.ts",
   "bin": {
     "gensense": "bin/gensense.js"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com/",
-    "access": "public"
   },
   "napi": {
     "name": "gensense",
