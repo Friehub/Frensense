@@ -1,18 +1,22 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:1b6fc0d9-28d8-4f79-a988-2d02933045a1",
+  "serialNumber": "urn:uuid:7a4f6623-b4a1-46f1-b4a7-fb790301a058",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-05-09T13:05:41Z",
+    "timestamp": "2026-05-09T17:57:40Z",
     "component": {
       "name": "gensense",
-      "version": "0.1.0",
+      "version": "0.1.4",
       "type": "application"
     }
   },
   "components": [
     { "name": "authors", "version": "Friehub Developers", "type": "library" },
+    { "name": "description", "version": "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity.", "type": "library" },
+    { "name": "repository", "version": "https://github.com/Friehub/gensense", "type": "library" },
+    { "name": "homepage", "version": "https://friehub.github.io/gensense/", "type": "library" },
+    { "name": "documentation", "version": "https://friehub.github.io/gensense/", "type": "library" },
     { "name": "autobins", "version": "autobins = false", "type": "library" },
     { "name": "crate-type", "version": "cdylib", "type": "library" },
     { "name": "path", "version": "src/bin/gensense.rs", "type": "library" },
