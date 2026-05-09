@@ -2,26 +2,36 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: "GenSense",
-  description: "Experimental Semantic Diagnostic Engine",
+  description: "Experimental Semantic Diagnostic Engine for Rust, TypeScript, and Solidity.",
+  cleanUrls: true,
   themeConfig: {
-    logo: '/logo.svg', // Placeholder for potential future logo
+    logo: '/logo.svg',
     nav: [
-      { text: 'Home', link: '/' },
-      { text: 'API Reference', link: '/api' },
-      { text: 'Rule Catalog', link: '/rules' }
+      { text: 'Guide', link: '/guide' },
+      { text: 'API', link: '/api' },
+      { text: 'Rules', link: '/rules' },
+      { text: 'Editor', link: '/editor' },
     ],
     sidebar: [
       {
-        text: 'Guide',
+        text: 'Introduction',
         items: [
-          { text: 'Introduction', link: '/' },
-          { text: 'API Reference', link: '/api' },
+          { text: 'Overview', link: '/' },
+          { text: 'Getting Started', link: '/guide' },
         ]
       },
       {
-        text: 'Rules',
+        text: 'Reference',
         items: [
-          { text: 'Rule Catalog', link: '/rules' }
+          { text: 'API Reference', link: '/api' },
+          { text: 'Rule Catalog', link: '/rules' },
+        ]
+      },
+      {
+        text: 'Integration',
+        items: [
+          { text: 'Editor Integration', link: '/editor' },
+          { text: 'Extending GenSense', link: '/extending' },
         ]
       }
     ],
@@ -31,6 +41,9 @@ export default defineConfig({
     footer: {
       message: 'Released under the MIT License.',
       copyright: 'Copyright © 2026 Friehub'
+    },
+    search: {
+      provider: 'local'
     }
   }
 })
