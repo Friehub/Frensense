@@ -14,10 +14,22 @@ hero:
       link: "/api"
 
 features:
-  - title: Direct Semantic Analysis
-    details: Leverages Tree-sitter for industrial-grade AST traversal and high-precision diagnostic results.
-  - title: Developer-Centric Advisory
-    details: Technical observations focused on engineering safety and reliability, without the marketing fluff.
-  - title: Zero-Dependency CLI
-    details: Standalone native binaries for cross-platform utility, built with Rust and NAPI-RS.
+  - icon: 🔍
+    title: Semantic Diagnostics
+    details: Analyzes the Abstract Syntax Tree (AST) to identify logical flaws, security vulnerabilities, and architectural anti-patterns.
+  - icon: 🦀
+    title: Native Rust Core
+    details: Built with Rust for maximum performance and safety, providing a robust engine for high-volume analysis tasks.
+  - icon: 🔗
+    title: Cross-Language support
+    details: Deep semantic understanding for Rust, TypeScript, and Solidity, with more languages available via custom grammars.
+  - icon: ⚡
+    title: Zero-Latency Interop
+    details: High-performance NAPI-RS bindings for Node.js ensure that semantic analysis doesn't slow down your developer workflow.
+  - icon: 🛠️
+    title: Extensible Rule Engine
+    details: Easily define custom semantic rules using Tree-sitter S-expression queries tailored to your project's specific needs.
+  - icon: 📦
+    title: CI/CD Integrated
+    details: Designed for seamless integration into existing pipelines, with support for JSON output and automated remediation.
 ---
