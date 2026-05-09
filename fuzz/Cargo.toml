@@ -1,12 +1,12 @@
 [package]
-name = "taas-auditor-fuzz"
+name = "gensense-fuzz"
 version = "0.0.1"
 publish = false
 edition = "2021"
 
 [dependencies]
 libfuzzer-sys = "0.4"
-taas-auditor = { path = ".." }
+gensense = { path = ".." }
 
 [[bin]]
 name = "audit_parse"

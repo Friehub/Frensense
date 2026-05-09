@@ -1,4 +1,4 @@
-// [LICENSE] Proprietary - Friehub (TaaS Gateway)
+// [LICENSE] Proprietary - Friehub (GenSense Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
 use crate::Advisory;
@@ -56,7 +56,7 @@ impl Reporter {
                 "driver": {
                     "name": "GenSense",
                     "version": "1.0.0",
-                    "informationUri": "https://friehub.com/taas"
+                    "informationUri": "https://friehub.com/gensense"
                 }
             },
             "results": advisories.iter().map(|adv| {
