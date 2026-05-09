@@ -1,0 +1,22 @@
+#!/bin/bash
+# TaaS Static Auditor Pre-Commit Hook
+# Standardizes integrity checks before local commits.
+
+set -e
+
+echo "🚀 [TaaS Integrity] Starting pre-commit checks..."
+
+# 1. Format Check
+echo "🎨 Checking formatting..."
+cargo fmt --all -- --check
+
+# 2. Clippy Lints
+echo "🔍 Running semantic lints..."
+cargo clippy --all-targets --all-features -- -D warnings
+
+# 3. Quick Tests
+echo "🧪 Running unit tests..."
+cargo test --lib --bins
+
+echo "✅ [TaaS Integrity] All checks passed. Proceeding with commit."
+exit 0
