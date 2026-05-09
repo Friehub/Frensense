@@ -1,122 +1,103 @@
 # GenSense
 
-GenSense is a **semantic diagnostic engine** designed to detect logical flaws and security risks in codebases, particularly those heavily influenced by AI-generated patterns. It uses Tree-sitter for high-precision AST traversal and provides a lightweight, language-agnostic way to enforce safety standards.
+GenSense is a **high-precision semantic diagnostic engine** designed to detect logical flaws and security risks in codebases, particularly those influenced by AI-generated patterns. It uses Tree-sitter for industrial-grade AST traversal and provides a lightweight, developer-centric way to enforce safety standards.
 
-> [!NOTE]
-> GenSense is a diagnostic assistant. It complements existing linters (like Clippy or ESLint) by focusing on cross-language semantic patterns and "logical sense-checks" that traditional tools often miss.
+> [!TIP]
+> GenSense acts as a **Semantic Linter**. It complements existing tools like Clippy or ESLint by focusing on architectural risks (e.g., deadlocks, async safety) that traditional syntax-based linters often miss.
 
 ---
 
-## 🛠 Usage
+## 🚀 Quick Start
 
-### 1. CLI (Rust)
-Run the engine directly against a local directory:
+### 1. Global CLI (via NPM)
+You can run GenSense directly on any project using `npx`:
+
 ```bash
-# Standard analysis
-cargo run -- /path/to/your/code
+# Audit the current directory
+npx gensense audit .
 
-# Enable optional diagnostic tags (e.g., SBOM, Governance)
-cargo run -- /path/to/your/code --tag sbom
+# Enable specific diagnostic tags (e.g., security, performance)
+npx gensense audit . --tag security --tag performance
 ```
 
-### 2. Node.js (Native Addon)
-GenSense is available as a high-performance native bridge for Node.js.
-```javascript
-const { Engine, GenSenseAuditor } = require('@friehub/gensense');
+### 2. Programmatic API (Node.js)
+GenSense provides a professional, class-based API for integration into your own tools or CI pipelines:
 
-const engine = new Engine(GenSenseAuditor.default());
-engine.enableTag('sbom'); // Opt-in to specific audits
-const advisories = engine.run('/path/to/project');
+```javascript
+const { GenSense } = require('@friehub/gensense');
+
+// 1. Initialize the engine
+const engine = new GenSense({
+  environment: 'development',
+  tags: ['security'] // Enable specific rule groups
+});
+
+// 2. Audit a code string (ideal for IDE plugins)
+const code = `
+fn main() {
+    let x: Option<i32> = None;
+    x.unwrap(); // This will be flagged for safety
+}
+`;
+
+const findings = engine.auditContent('app.rs', code);
+findings.forEach(a => console.log(`[${a.severity}] ${a.ruleId}: ${a.observation}`));
+
+// 3. Audit a directory on disk
+const projectFindings = engine.auditPath('./src');
 ```
 
 ---
 
-## 🛠 Developer-Centric Diagnostics
+## 🛠 Developer-Centric Design
 
-GenSense is built for developers, not for auditors. We prioritize **technical impact** and **engineering clarity**:
-*   **No Institutional Jargon**: Advisories focus on technical debt, maintenance overhead, and security risks.
-*   **Optional Audits**: High-level governance checks (like SBOM verification) are **opt-in**. We don't nag you about project management unless you ask us to.
-*   **Actionable Feedback**: Every suggestion is designed to be a peer-review comment you'd actually want to receive.
+GenSense is built for engineers who value precision and clarity:
+*   **Peer-Review Tone**: Advisories are written as actionable engineering feedback, not institutional jargon.
+*   **Opt-in Governance**: High-level checks (like SBOM/Governance) are strictly **opt-in**. We don't nag you about metadata unless you ask us to.
+*   **Stateful Analysis**: Unlike simple linters, GenSense tracks semantic symbols across your project to identify complex cross-function risks.
 
 ---
 
 ## ✍️ Extending GenSense: Adding Your Own Rules
 
-Developers can extend GenSense using two mechanisms: **Declarative YAML** (simple pattern matching) and **Procedural Rust** (complex semantic analysis).
+Developers can extend GenSense using **Declarative YAML** (simple pattern matching) or **Procedural Rust** (complex semantic analysis).
 
-### 1. Declarative Rules (YAML)
-The easiest way to add a rule is via a `.yml` file in the `rules/` directory.
+### Declarative Rules (YAML)
+Add a `.yml` file in the `rules/` directory:
 
-**Format (`rules/custom_rules.yml`):**
 ```yaml
 rules:
-  - id: "MY_CUSTOM_RULE"
-    domain: "security"
+  - id: "RUST_DANGEROUS_UNWRAP"
+    domain: "reliability"
     target_ext: "rs"
-    on_node: "(call_expression) @node" # Tree-sitter query
-    if_matches: "dangerous_func\\("     # Regex for the node content
-    observation: "A dangerous function was detected."
-    impact: "This could lead to unauthorized access."
-    improvement: "Use 'safe_func' instead."
-    severity: "warning"
+    on_node: "(call_expression) @node"
+    if_matches: ".*\\.unwrap\\(\\)"
+    observation: "I noticed an '.unwrap()' call that might be risky."
+    impact: "Unwrapping can cause a panic if the value is None/Err."
+    improvement: "Use 'match' or '?' for safer error handling."
 ```
 
-*   **`on_node`**: Uses Tree-sitter query syntax. **Must include a named capture** (e.g., `@node`).
-*   **`if_matches`**: (Optional) A regex filter applied to the text of the matched node.
-*   **`must_contain` / `must_not_contain`**: (Optional) Additional regex constraints for the node's scope.
+---
 
-### 2. Procedural Rules (Rust)
-For rules requiring deep AST traversal or stateful analysis, implement the `GenSenseRule` trait in Rust.
+## 🔍 Suppression & Ignoring
+
+GenSense respects inline comments for fine-grained control:
 
 ```rust
-pub struct MyComplexRule;
-
-impl GenSenseRule for MyComplexRule {
-    fn id(&self) -> &str { "MY_COMPLEX_RULE" }
-    
-    fn query(&self) -> Option<&str> {
-        Some("(function_item) @func")
-    }
-
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
-        let mut advisories = Vec::new();
-        // Implement your custom logic here using the tree-sitter node
-        advisories
-    }
-}
+// gensense-ignore: RUST_UNWRAP_SAFETY
+let config = parse_config().unwrap(); // I know this is safe because...
 ```
+
+You can also use a `.gensense-suppress.yml` in your project root for path-based exclusions.
 
 ---
 
-## 🔍 Using Existing Rules
+## 🏗 Development Stack
 
-GenSense comes with a robust library of built-in rules for **Rust**, **TypeScript**, and **Solidity**.
-
-### Listing Rules
-To see all currently loaded rules and their documentation:
-```bash
-cargo run -- --generate-docs
-```
-This generates a `RULES.md` file containing the full catalog of observations, impacts, and remediation steps.
-
-### Suppression
-If a rule triggers a false positive or an intentional deviation, suppress it via `.gensense-suppress.yml` in your project root:
-```yaml
-suppressions:
-  - rule_id: "RUST_ASYNC_MUTEX_DEADLOCK"
-    path: "src/legacy_wrapper.rs"
-    reason: "Internal wrapper ensures lock is dropped before await."
-```
-
----
-
-## 🏗 Developer Integrity Stack
-
-GenSense enforces high standards on its own codebase to ensure diagnostic reliability:
-*   **`make fmt`**: Enforces strict style guidelines.
-*   **`make check`**: Runs semantic lints via Clippy.
-*   **`make test`**: Executes the full regression suite (Rust + Node.js bindings).
-*   **`make audit`**: Scans dependencies for security vulnerabilities.
+GenSense enforces high standards on its own codebase:
+*   **`npm run build`**: Builds the native NAPI-RS bridge with full language support.
+*   **`npm test`**: Runs the cross-language integration suite.
+*   **`scripts/local-ci.sh`**: Full stack validation (Format, Lint, Test, Build).
 
 ---
 
