@@ -1,53 +1,53 @@
-# Antigravity: Core Engineering Philosophy & Skills
+# GenSense: Contributor Engineering Standards
 
-This document defines the operational mindset and technical principles for our pair-programming relationship. It serves as a behavioral contract to ensure the production of correct, clean, and accurate code.
-
----
-
-## Engineering Philosophy: "The Assembly Mindset"
-
-We view software development through the lens of Computer Science fundamentals. We treat high-level languages with the same rigor as Assembly, focusing on how data actually flows through the machine.
-
-1.  **Correctness Over Perfection**: We prioritize code that is logically sound and mathematically verifiable over "clever" or "aesthetic" solutions.
-2.  **Accuracy Over Speed**: We take the time to verify Tree-sitter queries and regex patterns against real samples rather than assuming they work.
-3.  **Clean Architecture**: We favor composition and simple AST traversals. If a rule or function becomes too complex to explain in three sentences, it needs refactoring.
-4.  **Deterministic Outcome**: Every diagnostic should be reproducible. We use snapshots and regression testing to ensure the engine doesn't "hallucinate" findings.
+This document defines the operational mindset, technical principles, and behavioral expectations for anyone (human or AI agent) contributing to the GenSense codebase. It serves as a technical contract to ensure the production of correct, high-performance, and semantically accurate code.
 
 ---
 
-## Technical Skill Set (GenSense Context)
+## 1. Engineering Philosophy: "The Assembly Mindset"
 
-### 1. Semantic AST Manipulation
-*   **Tree-sitter Mastery**: Expertise in writing high-precision queries using S-expressions.
-*   **Named Captures**: Strict adherence to `@node` and `@capture` naming conventions to ensure engine compatibility.
-*   **Multi-Language Parsing**: Context-aware handling of Rust, TypeScript, and Solidity grammars.
+We view software development through the lens of Computer Science fundamentals. We treat high-level languages with the same rigor as Assembly, focusing on how data actually flows through the machine and how the AST represents logic.
 
-### 2. High-Performance Native Interop
-*   **NAPI-RS**: Building and maintaining zero-latency bridges between the Rust engine and Node.js.
-*   **Memory Safety**: Enforcing Rust's ownership model across the FFI (Foreign Function Interface) boundary.
-*   **Build Isolation**: Managing complex linker flags and feature-gated binary definitions.
+1.  **Correctness Over Convenience**: We prioritize code that is logically sound and mathematically verifiable over "clever" or "aesthetic" shortcuts.
+2.  **Accuracy Over Speed**: We take the time to verify Tree-sitter queries and regex patterns against real code samples rather than assuming they "look correct."
+3.  **Compositional Simplicity**: We favor composition and simple AST traversals. If a rule or function becomes too complex to explain in three sentences, it requires refactoring.
+4.  **Deterministic Diagnostics**: Every engine finding should be reproducible. We use snapshots and regression testing to ensure the semantic analysis remains stable across versions.
 
 ---
 
-## The Self-Correction & Discovery Protocol
+## 2. Technical Skill Set (Core Competencies)
 
-Since neither humans nor agents are perfect, we implement a protocol for handling ambiguity and advancing knowledge.
+### Semantic AST Manipulation
+*   **Tree-sitter Proficiency**: Deep expertise in writing high-precision queries using S-expressions.
+*   **Canonical Captures**: Strict adherence to `@node` and `@capture` naming conventions to ensure engine compatibility and consistent diagnostic output.
+*   **Multi-Language Grammar**: Context-aware handling of Rust, TypeScript, and Solidity grammars, respecting the unique idioms of each language.
 
-1.  **The "Stall & Search" Rule**: If I encounter a version conflict or a cryptic compiler error, I will not "guess." I will explicitly stall the task and perform a **Web Search** to retrieve the latest documentation or community fixes.
-2.  **Active Human Engagement**: When a design decision has multiple valid paths (e.g., Performance vs. Readability), I will present the trade-offs to my human partner rather than making a unilateral decision.
-3.  **Experimental Validation**: Before committing complex logic, I will create small "scratch scripts" (in `tests/samples/`) to verify my assumptions against the machine's actual behavior.
-4.  **Knowledge Ingestion**: Every time a human corrects my logic, I will analyze the "root cause" of my misunderstanding and update our internal documentation (README or SKILLS) to prevent recurrence.
+### High-Performance Native Interop
+*   **NAPI-RS**: Maintaining zero-latency bridges between the Rust engine and Node.js environments.
+*   **Memory Safety**: Enforcing Rust's ownership model across the FFI (Foreign Function Interface) boundary to prevent leaks or race conditions.
+*   **Build Hermeticity**: Managing feature-gated binary definitions and platform-specific linker flags with precision.
 
 ---
 
-## Identified Limitations (Honesty & Guardrails)
+## 3. Discovery & Correction Protocol
 
-1.  **Global Context Window**: I cannot "see" the entire repository at once. I may miss cross-module side effects if they aren't in the immediate analysis path.
-2.  **Version Drift**: My knowledge is a snapshot. I must always verify against the *local* environment using search tools.
-3.  **Heuristic Sensitivity**: Static analysis is probabilistic. I will flag "potential" issues, but I cannot guarantee runtime behavior. I must rely on the user for final risk assessment.
+Since high-complexity static analysis requires precision, we implement a protocol for handling ambiguity:
+
+1.  **The "Stall & Search" Rule**: When encountering a version conflict, cryptic compiler error, or upstream API change, contributors should never "guess." Perform deep research using official documentation or community references.
+2.  **Trade-off Visibility**: When a design decision has multiple valid paths (e.g., Engine Performance vs. Code Readability), contributors must document the trade-offs before proceeding.
+3.  **Empirical Validation**: Before committing complex semantic logic, create small "scratch samples" (in `tests/samples/`) to verify assumptions against actual parser behavior.
+4.  **Root-Cause Documentation**: When a logic error is discovered, analyze the root cause and update internal documentation (README or this document) to prevent recurrence.
+
+---
+
+## 4. Operational Guardrails
+
+1.  **Context Sensitivity**: Be aware that static analysis is localized. Always consider cross-module side effects when modifying the core engine or common AST utilities.
+2.  **Version Verification**: Always verify library dependencies and compiler toolchains against the current environment to avoid version drift.
+3.  **Heuristic Honesty**: Acknowledge that static analysis is probabilistic. Flag potential issues clearly, distinguishing between "definitive bugs" and "semantic warnings."
 
 ---
 
 ## 📜 Continuous Improvement
 
-This document is living. As we crush more challenges, we will refine these skills to ensure we are always building a better version of ourselves and our software every day.
+This document is living. As the GenSense engine evolves, these standards will be refined to ensure we are building the most reliable and high-performance semantic engine possible.
