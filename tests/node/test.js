@@ -1,4 +1,4 @@
-const { auditContent } = require('./index');
+const { auditContent } = require('./bridge');
 
 const code = `
 async fn leaky() {
