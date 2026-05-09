@@ -1,6 +1,6 @@
 {
   "name": "@friehub/gensense",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "GenSense: Semantic Diagnostic Engine",
   "main": "gensense.js",
   "types": "gensense.d.ts",
