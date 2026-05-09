@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests {
+    use gensense::{GenSenseAuditor, SymbolRegistry};
     use std::path::Path;
-    use taas_auditor::{AstAuditor, SymbolRegistry};
 
     #[test]
     fn test_rust_async_safety() {
-        let auditor = AstAuditor::default_auditor();
+        let auditor = GenSenseAuditor::default_auditor();
         let code = r#"
             async fn bad() {
                 let m = std::sync::Mutex::new(0);
@@ -22,7 +22,7 @@ mod tests {
                 &registry,
                 &Default::default(),
                 &Default::default(),
-                taas_auditor::AuditorEnvironment::Development,
+                gensense::GenSenseEnvironment::Development,
             )
             .unwrap();
         assert!(!violations.is_empty());
@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_js_security() {
-        let auditor = AstAuditor::default_auditor();
+        let auditor = GenSenseAuditor::default_auditor();
         let code = "eval('console.log(1)');";
 
         let registry = SymbolRegistry::new();
@@ -46,7 +46,7 @@ mod tests {
                 &registry,
                 &Default::default(),
                 &Default::default(),
-                taas_auditor::AuditorEnvironment::Development,
+                gensense::GenSenseEnvironment::Development,
             )
             .unwrap();
         // The rule ID might have changed in YAML

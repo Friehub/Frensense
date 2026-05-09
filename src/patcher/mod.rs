@@ -1,15 +1,18 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditorError, Result};
+use crate::{Advisory, GenSenseError, Result};
+#[cfg(feature = "remediation")]
 use diff;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "remediation")]
 pub struct PatchManager {
     root_dir: PathBuf,
 }
 
+#[cfg(feature = "remediation")]
 impl PatchManager {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         Self {
@@ -59,11 +62,11 @@ impl PatchManager {
 
         let absolute_path = self.root_dir.join(file_path);
         let content = fs::read_to_string(&absolute_path)
-            .map_err(|e| AuditorError::Config(format!("Failed to read file for patching: {e}")))?;
+            .map_err(|e| GenSenseError::Config(format!("Failed to read file for patching: {e}")))?;
 
         // Context-Aware Verification: Ensure the original content still exists exactly as expected.
         if !content.contains(&advisory.original_content) {
-            return Err(AuditorError::Config(format!(
+            return Err(GenSenseError::Config(format!(
                 "Patch failed for {}: Context mismatch. Code has changed since scan.",
                 file_path.display()
             )));
@@ -76,12 +79,12 @@ impl PatchManager {
         // 2. Write to a temporary file.
         let tmp_path = absolute_path.with_extension("patch_tmp");
         fs::write(&tmp_path, updated_content).map_err(|e| {
-            AuditorError::Config(format!("Failed to write temporary patch file: {e}"))
+            GenSenseError::Config(format!("Failed to write temporary patch file: {e}"))
         })?;
 
         // 3. Atomic rename (on Unix, this is atomic).
         fs::rename(&tmp_path, &absolute_path)
-            .map_err(|e| AuditorError::Config(format!("Failed to apply patch atomically: {e}")))?;
+            .map_err(|e| GenSenseError::Config(format!("Failed to apply patch atomically: {e}")))?;
 
         Ok(())
     }

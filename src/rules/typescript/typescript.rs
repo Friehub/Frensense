@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct TypeScriptUnsafeCast;
 
-impl AuditorRule for TypeScriptUnsafeCast {
+impl GenSenseRule for TypeScriptUnsafeCast {
     fn id(&self) -> &str {
         "TS_UNSAFE_TYPE_ASSERTION"
     }
@@ -23,7 +23,7 @@ impl AuditorRule for TypeScriptUnsafeCast {
         ext == "ts" || ext == "tsx"
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         // Check if the target type is 'any'

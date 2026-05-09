@@ -1,9 +1,9 @@
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct DeadResult;
 
-impl AuditorRule for DeadResult {
+impl GenSenseRule for DeadResult {
     fn id(&self) -> &str {
         "AI_DEAD_RESULT_DISCARD"
     }
@@ -17,7 +17,7 @@ impl AuditorRule for DeadResult {
         Some("(let_declaration) @let")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
         if code.starts_with("let _ =") && code.contains("(") {

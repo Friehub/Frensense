@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct FakeAsyncDetector;
 
-impl AuditorRule for FakeAsyncDetector {
+impl GenSenseRule for FakeAsyncDetector {
     fn id(&self) -> &str {
         "RUST_FAKE_ASYNC"
     }
@@ -24,7 +24,7 @@ impl AuditorRule for FakeAsyncDetector {
         Some("function_item")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         // 1. Verify it's an async function

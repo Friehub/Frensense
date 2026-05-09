@@ -1,10 +1,10 @@
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use std::collections::HashSet;
 use tree_sitter::Node;
 
 pub struct RedundantComment;
 
-impl AuditorRule for RedundantComment {
+impl GenSenseRule for RedundantComment {
     fn id(&self) -> &str {
         "RUST_REDUNDANT_COMMENT"
     }
@@ -18,7 +18,7 @@ impl AuditorRule for RedundantComment {
         Some("(function_item) @func")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         if let Some(name_node) = node.child_by_field_name("name") {
             let name =

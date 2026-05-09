@@ -1,13 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule, Severity};
+#![allow(clippy::all)]
+use crate::{Advisory, GenSenseContext, GenSenseRule, Severity};
 use tree_sitter::Node;
-
-#[allow(clippy::all)]
 pub struct SolidityReentrancyGuard;
 
-impl AuditorRule for SolidityReentrancyGuard {
+impl GenSenseRule for SolidityReentrancyGuard {
     fn id(&self) -> &str {
         "SOL_REENTRANCY_PATTERN"
     }
@@ -25,7 +24,7 @@ impl AuditorRule for SolidityReentrancyGuard {
         ext == "sol"
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let mut has_call = false;

@@ -11,7 +11,7 @@ use walkdir::WalkDir;
 
 use crate::{
     parser::ParserRegistry, rules::core::CoreRule, semantics::Symbol, semantics::SymbolRegistry,
-    Advisory, AuditContext, AuditorError, AuditorRule, Result, EMBEDDED_RULES_DIR,
+    Advisory, GenSenseContext, GenSenseError, GenSenseRule, Result, EMBEDDED_RULES_DIR,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,6 +25,7 @@ pub struct Suppression {
     pub path: String,
 }
 
+#[cfg(feature = "fingerprinting")]
 #[derive(Debug)]
 pub struct FunctionFingerprint {
     pub file_path: String,
@@ -33,13 +34,16 @@ pub struct FunctionFingerprint {
     pub ngram_hashes: HashSet<u64>,
 }
 
-pub struct AstAuditor {
-    rules: Vec<Box<dyn AuditorRule>>,
+#[cfg(not(feature = "fingerprinting"))]
+pub type FunctionFingerprint = ();
+
+pub struct GenSenseAuditor {
+    rules: Vec<Box<dyn GenSenseRule>>,
     suppressions: Vec<(String, Pattern)>,
 }
 
-impl AstAuditor {
-    pub fn new(rules: Vec<Box<dyn AuditorRule>>) -> Self {
+impl GenSenseAuditor {
+    pub fn new(rules: Vec<Box<dyn GenSenseRule>>) -> Self {
         Self {
             rules,
             suppressions: Vec::new(),
@@ -54,23 +58,26 @@ impl AstAuditor {
         }
     }
 
-    pub fn rules(&self) -> &[Box<dyn AuditorRule>] {
+    pub fn rules(&self) -> &[Box<dyn GenSenseRule>] {
         &self.rules
     }
 
     /// Factory: Creates an auditor with default embedded rules.
     pub fn default_auditor() -> Self {
-        let mut rules: Vec<Box<dyn AuditorRule>> = Vec::new();
+        let mut rules: Vec<Box<dyn GenSenseRule>> = Vec::new();
 
         // Native High-Precision Rules
-        rules.push(Box::new(crate::rules::rust::deadlock_guard::DeadlockGuard));
-        rules.push(Box::new(crate::rules::rust::async_safety::AsyncPanicSafety));
-        rules.push(Box::new(crate::rules::rust::fake_async::FakeAsyncDetector));
-        rules.push(Box::new(
-            crate::rules::rust::blocking_io::BlockingIoDetector,
-        ));
-        rules.push(Box::new(crate::rules::rust::tracing_guard::TracingGuard));
-        rules.push(Box::new(crate::rules::rust::timeout_guard::TimeoutGuard));
+        #[cfg(feature = "rust")]
+        {
+            rules.push(Box::new(crate::rules::rust::deadlock_guard::DeadlockGuard));
+            rules.push(Box::new(crate::rules::rust::async_safety::AsyncPanicSafety));
+            rules.push(Box::new(crate::rules::rust::fake_async::FakeAsyncDetector));
+            rules.push(Box::new(
+                crate::rules::rust::blocking_io::BlockingIoDetector,
+            ));
+            rules.push(Box::new(crate::rules::rust::tracing_guard::TracingGuard));
+            rules.push(Box::new(crate::rules::rust::timeout_guard::TimeoutGuard));
+        }
 
         // AI Patterns (Decomposed)
         rules.push(Box::new(
@@ -88,6 +95,7 @@ impl AstAuditor {
         rules.push(Box::new(
             crate::rules::global::ai_patterns::redundant_comment::RedundantComment,
         ));
+        #[cfg(feature = "typescript")]
         rules.push(Box::new(
             crate::rules::global::ai_patterns::ts_floating_promise::TsFloatingPromiseDetector,
         ));
@@ -113,140 +121,98 @@ impl AstAuditor {
         Self::new(rules)
     }
 
+    #[allow(unused_variables)]
     pub fn audit(
         &self,
         path: &Path,
         content: &str,
         symbols: &SymbolRegistry,
-        cat_filter: &HashSet<String>,
+        category_filter: &HashSet<String>,
         tag_filter: &HashSet<String>,
-        env: crate::AuditorEnvironment,
+        env: crate::GenSenseEnvironment,
     ) -> Result<(Vec<Advisory>, Vec<FunctionFingerprint>)> {
-        let language = ParserRegistry::get_language(path)?;
-        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        let mut advisories = Vec::new();
+        let mut fingerprints = Vec::new();
 
-        let mut parser = Parser::new();
-        if parser.set_language(&language).is_err() {
-            return Ok((Vec::new(), Vec::new()));
-        }
-        let tree = parser
-            .parse(content, None)
-            .ok_or_else(|| AuditorError::ParseFailure(path.display().to_string()))?;
-
-        let context = AuditContext {
-            file_path: path,
-            source_code: content,
-            symbols,
+        let language = match ParserRegistry::get_language(path) {
+            Ok(l) => l,
+            Err(_) => return Ok((Vec::new(), Vec::new())),
         };
 
-        let mut advisories: Vec<Advisory> = Vec::new();
-        let mut fingerprints: Vec<FunctionFingerprint> = Vec::new();
+        let mut parser = Parser::new();
+        parser.set_language(&language)?;
+        let tree = parser
+            .parse(content, None)
+            .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
 
-        let mut query_str = String::new();
-        let mut rule_map = HashMap::new();
-
-        for (idx, rule) in self.rules.iter().enumerate() {
-            if !rule.applies_to(ext) {
-                continue;
-            }
-            if !self.is_rule_enabled(rule.as_ref(), cat_filter, tag_filter, env) {
+        for rule in &self.rules {
+            if !self.is_rule_enabled(rule.as_ref(), category_filter, tag_filter, env) {
                 continue;
             }
 
-            if let Some(q) = rule.query() {
-                query_str.push_str(&format!("({q}) @rule_{idx}\n"));
-                rule_map.insert(format!("rule_{idx}"), rule);
-            }
-        }
-
-        if !query_str.is_empty() {
-            let query = Query::new(&language, &query_str)
-                .map_err(|e| AuditorError::Config(e.to_string()))?;
-            let mut cursor = QueryCursor::new();
-            let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
-
-            for m in matches {
-                for capture in m.captures {
-                    let capture_name = query.capture_names()[capture.index as usize];
-                    if let Some(rule) = rule_map.get(capture_name) {
-                        if !self.is_suppressed(capture.node, rule.id(), content, path) {
-                            advisories.extend(rule.check(capture.node, &context));
+            if rule.applies_to(path.extension().and_then(|s| s.to_str()).unwrap_or("")) {
+                let rule_advisories = if let Some(query_str) = rule.query() {
+                    let query = Query::new(&language, query_str)
+                        .map_err(|e| GenSenseError::Config(e.to_string()))?;
+                    let mut cursor = QueryCursor::new();
+                    let query_matches =
+                        cursor.matches(&query, tree.root_node(), content.as_bytes());
+                    let mut matches = Vec::new();
+                    for m in query_matches {
+                        for capture in m.captures {
+                            if !self.is_suppressed(capture.node, rule.id(), content, path) {
+                                matches.extend(rule.check(
+                                    capture.node,
+                                    &GenSenseContext {
+                                        file_path: path,
+                                        source_code: content,
+                                        symbols,
+                                    },
+                                ));
+                            }
                         }
                     }
+                    matches
+                } else {
+                    if !self.is_suppressed(tree.root_node(), rule.id(), content, path) {
+                        rule.check(
+                            tree.root_node(),
+                            &GenSenseContext {
+                                file_path: path,
+                                source_code: content,
+                                symbols,
+                            },
+                        )
+                    } else {
+                        Vec::new()
+                    }
+                };
+
+                for mut adv in rule_advisories {
+                    adv.file_path = path.to_string_lossy().to_string();
+                    advisories.push(adv);
                 }
             }
         }
 
-        self.traverse_procedural(
-            tree.root_node(),
-            &context,
-            &mut advisories,
-            ext,
-            path,
-            cat_filter,
-            tag_filter,
-            env,
-        );
-        self.extract_fingerprints(tree.root_node(), &context, &mut fingerprints);
+        #[cfg(feature = "fingerprinting")]
+        self.extract_fingerprints(tree.root_node(), content, path, &mut fingerprints);
 
         Ok((advisories, fingerprints))
     }
 
-    fn traverse_procedural(
-        &self,
-        node: Node,
-        context: &AuditContext,
-        advisories: &mut Vec<Advisory>,
-        ext: &str,
-        path: &Path,
-        cat_filter: &HashSet<String>,
-        tag_filter: &HashSet<String>,
-        env: crate::AuditorEnvironment,
-    ) {
-        for rule in &self.rules {
-            if rule.query().is_none() && rule.applies_to(ext) {
-                if !self.is_rule_enabled(rule.as_ref(), cat_filter, tag_filter, env) {
-                    continue;
-                }
-
-                if !self.is_suppressed(node, rule.id(), context.source_code, path) {
-                    advisories.extend(rule.check(node, context));
-                }
-            }
-        }
-
-        let mut cursor = node.walk();
-        if cursor.goto_first_child() {
-            loop {
-                self.traverse_procedural(
-                    cursor.node(),
-                    context,
-                    advisories,
-                    ext,
-                    path,
-                    cat_filter,
-                    tag_filter,
-                    env,
-                );
-                if !cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
-    }
-
     fn is_rule_enabled(
         &self,
-        rule: &dyn AuditorRule,
+        rule: &dyn GenSenseRule,
         cat_filter: &HashSet<String>,
         tag_filter: &HashSet<String>,
-        env: crate::AuditorEnvironment,
+        env: crate::GenSenseEnvironment,
     ) -> bool {
         let tags = rule.tags();
 
         // --- Isolation Logic ---
         // 'beta' rules ONLY run in non-production environments
-        if env == crate::AuditorEnvironment::Production && tags.contains(&"beta") {
+        if env == crate::GenSenseEnvironment::Production && tags.contains(&"beta") {
             return false;
         }
 
@@ -280,8 +246,8 @@ impl AstAuditor {
         // 2. Inline suppression
         let start_row = node.start_position().row;
         let lines: Vec<&str> = source.lines().collect();
-        let target = format!("taas-ignore: {rule_id}");
-        let target_all = "taas-ignore: all";
+        let target = format!("gensense-ignore: {rule_id}");
+        let target_all = "gensense-ignore: all";
 
         let search_start = start_row.saturating_sub(2);
         for i in search_start..start_row {
@@ -300,10 +266,12 @@ impl AstAuditor {
         false
     }
 
+    #[cfg(feature = "fingerprinting")]
     fn extract_fingerprints(
         &self,
         node: Node,
-        context: &AuditContext,
+        source_code: &str,
+        path: &Path,
         fingerprints: &mut Vec<FunctionFingerprint>,
     ) {
         let kind = node.kind();
@@ -314,15 +282,13 @@ impl AstAuditor {
             if let Some(body) = node.child_by_field_name("body") {
                 let mut function_name = "anonymous".to_string();
                 if let Some(name_node) = node.child_by_field_name("name") {
-                    function_name = context.source_code
-                        [name_node.start_byte()..name_node.end_byte()]
-                        .to_string();
+                    function_name =
+                        source_code[name_node.start_byte()..name_node.end_byte()].to_string();
                 } else if kind == "arrow_function" {
-                    // Try to resolve name from variable declarator
                     if let Some(parent) = node.parent() {
                         if parent.kind() == "variable_declarator" {
                             if let Some(name_node) = parent.child_by_field_name("name") {
-                                function_name = context.source_code
+                                function_name = source_code
                                     [name_node.start_byte()..name_node.end_byte()]
                                     .to_string();
                             }
@@ -330,7 +296,7 @@ impl AstAuditor {
                     }
                 }
 
-                let body_code = &context.source_code[body.start_byte()..body.end_byte()];
+                let body_code = &source_code[body.start_byte()..body.end_byte()];
                 let tokens: Vec<&str> = body_code
                     .split_whitespace()
                     .filter(|t| !t.is_empty() && !t.starts_with("//"))
@@ -347,7 +313,7 @@ impl AstAuditor {
 
                     let pos = node.start_position();
                     fingerprints.push(FunctionFingerprint {
-                        file_path: context.file_path.to_string_lossy().to_string(),
+                        file_path: path.to_string_lossy().to_string(),
                         function_name,
                         line: pos.row + 1,
                         ngram_hashes,
@@ -358,7 +324,7 @@ impl AstAuditor {
 
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.extract_fingerprints(child, context, fingerprints);
+            self.extract_fingerprints(child, source_code, path, fingerprints);
         }
     }
 
@@ -375,10 +341,10 @@ impl AstAuditor {
         }
         let tree = parser
             .parse(content, None)
-            .ok_or_else(|| AuditorError::ParseFailure(path.display().to_string()))?;
+            .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
 
         let query =
-            Query::new(&language, query_str).map_err(|e| AuditorError::Config(e.to_string()))?;
+            Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
         let mut cursor = QueryCursor::new();
         let mut symbols = Vec::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -400,23 +366,23 @@ impl AstAuditor {
 }
 
 pub struct Engine {
-    pub auditor: AstAuditor,
+    pub auditor: GenSenseAuditor,
     pub enabled_categories: HashSet<String>,
     pub enabled_tags: HashSet<String>,
-    pub environment: crate::AuditorEnvironment,
+    pub environment: crate::GenSenseEnvironment,
 }
 
 impl Engine {
-    pub fn new(auditor: AstAuditor) -> Self {
+    pub fn new(auditor: GenSenseAuditor) -> Self {
         Self {
             auditor,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
-            environment: crate::AuditorEnvironment::Development,
+            environment: crate::GenSenseEnvironment::Development,
         }
     }
 
-    pub fn set_environment(&mut self, env: crate::AuditorEnvironment) {
+    pub fn set_environment(&mut self, env: crate::GenSenseEnvironment) {
         self.environment = env;
     }
 
@@ -446,7 +412,7 @@ impl Engine {
 
     pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
         // Load suppression config if it exists
-        let suppress_file = root.join(".taas-suppress.yml");
+        let suppress_file = root.join(".gensense-suppress.yml");
         if suppress_file.exists() {
             if let Ok(content) = std::fs::read_to_string(suppress_file) {
                 if let Ok(config) = serde_yaml::from_str::<SuppressConfig>(&content) {
@@ -497,12 +463,16 @@ impl Engine {
             .collect();
 
         let mut all_advisories = Vec::new();
+        #[cfg(feature = "fingerprinting")]
         let mut all_fingerprints = Vec::new();
+
         for (adv, fp) in results? {
             all_advisories.extend(adv);
+            #[cfg(feature = "fingerprinting")]
             all_fingerprints.extend(fp);
         }
 
+        #[cfg(feature = "fingerprinting")]
         all_advisories.append(&mut self.post_process_ngrams(&all_fingerprints));
         all_advisories.append(&mut self.run_governance_checks(root));
 
@@ -530,6 +500,7 @@ impl Engine {
         advisories
     }
 
+    #[cfg(feature = "fingerprinting")]
     fn post_process_ngrams(&self, fingerprints: &[FunctionFingerprint]) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let mut similarity_map: HashMap<u64, Vec<usize>> = HashMap::new();

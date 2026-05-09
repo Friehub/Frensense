@@ -3,7 +3,7 @@
 
 use crate::{
     semantics::data_flow::{DataFlowAnalyzer, TaintRegistry},
-    Advisory, AuditContext, AuditorRule,
+    Advisory, GenSenseContext, GenSenseRule,
 };
 use regex::Regex;
 use tree_sitter::Node;
@@ -42,7 +42,7 @@ pub struct CoreRule {
     pub tags: Vec<String>,
 }
 
-impl AuditorRule for CoreRule {
+impl GenSenseRule for CoreRule {
     fn id(&self) -> &str {
         &self.id
     }
@@ -80,7 +80,7 @@ impl AuditorRule for CoreRule {
         self.target_ext == ext
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let ext = context

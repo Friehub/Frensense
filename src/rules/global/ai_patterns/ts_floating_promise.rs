@@ -1,9 +1,9 @@
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct TsFloatingPromiseDetector;
 
-impl AuditorRule for TsFloatingPromiseDetector {
+impl GenSenseRule for TsFloatingPromiseDetector {
     fn id(&self) -> &str {
         "TS_FLOATING_PROMISE"
     }
@@ -17,7 +17,7 @@ impl AuditorRule for TsFloatingPromiseDetector {
         Some("(expression_statement) @stmt")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
 

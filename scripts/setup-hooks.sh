@@ -1,5 +1,5 @@
 #!/bin/bash
-# TaaS Hook Installer
+# GenSense Hook Installer
 # Links local hooks to the .git directory.
 
 set -e

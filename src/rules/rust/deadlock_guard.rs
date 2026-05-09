@@ -1,12 +1,12 @@
 // [LICENSE] Proprietary - Friehub (TaaS Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct DeadlockGuard;
 
-impl AuditorRule for DeadlockGuard {
+impl GenSenseRule for DeadlockGuard {
     fn id(&self) -> &str {
         "RUST_ASYNC_MUTEX_DEADLOCK"
     }
@@ -27,7 +27,7 @@ impl AuditorRule for DeadlockGuard {
         Some("await_expression")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         // The engine found an 'await_expression'

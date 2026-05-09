@@ -1,9 +1,9 @@
-use crate::{Advisory, AuditContext, AuditorRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
 pub struct PlaceholderPanic;
 
-impl AuditorRule for PlaceholderPanic {
+impl GenSenseRule for PlaceholderPanic {
     fn id(&self) -> &str {
         "AI_PLACEHOLDER_PANIC"
     }
@@ -17,7 +17,7 @@ impl AuditorRule for PlaceholderPanic {
         Some("(macro_invocation) @macro")
     }
 
-    fn check(&self, node: Node, context: &AuditContext) -> Vec<Advisory> {
+    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         if let Some(macro_name_node) = node.child(0) {
             let macro_name =
