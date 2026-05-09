@@ -387,12 +387,39 @@ impl GenSenseAuditor {
         let mut symbols = Vec::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
 
+        let capture_names = query.capture_names();
         for m in matches {
             for capture in m.captures {
+                let capture_name = &capture_names[capture.index as usize];
+                let kind = match *capture_name {
+                    "name" => {
+                        let parent = capture.node.parent();
+                        match parent.map(|p| p.kind()) {
+                            Some("function_item") | Some("function_declaration") => {
+                                crate::semantics::SymbolKind::Function
+                            }
+                            Some("parameter") => crate::semantics::SymbolKind::Parameter,
+                            Some("let_declaration") | Some("variable_declarator") => {
+                                crate::semantics::SymbolKind::Variable
+                            }
+                            Some("struct_item") => crate::semantics::SymbolKind::Struct,
+                            Some("enum_item") => crate::semantics::SymbolKind::Enum,
+                            Some("trait_item") => crate::semantics::SymbolKind::Interface,
+                            Some("const_item") => crate::semantics::SymbolKind::Constant,
+                            _ => crate::semantics::SymbolKind::Unknown,
+                        }
+                    }
+                    _ => crate::semantics::SymbolKind::Unknown,
+                };
+
+                if kind == crate::semantics::SymbolKind::Unknown {
+                    continue;
+                }
+
                 let name = &content[capture.node.start_byte()..capture.node.end_byte()];
                 symbols.push(Symbol {
                     name: name.to_string(),
-                    kind: crate::semantics::SymbolKind::Function,
+                    kind,
                     line: capture.node.start_position().row + 1,
                     column: capture.node.start_position().column + 1,
                     file_path: path.to_string_lossy().to_string(),
@@ -464,9 +491,72 @@ impl GenSenseAuditor {
         registry: &mut SymbolRegistry,
     ) -> Result<()> {
         let (_, tree) = self.parse_source(path, content)?;
+
+        // Link all symbols in this file to their enclosing functions
+        self.link_symbols_to_scopes(tree.root_node(), path, content, registry);
+
         let mut cursor = tree.walk();
         self.traverse_for_events(tree.root_node(), &mut cursor, path, content, registry, None);
         Ok(())
+    }
+
+    fn link_symbols_to_scopes(
+        &self,
+        root: Node,
+        path: &Path,
+        content: &str,
+        registry: &mut SymbolRegistry,
+    ) {
+        let mut cursor = root.walk();
+        self.traverse_link_symbols(root, &mut cursor, path, content, registry);
+    }
+
+    fn traverse_link_symbols(
+        &self,
+        node: Node,
+        cursor: &mut tree_sitter::TreeCursor,
+        path: &Path,
+        content: &str,
+        registry: &mut SymbolRegistry,
+    ) {
+        let name_node = node
+            .child_by_field_name("name")
+            .or_else(|| node.child_by_field_name("pattern"));
+
+        if let Some(name_node) = name_node {
+            let name = &content[name_node.start_byte()..name_node.end_byte()];
+            let line = name_node.start_position().row + 1;
+
+            if let Some(idx) = registry.find_node_at(name, &path.to_string_lossy(), line) {
+                // If this is a Parameter or Variable, link it to enclosing function
+                if let Some(func) = self.find_enclosing_function(node) {
+                    if let Some(fname_node) = func.child_by_field_name("name") {
+                        let fname = &content[fname_node.start_byte()..fname_node.end_byte()];
+                        for &f_idx in &registry.graph.find_nodes(fname) {
+                            if let Some(fsym) = registry.graph.get_symbol(f_idx) {
+                                if fsym.file_path == path.to_string_lossy() {
+                                    let kind = match node.kind() {
+                                        "parameter" => crate::semantics::graph::EdgeKind::Parameter,
+                                        _ => crate::semantics::graph::EdgeKind::InScope,
+                                    };
+                                    registry.graph.add_edge(f_idx, idx, kind);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if cursor.goto_first_child() {
+            loop {
+                self.traverse_link_symbols(cursor.node(), cursor, path, content, registry);
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+            cursor.goto_parent();
+        }
     }
 
     fn traverse_for_events<'a>(
@@ -482,10 +572,27 @@ impl GenSenseAuditor {
 
         // Check if this node is an event
         let (event_type, label) = match node.kind() {
-            "call_expression" => {
-                let fn_node = node.child_by_field_name("function");
+            "call_expression" | "macro_invocation" => {
+                let fn_node = node
+                    .child_by_field_name("function")
+                    .or_else(|| node.child_by_field_name("macro"))
+                    .or_else(|| node.child(0)); // Fallback to first child
+
                 if let Some(f) = fn_node {
-                    let fn_name = &content[f.start_byte()..f.end_byte()];
+                    let mut fn_name = &content[f.start_byte()..f.end_byte()];
+                    // Remove ! from macro names
+                    if fn_name.ends_with('!') {
+                        fn_name = &fn_name[..fn_name.len() - 1];
+                    }
+                    // Handle cases like "foo.bar" -> "bar"
+                    if let Some(pos) = fn_name.rfind('.') {
+                        fn_name = &fn_name[pos + 1..];
+                    }
+                    // Handle cases like "foo::bar" -> "bar"
+                    if let Some(pos) = fn_name.rfind("::") {
+                        fn_name = &fn_name[pos + 2..];
+                    }
+
                     let et = if fn_name.contains("lock") {
                         crate::semantics::graph::EventType::Acquire
                     } else if fn_name.contains("unlock") || fn_name.contains("drop") {
@@ -498,17 +605,43 @@ impl GenSenseAuditor {
                     (None, String::new())
                 }
             }
+            "variable_declarator" | "let_declaration" => {
+                let name_node = node
+                    .child_by_field_name("name")
+                    .or_else(|| node.child_by_field_name("pattern"));
+                let name = name_node
+                    .map(|n| &content[n.start_byte()..n.end_byte()])
+                    .unwrap_or("");
+                (
+                    Some(crate::semantics::graph::EventType::Assignment),
+                    name.to_string(),
+                )
+            }
+            "assignment_expression" => {
+                let left_node = node.child_by_field_name("left");
+                let name = left_node
+                    .map(|n| &content[n.start_byte()..n.end_byte()])
+                    .unwrap_or("");
+                (
+                    Some(crate::semantics::graph::EventType::Assignment),
+                    name.to_string(),
+                )
+            }
             "await_expression" => (
                 Some(crate::semantics::graph::EventType::Await),
                 ".await".to_string(),
+            ),
+            "return_statement" => (
+                Some(crate::semantics::graph::EventType::Return),
+                "return".to_string(),
             ),
             _ => (None, String::new()),
         };
 
         if let Some(et) = event_type {
             let event = crate::semantics::graph::TemporalEvent {
-                event_type: et,
-                label,
+                event_type: et.clone(),
+                label: label.clone(),
                 file_path: path.to_string_lossy().to_string(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column + 1,
@@ -541,6 +674,112 @@ impl GenSenseAuditor {
                     }
                 }
             }
+
+            // Data Flow Edges
+            match et {
+                crate::semantics::graph::EventType::Assignment => {
+                    let value_node = node
+                        .child_by_field_name("value")
+                        .or_else(|| node.child_by_field_name("right"));
+                    if let Some(v) = value_node {
+                        let mut val_name = &content[v.start_byte()..v.end_byte()];
+
+                        // If it's a call/macro, use the function name part for linking
+                        if v.kind() == "call_expression" {
+                            if let Some(f) = v.child_by_field_name("function") {
+                                val_name = &content[f.start_byte()..f.end_byte()];
+                            }
+                        } else if v.kind() == "macro_invocation" {
+                            if let Some(m) = v.child_by_field_name("macro") {
+                                val_name = &content[m.start_byte()..m.end_byte()];
+                                if val_name.ends_with('!') {
+                                    val_name = &val_name[..val_name.len() - 1];
+                                }
+                            }
+                        }
+
+                        // Link RHS (val_name) to this assignment event
+                        let nodes = registry.graph.find_nodes(val_name);
+                        for &v_idx in &nodes {
+                            registry.graph.add_edge(
+                                v_idx,
+                                idx,
+                                crate::semantics::graph::EdgeKind::FlowsFrom,
+                            );
+                        }
+                    }
+                    // Link this assignment event to the target variable symbol
+                    let targets = registry.graph.find_nodes(&label);
+                    for &target_idx in &targets {
+                        registry.graph.add_edge(
+                            idx,
+                            target_idx,
+                            crate::semantics::graph::EdgeKind::FlowsFrom,
+                        );
+                    }
+                }
+                crate::semantics::graph::EventType::Call => {
+                    // Link arguments to parameters AND the call event itself
+                    let args_node = node
+                        .child_by_field_name("arguments")
+                        .or_else(|| node.child_by_field_name("token_tree"))
+                        .or_else(|| {
+                            let mut cursor = node.walk();
+                            if cursor.goto_first_child() {
+                                loop {
+                                    let c = cursor.node();
+                                    if c.kind() == "token_tree" || c.kind() == "arguments" {
+                                        return Some(c);
+                                    }
+                                    if !cursor.goto_next_sibling() {
+                                        break;
+                                    }
+                                }
+                            }
+                            None
+                        });
+
+                    if let Some(args) = args_node {
+                        let mut arg_cursor = args.walk();
+                        let mut p_idx = 0;
+                        for arg in args.children(&mut arg_cursor) {
+                            if matches!(arg.kind(), "(" | ")" | "," | "[" | "!" | "{") {
+                                continue;
+                            }
+                            let arg_name = &content[arg.start_byte()..arg.end_byte()];
+
+                            for &a_idx in &registry.graph.find_nodes(arg_name) {
+                                // 1. Link arg to the call event (for sink detection)
+                                registry.graph.add_edge(
+                                    a_idx,
+                                    idx,
+                                    crate::semantics::graph::EdgeKind::FlowsFrom,
+                                );
+
+                                // 2. Link arg to target function's parameter p_idx
+                                for &f_idx in &registry.graph.find_nodes(&label) {
+                                    let params = registry.graph.neighbors_of(
+                                        f_idx,
+                                        crate::semantics::graph::EdgeKind::Parameter,
+                                    );
+                                    if let Some(&p_node_idx) = params.get(p_idx) {
+                                        registry.graph.add_edge(
+                                            a_idx,
+                                            p_node_idx,
+                                            crate::semantics::graph::EdgeKind::FlowsFrom,
+                                        );
+                                    }
+                                }
+                            }
+                            if !matches!(arg.kind(), "\"" | "'") {
+                                p_idx += 1;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+
             current_last = Some(idx);
         }
 

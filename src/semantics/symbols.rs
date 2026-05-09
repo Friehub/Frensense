@@ -15,6 +15,7 @@ pub enum SymbolKind {
     Constant,
     Module,
     Variable,
+    Parameter,
     Unknown,
 }
 
@@ -54,6 +55,16 @@ impl SymbolRegistry {
         self.find(name)
             .into_iter()
             .find(|s| s.file_path == file && s.line == line)
+    }
+
+    pub fn find_node_at(&self, name: &str, file: &str, line: usize) -> Option<NodeIndex> {
+        self.graph.find_nodes(name).into_iter().find(|&idx| {
+            if let Some(sym) = self.graph.get_symbol(idx) {
+                sym.file_path == file && sym.line == line
+            } else {
+                false
+            }
+        })
     }
 
     pub fn find_function_at(&self, file: &str, line: usize) -> Option<NodeIndex> {
