@@ -1,0 +1,15 @@
+[package]
+name = "taas-auditor-fuzz"
+version = "0.0.1"
+publish = false
+edition = "2021"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+taas-auditor = { path = ".." }
+
+[[bin]]
+name = "audit_parse"
+path = "fuzz_targets/audit_parse.rs"
+test = false
+doc = false

@@ -1,0 +1,10 @@
+rules:
+  - id: "TS_PRISMA_SELECT_STAR"
+    domain: "performance"
+    target_ext: "ts"
+    on_node: "call_expression"
+    if_matches: "\\.(findMany|findUnique|findFirst)\\(.*\\)"
+    must_not_contain: "(select|include):"
+    impact: "Fetching entire database rows (SELECT *) increases network overhead and can leak sensitive fields (e.g. password_hash)."
+    improvement: "Add an explicit 'select' or 'include' block to fetch only the required fields."
+    observation: "I noticed a Prisma query that fetches all fields. This is inefficient for production workloads."
