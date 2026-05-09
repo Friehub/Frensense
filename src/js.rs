@@ -47,9 +47,13 @@ impl GenSenseEngine {
     }
 
     #[napi]
-    pub fn audit_content(&self, file_path: String, content: String) -> Vec<JsAdvisory> {
+    pub fn audit_content(
+        &self,
+        file_path: String,
+        content: String,
+    ) -> napi::Result<Vec<JsAdvisory>> {
         match self.inner.run_content(Path::new(&file_path), &content) {
-            Ok(advisories) => advisories
+            Ok(advisories) => Ok(advisories
                 .into_iter()
                 .map(|a| JsAdvisory {
                     rule_id: a.rule_id,
@@ -61,15 +65,18 @@ impl GenSenseEngine {
                     column: a.column as u32,
                     file_path: a.file_path,
                 })
-                .collect(),
-            Err(_) => vec![],
+                .collect()),
+            Err(e) => Err(napi::Error::from_reason(format!(
+                "GenSense Engine Error: {}",
+                e
+            ))),
         }
     }
 
     #[napi]
-    pub fn audit_path(&mut self, path: String) -> Vec<JsAdvisory> {
+    pub fn audit_path(&mut self, path: String) -> napi::Result<Vec<JsAdvisory>> {
         match self.inner.run(Path::new(&path)) {
-            Ok(advisories) => advisories
+            Ok(advisories) => Ok(advisories
                 .into_iter()
                 .map(|a| JsAdvisory {
                     rule_id: a.rule_id,
@@ -81,8 +88,11 @@ impl GenSenseEngine {
                     column: a.column as u32,
                     file_path: a.file_path,
                 })
-                .collect(),
-            Err(_) => vec![],
+                .collect()),
+            Err(e) => Err(napi::Error::from_reason(format!(
+                "GenSense Engine Error: {}",
+                e
+            ))),
         }
     }
 }

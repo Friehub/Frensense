@@ -1,6 +1,5 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
+// SPDX-License-Identifier: MIT
 #![allow(clippy::all)]
-// Copyright (c) 2026 Friehub. All rights reserved.
 
 use include_dir::{include_dir, Dir};
 use std::path::Path;
@@ -26,7 +25,7 @@ pub use semantics::{DataFlowAnalyzer, Symbol, SymbolKind, SymbolRegistry, TaintR
 #[cfg(feature = "node")]
 pub mod js;
 
-pub const GENSENSE_VERSION: &str = "0.1.2-beta";
+pub const GENSENSE_VERSION: &str = "0.1.7";
 
 /// Static embed of standardized modular safety rules to ensure out-of-the-box functionality.
 pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/rules");

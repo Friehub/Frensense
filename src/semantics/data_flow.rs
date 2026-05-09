@@ -1,5 +1,4 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
-// Copyright (c) 2026 Friehub. All rights reserved.
+// SPDX-License-Identifier: MIT
 
 use crate::{Advisory, CoreRule, GenSenseContext, GenSenseRule};
 use regex::Regex;

@@ -1,5 +1,4 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
-// Copyright (c) 2026 Friehub. All rights reserved.
+// SPDX-License-Identifier: MIT
 
 use crate::{
     semantics::data_flow::{DataFlowAnalyzer, TaintRegistry},
@@ -93,9 +92,20 @@ impl GenSenseRule for CoreRule {
         }
 
         let node_kind = node.kind();
-        let target_kinds: Vec<&str> = self.on_node.split('|').collect();
+        let target_kinds: Vec<String> = self
+            .on_node
+            .split('|')
+            .map(|s| {
+                s.trim_matches(|c| c == '(' || c == ')' || c == ' ')
+                    .split('@')
+                    .next()
+                    .unwrap_or(s)
+                    .trim()
+                    .to_string()
+            })
+            .collect();
 
-        if target_kinds.contains(&node_kind) {
+        if target_kinds.iter().any(|k| k == node_kind) || self.on_node.contains(" ") {
             let code = &context.source_code[node.start_byte()..node.end_byte()];
 
             // --- Semantic Logic: Taint Tracking ---
@@ -133,9 +143,13 @@ impl GenSenseRule for CoreRule {
                 return advisories;
             }
 
-            let matches = self.if_matches.as_ref().is_none_or(|re| re.is_match(code));
+            let matches_if = self
+                .if_matches
+                .as_ref()
+                .map_or(true, |re| re.is_match(code));
 
-            if matches {
+            // 1. Metric-based violations
+            if matches_if {
                 let start_pos = node.start_position();
                 let end_pos = node.end_position();
                 let node_lines = end_pos.row - start_pos.row + 1;
@@ -162,65 +176,69 @@ impl GenSenseRule for CoreRule {
                         ));
                     }
                 }
+            }
 
-                // --- Content-Based Constraints (Conjunction Logic) ---
-                // A violation occurs only if ALL specified constraints are met.
-                // This resolves BUG-01 and BUG-02 by ensuring RUST_LOCK_IO only fires if BOTH lock and await are present.
-                if true {
-                    // ALWAYS RUN CONSTRAINTS
-                    let matches_if = self
-                        .if_matches
-                        .as_ref()
-                        .map(|re| re.is_match(code))
-                        .unwrap_or(true);
-                    let matches_must_not = self
-                        .must_not_contain
-                        .as_ref()
-                        .map(|re| re.is_match(code))
-                        .unwrap_or(true);
+            // 2. Pattern-based violations (Conjunction Logic)
+            // A violation only occurs if we have a reason to trigger (if_matches is true OR we have specific constraints)
+            // AND the metrics were NOT the only thing this rule was about.
+            if self.max_lines.is_none() && self.max_depth.is_none() {
+                let matches_must_not = self
+                    .must_not_contain
+                    .as_ref()
+                    .map_or(true, |re| re.is_match(code));
 
-                    // BUG-03 FIX: must_contain needs to look at surrounding context for comments
-                    let matches_must = if let Some(must_re) = &self.must_contain {
-                        let mut found = must_re.is_match(code);
-                        if !found {
-                            // Look at 2 lines above for comments (e.g. // SAFETY:)
-                            let start_row = node.start_position().row;
-                            let lines: Vec<&str> = context.source_code.lines().collect();
-                            let search_start = start_row.saturating_sub(2);
-                            for i in search_start..start_row {
-                                if let Some(line) = lines.get(i) {
-                                    if must_re.is_match(line) {
-                                        found = true;
-                                        break;
-                                    }
+                let matches_must = if let Some(must_re) = &self.must_contain {
+                    let mut found = must_re.is_match(code);
+                    if !found {
+                        let start_row = node.start_position().row;
+                        let lines: Vec<&str> = context.source_code.lines().collect();
+                        let search_start = start_row.saturating_sub(2);
+                        for i in search_start..start_row {
+                            if let Some(line) = lines.get(i) {
+                                if must_re.is_match(line) {
+                                    found = true;
+                                    break;
                                 }
                             }
                         }
-                        !found // must_contain triggers violation if pattern is NOT found
+                    }
+                    !found // must_contain violation if pattern NOT found
+                } else {
+                    false // Don't trigger by default if no must_contain specified
+                };
+
+                // Trigger if (if_matches matched) AND (must_not_contain matched OR must_contain was violated)
+                // BUT only if this isn't JUST a metric rule.
+                let mut should_trigger = false;
+                if self.if_matches.is_some() && matches_if {
+                    if self.must_not_contain.is_some() && matches_must_not {
+                        should_trigger = true;
+                    } else if self.must_contain.is_some() && matches_must {
+                        should_trigger = true;
+                    } else if self.must_not_contain.is_none() && self.must_contain.is_none() {
+                        should_trigger = true;
+                    }
+                }
+
+                if should_trigger {
+                    let scope_matched = if let Some(scope_pattern) = &self.within_scope {
+                        self.check_parent_scope(node, scope_pattern, context.source_code)
                     } else {
                         true
                     };
 
-                    if matches_if && matches_must_not && matches_must {
-                        let scope_matched = if let Some(scope_pattern) = &self.within_scope {
-                            self.check_parent_scope(node, scope_pattern, context.source_code)
-                        } else {
-                            true
-                        };
-
-                        if scope_matched {
-                            let mut adv = self.new_advisory(
-                                &node,
-                                self.observation.clone(),
-                                self.impact.clone(),
-                                self.improvement.clone(),
-                            );
-                            adv.original_content = code.to_string();
-                            if let Some(fix) = &self.fix_with {
-                                adv.proposed_replacement = Some(fix.clone());
-                            }
-                            advisories.push(adv);
+                    if scope_matched {
+                        let mut adv = self.new_advisory(
+                            &node,
+                            self.observation.clone(),
+                            self.impact.clone(),
+                            self.improvement.clone(),
+                        );
+                        adv.original_content = code.to_string();
+                        if let Some(fix) = &self.fix_with {
+                            adv.proposed_replacement = Some(fix.clone());
                         }
+                        advisories.push(adv);
                     }
                 }
             }

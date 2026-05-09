@@ -1,5 +1,4 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
-// Copyright (c) 2026 Friehub. All rights reserved.
+// SPDX-License-Identifier: MIT
 
 use glob::Pattern;
 use rayon::prelude::*;
@@ -62,7 +61,6 @@ impl GenSenseAuditor {
         &self.rules
     }
 
-    /// Factory: Creates an auditor with default embedded rules.
     pub fn default_auditor() -> Self {
         let mut rules: Vec<Box<dyn GenSenseRule>> = Vec::new();
 
@@ -108,8 +106,27 @@ impl GenSenseAuditor {
             rules: Vec<CoreRule>,
         }
 
-        for file in EMBEDDED_RULES_DIR.find("**/*.yml").unwrap() {
-            if let Some(rules_yml) = file.as_file().and_then(|f| f.contents_utf8()) {
+        fn collect_yml_files<'a>(
+            dir: &'a include_dir::Dir<'a>,
+            files: &mut Vec<include_dir::File<'a>>,
+        ) {
+            for entry in dir.entries() {
+                match entry {
+                    include_dir::DirEntry::Dir(d) => collect_yml_files(d, files),
+                    include_dir::DirEntry::File(f) => {
+                        if f.path().extension().and_then(|s| s.to_str()) == Some("yml") {
+                            files.push(f.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut rule_files = Vec::new();
+        collect_yml_files(&EMBEDDED_RULES_DIR, &mut rule_files);
+
+        for file in rule_files {
+            if let Some(rules_yml) = file.contents_utf8() {
                 match serde_yaml::from_str::<RulesWrapper>(rules_yml) {
                     Ok(wrapper) => {
                         for rule in wrapper.rules {
@@ -600,9 +617,9 @@ impl Engine {
             file_path,
             content,
             &symbols,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            crate::GenSenseEnvironment::Development,
+            &self.enabled_categories,
+            &self.enabled_tags,
+            self.environment,
         )?;
         Ok(advisories)
     }
