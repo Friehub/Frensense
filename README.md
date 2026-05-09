@@ -7,7 +7,7 @@ GenSense is a **high-precision semantic diagnostic engine** designed to detect l
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Global CLI (via NPM)
 You can run GenSense directly on any project using `npx`:
@@ -49,7 +49,7 @@ const projectFindings = engine.auditPath('./src');
 
 ---
 
-## 🛠 Developer-Centric Design
+## Developer-Centric Design
 
 GenSense is built for engineers who value precision and clarity:
 *   **Peer-Review Tone**: Advisories are written as actionable engineering feedback, not institutional jargon.
@@ -58,7 +58,7 @@ GenSense is built for engineers who value precision and clarity:
 
 ---
 
-## ✍️ Extending GenSense: Adding Your Own Rules
+## Extending GenSense: Adding Your Own Rules
 
 Developers can extend GenSense using **Declarative YAML** (simple pattern matching) or **Procedural Rust** (complex semantic analysis).
 
@@ -79,7 +79,7 @@ rules:
 
 ---
 
-## 🔍 Suppression & Ignoring
+## Suppression & Ignoring
 
 GenSense respects inline comments for fine-grained control:
 
@@ -92,7 +92,7 @@ You can also use a `.gensense-suppress.yml` in your project root for path-based 
 
 ---
 
-## 🏗 Development Stack
+## Development Stack
 
 GenSense enforces high standards on its own codebase:
 *   **`npm run build`**: Builds the native NAPI-RS bridge with full language support.

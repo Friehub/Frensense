@@ -203,7 +203,7 @@ fn assert_snapshot(name: &str, advisories: &[gensense::Advisory]) {
     if std::env::var("UPDATE_SNAPSHOTS").is_ok() {
         let json = serde_json::to_string_pretty(&actual_ids).unwrap();
         std::fs::write(&snapshot_path, json).unwrap();
-        println!("✅ Updated snapshot: {snapshot_path}");
+        println!("Updated snapshot: {snapshot_path}");
         return;
     }
 
