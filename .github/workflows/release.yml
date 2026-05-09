@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  # 1. Build Native Binaries for all platforms
+  # 1. Build Native Artifacts for all platforms
   build-native:
     name: Build Native (${{ matrix.settings.target }})
     runs-on: ${{ matrix.settings.host }}
@@ -17,19 +17,20 @@ jobs:
         settings:
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            architecture: x64
+            bin_name: gensense
           - host: macos-latest
             target: x86_64-apple-darwin
-            architecture: x64
+            bin_name: gensense
           - host: macos-latest
             target: aarch64-apple-darwin
-            architecture: arm64
+            bin_name: gensense
           - host: windows-latest
             target: x86_64-pc-windows-msvc
-            architecture: x64
+            bin_name: gensense.exe
 
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -44,16 +45,25 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build
+      - name: Build NAPI Library
         run: npm run build -- --target ${{ matrix.settings.target }}
 
-      - name: Upload artifact
+      - name: Build CLI Binary
+        run: cargo build --release --features cli --target ${{ matrix.settings.target }}
+
+      - name: Upload NAPI Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bindings-${{ matrix.settings.target }}
+          name: library-${{ matrix.settings.target }}
           path: gensense.node
 
-  # 2. Publish to Crates.io (Rust Library)
+      - name: Upload CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.settings.target }}
+          path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
+
+  # 2. Publish to Crates.io
   publish-cargo:
     name: Publish to Crates.io
     runs-on: ubuntu-latest
@@ -65,7 +75,7 @@ jobs:
       - name: Publish
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
 
-  # 3. Publish to NPM (Node.js Package)
+  # 3. Publish to NPM
   publish-npm:
     name: Publish to NPM
     runs-on: ubuntu-latest
@@ -86,9 +96,16 @@ jobs:
       - name: Prepare NPM package
         run: |
           mkdir -p dist
-          # Copy artifacts to expected locations for the multi-platform loader
-          cp artifacts/bindings-x86_64-unknown-linux-gnu/gensense.node ./gensense.node
-          # (Simplified for alpha: in full release, we'd use NAPI universal packages)
+          # Copy Linux binary as default 'gensense' for the package root
+          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense ./dist/gensense
+          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node ./gensense.node
+          
+          # Copy all platform binaries for the intelligent wrapper
+          mkdir -p dist/binaries
+          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense ./dist/binaries/gensense-linux-x64
+          cp artifacts/cli-x86_64-apple-darwin/gensense ./dist/binaries/gensense-macos-x64
+          cp artifacts/cli-aarch64-apple-darwin/gensense ./dist/binaries/gensense-macos-arm64
+          cp artifacts/cli-x86_64-pc-windows-msvc/gensense.exe ./dist/binaries/gensense-windows-x64.exe
 
       - name: Generate Rule Docs
         run: cargo run --features cli -- --generate-docs
@@ -97,11 +114,8 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           npm publish --tag alpha --registry https://registry.npmjs.org/ --access public
-
-      - name: Publish to GitHub Packages
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > .npmrc
-          npm publish --tag alpha --registry https://npm.pkg.github.com/ --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # 4. Create GitHub Release
   github-release:
@@ -112,20 +126,19 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          
       - name: Prepare binaries for release
         run: |
           mkdir -p release-binaries
-          for dir in artifacts/bindings-*/; do
-            target=$(basename "$dir" | sed 's/bindings-//')
-            cp "${dir}gensense.node" "release-binaries/gensense-${target}.node"
+          for dir in artifacts/cli-*/; do
+            target=$(basename "$dir" | sed 's/cli-//')
+            ext=""
+            if [[ "$target" == *"windows"* ]]; then ext=".exe"; fi
+            cp "${dir}gensense${ext}" "release-binaries/gensense-${target}${ext}"
           done
-          
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

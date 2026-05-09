@@ -7,34 +7,44 @@ const fs = require('fs');
 
 /**
  * GenSense CLI Wrapper
- * This script delegates to the native Rust CLI binary.
+ * This script selects the correct native binary for the current platform.
  */
 
-const isWin = os.platform() === 'win32';
-const binName = isWin ? 'gensense.exe' : 'gensense';
+const platform = os.platform();
+const arch = os.arch();
+const isWin = platform === 'win32';
 
-// Resolution priority:
-// 1. Local dist/ (installed package or after 'make dist')
-// 2. Local target/release/ (after 'cargo build --release')
-// 3. System PATH (if globally installed via other means)
-// 4. 'cargo run' (dev fallback)
+// 1. Determine platform suffix for the bundled binaries
+let suffix = '';
+if (platform === 'linux' && arch === 'x64') suffix = 'linux-x64';
+else if (platform === 'darwin' && arch === 'x64') suffix = 'macos-x64';
+else if (platform === 'darwin' && arch === 'arm64') suffix = 'macos-arm64';
+else if (platform === 'win32' && arch === 'x64') suffix = 'windows-x64.exe';
 
-let binPath = path.join(__dirname, '..', 'dist', binName);
+// 2. Resolution priority:
+// - dist/binaries/gensense-<suffix> (Bundled multi-platform)
+// - dist/gensense (Directly bundled single-platform)
+// - target/release/gensense (Local development)
+// - cargo run (Dev fallback)
 
-if (!fs.existsSync(binPath)) {
-    binPath = path.join(__dirname, '..', 'target', 'release', binName);
-}
+const candidates = [
+    path.join(__dirname, '..', 'dist', 'binaries', `gensense-${suffix}`),
+    path.join(__dirname, '..', 'dist', isWin ? 'gensense.exe' : 'gensense'),
+    path.join(__dirname, '..', 'target', 'release', isWin ? 'gensense.exe' : 'gensense')
+];
+
+let binPath = candidates.find(p => fs.existsSync(p) && fs.statSync(p).isFile());
 
 const args = process.argv.slice(2);
 
-if (fs.existsSync(binPath)) {
+if (binPath) {
     run(binPath, args);
 } else if (fs.existsSync(path.join(__dirname, '..', 'Cargo.toml'))) {
-    console.warn('[GenSense] Native binary not found. Falling back to "cargo run"...');
+    console.warn('[GenSense] Native binary not found for this platform. Falling back to "cargo run"...');
     run('cargo', ['run', '--release', '--features', 'cli', '--', ...args]);
 } else {
-    console.error(`[GenSense CLI] Critical Error: Native binary not found at ${binPath}`);
-    console.error('Please ensure the package was installed correctly or run "npm run build" if in development.');
+    console.error(`[GenSense CLI] Critical Error: Supported native binary not found for ${platform}-${arch}`);
+    console.error(`Expected one of:\n${candidates.join('\n')}`);
     process.exit(1);
 }
 
