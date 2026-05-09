@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+pub mod helpers;
+
 use crate::{
     semantics::data_flow::{DataFlowAnalyzer, TaintRegistry},
     Advisory, GenSenseContext, GenSenseRule,
 };
+use helpers::serde_regex_opt;
 use regex::Regex;
 use tree_sitter::Node;
 
@@ -149,10 +152,7 @@ impl GenSenseRule for CoreRule {
                 return advisories;
             }
 
-            let matches_if = self
-                .if_matches
-                .as_ref()
-                .map_or(true, |re| re.is_match(code));
+            let matches_if = self.if_matches.as_ref().is_none_or(|re| re.is_match(code));
 
             // 1. Metric-based violations
             if matches_if {
@@ -172,7 +172,7 @@ impl GenSenseRule for CoreRule {
                 }
 
                 if let Some(max) = self.max_depth {
-                    let peak = self.calculate_peak_depth(node);
+                    let peak = helpers::calculate_peak_depth(node);
                     if peak > max {
                         advisories.push(self.new_advisory(
                             &node,
@@ -185,13 +185,11 @@ impl GenSenseRule for CoreRule {
             }
 
             // 2. Pattern-based violations (Conjunction Logic)
-            // A violation only occurs if we have a reason to trigger (if_matches is true OR we have specific constraints)
-            // AND the metrics were NOT the only thing this rule was about.
             if self.max_lines.is_none() && self.max_depth.is_none() {
                 let matches_must_not = self
                     .must_not_contain
                     .as_ref()
-                    .map_or(true, |re| re.is_match(code));
+                    .is_none_or(|re| re.is_match(code));
 
                 let matches_must = if let Some(must_re) = &self.must_contain {
                     let mut found = must_re.is_match(code);
@@ -210,20 +208,17 @@ impl GenSenseRule for CoreRule {
                     }
                     !found // must_contain violation if pattern NOT found
                 } else {
-                    false // Don't trigger by default if no must_contain specified
+                    false
                 };
 
-                // Trigger if (if_matches matched) AND (must_not_contain matched OR must_contain was violated)
-                // BUT only if this isn't JUST a metric rule.
                 let mut should_trigger = false;
-                if self.if_matches.is_some() && matches_if {
-                    if self.must_not_contain.is_some() && matches_must_not {
-                        should_trigger = true;
-                    } else if self.must_contain.is_some() && matches_must {
-                        should_trigger = true;
-                    } else if self.must_not_contain.is_none() && self.must_contain.is_none() {
-                        should_trigger = true;
-                    }
+                if self.if_matches.is_some()
+                    && matches_if
+                    && ((self.must_not_contain.is_some() && matches_must_not)
+                        || (self.must_contain.is_some() && matches_must)
+                        || (self.must_not_contain.is_none() && self.must_contain.is_none()))
+                {
+                    should_trigger = true;
                 }
 
                 if should_trigger {
@@ -251,76 +246,5 @@ impl GenSenseRule for CoreRule {
         }
 
         advisories
-    }
-}
-
-impl CoreRule {
-    fn calculate_peak_depth(&self, node: Node) -> usize {
-        let mut max_child_depth = 0;
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            let d = self.calculate_peak_depth(child);
-            if d > max_child_depth {
-                max_child_depth = d;
-            }
-        }
-
-        let kind = node.kind();
-        // Nodes that increase logical depth
-        let increases_depth = match kind {
-            "if_statement" | "while_statement" | "for_statement" | "match_expression"
-            | "if_expression" | "for_expression" | "while_expression" | "do_statement"
-            | "try_statement" | "catch_clause" | "finally_clause" | "switch_statement"
-            | "case_clause" => true,
-            _ => false,
-        };
-
-        if increases_depth {
-            max_child_depth + 1
-        } else {
-            max_child_depth
-        }
-    }
-
-    fn check_parent_scope(&self, node: Node, scope_pattern: &str, source: &str) -> bool {
-        let mut current = node;
-        let scopes: Vec<&str> = scope_pattern.split('|').collect();
-
-        while let Some(parent) = current.parent() {
-            let kind = parent.kind();
-            for scope in &scopes {
-                if *scope == "async_fn" && kind == "function_item" {
-                    let header = &source[parent.start_byte()
-                        ..parent
-                            .child_by_field_name("body")
-                            .map_or(parent.end_byte(), |b| b.start_byte())];
-                    if header.contains("async") {
-                        return true;
-                    }
-                } else if kind == *scope {
-                    return true;
-                }
-            }
-            current = parent;
-        }
-        false
-    }
-}
-
-mod serde_regex_opt {
-    use regex::Regex;
-    use serde::{Deserialize, Deserializer};
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: Option<String> = Option::deserialize(deserializer)?;
-        match s {
-            Some(re_str) => Regex::new(&re_str)
-                .map(Some)
-                .map_err(serde::de::Error::custom),
-            None => Ok(None),
-        }
     }
 }

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#![allow(clippy::all)]
 
 use include_dir::{include_dir, Dir};
 use std::path::Path;
