@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, CoreRule, GenSenseContext, GenSenseRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule, Symbol};
 use regex::Regex;
 use std::collections::HashMap;
 use tree_sitter::Node;
@@ -8,6 +8,15 @@ use tree_sitter::Node;
 #[derive(Debug, Clone, Default)]
 pub struct TaintRegistry {
     pub tainted_vars: HashMap<String, String>, // var_name -> source_expr
+}
+
+impl TaintRegistry {
+    pub fn get_origin(&self, name: &str) -> String {
+        self.tainted_vars
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
+    }
 }
 
 pub struct DataFlowAnalyzer<'a> {
@@ -40,13 +49,12 @@ impl<'a> DataFlowAnalyzer<'a> {
         node: Node,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &CoreRule,
+        rule: &dyn GenSenseRule,
         initial_taint: TaintRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let mut registry = initial_taint;
 
-        // Perform a linear traversal of the body to track flow
         let mut cursor = node.walk();
         self.traverse_for_taint(
             node,
@@ -61,7 +69,6 @@ impl<'a> DataFlowAnalyzer<'a> {
         advisories
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn traverse_for_taint(
         &self,
         node: Node,
@@ -70,253 +77,245 @@ impl<'a> DataFlowAnalyzer<'a> {
         sink_re: &Regex,
         registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
-        rule: &CoreRule,
+        rule: &dyn GenSenseRule,
     ) {
-        let kind = node.kind();
-        let _code = &self.context.source_code[node.start_byte()..node.end_byte()];
+        let mut node = node;
+        loop {
+            let kind = node.kind();
 
-        // 1. Assignment Logic (let x = ... or x = ...)
-        if kind == "variable_declarator" || kind == "assignment_expression" {
-            let mut name = String::new();
-            let mut value_code = String::new();
-
-            // Extract name and value based on language structure
-            if kind == "variable_declarator" {
-                let name_node = node.child_by_field_name("name");
-                let value_node = node.child_by_field_name("value");
-
-                if let (Some(n), Some(v)) = (name_node, value_node) {
-                    let val_code =
-                        self.context.source_code[v.start_byte()..v.end_byte()].to_string();
-                    let is_source_val = source_re.is_match(&val_code)
-                        || registry.tainted_vars.contains_key(&val_code);
-
-                    if n.kind() == "object_pattern" {
-                        let mut pattern_cursor = n.walk();
-                        for part in n.children(&mut pattern_cursor) {
-                            let part_kind = part.kind();
-                            // Support both JS and TS pattern kinds
-                            if part_kind == "shorthand_property_identifier"
-                                || part_kind == "shorthand_property_identifier_pattern"
-                                || part_kind == "identifier"
-                                || part_kind == "pair"
-                                || part_kind == "pair_pattern"
-                            {
-                                let part_code = self.context.source_code
-                                    [part.start_byte()..part.end_byte()]
-                                    .to_string();
-
-                                // Professional Logic: Taint if property name is sensitive OR if the RHS is a known source
-                                if source_re.is_match(&part_code) || is_source_val {
-                                    let origin_to_record = if source_re.is_match(&part_code) {
-                                        part_code.clone()
-                                    } else {
-                                        registry
-                                            .tainted_vars
-                                            .get(&val_code)
-                                            .cloned()
-                                            .unwrap_or(val_code.clone())
-                                    };
-
-                                    if part_kind == "pair" || part_kind == "pair_pattern" {
-                                        if let Some(alias) = part.child_by_field_name("value") {
-                                            let alias_name = self.context.source_code
-                                                [alias.start_byte()..alias.end_byte()]
-                                                .to_string();
-                                            registry
-                                                .tainted_vars
-                                                .insert(alias_name, origin_to_record);
-                                        }
-                                    } else {
-                                        registry.tainted_vars.insert(part_code, origin_to_record);
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        let name =
-                            self.context.source_code[n.start_byte()..n.end_byte()].to_string();
-                        if is_source_val || source_re.is_match(&name) {
-                            let origin_to_record = if source_re.is_match(&name) {
-                                name.clone()
-                            } else {
-                                registry
-                                    .tainted_vars
-                                    .get(&val_code)
-                                    .cloned()
-                                    .unwrap_or(val_code.clone())
-                            };
-                            registry.tainted_vars.insert(name, origin_to_record);
-                        }
+            match kind {
+                "variable_declarator" | "assignment_expression" => {
+                    self.handle_assignment(node, source_re, registry);
+                }
+                "call_expression" => {
+                    self.handle_call(node, source_re, sink_re, registry, advisories, rule);
+                }
+                _ => {
+                    // Recurse into children if they exist
+                    if cursor.goto_first_child() {
+                        self.traverse_for_taint(
+                            cursor.node(),
+                            cursor,
+                            source_re,
+                            sink_re,
+                            registry,
+                            advisories,
+                            rule,
+                        );
                     }
-                }
-            } else if kind == "assignment_expression" {
-                if let Some(left) = node.child_by_field_name("left") {
-                    name = self.context.source_code[left.start_byte()..left.end_byte()].to_string();
-                }
-                if let Some(right) = node.child_by_field_name("right") {
-                    value_code =
-                        self.context.source_code[right.start_byte()..right.end_byte()].to_string();
                 }
             }
 
-            if !name.is_empty() && !value_code.is_empty() {
-                // If value is a SOURCE, mark name as TAINTED
-                if source_re.is_match(&value_code) {
-                    registry
-                        .tainted_vars
-                        .insert(name.clone(), value_code.clone());
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+            node = cursor.node();
+        }
+        cursor.goto_parent();
+    }
+    fn node_src(&self, node: Node) -> String {
+        self.context.source_code[node.start_byte()..node.end_byte()].to_string()
+    }
+
+    fn handle_assignment(&self, node: Node, source_re: &Regex, registry: &mut TaintRegistry) {
+        let kind = node.kind();
+        let (name_node, value_node) = if kind == "variable_declarator" {
+            (
+                node.child_by_field_name("name"),
+                node.child_by_field_name("value"),
+            )
+        } else {
+            (
+                node.child_by_field_name("left"),
+                node.child_by_field_name("right"),
+            )
+        };
+
+        if let (Some(n), Some(v)) = (name_node, value_node) {
+            let val_code = self.node_src(v);
+            let is_source_val =
+                source_re.is_match(&val_code) || registry.tainted_vars.contains_key(&val_code);
+
+            if n.kind() == "object_pattern" {
+                let mut p_cursor = n.walk();
+                for part in n.children(&mut p_cursor) {
+                    if let Some(p_name) = self.extract_ident(part) {
+                        if source_re.is_match(&p_name) || is_source_val {
+                            let origin = if source_re.is_match(&p_name) {
+                                p_name.clone()
+                            } else {
+                                registry.get_origin(&val_code)
+                            };
+                            registry.tainted_vars.insert(p_name, origin);
+                        }
+                    }
                 }
-                // If value is a TAINTED variable, spread the taint
-                else if let Some(source_origin) = registry.tainted_vars.get(&value_code).cloned()
-                {
-                    registry.tainted_vars.insert(name.clone(), source_origin);
+            } else {
+                let name = self.node_src(n);
+                if is_source_val || source_re.is_match(&name) {
+                    let origin = if source_re.is_match(&name) {
+                        name.clone()
+                    } else {
+                        registry.get_origin(&val_code)
+                    };
+                    registry.tainted_vars.insert(name, origin);
                 }
             }
         }
+    }
 
-        // 2. Sink Logic (console.log(x))
-        if kind == "call_expression" {
-            if let Some(fn_node) = node.child_by_field_name("function") {
-                let fn_name =
-                    self.context.source_code[fn_node.start_byte()..fn_node.end_byte()].to_string();
+    fn handle_call(
+        &self,
+        node: Node,
+        source_re: &Regex,
+        sink_re: &Regex,
+        registry: &mut TaintRegistry,
+        advisories: &mut Vec<Advisory>,
+        rule: &dyn GenSenseRule,
+    ) {
+        if let Some(fn_node) = node.child_by_field_name("function") {
+            let fn_name = self.node_src(fn_node);
+            let tainted_args = self.get_tainted_args(node, registry);
 
-                // Get arguments once
-                let mut tainted_args = Vec::new();
-                if let Some(args) = node.child_by_field_name("arguments") {
-                    let mut arg_cursor = args.walk();
-                    let mut index = 0;
-                    for arg in args.children(&mut arg_cursor) {
-                        let arg_code =
-                            self.context.source_code[arg.start_byte()..arg.end_byte()].to_string();
-                        if let Some(origin) = registry.tainted_vars.get(&arg_code) {
-                            tainted_args.push((index, arg_code.clone(), origin.clone()));
-                        }
-                        if arg.kind() != "(" && arg.kind() != ")" && arg.kind() != "," {
-                            index += 1;
-                        }
-                    }
+            if sink_re.is_match(&fn_name) {
+                for (_idx, arg_code, origin) in &tainted_args {
+                    advisories.push(rule.new_advisory(
+                        &node,
+                        format!("Inter-procedural Leak: Tainted data from '{origin}' reached sink '{fn_name}' via variable '{arg_code}'."),
+                        rule.impact().to_string(),
+                        rule.improvement().to_string(),
+                    ));
                 }
-
-                // A. Check if it's a known SINK
-                if sink_re.is_match(&fn_name) {
-                    for (_idx, arg_code, origin) in &tainted_args {
-                        advisories.push(rule.new_advisory(
-                            &node,
-                            format!("Inter-procedural Leak: Tainted data from '{origin}' reached sink '{fn_name}' via variable '{arg_code}'."),
-                            rule.impact.clone(),
-                            rule.improvement.clone(),
-                        ));
-                    }
-                }
-                // B. Check if it's a known Function to "Jump" into (Inter-procedural)
-                else if !tainted_args.is_empty() && self.depth < MAX_TAINT_DEPTH {
-                    if let Some(_symbols) = self.context.symbols.symbols.get(&fn_name) {
-                        if let Some(def_node) = self.find_definition_in_current_scope(&fn_name) {
-                            if let Some(params) = def_node.child_by_field_name("parameters") {
-                                let mut next_registry = TaintRegistry::default();
-                                let mut p_cursor = params.walk();
-                                let mut p_idx = 0;
-                                for p in params.children(&mut p_cursor) {
-                                    let p_kind = p.kind();
-                                    if p_kind == "identifier"
-                                        || p_kind == "parameter"
-                                        || p_kind == "required_parameter"
-                                    {
-                                        for (arg_idx, _arg_code, origin) in &tainted_args {
-                                            if *arg_idx == p_idx {
-                                                let p_name = self.context.source_code
-                                                    [p.start_byte()..p.end_byte()]
-                                                    .to_string();
-                                                next_registry
-                                                    .tainted_vars
-                                                    .insert(p_name, origin.clone());
-                                            }
-                                        }
-                                        p_idx += 1;
-                                    }
-                                }
-
-                                if !next_registry.tainted_vars.is_empty() {
-                                    if let Some(body) = def_node.child_by_field_name("body") {
-                                        let sub_analyzer = DataFlowAnalyzer::with_depth(
-                                            self.context,
-                                            self.root,
-                                            self.depth + 1,
-                                        );
-                                        advisories.extend(sub_analyzer.analyze_block(
-                                            body,
-                                            source_re,
-                                            sink_re,
-                                            rule,
-                                            next_registry,
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // C. Check if the function itself is tainted (Function Aliasing)
-                if sink_re.as_str() == "<EXECUTE>" {
-                    if let Some(origin) = registry.tainted_vars.get(&fn_name) {
-                        if source_re.is_match(origin) {
-                            advisories.push(rule.new_advisory(
-                                &node,
-                                format!(
-                                    "Dynamic Execution Leak: Aliased execution of '{origin}' via '{fn_name}'."
-                                ),
-                                rule.impact.clone(),
-                                rule.improvement.clone(),
+            } else if !tainted_args.is_empty() && self.depth < MAX_TAINT_DEPTH {
+                if let Some(def_node) = self.find_definition(&fn_name) {
+                    if let Some(next_registry) = self.map_params(def_node, &tainted_args) {
+                        if let Some(body) = def_node.child_by_field_name("body") {
+                            let sub_analyzer = DataFlowAnalyzer::with_depth(
+                                self.context,
+                                self.root,
+                                self.depth + 1,
+                            );
+                            advisories.extend(sub_analyzer.analyze_block(
+                                body,
+                                source_re,
+                                sink_re,
+                                rule,
+                                next_registry,
                             ));
                         }
                     }
                 }
             }
         }
+    }
 
-        // Recurse children
-        if cursor.goto_first_child() {
-            loop {
-                self.traverse_for_taint(
-                    cursor.node(),
-                    cursor,
-                    source_re,
-                    sink_re,
-                    registry,
-                    advisories,
-                    rule,
-                );
-                if !cursor.goto_next_sibling() {
-                    break;
+    fn extract_ident(&self, node: Node) -> Option<String> {
+        let kind = node.kind();
+        if kind == "identifier"
+            || kind == "shorthand_property_identifier"
+            || kind == "shorthand_property_identifier_pattern"
+        {
+            Some(self.node_src(node))
+        } else if kind == "pair" || kind == "pair_pattern" {
+            node.child_by_field_name("value").map(|v| self.node_src(v))
+        } else {
+            None
+        }
+    }
+
+    fn get_tainted_args(
+        &self,
+        node: Node,
+        registry: &TaintRegistry,
+    ) -> Vec<(usize, String, String)> {
+        let mut tainted = Vec::new();
+        if let Some(args) = node.child_by_field_name("arguments") {
+            let mut cursor = args.walk();
+            let mut index = 0;
+            for arg in args.children(&mut cursor) {
+                if matches!(arg.kind(), "(" | ")" | "," | "[") {
+                    continue;
                 }
+                let code = self.node_src(arg);
+                if let Some(origin) = registry.tainted_vars.get(&code) {
+                    tainted.push((index, code, origin.clone()));
+                }
+                index += 1;
             }
-            cursor.goto_parent();
+        }
+        tainted
+    }
+
+    fn find_definition(&self, name: &str) -> Option<Node<'a>> {
+        if let Some(node) = self.find_definition_in_current_scope(name) {
+            return Some(node);
+        }
+        let candidates = self.context.symbols.find(name);
+        for sym in candidates {
+            if sym.file_path == self.context.file_path.to_string_lossy() {
+                let mut cursor = self.root.walk();
+                return self.find_node_at_pos(self.root, &mut cursor, sym.line - 1, sym.column - 1);
+            }
+        }
+        None
+    }
+
+    fn map_params(
+        &self,
+        def_node: Node,
+        tainted_args: &[(usize, String, String)],
+    ) -> Option<TaintRegistry> {
+        let params = def_node.child_by_field_name("parameters")?;
+        let mut registry = TaintRegistry::default();
+        let mut cursor = params.walk();
+        let mut p_idx = 0;
+
+        for p in params.children(&mut cursor) {
+            if matches!(p.kind(), "(" | ")" | "," | "[") {
+                continue;
+            }
+            if let Some(p_name) = self.extract_ident(p) {
+                for (arg_idx, _, origin) in tainted_args {
+                    if *arg_idx == p_idx {
+                        registry.tainted_vars.insert(p_name.clone(), origin.clone());
+                    }
+                }
+                p_idx += 1;
+            }
+        }
+        if registry.tainted_vars.is_empty() {
+            None
+        } else {
+            Some(registry)
         }
     }
 
     fn find_definition_in_current_scope(&self, name: &str) -> Option<Node<'a>> {
-        // Use the SymbolRegistry to find the location first
-        if let Some(symbols) = self.context.symbols.symbols.get(name) {
-            // Find a symbol in the current file
-            for sym in symbols {
-                if sym.file_path == self.context.file_path.to_string_lossy() {
-                    // Find the node at this position
-                    let mut cursor = self.root.walk();
-                    return self.find_node_at_pos(
-                        self.root,
-                        &mut cursor,
-                        sym.line - 1,
-                        sym.column - 1,
-                    );
-                }
+        let candidates = self.context.symbols.find(name);
+        for sym in candidates {
+            if sym.file_path == self.context.file_path.to_string_lossy() {
+                let mut cursor = self.root.walk();
+                return self.find_node_at_pos(self.root, &mut cursor, sym.line - 1, sym.column - 1);
             }
         }
 
         // Fallback to manual search if not indexed (unlikely but safe)
         let mut cursor = self.root.walk();
         self.search_node(self.root, &mut cursor, name)
+    }
+
+    pub fn resolve_symbol_in_graph(&self, name: &str) -> Option<&Symbol> {
+        let candidates = self.context.symbols.find(name);
+        if !candidates.is_empty() {
+            // Prefer current file, then any
+            candidates
+                .iter()
+                .find(|s| s.file_path == self.context.file_path.to_string_lossy())
+                .or_else(|| candidates.first())
+                .copied()
+        } else {
+            None
+        }
     }
 
     #[allow(clippy::only_used_in_recursion)]

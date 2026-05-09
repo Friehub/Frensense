@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 use glob::Pattern;
+use petgraph::graph::NodeIndex;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use tree_sitter::{Node, Parser, Query, QueryCursor};
+use tree_sitter::{Language, Node, Parser, Query, QueryCursor, Tree};
 use walkdir::WalkDir;
 
 use crate::{
@@ -130,7 +131,8 @@ impl GenSenseAuditor {
                 match serde_yaml::from_str::<RulesWrapper>(rules_yml) {
                     Ok(wrapper) => {
                         for rule in wrapper.rules {
-                            rules.push(Box::new(rule));
+                            let compiled = crate::rules::compiler::RuleCompiler::compile(rule);
+                            rules.push(Box::new(compiled));
                         }
                     }
                     Err(e) => {
@@ -345,21 +347,40 @@ impl GenSenseAuditor {
         }
     }
 
-    pub fn discover_symbols(&self, path: &Path, content: &str) -> Result<Vec<Symbol>> {
+    fn parse_source(&self, path: &Path, content: &str) -> Result<(Language, Tree)> {
         let language = ParserRegistry::get_language(path)?;
+        let mut parser = Parser::new();
+        parser
+            .set_language(&language)
+            .map_err(|e| GenSenseError::Config(e.to_string()))?;
+        let tree = parser
+            .parse(content, None)
+            .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
+        Ok((language, tree))
+    }
+
+    fn find_enclosing_function<'a>(&self, node: Node<'a>) -> Option<Node<'a>> {
+        let mut parent = node.parent();
+        while let Some(p) = parent {
+            if matches!(
+                p.kind(),
+                "function_item" | "function_declaration" | "method_definition"
+            ) {
+                return Some(p);
+            }
+            parent = p.parent();
+        }
+        None
+    }
+
+    pub fn discover_symbols(&self, path: &Path, content: &str) -> Result<Vec<Symbol>> {
+        let (_, tree) = self.parse_source(path, content)?;
         let query_str = match ParserRegistry::get_symbol_query(path) {
             Some(q) => q,
             None => return Ok(Vec::new()),
         };
 
-        let mut parser = Parser::new();
-        if parser.set_language(&language).is_err() {
-            return Ok(Vec::new());
-        }
-        let tree = parser
-            .parse(content, None)
-            .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
-
+        let language = ParserRegistry::get_language(path)?;
         let query =
             Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
         let mut cursor = QueryCursor::new();
@@ -371,7 +392,7 @@ impl GenSenseAuditor {
                 let name = &content[capture.node.start_byte()..capture.node.end_byte()];
                 symbols.push(Symbol {
                     name: name.to_string(),
-                    kind: crate::semantics::SymbolKind::Function, // Simplified
+                    kind: crate::semantics::SymbolKind::Function,
                     line: capture.node.start_position().row + 1,
                     column: capture.node.start_position().column + 1,
                     file_path: path.to_string_lossy().to_string(),
@@ -380,6 +401,36 @@ impl GenSenseAuditor {
         }
         Ok(symbols)
     }
+
+    pub fn scan_for_edges(&self, path: &Path, content: &str) -> Result<Vec<(String, String)>> {
+        let (language, tree) = self.parse_source(path, content)?;
+        let query_str = match ParserRegistry::get_call_query(path) {
+            Some(q) => q,
+            None => return Ok(Vec::new()),
+        };
+
+        let query =
+            Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
+
+        let mut edges = Vec::new();
+        for m in matches {
+            for capture in m.captures {
+                let call_node = capture.node;
+                let call_name = &content[call_node.start_byte()..call_node.end_byte()];
+
+                if let Some(p) = self.find_enclosing_function(call_node) {
+                    if let Some(name_node) = p.child_by_field_name("name") {
+                        let caller_name = &content[name_node.start_byte()..name_node.end_byte()];
+                        edges.push((caller_name.to_string(), call_name.to_string()));
+                    }
+                }
+            }
+        }
+        Ok(edges)
+    }
+
     fn run_recursive(
         &self,
         node: Node,
@@ -405,6 +456,113 @@ impl GenSenseAuditor {
         }
         advisories
     }
+
+    pub fn discover_events(
+        &self,
+        path: &Path,
+        content: &str,
+        registry: &mut SymbolRegistry,
+    ) -> Result<()> {
+        let (_, tree) = self.parse_source(path, content)?;
+        let mut cursor = tree.walk();
+        self.traverse_for_events(tree.root_node(), &mut cursor, path, content, registry, None);
+        Ok(())
+    }
+
+    fn traverse_for_events<'a>(
+        &self,
+        node: Node<'a>,
+        cursor: &mut tree_sitter::TreeCursor<'a>,
+        path: &Path,
+        content: &str,
+        registry: &mut SymbolRegistry,
+        last_event: Option<NodeIndex>,
+    ) -> Option<NodeIndex> {
+        let mut current_last = last_event;
+
+        // Check if this node is an event
+        let (event_type, label) = match node.kind() {
+            "call_expression" => {
+                let fn_node = node.child_by_field_name("function");
+                if let Some(f) = fn_node {
+                    let fn_name = &content[f.start_byte()..f.end_byte()];
+                    let et = if fn_name.contains("lock") {
+                        crate::semantics::graph::EventType::Acquire
+                    } else if fn_name.contains("unlock") || fn_name.contains("drop") {
+                        crate::semantics::graph::EventType::Release
+                    } else {
+                        crate::semantics::graph::EventType::Call
+                    };
+                    (Some(et), fn_name.to_string())
+                } else {
+                    (None, String::new())
+                }
+            }
+            "await_expression" => (
+                Some(crate::semantics::graph::EventType::Await),
+                ".await".to_string(),
+            ),
+            _ => (None, String::new()),
+        };
+
+        if let Some(et) = event_type {
+            let event = crate::semantics::graph::TemporalEvent {
+                event_type: et,
+                label,
+                file_path: path.to_string_lossy().to_string(),
+                line: node.start_position().row + 1,
+                column: node.start_position().column + 1,
+            };
+            let idx = registry.graph.add_event(event);
+
+            // Link to previous event in sequence
+            if let Some(prev) = last_event {
+                registry.graph.add_edge(
+                    prev,
+                    idx,
+                    crate::semantics::graph::EdgeKind::SequentiallyFollows,
+                );
+            }
+
+            // Link to enclosing function
+            if let Some(func) = self.find_enclosing_function(node) {
+                if let Some(name_node) = func.child_by_field_name("name") {
+                    let name = &content[name_node.start_byte()..name_node.end_byte()];
+                    for &func_idx in &registry.graph.find_nodes(name) {
+                        if let Some(sym) = registry.graph.get_symbol(func_idx) {
+                            if sym.file_path == path.to_string_lossy() {
+                                registry.graph.add_edge(
+                                    func_idx,
+                                    idx,
+                                    crate::semantics::graph::EdgeKind::InScope,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            current_last = Some(idx);
+        }
+
+        if cursor.goto_first_child() {
+            loop {
+                current_last = self.traverse_for_events(
+                    cursor.node(),
+                    cursor,
+                    path,
+                    content,
+                    registry,
+                    current_last,
+                );
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+            cursor.goto_parent();
+        }
+
+        current_last
+    }
 }
 
 pub struct Engine {
@@ -412,6 +570,7 @@ pub struct Engine {
     pub enabled_categories: HashSet<String>,
     pub enabled_tags: HashSet<String>,
     pub environment: crate::GenSenseEnvironment,
+    pub verify_consistency: bool,
 }
 
 impl Engine {
@@ -421,7 +580,12 @@ impl Engine {
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
             environment: crate::GenSenseEnvironment::Development,
+            verify_consistency: false,
         }
+    }
+
+    pub fn set_consistency_verification(&mut self, enabled: bool) {
+        self.verify_consistency = enabled;
     }
 
     pub fn set_environment(&mut self, env: crate::GenSenseEnvironment) {
@@ -454,6 +618,11 @@ impl Engine {
     }
 
     pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
+        let (advisories, _) = self.run_detailed(root)?;
+        Ok(advisories)
+    }
+
+    pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
         // Load suppression config if it exists
         let suppress_file = root.join(".gensense-suppress.yml");
         if suppress_file.exists() {
@@ -481,7 +650,29 @@ impl Engine {
             }
         }
 
-        let total_symbols: usize = symbols.symbols.values().map(|v| v.len()).sum();
+        // Pass 2: Edge Discovery (Inter-procedural linking) - PARALLEL
+        let edge_results: Result<Vec<(PathBuf, Vec<(String, String)>)>> = files
+            .par_iter()
+            .map(|p| {
+                let content = std::fs::read_to_string(p)?;
+                let edges = self.auditor.scan_for_edges(p, &content)?;
+                Ok((p.clone(), edges))
+            })
+            .collect();
+
+        for (path, file_edges) in edge_results? {
+            for (caller, callee) in file_edges {
+                symbols.add_call_edge(&path, &caller, &callee);
+            }
+        }
+
+        // Pass 3: Event Discovery (Temporal timelines)
+        for p in &files {
+            let content = std::fs::read_to_string(p)?;
+            self.auditor.discover_events(p, &content, &mut symbols)?;
+        }
+
+        let total_symbols = symbols.graph.graph.node_count();
         if total_symbols > 0 {
             eprintln!("[INFO] Semantic Discovery: Indexed {total_symbols} symbols across project.");
         }
@@ -521,7 +712,7 @@ impl Engine {
             all_advisories.append(&mut self.run_governance_checks(root));
         }
 
-        Ok(all_advisories)
+        Ok((all_advisories, symbols))
     }
 
     fn run_governance_checks(&self, root: &Path) -> Vec<Advisory> {
