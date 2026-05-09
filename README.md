@@ -1,12 +1,28 @@
-# TaaS Static Auditor 🛡️
+# TaaS Static Auditor
 
-**TaaS Static Auditor** is a high-precision, production-grade semantic analysis engine designed for auditing protocol-level logic, security vulnerabilities, and institutional redline enforcement. Built in Rust for maximum performance and memory safety, it serves as the primary diagnostic layer for the Friehub TaaS Gateway ecosystem.
+TaaS Static Auditor is a high-precision, production-grade semantic analysis engine designed for auditing protocol-level logic, security vulnerabilities, and institutional redline enforcement. Built in Rust for maximum performance and memory safety, it serves as the primary diagnostic layer for the Friehub TaaS Gateway ecosystem.
 
-## 🚀 Core Philosophy
+## Rationale: Why TaaS Auditor Exists
 
-Unlike generic linters, the TaaS Auditor focuses on **Semantic Integrity**. It doesn't just look for syntax patterns; it understands the flow of data, the cost of operations, and the architectural risks inherent in decentralized and high-concurrency systems.
+Modern decentralized systems face a unique set of challenges that generic static analysis tools are not equipped to handle. While traditional linters focus on stylistic consistency and local syntax errors, the TaaS Auditor was engineered to address:
 
-## ✨ Key Capabilities
+1.  **Protocol-Level Semantic Risk**: Detecting logical flaws in cross-language environments where data from a web frontend (TypeScript) directly impacts high-stakes protocol logic (Rust/Solidity).
+2.  **Institutional Redline Enforcement**: Providing a mechanism to enforce strict organizational safety standards (e.g., "no uninstrumented async calls") that are too specialized for general-purpose tools.
+3.  **Complexity at Scale**: Handling the semantic complexity of modern codebases, such as complex object destructuring and intermediate variable tainting, which often baffle standard AST-based search tools.
+
+## Comparative Analysis
+
+| Feature | TaaS Auditor | Standard Linters (ESLint/Clippy) | Security Scanners (Slither) |
+| :--- | :--- | :--- | :--- |
+| **Scope** | Cross-Language Semantic Flow | Single-Language Syntax/Style | Domain-Specific (Smart Contracts) |
+| **Taint Tracking** | Inter-procedural and Destructure-aware | Limited/Non-existent | Robust but Language-Locked |
+| **Redline Enforcement** | High (Custom YAML/Rust Rules) | Medium (Complex Plugin Setup) | Medium (Built-in Rules) |
+| **Boilerplate Detection** | Structural N-Gram Analysis | None | Basic Hash-based |
+| **Env Isolation** | Native Beta/Stable Filtering | None | None |
+
+The TaaS Auditor is designed to complement, not replace, single-language linters. It acts as a specialized security and quality layer that sits above the standard toolchain.
+
+## Key Capabilities
 
 ### 1. Semantic Taint Tracking
 The engine implements sophisticated data-flow analysis for TypeScript and Rust:
@@ -32,7 +48,7 @@ Deploy and test new audit rules safely using the built-in isolation system:
 
 ---
 
-## 🛡️ Institutional Integrity Stack
+## Institutional Integrity Stack
 
 The auditor includes a comprehensive developer toolset to ensure the diagnostic engine itself remains reliable:
 
@@ -45,7 +61,7 @@ The auditor includes a comprehensive developer toolset to ensure the diagnostic 
 
 ---
 
-## 🛠️ Installation & Setup
+## Installation and Usage
 
 ### Prerequisites
 *   Rust (Latest Stable)
