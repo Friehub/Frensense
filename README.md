@@ -1,132 +1,113 @@
 # GenSense
 
-GenSense is a high-precision, AI-aware semantic analysis engine designed to assist developers in validating and refining synthesized code. Built in Rust for maximum performance and memory safety, it serves as a lightweight diagnostic layer for identifying logical flaws, security vulnerabilities, and protocol-level safety gaps in modern codebases.
+GenSense is a **semantic diagnostic engine** designed to detect logical flaws and security risks in codebases, particularly those heavily influenced by AI-generated patterns. It uses Tree-sitter for high-precision AST traversal and provides a lightweight, language-agnostic way to enforce safety standards.
 
-## Rationale: Why GenSense Exists
-
-Modern development increasingly relies on Large Language Models (LLMs) to synthesize complex logic. However, AI-generated code often introduces subtle semantic risks that traditional linters miss. GenSense was engineered to provide a "sense-check" for these patterns:
-
-1.  **AI Logic Validation**: Detecting logical flaws in synthesized code where data flows (TypeScript/Rust/Solidity) might violate protocol-level invariants.
-2.  **Safety Guardrails**: Providing a mechanism to enforce strict safety standards (e.g., "no uninstrumented async calls") that AI models frequently ignore.
-3.  **Structural Integrity**: Handling the semantic complexity of modern codebases, such as complex object destructuring and intermediate variable tainting, which often baffle standard AST-based search tools.
-
-## Comparative Analysis
-
-| Feature | GenSense | Standard Linters (ESLint/Clippy) | Security Scanners (Slither) |
-| :--- | :--- | :--- | :--- |
-| **Scope** | AI-Aware Semantic Flow | Single-Language Syntax/Style | Domain-Specific (Smart Contracts) |
-| **Taint Tracking** | Inter-procedural and Destructure-aware | Limited/Non-existent | Robust but Language-Locked |
-| **Safety Enforcement** | High (Custom YAML/Rust Rules) | Medium (Complex Plugin Setup) | Medium (Built-in Rules) |
-| **Boilerplate Detection** | Structural N-Gram Analysis | None | Basic Hash-based |
-| **Assistant Nature** | High (Diagnostic/Advisory) | High (Stylistic) | Medium (Security Only) |
-
-GenSense is designed to complement, not replace, single-language linters. It acts as a specialized assistant that sits above the standard toolchain to validate logic and intent.
-
-## Key Capabilities
-
-### 1. Semantic Taint Tracking
-The engine implements sophisticated data-flow analysis for TypeScript and Rust:
-*   **Object Destructuring**: Correctly tracks tainted data through complex patterns like `const { sensitive: data } = req.body;`.
-*   **Intermediate Bindings**: Follows variables across multiple local reassignments and scope boundaries.
-*   **Function Aliasing**: Detects security risks even when core functions are aliased (e.g., `const execute = eval; execute(code);`).
-
-### 2. Structural N-Gram Fingerprinting
-Identify redundant boilerplate and safety gaps using N-gram based structural comparison:
-*   **Boilerplate Detection**: Automatically identifies large blocks of duplicated logic across the codebase.
-*   **Anonymous Resolution**: Intelligently resolves names for anonymous arrow functions and class methods to make reports actionable.
-*   **Redundancy Scoring**: Quantifies code duplication to guide refactoring and reduce technical debt.
-
-### 3. Environment-Aware Rule Isolation
-Deploy and test new audit rules safely using the built-in isolation system:
-*   **Beta Tagging**: Tag experimental rules as `beta` to keep them isolated from Production environments.
-*   **Staging Rollouts**: Run the full suite in Staging/Dev while maintaining a strictly stable baseline for Production CI/CD gates.
-
-### 4. Cross-Language Parity
-*   **TypeScript/TSX**: Unified handling of modern web logic with deep JSX/TSX support.
-*   **Rust**: Specialized rules for `tokio` async safety, mutex deadlock prevention, and tracing instrumentation.
-*   **Solidity**: Protocol-level checks for Reentrancy (Checks-Effects-Interactions) and security standards.
+> [!NOTE]
+> GenSense is a diagnostic assistant. It complements existing linters (like Clippy or ESLint) by focusing on cross-language semantic patterns and "logical sense-checks" that traditional tools often miss.
 
 ---
 
-## Developer Integrity Suite
+## 🛠 Usage
 
-GenSense includes a comprehensive developer toolset to ensure the diagnostic engine itself remains reliable:
-
-| Tool | Feature | Purpose |
-| :--- | :--- | :--- |
-| **Pre-commit Hooks** | `make setup` | Enforces zero-warning clippy and rustfmt before every commit. |
-| **Snapshot Verification** | `make test` | Detects "diagnostic noise" by comparing findings against a verified baseline. |
-| **Parser Fuzzing** | `make fuzz` | Uses `cargo-fuzz` to feed adversarial input into the engine to ensure stability. |
-| **Integrity Makefile** | `make all` | A single entry point for semantic, security, and quality checks. |
-
----
-
-## Installation and Usage
-
-### Prerequisites
-*   Rust (Latest Stable)
-*   `libfuzzer` (for fuzzing support)
-
-### Quick Start
+### 1. CLI (Rust)
+Run the engine directly against a local directory:
 ```bash
-# Clone the repository
-git clone https://github.com/Friehub/gensense.git
-cd gensense
-
-# Install the Developer Integrity Suite (Hooks)
-make setup
-
-# Run a semantic insight check on a target directory
-cargo run -- /path/to/project
+cargo run -- /path/to/your/code
 ```
 
-### Configuration
-GenSense can be configured via `.gensense-suppress.yml` in your project root to handle intentional deviations:
+### 2. Node.js (Native Addon)
+GenSense is available as a high-performance native bridge for Node.js.
+```javascript
+const { auditContent } = require('@friehub/gensense');
+
+const advisories = auditContent('example.rs', sourceCode);
+advisories.forEach(adv => {
+  console.log(`[${adv.severity}] ${adv.ruleId}: ${adv.observation}`);
+});
+```
+
+---
+
+## ✍️ Extending GenSense: Adding Your Own Rules
+
+Developers can extend GenSense using two mechanisms: **Declarative YAML** (simple pattern matching) and **Procedural Rust** (complex semantic analysis).
+
+### 1. Declarative Rules (YAML)
+The easiest way to add a rule is via a `.yml` file in the `rules/` directory.
+
+**Format (`rules/custom_rules.yml`):**
 ```yaml
-suppressions:
-  - rule_id: "RUST_CLONE_IN_LOOP"
-    reason: "Intentional clone for thread-local storage in legacy module."
-    path: "src/legacy/mod.rs"
+rules:
+  - id: "MY_CUSTOM_RULE"
+    domain: "security"
+    target_ext: "rs"
+    on_node: "(call_expression) @node" # Tree-sitter query
+    if_matches: "dangerous_func\\("     # Regex for the node content
+    observation: "A dangerous function was detected."
+    impact: "This could lead to unauthorized access."
+    improvement: "Use 'safe_func' instead."
+    severity: "warning"
 ```
 
-## Rule Definition
+*   **`on_node`**: Uses Tree-sitter query syntax. **Must include a named capture** (e.g., `@node`).
+*   **`if_matches`**: (Optional) A regex filter applied to the text of the matched node.
+*   **`must_contain` / `must_not_contain`**: (Optional) Additional regex constraints for the node's scope.
 
-### YAML Rules (Declarative)
-Create rules in `rules/*.yml` for quick pattern matching:
-```yaml
-id: "TS_DATA_LEAK"
-observation: "Sensitive data from request body leaked to console."
-severity: "Critical"
-category: "Security"
-tags: ["stable"]
-if_matches: "req\\.body"
-must_not_contain: "console\\.log"
-```
+### 2. Procedural Rules (Rust)
+For rules requiring deep AST traversal or stateful analysis, implement the `GenSenseRule` trait in Rust.
 
-### Rust Rules (Procedural)
-For complex semantic checks, implement the `GenSenseRule` trait:
 ```rust
-impl GenSenseRule for SecretGuard {
+pub struct MyComplexRule;
+
+impl GenSenseRule for MyComplexRule {
+    fn id(&self) -> &str { "MY_COMPLEX_RULE" }
+    
+    fn query(&self) -> Option<&str> {
+        Some("(function_item) @func")
+    }
+
     fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
-        // High-precision procedural logic here
+        let mut advisories = Vec::new();
+        // Implement your custom logic here using the tree-sitter node
+        advisories
     }
 }
 ```
 
 ---
 
-## Roadmap and Evolution
+## 🔍 Using Existing Rules
 
-*   **Multi-File Taint Propagation**: Extending semantic analysis across module boundaries.
-*   **AI-Assisted Remediation**: Automated generation of patch-sets for identified vulnerabilities.
-*   **WASM Target**: Running the auditor directly in-browser for Zero-Knowledge auditing interfaces.
+GenSense comes with a robust library of built-in rules for **Rust**, **TypeScript**, and **Solidity**.
+
+### Listing Rules
+To see all currently loaded rules and their documentation:
+```bash
+cargo run -- --generate-docs
+```
+This generates a `RULES.md` file containing the full catalog of observations, impacts, and remediation steps.
+
+### Suppression
+If a rule triggers a false positive or an intentional deviation, suppress it via `.gensense-suppress.yml` in your project root:
+```yaml
+suppressions:
+  - rule_id: "RUST_ASYNC_MUTEX_DEADLOCK"
+    path: "src/legacy_wrapper.rs"
+    reason: "Internal wrapper ensures lock is dropped before await."
+```
 
 ---
 
-## License and Intellectual Property
+## 🏗 Developer Integrity Stack
 
+GenSense enforces high standards on its own codebase to ensure diagnostic reliability:
+*   **`make fmt`**: Enforces strict style guidelines.
+*   **`make check`**: Runs semantic lints via Clippy.
+*   **`make test`**: Executes the full regression suite (Rust + Node.js bindings).
+*   **`make audit`**: Scans dependencies for security vulnerabilities.
+
+---
+
+## License
 Proprietary - Friehub (TaaS Gateway).  
 Copyright (c) 2026 Friehub. All rights reserved.
-
-Designed and engineered as a diagnostic assistant to ensure the safety and integrity of modern, AI-augmented protocols.
-
