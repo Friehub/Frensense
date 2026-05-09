@@ -3,7 +3,7 @@ rules:
   - id: RUST_GOD_FUNCTION
     domain: quality
     target_ext: "rs"
-    on_node: "function_item"
+    on_node: "(function_item) @node"
     max_lines: 100
     observation: "God Function: block length exceeds standardized threshold (100 lines)."
     impact: "Standardized Standard #2: Oversized functions indicate mixed concerns and low readability."
@@ -12,7 +12,7 @@ rules:
   - id: RUST_NESTING_LIMIT
     domain: quality
     target_ext: "rs"
-    on_node: "function_item"
+    on_node: "(function_item) @node"
     max_depth: 4
     observation: "Deep Nesting: logical depth exceeds standardized limit (4 levels)."
     impact: "Rule #vibecoding: Extreme indentation indicates complex, unmaintainable logic."
@@ -22,7 +22,7 @@ rules:
   - id: TS_GOD_FUNCTION
     domain: quality
     target_ext: "ts"
-    on_node: "function_declaration|method_definition|arrow_function"
+    on_node: "(function_declaration|method_definition|arrow_function) @node"
     max_lines: 100
     observation: "God Function: block length exceeds standardized threshold (100 lines)."
     impact: "Standardized Standard #2: Oversized functions indicate mixed concerns."
@@ -31,7 +31,7 @@ rules:
   - id: TS_NESTING_LIMIT
     domain: quality
     target_ext: "ts"
-    on_node: "function_declaration|method_definition|arrow_function"
+    on_node: "(function_declaration|method_definition|arrow_function) @node"
     max_depth: 4
     observation: "Deep Nesting: logical depth exceeds standardized limit (4 levels)."
     impact: "Rule #vibecoding: Extreme indentation indicates complex logic."

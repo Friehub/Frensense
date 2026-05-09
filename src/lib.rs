@@ -23,6 +23,9 @@ pub use rules::core::CoreRule;
 pub use semantics::{DataFlowAnalyzer, Symbol, SymbolKind, SymbolRegistry, TaintRegistry};
 
 /// Current institutional version of the GenSense engine.
+#[cfg(feature = "node")]
+pub mod js;
+
 pub const GENSENSE_VERSION: &str = "0.1.2-beta";
 
 /// Static embed of standardized modular safety rules to ensure out-of-the-box functionality.

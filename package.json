@@ -1,0 +1,21 @@
+{
+  "name": "@friehub/gensense",
+  "version": "0.1.0",
+  "description": "GenSense: Semantic Diagnostic Engine",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "gensense",
+    "package": {
+      "name": "@friehub/gensense"
+    }
+  },
+  "scripts": {
+    "build": "napi build --release --features node",
+    "build:debug": "napi build --features node",
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.12.0"
+  }
+}

@@ -5,7 +5,7 @@ rules:
     observation: "Hey, I noticed an 'unsafe' block here."
     impact: "Unsafe code bypasses Rust's safety guarantees, which can sometimes lead to tricky undefined behavior if not audited."
     improvement: "Whenever possible, try sticking to safe Rust. If hardware-level interaction is needed, ensure it's heavily tested!"
-    on_node: "unsafe_block"
+    on_node: "((unsafe_block) @node) @node"
     if_matches: "unsafe"
 
   - id: "RUST_HOST_INTERACTION"
@@ -14,7 +14,7 @@ rules:
     observation: "We observed a direct interaction with host processes using 'std::process'."
     impact: "Isolated workers are designed to be environment-agnostic; host interaction can break portability and security boundaries."
     improvement: "We suggest routing host-level requests through the provided system-call interface or an event-based proxy."
-    on_node: "call_expression"
+    on_node: "((call_expression) @node) @node"
     if_matches: "Command::new|std::process"
 
   - id: "RUST_STD_OUTPUT"
@@ -23,7 +23,7 @@ rules:
     observation: "We observed the use of println! or eprintln! in library code."
     impact: "Direct standard output from libraries can interfere with the host application's logging strategy."
     improvement: "We recommend using the 'log' or 'tracing' crates for more flexible and integrated output management."
-    on_node: "macro_invocation"
+    on_node: "((macro_invocation) @node) @node"
     if_matches: "(println!|eprintln!)"
 
   - id: "RUST_ALLOCATION_IN_LOG"
@@ -32,7 +32,7 @@ rules:
     observation: "We noticed 'format!' being used inside a logging macro."
     impact: "This can cause unnecessary allocations even when the specific log level is disabled at runtime."
     improvement: "Try passing arguments directly to the log macro (e.g., info!('val: {}', v)) to leverage deferred formatting."
-    on_node: "macro_invocation"
+    on_node: "((macro_invocation) @node) @node"
     if_matches: "(info!|warn!|error!|debug!|trace!)\\(.*format!"
 
   - id: "RUST_CLONE_IN_LOOP"
@@ -41,7 +41,7 @@ rules:
     observation: "Just a heads-up, there's a '.clone()' call inside this loop."
     impact: "Allocating memory repeatedly inside a loop can quietly degrade performance."
     improvement: "Consider pulling the clone outside the loop, or maybe use references/Arc if you don't strictly need ownership."
-    on_node: "for_expression|while_expression"
+    on_node: "(for_expression|while_expression) @node"
     must_not_contain: "\\.clone\\(\\)"
 
   - id: "RUST_CONSTRUCTOR_BLOAT"
@@ -50,7 +50,7 @@ rules:
     observation: "It looks like this constructor has quite a few arguments."
     impact: "Constructors with many arguments can be tricky to read and maintain."
     improvement: "A Builder pattern or a dedicated 'Config' struct could make this much cleaner!"
-    on_node: "function_item"
+    on_node: "((function_item) @node) @node"
     if_matches: "fn new\\s*\\("
     max_lines: 30
 
@@ -60,7 +60,7 @@ rules:
     observation: "We observed a pattern of logging a failure but returning 'Ok(())'."
     impact: "Logging a failure without propagating it or changing the system state is an anti-pattern that hides errors and breaks expected control flow."
     improvement: "Ensure that errors are either returned (Result<T, E>), propagated, or lead to an explicit system state transition."
-    on_node: "macro_invocation"
+    on_node: "((macro_invocation) @node) @node"
     if_matches: "(warn!|error!)\\(.*\\);\\s*Ok\\(\\(\\)\\)"
 
   - id: "RUST_VEC_FRONT_REMOVE"
@@ -69,7 +69,7 @@ rules:
     observation: "We noticed '.remove(0)' being called on a Vec."
     impact: "Removing from the front of a Vec requires shifting all subsequent elements, resulting in O(n) time complexity. This can cause significant latency in large collections."
     improvement: "We recommend using 'VecDeque' and '.pop_front()' for O(1) removals from the front."
-    on_node: "call_expression"
+    on_node: "((call_expression) @node) @node"
     if_matches: "\\.remove\\(0\\)"
 
   - id: "RUST_ALGO_N2_LOOP"
@@ -78,7 +78,7 @@ rules:
     observation: "We observed a search operation (.contains/.find) inside a loop over a collection."
     impact: "This pattern results in O(N²) algorithmic complexity, which can lead to exponential performance degradation as data size grows."
     improvement: "Consider using a 'HashSet' or 'BTreeSet' for O(1)/O(log n) lookups instead."
-    on_node: "for_expression|while_expression"
+    on_node: "(for_expression|while_expression) @node"
     if_matches: "\\.(contains|find|position)\\("
 
 
@@ -88,7 +88,7 @@ rules:
     observation: "We observed the creation of an unbounded channel (unbounded_channel)."
     impact: "Unbounded channels can grow indefinitely if the consumer is slower than the producer, leading to Out-Of-Memory (OOM) crashes."
     improvement: "We suggest using a bounded channel (e.g., mpsc::channel(capacity)) to provide backpressure."
-    on_node: "call_expression"
+    on_node: "((call_expression) @node) @node"
     if_matches: "unbounded_channel"
 
   - id: "RUST_OVER_GENERAL_VARIABLE"
@@ -97,7 +97,7 @@ rules:
     observation: "Semantic Smell: Over-generic variable naming detected."
     impact: "Names like 'info', 'data', or 'item' are hallmark AI scaffolding and hide the semantic intent of the data."
     improvement: "Rename the variable to match its domain purpose (e.g., 'peer_info', 'payload_data')."
-    on_node: "let_declaration"
+    on_node: "((let_declaration) @node) @node"
     if_matches: "let (mut )? (info|data|val|item|element) :"
 
   - id: "RUST_LOCK_IO"
@@ -106,7 +106,7 @@ rules:
     observation: "I spotted a lock (Mutex/RwLock) that might be held across an I/O or await point."
     impact: "Holding locks during async I/O can cause lock contention and stall other tasks waiting for the same lock."
     improvement: "Try to drop the lock before the `.await` point to keep the critical section as small as possible."
-    on_node: "function_item"
+    on_node: "((function_item) @node) @node"
     if_matches: "(lock|write|read)\\(.*\\)"
     must_not_contain: "\\.await"
 
@@ -116,7 +116,7 @@ rules:
     observation: "I noticed an I/O operation followed directly by an `.unwrap()`."
     impact: "I/O operations (like opening files or network requests) are prone to failure. Unwrapping them can cause the entire service to panic."
     improvement: "Consider handling the Result with `match` or `?` to gracefully log or propagate the error."
-    on_node: "call_expression"
+    on_node: "((call_expression) @node) @node"
     if_matches: "(File::open|reqwest::get|TcpStream::connect)[^;]*\\.unwrap\\(\\)"
 
   - id: "RUST_UNWRAP_SAFETY"
@@ -125,7 +125,7 @@ rules:
     observation: "I noticed an '.unwrap()' call that doesn't seem to have a '// SAFETY:' comment nearby."
     impact: "Unwrapping without documented justification is a production risk. If the assumption is wrong, the service will panic."
     improvement: "Please add a '// SAFETY:' comment above this line explaining why this unwrap is guaranteed to succeed."
-    on_node: "call_expression"
+    on_node: "((call_expression) @node) @node"
     if_matches: "\\.unwrap\\(\\)"
     must_contain: "// SAFETY:"
 
@@ -135,13 +135,13 @@ rules:
     observation: "I noticed a 'tokio::select!' block that might be missing an 'else' or 'default' branch."
     impact: "Select blocks without a default branch can hang indefinitely if all futures are pending or completed."
     improvement: "Consider adding an 'else => ...' branch to handle cases where no futures are ready."
-    on_node: "macro_invocation"
+    on_node: "((macro_invocation) @node) @node"
     if_matches: "tokio::select"
     must_contain: "(else|default)\\s*=>"
   - id: "RUST_LARGE_STACK_ALLOCATION"
     domain: "reliability"
     target_ext: "rs"
-    on_node: "array_expression"
+    on_node: "((array_expression) @node) @node"
     if_matches: "\\[.*;\\s*(\\d{5,})\\]"
     impact: "Allocating large buffers (>10KB) on the stack increases the risk of stack overflow, especially in async contexts with many concurrent tasks."
     improvement: "Move the buffer to the heap using 'Box::new()' or 'Vec::with_capacity()'."
@@ -149,7 +149,7 @@ rules:
   - id: "RUST_PANIC_IN_LIB"
     domain: "safety"
     target_ext: "rs"
-    on_node: "macro_invocation"
+    on_node: "((macro_invocation) @node) @node"
     if_matches: "(panic|todo|unimplemented)!"
     impact: "Unconditional panics in library or protocol crates cause hard crashes for consumers. Standard practice is to return 'Result' and let the caller decide how to handle failure."
     improvement: "Replace 'panic!' with 'Err(...)' returning a proper error type."

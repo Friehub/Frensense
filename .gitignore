@@ -1,23 +1,8 @@
-/target
-/dist
-**/*.rs.bk
-Cargo.lock
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
+target/
+node_modules/
+*.node
+index.js
+index.d.ts
+package-lock.json
 .DS_Store
-Thumbs.db
-
-# TaaS Specific
-stderr.log
-out.log
-out.json
-*.tmp
-tests/snapshots/*.json.tmp
-fuzz/corpus
-fuzz/artifacts
+*.log

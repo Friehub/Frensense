@@ -21,7 +21,7 @@ impl GenSenseRule for AsyncPanicSafety {
 
     fn query(&self) -> Option<&str> {
         // High-Precision Matcher: Finds .unwrap(), .expect(), and panic!() in one pass.
-        Some("[ (call_expression) (macro_invocation) ]")
+        Some("[ (call_expression) (macro_invocation) ] @node")
     }
 
     fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
