@@ -2,8 +2,15 @@
   "name": "@friehub/gensense",
   "version": "0.1.0",
   "description": "GenSense: Semantic Diagnostic Engine",
-  "main": "tests/node/bridge.js",
-  "types": "tests/node/bridge.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "gensense": "bin/gensense.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/",
+    "access": "public"
+  },
   "napi": {
     "name": "gensense",
     "package": {
@@ -13,7 +20,7 @@
   "scripts": {
     "build": "napi build --release --features node,rust,typescript",
     "build:debug": "napi build --features node",
-    "test": "node tests/node/test.js"
+    "test": "node tests/node/integration.test.js"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.12.0"

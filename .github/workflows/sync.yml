@@ -1,0 +1,49 @@
+name: Auto Sync & Tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-and-tag:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, 'chore: prepare v')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync Versions
+        run: node scripts/sync-version.js
+
+      - name: Check for version change
+        id: version_check
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "current_version=$VERSION" >> $GITHUB_OUTPUT
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit sync if needed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add Cargo.toml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: sync version to Cargo.toml [skip ci]" && git push)
+
+      - name: Create and Push Tag
+        if: steps.version_check.outputs.exists == 'false'
+        run: |
+          VERSION=${{ steps.version_check.outputs.current_version }}
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
