@@ -1,4 +1,4 @@
-// [LICENSE] Proprietary - Friehub (TaaS Gateway)
+// [LICENSE] Proprietary - Friehub (GenSense Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
 pub mod data_flow;

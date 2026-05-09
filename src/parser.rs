@@ -1,4 +1,4 @@
-// [LICENSE] Proprietary - Friehub (TaaS Gateway)
+// [LICENSE] Proprietary - Friehub (GenSense Gateway)
 // Copyright (c) 2026 Friehub. All rights reserved.
 
 use crate::{GenSenseError, Result};
