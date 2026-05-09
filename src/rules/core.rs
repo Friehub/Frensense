@@ -60,7 +60,7 @@ impl GenSenseRule for CoreRule {
     }
 
     fn query(&self) -> Option<&str> {
-        if self.on_node.contains('|') {
+        if self.on_node.contains("|") || !self.on_node.contains(" ") {
             None
         } else {
             Some(&self.on_node)
@@ -166,11 +166,8 @@ impl GenSenseRule for CoreRule {
                 // --- Content-Based Constraints (Conjunction Logic) ---
                 // A violation occurs only if ALL specified constraints are met.
                 // This resolves BUG-01 and BUG-02 by ensuring RUST_LOCK_IO only fires if BOTH lock and await are present.
-                let has_if_matches = self.if_matches.is_some();
-                let has_must_not = self.must_not_contain.is_some();
-                let has_must = self.must_contain.is_some();
-
-                if has_if_matches || has_must_not || has_must {
+                if true {
+                    // ALWAYS RUN CONSTRAINTS
                     let matches_if = self
                         .if_matches
                         .as_ref()

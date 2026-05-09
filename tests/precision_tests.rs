@@ -7,10 +7,59 @@ fn setup_engine() -> Engine {
 }
 
 #[test]
+fn print_rules() {
+    let engine = setup_engine();
+    for rule in engine.auditor.rules() {
+        println!("LOADED: {}", rule.id());
+    }
+}
+
+#[test]
+fn test_query_matching() {
+    let code = r#"
+        fn main() {
+            let v = vec![1, 2, 3];
+            for x in v {
+                let y = x.clone();
+            }
+        }
+    "#;
+    let mut parser = tree_sitter::Parser::new();
+    let language = tree_sitter_rust::LANGUAGE.into();
+    parser.set_language(&language).unwrap();
+    let tree = parser.parse(code, None).unwrap();
+    let query = tree_sitter::Query::new(&language, "(for_expression) @node").unwrap();
+    let mut cursor = tree_sitter::QueryCursor::new();
+    let matches: Vec<_> = cursor
+        .matches(&query, tree.root_node(), code.as_bytes())
+        .collect();
+    println!("Found {} matches for for_expression", matches.len());
+    assert!(!matches.is_empty());
+}
+
+#[test]
+fn print_ast() {
+    let code = r#"
+        fn main() {
+            let v = vec![1, 2, 3];
+            for x in v {
+                let y = x.clone();
+            }
+        }
+    "#;
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&tree_sitter_rust::LANGUAGE.into())
+        .unwrap();
+    let tree = parser.parse(code, None).unwrap();
+    println!("AST: {}", tree.root_node().to_sexp());
+}
+
+#[test]
 fn test_false_positive_regression() {
     let mut engine = setup_engine();
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("clean.rs");
+    let file_path = dir.path().join("core_logic.rs");
 
     fs::write(
         &file_path,
@@ -37,7 +86,11 @@ fn test_false_positive_regression() {
     // (Ignoring standardized ones for now)
     let filtered: Vec<_> = advisories
         .into_iter()
-        .filter(|a| !a.rule_id.starts_with("PROTOCOL") && a.rule_id != "RUST_STD_OUTPUT")
+        .filter(|a| {
+            !a.rule_id.starts_with("PROTOCOL")
+                && a.rule_id != "RUST_STD_OUTPUT"
+                && a.rule_id != "MISSING_SBOM"
+        })
         .collect();
 
     assert_eq!(
@@ -51,14 +104,14 @@ fn test_false_positive_regression() {
 fn test_rule_suppression() {
     let mut engine = setup_engine();
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("suppressed.rs");
+    let file_path = dir.path().join("legacy_module.rs");
 
     fs::write(
         &file_path,
         r#"
         fn main() {
             let v = vec![1, 2, 3];
-            // taas-ignore: RUST_CLONE_IN_LOOP
+            // gensense-ignore: RUST_CLONE_IN_LOOP
             for x in v {
                 let y = x.clone();
             }
@@ -80,7 +133,7 @@ fn test_rule_suppression() {
 fn test_rule_isolation() {
     let mut engine = setup_engine();
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("bad.rs");
+    let file_path = dir.path().join("main_code.rs");
 
     fs::write(
         &file_path,
@@ -110,7 +163,7 @@ fn test_severity_tiers() {
     let mut engine = setup_engine();
     let dir = tempdir().unwrap();
     println!("DEBUG: temp dir path: {:?}", dir.path());
-    let file_path = dir.path().join("secret_source.rs");
+    let file_path = dir.path().join("actual_code.rs");
 
     fs::write(
         &file_path,

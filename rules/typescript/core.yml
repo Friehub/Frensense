@@ -5,7 +5,7 @@ rules:
     observation: "We observed a pattern of dynamic code execution using 'eval()'."
     impact: "Dynamic execution can introduce unpredictability and increase the surface area for logic vulnerabilities in isolate environments."
     improvement: "Consider using a static mapping or a predefined registry to handle dynamic logic securely."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "eval\\("
 
   - id: "TS_DYNAMIC_EXECUTION"
@@ -14,7 +14,7 @@ rules:
     observation: "We observed a pattern of dynamic code execution using 'eval()'."
     impact: "Dynamic execution can introduce unpredictability and increase the surface area for logic vulnerabilities in isolate environments."
     improvement: "Consider using a static mapping or a predefined registry to handle dynamic logic securely."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "eval\\("
 
   - id: "TS_ALIASED_DYNAMIC_EXECUTION"
@@ -33,7 +33,7 @@ rules:
     observation: "I noticed 'console.log' being used here."
     impact: "Direct console outputs can be tricky to filter in production logs."
     improvement: "Consider using the standard logger (e.g. Pino, Winston) for better observability."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "console\\.log"
 
   - id: "TS_BLOCKING_IO"
@@ -42,7 +42,7 @@ rules:
     observation: "We observed a synchronous I/O call within a potentially asynchronous execution path."
     impact: "Synchronous calls block the event loop, which can significantly reduce the responsiveness of the service under load."
     improvement: "Consider using the asynchronous version of this call to keep the event loop moving smoothly."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "Sync\\("
 
   - id: "TS_EMPTY_CATCH"
@@ -86,7 +86,7 @@ rules:
     observation: "I noticed a 'useEffect' hook with an empty dependency array []."
     impact: "Empty dependency arrays can cause stale closures if the hook references variables from the component scope."
     improvement: "Double check that all referenced variables are included in the dependency array to ensure the UI stays in sync."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "(?s)useEffect\\(.*\\s*,\\s*\\[\\s*\\]\\)"
 
   - id: "TS_BUNDLE_BLOAT"
@@ -104,7 +104,7 @@ rules:
     observation: "I noticed a '.forEach' call with an 'async' callback."
     impact: "Array.prototype.forEach is not promise-aware. The loop will continue without awaiting the callback, leading to race conditions and unhandled rejections."
     improvement: "Consider using 'for...of' or 'await Promise.all(arr.map(async ...))' for proper concurrency control."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "forEach\\(\\s*async"
 
   - id: "TS_SENSITIVE_DATA_LOGGING"
@@ -113,7 +113,7 @@ rules:
     observation: "I noticed a logging call that seems to include sensitive keywords (password, token, secret)."
     impact: "Logging sensitive credentials or PII in production logs is a major security violation and can lead to account takeovers."
     improvement: "Ensure sensitive data is masked, redacted, or removed entirely from logging output."
-    on_node: "(call_expression) @node"
+    on_node: "call_expression"
     if_matches: "(console\\.log|logger|tracing).*password|token|secret|cvv|apikey"
 
   - id: "TS_DATA_LEAK_TRACKER"

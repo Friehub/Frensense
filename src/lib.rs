@@ -22,7 +22,7 @@ pub use engine::{Engine, GenSenseAuditor};
 pub use rules::core::CoreRule;
 pub use semantics::{DataFlowAnalyzer, Symbol, SymbolKind, SymbolRegistry, TaintRegistry};
 
-/// Current institutional version of the GenSense engine.
+/// Current core version of the GenSense engine.
 #[cfg(feature = "node")]
 pub mod js;
 

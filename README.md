@@ -12,19 +12,31 @@ GenSense is a **semantic diagnostic engine** designed to detect logical flaws an
 ### 1. CLI (Rust)
 Run the engine directly against a local directory:
 ```bash
+# Standard analysis
 cargo run -- /path/to/your/code
+
+# Enable optional diagnostic tags (e.g., SBOM, Governance)
+cargo run -- /path/to/your/code --tag sbom
 ```
 
 ### 2. Node.js (Native Addon)
 GenSense is available as a high-performance native bridge for Node.js.
 ```javascript
-const { auditContent } = require('@friehub/gensense');
+const { Engine, GenSenseAuditor } = require('@friehub/gensense');
 
-const advisories = auditContent('example.rs', sourceCode);
-advisories.forEach(adv => {
-  console.log(`[${adv.severity}] ${adv.ruleId}: ${adv.observation}`);
-});
+const engine = new Engine(GenSenseAuditor.default());
+engine.enableTag('sbom'); // Opt-in to specific audits
+const advisories = engine.run('/path/to/project');
 ```
+
+---
+
+## 🛠 Developer-Centric Diagnostics
+
+GenSense is built for developers, not for auditors. We prioritize **technical impact** and **engineering clarity**:
+*   **No Institutional Jargon**: Advisories focus on technical debt, maintenance overhead, and security risks.
+*   **Optional Audits**: High-level governance checks (like SBOM verification) are **opt-in**. We don't nag you about project management unless you ask us to.
+*   **Actionable Feedback**: Every suggestion is designed to be a peer-review comment you'd actually want to receive.
 
 ---
 

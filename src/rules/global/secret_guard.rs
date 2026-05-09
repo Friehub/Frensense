@@ -11,7 +11,7 @@ pub struct SecretGuard;
 static SECRET_RE: Lazy<Regex> = Lazy::new(|| {
     // Matches high-entropy patterns: Hex (32+ chars), Base64 (40+ chars)
     Regex::new(r"(?i)(0x[a-f0-9]{32,}|[a-z0-9+/]{40,}={0,2})")
-        .expect("Institutional Alert: Failed to compile internal secret detection regex. This is a deployment blocker.")
+        .expect("Internal Error: Failed to compile internal secret detection regex. This is a deployment blocker.")
 });
 
 impl GenSenseRule for SecretGuard {
