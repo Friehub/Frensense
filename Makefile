@@ -57,7 +57,7 @@ sbom:
 dist: docs sbom
 	@echo "[DIST] Bundling release artifacts..."
 	mkdir -p dist
-	cargo build --release --features cli,node
+	cargo build --release --features cli
 	cp target/release/gensense dist/
 	cp RULES.md dist/
 	cp bom.json dist/

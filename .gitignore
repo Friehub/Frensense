@@ -11,8 +11,8 @@ yarn-error.log*
 
 # NAPI-RS / Build Artifacts
 *.node
-dist/
-bin/
+gensense
+gensense.exe
 .env
 index.js
 index.d.ts
