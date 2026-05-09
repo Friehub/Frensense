@@ -22,7 +22,7 @@ impl RuleCompiler {
             });
         } else {
             // Normalize "function_item|method_definition" into a query
-            let kinds: Vec<String> = dsl.on_node.split('|').map(|s| format!("({})", s)).collect();
+            let kinds: Vec<String> = dsl.on_node.split('|').map(|s| format!("({s})")).collect();
             let query = if kinds.len() > 1 {
                 format!("[{}] @node", kinds.join(" "))
             } else {

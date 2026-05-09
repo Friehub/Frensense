@@ -65,7 +65,10 @@ impl SemanticGraph {
     }
 
     pub fn add_event(&mut self, event: TemporalEvent) -> NodeIndex {
-        self.graph.add_node(SemanticNode::Event(event))
+        let label = event.label.clone();
+        let idx = self.graph.add_node(SemanticNode::Event(event));
+        self.name_index.entry(label).or_default().push(idx);
+        idx
     }
 
     pub fn add_edge(&mut self, from: NodeIndex, to: NodeIndex, kind: EdgeKind) {
@@ -105,6 +108,7 @@ impl SemanticGraph {
     pub fn ordered_events_in_scope(&self, scope_idx: NodeIndex) -> Vec<TemporalEvent> {
         let mut events = Vec::new();
         let event_indices = self.neighbors_of(scope_idx, EdgeKind::InScope);
+        let event_set: std::collections::HashSet<_> = event_indices.iter().copied().collect();
 
         // Find the start of the sequence within this scope
         let mut current = None;
@@ -113,8 +117,7 @@ impl SemanticGraph {
                 .graph
                 .edges_directed(idx, petgraph::Direction::Incoming)
                 .any(|e| {
-                    *e.weight() == EdgeKind::SequentiallyFollows
-                        && event_indices.contains(&e.source())
+                    *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.source())
                 });
 
             if !has_prev_in_scope {

@@ -64,7 +64,7 @@ impl<'a> TemporalAnalyzer<'a> {
 
         // 3. Find matches for each step in the sequence
         let mut matches = Vec::new();
-        for event in events {
+        for event in &events {
             for (i, re) in regexes.iter().enumerate() {
                 if re.is_match(&event.label) {
                     matches.push((event.clone(), i));
@@ -98,10 +98,67 @@ impl<'a> TemporalAnalyzer<'a> {
                 }
             }
             crate::rules::ir::TemporalBehavior::MustFollow => {
-                // TODO: Implement MustFollow FSM
+                let mut current_step = 0;
+                for (_event, p_idx) in &matches {
+                    if *p_idx == current_step {
+                        current_step += 1;
+                        if current_step == sequence.len() {
+                            break;
+                        }
+                    }
+                }
+
+                if current_step < sequence.len() {
+                    advisories.push(Advisory {
+                        rule_id: rule.id().to_string(),
+                        severity: rule.severity(),
+                        observation: format!(
+                            "Temporal Violation: Expected sequence [{}] was incomplete (stopped at '{}').",
+                            sequence.join(", "),
+                            sequence[current_step.saturating_sub(1)]
+                        ),
+                        impact: rule.impact().to_string(),
+                        improvement: rule.improvement().to_string(),
+                        line: scope.start_position().row + 1,
+                        column: scope.start_position().column + 1,
+                        file_path: file_path.to_string(),
+                        original_content: String::new(),
+                        proposed_replacement: None,
+                    });
+                }
             }
-            crate::rules::ir::TemporalBehavior::ForbiddenBetween(_, _) => {
-                // TODO: Implement ForbiddenBetween FSM
+            crate::rules::ir::TemporalBehavior::ForbiddenBetween(start_p, end_p) => {
+                let start_re = Regex::new(start_p).unwrap();
+                let end_re = Regex::new(end_p).unwrap();
+                let mut in_forbidden_zone = false;
+
+                for event in &events {
+                    if start_re.is_match(&event.label) {
+                        in_forbidden_zone = true;
+                    } else if end_re.is_match(&event.label) {
+                        in_forbidden_zone = false;
+                    } else if in_forbidden_zone {
+                        for (i, re) in regexes.iter().enumerate() {
+                            if re.is_match(&event.label) {
+                                advisories.push(Advisory {
+                                    rule_id: rule.id().to_string(),
+                                    severity: rule.severity(),
+                                    observation: format!(
+                                        "Temporal Violation: '{}' found between '{}' and '{}', which is forbidden.",
+                                        sequence[i], start_p, end_p
+                                    ),
+                                    impact: rule.impact().to_string(),
+                                    improvement: rule.improvement().to_string(),
+                                    line: event.line,
+                                    column: event.column,
+                                    file_path: event.file_path.clone(),
+                                    original_content: String::new(),
+                                    proposed_replacement: None,
+                                });
+                            }
+                        }
+                    }
+                }
             }
         }
 

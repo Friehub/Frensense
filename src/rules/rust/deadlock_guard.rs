@@ -60,41 +60,36 @@ impl DeadlockGuard {
         None
     }
 
-    /// Internal Helper: Scans a scope for 'lock()' calls on std::sync::Mutex.
-    /// This is an MVP heuristic: looks for 'lock(' before the await point in the same block.
+    /// Internal Helper: Scans a scope for 'lock()' calls before the await point.
     fn has_mutex_lock(&self, scope: Node, await_node: Node, source: &str) -> bool {
-        let _cursor = scope.walk();
         let await_start = await_node.start_byte();
-
-        // Strategy: Look for '.lock()' calls that occur BEFORE the await point in this scope
-        self.scan_for_lock(scope, await_start, source)
+        scan_for_lock(scope, await_start, source)
     }
+}
 
-    fn scan_for_lock(&self, node: Node, before_byte: usize, source: &str) -> bool {
-        // High-precision check: Look for method calls named 'lock'
-        if node.kind() == "call_expression" {
-            let func = node.child_by_field_name("function");
-            if let Some(f) = func {
-                let code = &source[f.start_byte()..f.end_byte()];
-                if code.contains(".lock") && f.start_byte() < before_byte {
-                    return true;
-                }
+/// Recursive AST walk: find .lock() calls before a given byte offset.
+fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
+    if node.kind() == "call_expression" {
+        if let Some(f) = node.child_by_field_name("function") {
+            let code = &source[f.start_byte()..f.end_byte()];
+            if code.contains(".lock") && f.start_byte() < before_byte {
+                return true;
             }
         }
+    }
 
-        let mut cursor = node.walk();
-        if cursor.goto_first_child() {
-            loop {
-                if cursor.node().start_byte() < before_byte
-                    && self.scan_for_lock(cursor.node(), before_byte, source)
-                {
-                    return true;
-                }
-                if !cursor.goto_next_sibling() {
-                    break;
-                }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            if cursor.node().start_byte() < before_byte
+                && scan_for_lock(cursor.node(), before_byte, source)
+            {
+                return true;
+            }
+            if !cursor.goto_next_sibling() {
+                break;
             }
         }
-        false
     }
+    false
 }

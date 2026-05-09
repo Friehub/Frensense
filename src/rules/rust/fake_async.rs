@@ -36,7 +36,7 @@ impl GenSenseRule for FakeAsyncDetector {
         if header.contains("async") {
             // 2. Scan body for await points
             if let Some(body) = node.child_by_field_name("body") {
-                if !self.has_await(body) {
+                if !has_await(body) {
                     advisories.push(self.new_advisory(
                         &node,
                         "Async function without await points (Fake Async).".to_string(),
@@ -51,23 +51,21 @@ impl GenSenseRule for FakeAsyncDetector {
     }
 }
 
-impl FakeAsyncDetector {
-    fn has_await(&self, node: Node) -> bool {
-        if node.kind() == "await_expression" {
-            return true;
-        }
-
-        let mut cursor = node.walk();
-        if cursor.goto_first_child() {
-            loop {
-                if self.has_await(cursor.node()) {
-                    return true;
-                }
-                if !cursor.goto_next_sibling() {
-                    break;
-                }
+/// Recursive AST walk: checks if any child is an await_expression.
+fn has_await(node: Node) -> bool {
+    if node.kind() == "await_expression" {
+        return true;
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            if has_await(cursor.node()) {
+                return true;
+            }
+            if !cursor.goto_next_sibling() {
+                break;
             }
         }
-        false
     }
+    false
 }

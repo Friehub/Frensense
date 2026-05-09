@@ -83,7 +83,7 @@ impl GenSenseRule for CoreRuleIr {
 
     fn query(&self) -> Option<&str> {
         // v2 engine will handle multi-query, but for v1 compatibility:
-        self.match_queries.get(0).map(|q| q.selector.as_str())
+        self.match_queries.first().map(|q| q.selector.as_str())
     }
 
     fn applies_to(&self, ext: &str) -> bool {
