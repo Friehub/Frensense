@@ -1,10 +1,10 @@
 [package]
 name = "gensense"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Friehub Developers"]
 edition = "2021"
-license = "Proprietary"
-publish = false
+license = "MIT"
+publish = true
 autobins = false
 
 [lib]
