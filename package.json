@@ -1,6 +1,6 @@
 {
   "name": "@friehub/gensense",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "GenSense: Semantic Diagnostic Engine",
   "main": "gensense.js",
   "types": "gensense.d.ts",
@@ -26,7 +26,8 @@
     "build:debug": "napi build --features node",
     "test": "node tests/node/integration.test.js",
     "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs"
+    "docs:build": "vitepress build docs",
+    "postinstall": "chmod +x bin/gensense.js dist/gensense dist/binaries/gensense-* 2>/dev/null || true"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.12.0",
