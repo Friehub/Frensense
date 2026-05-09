@@ -46,7 +46,7 @@ fuzz:
 ## Documentation
 docs:
 	@echo "[DOC] Generating GenSense Rule Catalog..."
-	cargo run -- --generate-docs
+	cargo run --features cli -- --generate-docs
 
 ## Security & Compliance
 sbom:
@@ -57,7 +57,7 @@ sbom:
 dist: docs sbom
 	@echo "[DIST] Bundling release artifacts..."
 	mkdir -p dist
-	cargo build --release --features full
+	cargo build --release --features cli,node
 	cp target/release/gensense dist/
 	cp RULES.md dist/
 	cp bom.json dist/

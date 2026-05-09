@@ -17,6 +17,7 @@ fn main() -> Result<()> {
         println!("  --generate-docs    Generate RULES.md documentation");
         println!("  --debug <file>     Anonymized AST debug dump");
         println!("  --severity <level> Filter findings by severity (critical, warning, info)");
+        println!("  --tag <name>       Enable an optional diagnostic tag (e.g., sbom, governance)");
         println!("  --strict           Exit with code 1 if any findings match filter");
         println!("  --json             Output findings as JSON");
         println!("  --sarif            Output findings in SARIF format");
@@ -118,6 +119,7 @@ fn main() -> Result<()> {
     let mut do_fix = false;
     let mut show_diff = false;
     let mut severity_filter: Option<gensense::Severity> = None;
+    let mut enabled_tags = Vec::new();
 
     let mut i = 2;
     while i < args.len() {
@@ -143,12 +145,21 @@ fn main() -> Result<()> {
                     i += 1;
                 }
             }
+            "--tag" => {
+                if let Some(tag) = args.get(i + 1) {
+                    enabled_tags.push(tag.clone());
+                    i += 1;
+                }
+            }
             _ => {}
         }
         i += 1;
     }
 
     let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    for tag in enabled_tags {
+        engine.enable_tag(&tag);
+    }
     let all_advisories = engine.run(input_path)?;
 
     // Filter by severity

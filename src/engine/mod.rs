@@ -110,9 +110,18 @@ impl GenSenseAuditor {
 
         for file in EMBEDDED_RULES_DIR.find("**/*.yml").unwrap() {
             if let Some(rules_yml) = file.as_file().and_then(|f| f.contents_utf8()) {
-                if let Ok(wrapper) = serde_yaml::from_str::<RulesWrapper>(rules_yml) {
-                    for rule in wrapper.rules {
-                        rules.push(Box::new(rule));
+                match serde_yaml::from_str::<RulesWrapper>(rules_yml) {
+                    Ok(wrapper) => {
+                        for rule in wrapper.rules {
+                            rules.push(Box::new(rule));
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "[ERROR] Failed to parse YAML rules in {:?}: {}",
+                            file.path(),
+                            e
+                        );
                     }
                 }
             }
@@ -176,18 +185,7 @@ impl GenSenseAuditor {
                     }
                     matches
                 } else {
-                    if !self.is_suppressed(tree.root_node(), rule.id(), content, path) {
-                        rule.check(
-                            tree.root_node(),
-                            &GenSenseContext {
-                                file_path: path,
-                                source_code: content,
-                                symbols,
-                            },
-                        )
-                    } else {
-                        Vec::new()
-                    }
+                    self.run_recursive(tree.root_node(), rule.as_ref(), content, path, symbols)
                 };
 
                 for mut adv in rule_advisories {
@@ -365,6 +363,31 @@ impl GenSenseAuditor {
         }
         Ok(symbols)
     }
+    fn run_recursive(
+        &self,
+        node: Node,
+        rule: &dyn GenSenseRule,
+        content: &str,
+        path: &Path,
+        symbols: &SymbolRegistry,
+    ) -> Vec<Advisory> {
+        let mut advisories = Vec::new();
+        if !self.is_suppressed(node, rule.id(), content, path) {
+            advisories.extend(rule.check(
+                node,
+                &GenSenseContext {
+                    file_path: path,
+                    source_code: content,
+                    symbols,
+                },
+            ));
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            advisories.extend(self.run_recursive(child, rule, content, path, symbols));
+        }
+        advisories
+    }
 }
 
 pub struct Engine {
@@ -476,7 +499,9 @@ impl Engine {
 
         #[cfg(feature = "fingerprinting")]
         all_advisories.append(&mut self.post_process_ngrams(&all_fingerprints));
-        all_advisories.append(&mut self.run_governance_checks(root));
+        if self.enabled_tags.contains("governance") || self.enabled_tags.contains("sbom") {
+            all_advisories.append(&mut self.run_governance_checks(root));
+        }
 
         Ok(all_advisories)
     }
@@ -487,10 +512,10 @@ impl Engine {
         let bom_json = root.join("bom.json");
         if !sbom_txt.exists() && !bom_json.exists() {
             advisories.push(Advisory {
-                rule_id: "INSTITUTIONAL_MISSING_SBOM".to_string(),
+                rule_id: "MISSING_SBOM".to_string(),
                 severity: crate::Severity::Warning,
-                observation: "Institutional Audit Failure: No Software Bill of Materials (SBOM) found.".to_string(),
-                impact: "Audit Mandate: Every production-grade system must have a verifiable SBOM for supply chain security.".to_string(),
+                observation: "Project Health: No Software Bill of Materials (SBOM) found.".to_string(),
+                impact: "Supply Chain Security: A verifiable SBOM is recommended for production-grade systems to track dependencies.".to_string(),
                 improvement: "Generate an SBOM using 'cargo cyclonedx' and place it at 'bom.json'.".to_string(),
                 line: 0,
                 column: 0,
@@ -545,7 +570,7 @@ impl Engine {
                             f2.line
                         ),
                         impact:
-                            "Institutional Law #4: Structural duplication dilutes the codebase."
+                            "Engineering Principle: Structural duplication increases technical debt and maintenance overhead."
                                 .to_string(),
                         improvement: format!(
                             "Abstract common logic shared with {}.",

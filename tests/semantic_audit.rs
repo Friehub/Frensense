@@ -49,7 +49,11 @@ mod tests {
                 gensense::GenSenseEnvironment::Development,
             )
             .unwrap();
-        // The rule ID might have changed in YAML
+
+        for v in &violations {
+            println!("Violation: {}", v.rule_id);
+        }
+
         assert!(violations
             .iter()
             .any(|v| v.rule_id == "JS_DYNAMIC_EXECUTION"));
