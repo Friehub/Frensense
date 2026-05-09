@@ -46,6 +46,8 @@ impl ParserRegistry {
             "rs" => Some(
                 r#"
                 (function_item name: (identifier) @name)
+                (parameter pattern: (identifier) @name)
+                (let_declaration pattern: (identifier) @name)
                 (struct_item name: (type_identifier) @name)
                 (enum_item name: (type_identifier) @name)
                 (trait_item name: (type_identifier) @name)

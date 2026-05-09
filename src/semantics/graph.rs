@@ -15,6 +15,7 @@ pub enum EdgeKind {
     FlowsFrom,
     SequentiallyFollows, // NEW: For temporal order
     InScope,             // NEW: Linking events to symbols
+    Parameter,           // NEW: Linking function to its parameters
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +24,8 @@ pub enum EventType {
     Release,
     Await,
     Call,
+    Assignment,
+    Return,
 }
 
 #[derive(Debug, Clone)]

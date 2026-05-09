@@ -386,4 +386,81 @@ impl<'a> DataFlowAnalyzer<'a> {
         }
         None
     }
+
+    pub fn check_taint_graph(
+        &self,
+        source_re: &Regex,
+        sink_re: &Regex,
+        rule: &dyn GenSenseRule,
+    ) -> Vec<Advisory> {
+        let mut advisories = Vec::new();
+        let graph = &self.context.symbols.graph;
+
+        // 1. Find all potential sources
+        let mut tainted_nodes = Vec::new();
+        for idx in graph.all_nodes() {
+            let label = match graph.get_node(idx) {
+                Some(crate::semantics::graph::SemanticNode::Declaration(sym)) => &sym.name,
+                Some(crate::semantics::graph::SemanticNode::Event(ev)) => &ev.label,
+                None => continue,
+            };
+            if source_re.is_match(label) {
+                tainted_nodes.push(idx);
+            }
+        }
+
+        // 2. Perform reachability analysis (BFS)
+        let mut visited = std::collections::HashSet::new();
+        let mut queue = std::collections::VecDeque::from(tainted_nodes.clone());
+        visited.extend(tainted_nodes);
+
+        while let Some(current_idx) = queue.pop_front() {
+            // Check if this node is a sink
+            let label = match graph.get_node(current_idx) {
+                Some(crate::semantics::graph::SemanticNode::Declaration(sym)) => &sym.name,
+                Some(crate::semantics::graph::SemanticNode::Event(ev)) => &ev.label,
+                None => continue,
+            };
+
+            if sink_re.is_match(label) {
+                // Found a leak!
+                if let Some(node) = graph.get_node(current_idx) {
+                    let (line, col, file) = match node {
+                        crate::semantics::graph::SemanticNode::Declaration(sym) => {
+                            (sym.line, sym.column, &sym.file_path)
+                        }
+                        crate::semantics::graph::SemanticNode::Event(ev) => {
+                            (ev.line, ev.column, &ev.file_path)
+                        }
+                    };
+                    advisories.push(Advisory {
+                        rule_id: rule.id().to_string(),
+                        severity: rule.severity(),
+                        observation: format!(
+                            "Inter-procedural Leak: Tainted data reached sink '{}'.",
+                            label
+                        ),
+                        impact: rule.impact().to_string(),
+                        improvement: rule.improvement().to_string(),
+                        line,
+                        column: col,
+                        file_path: file.clone(),
+                        original_content: "".to_string(),
+                        proposed_replacement: None,
+                    });
+                }
+            }
+
+            // Follow FlowsFrom edges
+            for neighbor in
+                graph.neighbors_of(current_idx, crate::semantics::graph::EdgeKind::FlowsFrom)
+            {
+                if visited.insert(neighbor) {
+                    queue.push_back(neighbor);
+                }
+            }
+        }
+
+        advisories
+    }
 }
