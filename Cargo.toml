@@ -1,8 +1,12 @@
 [package]
 name = "gensense"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Friehub Developers"]
 edition = "2021"
+description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
+repository = "https://github.com/Friehub/gensense"
+homepage = "https://friehub.github.io/gensense/"
+documentation = "https://friehub.github.io/gensense/"
 license = "MIT"
 publish = true
 autobins = false
