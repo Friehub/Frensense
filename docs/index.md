@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "GenSense"
-  text: "Experimental Semantic Diagnostic Engine"
-  tagline: "High-precision AST-level analysis for logical flaws and security risks."
+  text: "Semantic Analysis Engine"
+  tagline: "Detecting logical flaws and security risks through AST traversal."
   actions:
     - theme: brand
       text: "View Rule Catalog"

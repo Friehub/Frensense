@@ -14,12 +14,12 @@
   --vp-c-text-2: #475569; /* Slate */
   --vp-c-text-3: #94A3B8; /* Cool Gray */
 
-  /* Home Hero Title styling (Gradient with Mint Green & Slate) */
+  /* Home Hero Title styling (Gradient with Indigo & Slate) */
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #10B981 30%, #475569);
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #6366F1 30%, #475569);
   
-  /* Home Hero Logo Background Blob (Mint Green & Cool Gray) */
-  --vp-home-hero-image-background-image: linear-gradient(-45deg, #10B981 50%, #94A3B8 50%);
+  /* Home Hero Logo Background Blob (Indigo & Cool Gray) */
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #6366F1 50%, #94A3B8 50%);
   --vp-home-hero-image-filter: blur(44px);
 }
 
@@ -35,8 +35,8 @@
   --vp-c-text-2: #CBD5E1; /* Cool Gray light */
   --vp-c-text-3: #94A3B8; /* Cool Gray */
 
-  /* Home Hero Title styling for Dark Mode (Mint Green & Off-White) */
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #34D399 30%, #F8FAFC);
+  /* Home Hero Title styling for Dark Mode (Indigo & Off-White) */
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #818CF8 30%, #F8FAFC);
 }
 
 /* Base element tweaks for a sharper developer feel */
