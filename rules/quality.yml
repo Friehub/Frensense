@@ -5,8 +5,8 @@ rules:
     target_ext: "rs"
     on_node: "function_item"
     max_lines: 100
-    observation: "God Function: block length exceeds institutional threshold (100 lines)."
-    impact: "Institutional Law #2: Oversized functions indicate mixed concerns and low readability."
+    observation: "God Function: block length exceeds standardized threshold (100 lines)."
+    impact: "Standardized Standard #2: Oversized functions indicate mixed concerns and low readability."
     improvement: "Decompose logic into smaller, testable units or helper functions."
 
   - id: RUST_NESTING_LIMIT
@@ -14,7 +14,7 @@ rules:
     target_ext: "rs"
     on_node: "function_item"
     max_depth: 4
-    observation: "Deep Nesting: logical depth exceeds institutional limit (4 levels)."
+    observation: "Deep Nesting: logical depth exceeds standardized limit (4 levels)."
     impact: "Rule #vibecoding: Extreme indentation indicates complex, unmaintainable logic."
     improvement: "Extract inner logic into helper functions to flatten the code."
 
@@ -24,8 +24,8 @@ rules:
     target_ext: "ts"
     on_node: "function_declaration|method_definition|arrow_function"
     max_lines: 100
-    observation: "God Function: block length exceeds institutional threshold (100 lines)."
-    impact: "Institutional Law #2: Oversized functions indicate mixed concerns."
+    observation: "God Function: block length exceeds standardized threshold (100 lines)."
+    impact: "Standardized Standard #2: Oversized functions indicate mixed concerns."
     improvement: "Decompose logic into smaller, testable units."
 
   - id: TS_NESTING_LIMIT
@@ -33,6 +33,6 @@ rules:
     target_ext: "ts"
     on_node: "function_declaration|method_definition|arrow_function"
     max_depth: 4
-    observation: "Deep Nesting: logical depth exceeds institutional limit (4 levels)."
+    observation: "Deep Nesting: logical depth exceeds standardized limit (4 levels)."
     impact: "Rule #vibecoding: Extreme indentation indicates complex logic."
     improvement: "Extract inner logic into helper functions."

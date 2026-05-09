@@ -156,7 +156,7 @@ impl AuditorRule for CoreRule {
                     if peak > max {
                         advisories.push(self.new_advisory(
                             &node,
-                            format!("Deep Nesting: logical depth ({peak}) exceeds institutional limit ({max} levels)."),
+                            format!("Deep Nesting: logical depth ({peak}) exceeds standardized limit ({max} levels)."),
                             "Extreme indentation indicates complex, unmaintainable logic. Such paths are high risk for bugs.".to_string(),
                             "Extract inner logic or match-legs into helper functions.".to_string(),
                         ));
