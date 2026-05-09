@@ -4,6 +4,7 @@ export default defineConfig({
   title: "GenSense",
   description: "Experimental Semantic Diagnostic Engine for Rust, TypeScript, and Solidity.",
   cleanUrls: true,
+  base: '/gensense/',
   themeConfig: {
     logo: '/logo.svg',
     nav: [
