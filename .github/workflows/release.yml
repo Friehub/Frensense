@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: {}
 
 jobs:
   # 1. Build Native Binaries for all platforms
@@ -131,3 +132,4 @@ jobs:
         with:
           files: release-binaries/*
           generate_release_notes: true
+          prerelease: true
