@@ -1,4 +1,4 @@
-// [LICENSE] Proprietary - Friehub (TaaS Gateway)
+// [LICENSE] Proprietary - Friehub (GenSense Gateway)
 #![allow(clippy::all)]
 // Copyright (c) 2026 Friehub. All rights reserved.
 
