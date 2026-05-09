@@ -1,13 +1,13 @@
 # TaaS Static Auditor
 
-TaaS Static Auditor is a high-precision, production-grade semantic analysis engine designed for auditing protocol-level logic, security vulnerabilities, and institutional redline enforcement. Built in Rust for maximum performance and memory safety, it serves as the primary diagnostic layer for the Friehub TaaS Gateway ecosystem.
+TaaS Static Auditor is a high-precision, production-grade semantic analysis engine designed for auditing protocol-level logic, security vulnerabilities, and standardized safety enforcement. Built in Rust for maximum performance and memory safety, it serves as the primary diagnostic layer for the Friehub TaaS Gateway ecosystem.
 
 ## Rationale: Why TaaS Auditor Exists
 
 Modern decentralized systems face a unique set of challenges that generic static analysis tools are not equipped to handle. While traditional linters focus on stylistic consistency and local syntax errors, the TaaS Auditor was engineered to address:
 
 1.  **Protocol-Level Semantic Risk**: Detecting logical flaws in cross-language environments where data from a web frontend (TypeScript) directly impacts high-stakes protocol logic (Rust/Solidity).
-2.  **Institutional Redline Enforcement**: Providing a mechanism to enforce strict organizational safety standards (e.g., "no uninstrumented async calls") that are too specialized for general-purpose tools.
+2.  **Safety Standard Enforcement**: Providing a mechanism to enforce strict protocol safety standards (e.g., "no uninstrumented async calls") that are too specialized for general-purpose tools.
 3.  **Complexity at Scale**: Handling the semantic complexity of modern codebases, such as complex object destructuring and intermediate variable tainting, which often baffle standard AST-based search tools.
 
 ## Comparative Analysis
@@ -16,7 +16,7 @@ Modern decentralized systems face a unique set of challenges that generic static
 | :--- | :--- | :--- | :--- |
 | **Scope** | Cross-Language Semantic Flow | Single-Language Syntax/Style | Domain-Specific (Smart Contracts) |
 | **Taint Tracking** | Inter-procedural and Destructure-aware | Limited/Non-existent | Robust but Language-Locked |
-| **Redline Enforcement** | High (Custom YAML/Rust Rules) | Medium (Complex Plugin Setup) | Medium (Built-in Rules) |
+| **Safety Enforcement** | High (Custom YAML/Rust Rules) | Medium (Complex Plugin Setup) | Medium (Built-in Rules) |
 | **Boilerplate Detection** | Structural N-Gram Analysis | None | Basic Hash-based |
 | **Env Isolation** | Native Beta/Stable Filtering | None | None |
 
@@ -31,7 +31,7 @@ The engine implements sophisticated data-flow analysis for TypeScript and Rust:
 *   **Function Aliasing**: Detects security risks even when core functions are aliased (e.g., `const execute = eval; execute(code);`).
 
 ### 2. Structural N-Gram Fingerprinting
-Identify redundant boilerplate and institutional knowledge gaps using N-gram based structural comparison:
+Identify redundant boilerplate and safety gaps using N-gram based structural comparison:
 *   **Boilerplate Detection**: Automatically identifies large blocks of duplicated logic across the codebase.
 *   **Anonymous Resolution**: Intelligently resolves names for anonymous arrow functions and class methods to make reports actionable.
 *   **Redundancy Scoring**: Quantifies code duplication to guide refactoring and reduce technical debt.
@@ -44,11 +44,11 @@ Deploy and test new audit rules safely using the built-in isolation system:
 ### 4. Cross-Language Parity
 *   **TypeScript/TSX**: Unified handling of modern web logic with deep JSX/TSX support.
 *   **Rust**: Specialized rules for `tokio` async safety, mutex deadlock prevention, and tracing instrumentation.
-*   **Solidity**: Protocol-level checks for Reentrancy (Checks-Effects-Interactions) and security redlines.
+*   **Solidity**: Protocol-level checks for Reentrancy (Checks-Effects-Interactions) and security standards.
 
 ---
 
-## Institutional Integrity Stack
+## Developer Integrity Suite
 
 The auditor includes a comprehensive developer toolset to ensure the diagnostic engine itself remains reliable:
 
@@ -73,7 +73,7 @@ The auditor includes a comprehensive developer toolset to ensure the diagnostic 
 git clone https://github.com/Friehub/auditor.git
 cd auditor
 
-# Install the Institutional Integrity Stack (Hooks)
+# Install the Developer Integrity Suite (Hooks)
 make setup
 
 # Run a semantic audit on a target directory
@@ -89,7 +89,7 @@ suppressions:
     path: "src/legacy/mod.rs"
 ```
 
-## 📝 Rule Definition
+## Rule Definition
 
 ### YAML Rules (Declarative)
 Create rules in `rules/*.yml` for quick pattern matching:
@@ -115,7 +115,7 @@ impl AuditorRule for SecretGuard {
 
 ---
 
-## 📈 Roadmap & Evolution
+## Roadmap and Evolution
 
 *   **Multi-File Taint Propagation**: Extending semantic analysis across module boundaries.
 *   **AI-Assisted Remediation**: Automated generation of patch-sets for identified vulnerabilities.
@@ -123,9 +123,10 @@ impl AuditorRule for SecretGuard {
 
 ---
 
-## ⚖️ License & Intellectual Property
+## License and Intellectual Property
 
 Proprietary - Friehub (TaaS Gateway).  
 Copyright (c) 2026 Friehub. All rights reserved.
 
 Designed and engineered for the Friehub TaaS Gateway ecosystem to ensure the safety and integrity of decentralized protocols.
+
