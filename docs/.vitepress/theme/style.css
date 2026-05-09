@@ -4,12 +4,6 @@
  */
 
 :root {
-  /* Brand Color: Mint Green */
-  --vp-c-brand-1: #10B981;
-  --vp-c-brand-2: #34D399;
-  --vp-c-brand-3: #6EE7B7;
-  --vp-c-brand-soft: rgba(16, 185, 129, 0.16);
-
   /* Backgrounds: Off-white for light mode */
   --vp-c-bg: #F8FAFC;
   --vp-c-bg-alt: #F1F5F9;
@@ -40,12 +34,6 @@
   --vp-c-text-1: #F8FAFC; /* Off-white */
   --vp-c-text-2: #CBD5E1; /* Cool Gray light */
   --vp-c-text-3: #94A3B8; /* Cool Gray */
-  
-  /* Brand Color: Brighter Mint Green for dark mode contrast */
-  --vp-c-brand-1: #34D399;
-  --vp-c-brand-2: #6EE7B7;
-  --vp-c-brand-3: #A7F3D0;
-  --vp-c-brand-soft: rgba(52, 211, 153, 0.16);
 
   /* Home Hero Title styling for Dark Mode (Mint Green & Off-White) */
   --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #34D399 30%, #F8FAFC);
