@@ -1,12 +1,23 @@
-# GenSense Technical Reference
+---
+layout: home
 
-This is the technical catalog of semantic rules and diagnostic specifications for the GenSense engine.
+hero:
+  name: "GenSense"
+  text: "Experimental Semantic Diagnostic Engine"
+  tagline: "High-precision AST-level analysis for logical flaws and security risks."
+  actions:
+    - theme: brand
+      text: "View Rule Catalog"
+      link: "/rules"
+    - theme: alt
+      text: "API Reference"
+      link: "/api"
 
-## Documentation Sections
-- [Semantic Rule Catalog](./rules.md)
-- [API Reference](./api.md)
-
-## Design Principles
-- **Direct Semantic Analysis**: AST-level traversal for high-precision diagnostic results.
-- **Developer-Centric Advisory**: Technical observations focused on engineering safety and reliability.
-- **Zero-Dependency CLI**: Standalone binaries for cross-platform utility.
+features:
+  - title: Direct Semantic Analysis
+    details: Leverages Tree-sitter for industrial-grade AST traversal and high-precision diagnostic results.
+  - title: Developer-Centric Advisory
+    details: Technical observations focused on engineering safety and reliability, without the marketing fluff.
+  - title: Zero-Dependency CLI
+    details: Standalone native binaries for cross-platform utility, built with Rust and NAPI-RS.
+---
