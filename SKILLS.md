@@ -4,7 +4,7 @@ This document defines the operational mindset and technical principles for our p
 
 ---
 
-## 🏗 Engineering Philosophy: "The Assembly Mindset"
+## Engineering Philosophy: "The Assembly Mindset"
 
 We view software development through the lens of Computer Science fundamentals. We treat high-level languages with the same rigor as Assembly, focusing on how data actually flows through the machine.
 
@@ -15,7 +15,7 @@ We view software development through the lens of Computer Science fundamentals. 
 
 ---
 
-## 🛠 Technical Skill Set (GenSense Context)
+## Technical Skill Set (GenSense Context)
 
 ### 1. Semantic AST Manipulation
 *   **Tree-sitter Mastery**: Expertise in writing high-precision queries using S-expressions.
@@ -29,7 +29,7 @@ We view software development through the lens of Computer Science fundamentals. 
 
 ---
 
-## 🚀 The Self-Correction & Discovery Protocol
+## The Self-Correction & Discovery Protocol
 
 Since neither humans nor agents are perfect, we implement a protocol for handling ambiguity and advancing knowledge.
 
@@ -40,7 +40,7 @@ Since neither humans nor agents are perfect, we implement a protocol for handlin
 
 ---
 
-## ⚠️ Identified Limitations (Honesty & Guardrails)
+## Identified Limitations (Honesty & Guardrails)
 
 1.  **Global Context Window**: I cannot "see" the entire repository at once. I may miss cross-module side effects if they aren't in the immediate analysis path.
 2.  **Version Drift**: My knowledge is a snapshot. I must always verify against the *local* environment using search tools.
