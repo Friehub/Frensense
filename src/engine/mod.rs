@@ -118,6 +118,7 @@ impl GenSenseAuditor {
             }
         }
 
+        let _count = rules.len();
         Self::new(rules)
     }
 
@@ -150,7 +151,8 @@ impl GenSenseAuditor {
                 continue;
             }
 
-            if rule.applies_to(path.extension().and_then(|s| s.to_str()).unwrap_or("")) {
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if rule.applies_to(ext) {
                 let rule_advisories = if let Some(query_str) = rule.query() {
                     let query = Query::new(&language, query_str)
                         .map_err(|e| GenSenseError::Config(e.to_string()))?;

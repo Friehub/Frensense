@@ -24,7 +24,7 @@ impl GenSenseRule for DeadlockGuard {
 
     fn query(&self) -> Option<&str> {
         // Find all await points - we check for locks in their parent scopes
-        Some("await_expression")
+        Some("(await_expression) @await")
     }
 
     fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {

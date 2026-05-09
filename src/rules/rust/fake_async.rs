@@ -21,7 +21,7 @@ impl GenSenseRule for FakeAsyncDetector {
 
     fn query(&self) -> Option<&str> {
         // Match all function items - we will filter for 'async' in check()
-        Some("function_item")
+        Some("(function_item) @func")
     }
 
     fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
