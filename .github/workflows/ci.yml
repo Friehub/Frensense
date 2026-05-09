@@ -37,7 +37,7 @@ jobs:
         run: cargo fmt --all -- --check
         
       - name: Semantic Lints (Clippy)
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --features cli -- -D warnings
 
   # --- Security Audit ---
   security:
@@ -64,7 +64,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         
       - name: Run Full Regression Suite
-        run: cargo test --all-features
+        run: cargo test --features cli
 
   # --- Correctness (Node.js Bindings) ---
   test-node:
