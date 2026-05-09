@@ -8,12 +8,12 @@ HOOK_SOURCE="hooks/pre-commit"
 HOOK_TARGET=".git/hooks/pre-commit"
 
 if [ ! -d ".git" ]; then
-    echo "❌ Error: Not a git repository. Run 'git init' first."
+    echo "[ERROR] Not a git repository. Run 'git init' first."
     exit 1
 fi
 
-echo "🔗 Linking $HOOK_SOURCE to $HOOK_TARGET..."
+echo "[LINK] Linking $HOOK_SOURCE to $HOOK_TARGET..."
 cp "$HOOK_SOURCE" "$HOOK_TARGET"
 chmod +x "$HOOK_TARGET"
 
-echo "✅ Git hooks installed successfully."
+echo "[SUCCESS] Git hooks installed successfully."
