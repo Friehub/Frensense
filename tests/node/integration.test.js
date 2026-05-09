@@ -1,4 +1,5 @@
-const { GenSense } = require('../../index');
+const { GenSense } = require('../../gensense.js');
+
 
 /**
  * GenSense Integration Test

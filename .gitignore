@@ -12,6 +12,8 @@ yarn-error.log*
 # NAPI-RS / Build Artifacts
 *.node
 dist/
+index.js
+index.d.ts
 
 # Diagnostics & Logs
 *.log
