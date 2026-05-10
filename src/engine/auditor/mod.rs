@@ -3,6 +3,7 @@
 pub mod discovery;
 pub mod events;
 pub mod rules;
+pub mod user_rules;
 
 use glob::Pattern;
 use std::collections::HashSet;

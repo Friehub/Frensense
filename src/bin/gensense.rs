@@ -56,6 +56,89 @@ fn main() -> Result<()> {
         std::process::exit(0);
     }
 
+    if args.len() > 1 && args[1] == "test-rule" {
+        if args.len() < 7 {
+            eprintln!("Usage: gensense test-rule <rule.yml> --fixture <file> --expect-finding <id> [--expect-line <N>]");
+            std::process::exit(1);
+        }
+        let rule_file_path = args[2].clone();
+
+        let mut fixture = None;
+        let mut expect_id = None;
+        let mut expect_line = None;
+
+        let mut i = 3;
+        while i < args.len() {
+            match args[i].as_str() {
+                "--fixture" => {
+                    if let Some(f) = args.get(i + 1) {
+                        fixture = Some(f.clone());
+                        i += 1;
+                    }
+                }
+                "--expect-finding" => {
+                    if let Some(id) = args.get(i + 1) {
+                        expect_id = Some(id.clone());
+                        i += 1;
+                    }
+                }
+                "--expect-line" => {
+                    if let Some(line) = args.get(i + 1) {
+                        expect_line = line.parse::<u32>().ok();
+                        i += 1;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+
+        let fixture_path = fixture.expect("Missing --fixture argument");
+        let expected_id = expect_id.expect("Missing --expect-finding argument");
+
+        let rule_content =
+            std::fs::read_to_string(&rule_file_path).expect("Failed to read rule file");
+
+        #[derive(serde::Deserialize)]
+        struct RulesWrapper {
+            rules: Vec<gensense::rules::core::CoreRule>,
+        }
+
+        let wrapper: RulesWrapper =
+            serde_yaml::from_str(&rule_content).expect("Failed to parse YAML rules");
+        let mut rules: Vec<Box<dyn gensense::GenSenseRule>> = Vec::new();
+        for rule in wrapper.rules {
+            let compiled = gensense::rules::compiler::RuleCompiler::compile(rule);
+            rules.push(Box::new(compiled));
+        }
+
+        let mut auditor = GenSenseAuditor::default_auditor();
+        auditor.rules = rules;
+        let mut engine = Engine::new(auditor);
+        engine.isolate_rules = true;
+
+        let advisories = engine
+            .run(Path::new(&fixture_path))
+            .expect("Analysis failed");
+
+        if let Some(finding) = advisories.iter().find(|a| a.rule_id == expected_id) {
+            if let Some(expected_line) = expect_line {
+                if finding.line as u32 != expected_line {
+                    println!(
+                        "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
+                        expected_line, finding.line
+                    );
+                    std::process::exit(1);
+                }
+            }
+            println!("[PASS]");
+            std::process::exit(0);
+        } else {
+            println!("[FAIL: Rule not triggered] Expected to find rule {expected_id}");
+            std::process::exit(1);
+        }
+    }
+
     if args.contains(&"--generate-docs".to_string()) {
         let engine = Engine::new(GenSenseAuditor::default_auditor());
         let _ = engine.list_rules();
@@ -119,6 +202,8 @@ fn main() -> Result<()> {
     let mut show_diff = false;
     let mut severity_filter: Option<gensense::Severity> = None;
     let mut enabled_tags = Vec::new();
+    let mut extra_rule_dirs = Vec::new();
+    let mut no_builtin = false;
 
     let mut i = 2;
     while i < args.len() {
@@ -130,6 +215,13 @@ fn main() -> Result<()> {
             "--fix" => do_fix = true,
             #[cfg(feature = "remediation")]
             "--diff" => show_diff = true,
+            "--no-builtin-rules" => no_builtin = true,
+            "--rules-dir" => {
+                if let Some(dir) = args.get(i + 1) {
+                    extra_rule_dirs.push(std::path::PathBuf::from(dir));
+                    i += 1;
+                }
+            }
             "--severity" => {
                 if let Some(level) = args.get(i + 1) {
                     severity_filter = match level.to_lowercase().as_str() {
@@ -156,6 +248,12 @@ fn main() -> Result<()> {
     }
 
     let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    engine.extra_rule_dirs = extra_rule_dirs;
+    if no_builtin {
+        // We clear embedded rules. They'll be replaced entirely by user rules in build_rule_set
+        engine.auditor.rules.clear();
+    }
+
     for tag in enabled_tags {
         engine.enable_tag(&tag);
     }
