@@ -3,6 +3,7 @@
 use super::GenSenseAuditor;
 use crate::{GenSenseRule, EMBEDDED_RULES_DIR};
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 impl GenSenseAuditor {
     pub fn is_rule_enabled(
@@ -120,6 +121,34 @@ impl GenSenseAuditor {
             }
         }
 
+        rules
+    }
+
+    pub fn build_rule_set(
+        project_root: &Path,
+        extra_dirs: &[PathBuf],
+        no_builtin_rules: bool,
+    ) -> Vec<Box<dyn GenSenseRule>> {
+        let mut rules = if no_builtin_rules {
+            Vec::new()
+        } else {
+            Self::default_rules()
+        };
+
+        let user_rules = super::user_rules::load_user_rules(project_root, extra_dirs);
+
+        // Override semantics: user rules with same ID replace embedded ones
+        let user_ids: HashSet<&str> = user_rules.iter().map(|r| r.id()).collect();
+        rules.retain(|r| {
+            if user_ids.contains(r.id()) {
+                eprintln!("[WARN] User rule '{}' overrides embedded rule.", r.id());
+                false
+            } else {
+                true
+            }
+        });
+
+        rules.extend(user_rules);
         rules
     }
 }

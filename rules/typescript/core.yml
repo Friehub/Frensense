@@ -23,7 +23,7 @@ rules:
     observation: "Aliased dynamic code execution detected."
     impact: "Aliasing 'eval' to another variable can be used to bypass static analysis and execute arbitrary code dynamically."
     improvement: "Avoid dynamic execution. If necessary, ensure strict input sanitization."
-    on_node: "(function_declaration|method_definition|arrow_function) @node"
+    on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
     source_pattern: "^eval$"
     sink_pattern: "<EXECUTE>"
 
@@ -77,7 +77,7 @@ rules:
     observation: "I spotted an 'any' type annotation."
     impact: "Using 'any' completely disables TypeScript's safety checks for that variable."
     improvement: "Consider using 'unknown' and narrowing the type, or defining a strict interface."
-    on_node: "(type_identifier|predefined_type) @node"
+    on_node: "[ (type_identifier) (predefined_type) ] @node"
     if_matches: "any"
 
   - id: "TS_REACT_HOOK_DEPS"
@@ -122,6 +122,6 @@ rules:
     observation: "Sensitive data flow into unsafe sink detected via Taint Analysis"
     impact: "Data flow analysis confirms that sensitive input (e.g. passwords) is reaching a logging sink through intermediate variables."
     improvement: "Remove the logging of tainted variables or use a secure masking utility."
-    on_node: "(function_declaration|method_definition|arrow_function) @node"
+    on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
     source_pattern: "password|secret|token|key"
     sink_pattern: "console\\.log"

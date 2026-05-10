@@ -78,7 +78,7 @@ rules:
     observation: "We observed a search operation (.contains/.find) inside a loop over a collection."
     impact: "This pattern results in O(N²) algorithmic complexity, which can lead to exponential performance degradation as data size grows."
     improvement: "Consider using a 'HashSet' or 'BTreeSet' for O(1)/O(log n) lookups instead."
-    on_node: "for_expression|while_expression"
+    on_node: "[ (for_expression) (while_expression) ] @node"
     if_matches: "\\.(contains|find|position)\\("
 
 

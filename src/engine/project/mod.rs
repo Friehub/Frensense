@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+pub mod config;
 pub mod consistency;
 pub mod helpers;
 
@@ -18,6 +19,9 @@ pub struct Engine {
     pub enabled_tags: HashSet<String>,
     pub environment: crate::GenSenseEnvironment,
     pub verify_consistency: bool,
+    pub extra_rule_dirs: Vec<PathBuf>,
+    pub no_builtin_rules: bool,
+    pub isolate_rules: bool,
 }
 
 impl Engine {
@@ -28,6 +32,9 @@ impl Engine {
             enabled_tags: HashSet::new(),
             environment: crate::GenSenseEnvironment::Development,
             verify_consistency: false,
+            extra_rule_dirs: Vec::new(),
+            no_builtin_rules: false,
+            isolate_rules: false,
         }
     }
 
@@ -69,6 +76,27 @@ impl Engine {
     }
 
     pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
+        let config = config::load_config(root);
+
+        if !self.isolate_rules {
+            let mut dirs = self.extra_rule_dirs.clone();
+            if let Some(config_rules_dir) = &config.rules_dir {
+                dirs.push(PathBuf::from(config_rules_dir));
+            }
+
+            // Build rules dynamically (merging embedded + user rules from disk)
+            self.auditor.rules =
+                GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
+
+            // Apply disabled rules
+            if let Some(disabled) = &config.disabled_rules {
+                let disabled_set: HashSet<&str> = disabled.iter().map(|s| s.as_str()).collect();
+                self.auditor
+                    .rules
+                    .retain(|r| !disabled_set.contains(r.id()));
+            }
+        }
+
         let suppress_file = root.join(".gensense-suppress.yml");
         if suppress_file.exists() {
             if let Ok(content) = std::fs::read_to_string(suppress_file) {
@@ -146,11 +174,13 @@ impl Engine {
             })
             .collect();
 
+        let results = results?;
+
         let mut all_advisories = Vec::new();
         #[cfg(feature = "fingerprinting")]
         let mut all_fingerprints = Vec::new();
 
-        for (adv, fp) in results? {
+        for (adv, fp) in results {
             all_advisories.extend(adv);
             #[cfg(feature = "fingerprinting")]
             all_fingerprints.extend(fp);
@@ -160,6 +190,15 @@ impl Engine {
         all_advisories.append(&mut self.post_process_ngrams(&all_fingerprints));
         if self.enabled_tags.contains("governance") || self.enabled_tags.contains("sbom") {
             all_advisories.append(&mut self.run_governance_checks(root));
+        }
+
+        // Apply severity overrides
+        if let Some(overrides) = &config.severity_override {
+            for adv in &mut all_advisories {
+                if let Some(sev) = overrides.get(&adv.rule_id) {
+                    adv.severity = *sev;
+                }
+            }
         }
 
         Ok((all_advisories, symbols))
@@ -187,12 +226,30 @@ impl Engine {
         if root.is_file() {
             return Ok(vec![root.to_path_buf()]);
         }
-        Ok(WalkDir::new(root).into_iter().filter_map(|e| e.ok())
+        Ok(WalkDir::new(root)
+            .into_iter()
+            .filter_entry(|e| {
+                // Only prune directories — never prune the root or files
+                if e.file_type().is_dir() {
+                    let name = e.file_name().to_string_lossy();
+                    // Skip hidden dirs (.git, .cargo, etc.), target, node_modules
+                    // but allow the root entry itself (path == root)
+                    if e.path() != root {
+                        return name != "target" && name != "node_modules" && !name.starts_with('.');
+                    }
+                }
+                true
+            })
+            .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
             .filter(|e| {
                 if let Ok(meta) = e.metadata() {
                     if meta.len() > 1024 * 1024 {
-                        eprintln!("[WARNING] Skipping large file ({} MB): {}. Parsing large files can degrade performance.", meta.len() / 1024 / 1024, e.path().display());
+                        eprintln!(
+                            "[WARNING] Skipping large file ({} MB): {}. Parsing large files can degrade performance.",
+                            meta.len() / 1024 / 1024,
+                            e.path().display()
+                        );
                         return false;
                     }
                 }

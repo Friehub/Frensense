@@ -72,6 +72,7 @@ impl ParserRegistry {
                 (lexical_declaration (variable_declarator name: (identifier) @name))
             "#,
             ),
+            #[cfg(feature = "solidity")]
             "sol" => Some(
                 r#"
                 (contract_declaration name: (identifier) @name)
@@ -101,6 +102,7 @@ impl ParserRegistry {
                 (call_expression function: (member_expression property: (property_identifier) @call))
             "#,
             ),
+            #[cfg(feature = "solidity")]
             "sol" => Some(
                 r#"
                 (function_call (identifier) @call)
@@ -112,9 +114,7 @@ impl ParserRegistry {
 
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        matches!(
-            ext,
-            "rs" | "ts" | "tsx" | "js" | "jsx" | "sol" | "yml" | "yaml"
-        )
+        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")
+            || (cfg!(feature = "solidity") && ext == "sol")
     }
 }
