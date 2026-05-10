@@ -46,6 +46,18 @@ impl RuleCompiler {
             flow_constraints.push(FlowConstraint::ScopeConstraint { pattern: scope });
         }
 
+        if let Some(temp) = dsl.temporal {
+            let behavior = match temp.behavior.as_str() {
+                "must_follow" => crate::rules::ir::TemporalBehavior::MustFollow,
+                "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
+                _ => crate::rules::ir::TemporalBehavior::MustFollow, // Default
+            };
+            flow_constraints.push(FlowConstraint::Temporal {
+                sequence: temp.sequence,
+                behavior,
+            });
+        }
+
         // 3. Construct IR
         CoreRuleIr {
             id: dsl.id,
