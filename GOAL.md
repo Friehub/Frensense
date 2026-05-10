@@ -566,11 +566,26 @@ if let Some(pos) = args.iter().position(|a| a == "test-rule") {
 
 ---
 
-## 9. Phase 3 — LLM Pattern Library (Weeks 9–16)
+## 9. Phase 3 — Core Engine Upgrades (Weeks 9–16)
+
+**Agent role in this phase: Agent C (Engine Upgrade)**
+
+**The job:** Upgrade the core engine to fix fundamental limitations without breaking the 5-second performance constraint (Path B).
+
+**What to build:**
+1. **Scope Stacks (Algorithm 5 Upgrade):** Implement lexical block tracking to fix variable shadowing in taint analysis.
+2. **Qualified Name Resolution (Algorithm 4 Upgrade):** Extract module paths (e.g., `utils::process`) to fix call graph false positives.
+3. **Cross-Project Clone Detection (Algorithm 1 Upgrade):** Upgrade from single-file fingerprinting to token-bucketed MinHash signatures for project-wide LLM copy-paste detection.
+4. **Incremental File Caching (Algorithm 7 Upgrade):** Write AST/fingerprint state to `.gensense-cache/` for instant subsequent runs.
+5. **Assignment Bypass Tracking:** Upgrade `RuleCompiler` to track simple assignments to prevent easy regex bypasses.
+
+---
+
+## 10. Phase 4 — General Purpose & LLM Pattern Library (Weeks 17–24)
 
 **Agent role in this phase: Agent A (rule writer)**
 
-**The job:** Write 2 new rules per week. Each rule detects a bug that AI coding assistants (Copilot, Cursor, Claude) commonly introduce. Each rule ships with a fixture file and a test.
+**The job:** Write general-purpose security/architecture rules and AI pattern rules to prove the power of the upgraded engine. Each rule ships with a fixture file and a test.
 
 **The workflow for every single rule:**
 
@@ -825,7 +840,7 @@ fn compute(x: i32) -> i32 {
 
 ---
 
-## 10. Phase 4 — AI Reasoning Layer (Weeks 17–24)
+## 11. Post-v1: AI Reasoning Layer
 
 **Agent role in this phase: Agent C (AI layer)**
 
@@ -1018,7 +1033,7 @@ match result {
 
 ---
 
-## 11. What Each Agent Should Never Do
+## 12. What Each Agent Should Never Do
 
 These are absolute rules. Breaking any of them requires the human to review and revert before anything else continues.
 
@@ -1049,7 +1064,7 @@ These are absolute rules. Breaking any of them requires the human to review and 
 
 ---
 
-## 12. Skills Required by Task
+## 13. Skills Required by Task
 
 | Task | Skills needed |
 |------|--------------|
@@ -1062,7 +1077,7 @@ These are absolute rules. Breaking any of them requires the human to review and 
 
 ---
 
-## 13. Definition of Done for v1
+## 14. Definition of Done for v1
 
 GenSense v1 is ready to release when ALL of the following are true:
 
@@ -1072,15 +1087,17 @@ GenSense v1 is ready to release when ALL of the following are true:
 - [ ] At least 10 LLM pattern rules shipped, each with fixture files and passing tests
 - [ ] No rule fires more than once per 100 lines on the GenSense codebase itself
 - [ ] Analysis of a 50-file project completes in under 5 seconds (`cargo test speed_gate` passes)
-- [ ] AI enrichment layer working with filter mode and explain mode
-- [ ] Cache layer operational (second run on same codebase makes zero API calls for unchanged files)
+- [ ] Scope Stacks correctly shadow variables during taint analysis
+- [ ] Qualified Name Resolution prevents false positive call graph edges
+- [ ] Incremental AST caching operational (second run is near instantaneous)
+- [ ] Cross-project MinHash clone detection operational
 - [ ] `cargo test` passes with zero failures
 - [ ] `cargo clippy` produces zero warnings
 - [ ] README updated with: installation, usage, YAML rule authoring guide, list of all rules
 
 ---
 
-## 14. Quick Reference: File Locations
+## 15. Quick Reference: File Locations
 
 | What you want to do | File to create or edit |
 |---------------------|----------------------|
