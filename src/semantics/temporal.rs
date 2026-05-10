@@ -28,27 +28,7 @@ impl<'a> TemporalAnalyzer<'a> {
         let line = scope.start_position().row + 1;
 
         // Find enclosing function index
-        let scope_idx = if let Some(idx) = self.context.symbols.find_function_at(&file_path, line) {
-            Some(idx)
-        } else {
-            // If the node itself isn't the function, look for enclosing one
-            let mut parent = scope.parent();
-            let mut found_idx = None;
-            while let Some(p) = parent {
-                if matches!(
-                    p.kind(),
-                    "function_item" | "function_declaration" | "method_definition"
-                ) {
-                    let p_line = p.start_position().row + 1;
-                    if let Some(idx) = self.context.symbols.find_function_at(&file_path, p_line) {
-                        found_idx = Some(idx);
-                        break;
-                    }
-                }
-                parent = p.parent();
-            }
-            found_idx
-        };
+        let scope_idx = self.context.symbols.find_function_at(&file_path, line);
 
         let scope_idx = match scope_idx {
             Some(idx) => idx,

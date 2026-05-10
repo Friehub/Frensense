@@ -105,46 +105,93 @@ impl SemanticGraph {
     }
 
     /// Returns all events in a scope, ordered by their execution sequence.
+    ///
+    /// FIX (Bug 1 — two changes):
+    ///
+    /// 1. Start-node search: the original code used `break` after the first
+    ///    node with no incoming in-scope predecessor. If the graph has
+    ///    out-of-order insertions (which nested blocks produce), this can pick
+    ///    a mid-sequence node as the "start", silently truncating the chain.
+    ///    Fixed by scanning ALL nodes with `Iterator::find` — no early break.
+    ///
+    /// 2. Walk loop: the original code called `event_indices.contains()` where
+    ///    `event_indices` is a Vec, making each check O(n) and the full
+    ///    traversal O(n²). Fixed by using `event_set` (HashSet) which is
+    ///    already built above, giving O(1) per check.
     pub fn ordered_events_in_scope(&self, scope_idx: NodeIndex) -> Vec<TemporalEvent> {
         let mut events = Vec::new();
-        let event_indices = self.neighbors_of(scope_idx, EdgeKind::InScope);
-        let event_set: std::collections::HashSet<_> = event_indices.iter().copied().collect();
+        let event_indices: Vec<NodeIndex> = self
+            .neighbors_of(scope_idx, EdgeKind::InScope)
+            .into_iter()
+            .filter(|&idx| matches!(self.get_node(idx), Some(SemanticNode::Event(_))))
+            .collect();
 
-        // Find the start of the sequence within this scope
-        let mut current = None;
-        for &idx in &event_indices {
-            let has_prev_in_scope = self
-                .graph
-                .edges_directed(idx, petgraph::Direction::Incoming)
-                .any(|e| {
-                    *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.source())
-                });
+        // Build a HashSet for O(1) membership checks throughout this function.
+        let event_set: std::collections::HashSet<NodeIndex> =
+            event_indices.iter().copied().collect();
 
-            if !has_prev_in_scope {
-                current = Some(idx);
-                break;
-            }
+        let mut starts: Vec<_> = event_set
+            .iter()
+            .filter(|&&idx| {
+                !self
+                    .graph
+                    .edges_directed(idx, petgraph::Direction::Incoming)
+                    .any(|e| {
+                        *e.weight() == EdgeKind::SequentiallyFollows
+                            && event_set.contains(&e.source())
+                    })
+            })
+            .copied()
+            .collect();
+
+        if starts.len() > 1 {
+            starts.sort_by(|a, b| {
+                let node_a = self.get_node(*a);
+                let node_b = self.get_node(*b);
+                match (node_a, node_b) {
+                    (Some(SemanticNode::Event(ea)), Some(SemanticNode::Event(eb))) => {
+                        ea.line.cmp(&eb.line).then(ea.column.cmp(&eb.column))
+                    }
+                    _ => std::cmp::Ordering::Equal,
+                }
+            });
         }
+        let mut current = starts.first().copied();
 
-        // Traverse the sequence
+        // Traverse the sequence from start to end.
         let mut visited = std::collections::HashSet::new();
         while let Some(idx) = current {
             if !visited.insert(idx) {
-                break;
-            } // Prevent cycles
+                break; // Cycle guard
+            }
 
             if let Some(SemanticNode::Event(ev)) = self.get_node(idx) {
                 events.push(ev.clone());
             }
 
-            current = self
+            // FIX 2: Use event_set (HashSet, O(1)) instead of
+            // event_indices (Vec, O(n)) for the membership check.
+            let mut next_edges: Vec<_> = self
                 .graph
                 .edges(idx)
-                .find(|e| {
-                    *e.weight() == EdgeKind::SequentiallyFollows
-                        && event_indices.contains(&e.target())
+                .filter(|e| {
+                    *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.target())
                 })
-                .map(|e| e.target());
+                .collect();
+
+            if next_edges.len() > 1 {
+                next_edges.sort_by(|a, b| {
+                    let node_a = self.get_node(a.target());
+                    let node_b = self.get_node(b.target());
+                    match (node_a, node_b) {
+                        (Some(SemanticNode::Event(ea)), Some(SemanticNode::Event(eb))) => {
+                            ea.line.cmp(&eb.line).then(ea.column.cmp(&eb.column))
+                        }
+                        _ => std::cmp::Ordering::Equal,
+                    }
+                });
+            }
+            current = next_edges.first().map(|e| e.target());
         }
 
         events

@@ -54,15 +54,19 @@ impl GenSenseAuditor {
                 }
 
                 let name = &content[capture.node.start_byte()..capture.node.end_byte()];
+                let parent = capture.node.parent().unwrap_or(capture.node);
+
                 symbols.push(crate::semantics::Symbol {
                     name: name.to_string(),
                     kind,
-                    line: capture.node.start_position().row + 1,
+                    line: parent.start_position().row + 1,
+                    end_line: parent.end_position().row + 1,
                     column: capture.node.start_position().column + 1,
                     file_path: path.to_string_lossy().to_string(),
                 });
             }
         }
+        symbols.sort_by(|a, b| a.line.cmp(&b.line).then(a.column.cmp(&b.column)));
         Ok(symbols)
     }
 

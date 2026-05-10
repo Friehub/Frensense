@@ -167,7 +167,11 @@ impl GenSenseAuditor {
         while let Some(p) = parent {
             if matches!(
                 p.kind(),
-                "function_item" | "function_declaration" | "method_definition"
+                "function_item"
+                    | "function_declaration"
+                    | "method_definition"
+                    | "closure_expression"
+                    | "arrow_function"
             ) {
                 return Some(p);
             }
