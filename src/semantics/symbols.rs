@@ -26,6 +26,11 @@ pub struct Symbol {
     pub file_path: String,
     pub line: usize,
     pub column: usize,
+    // NEW: end_line enables range-based scope lookup.
+    // When end_line is 0, it means "not set" and callers fall back to
+    // exact line matching. This keeps full backwards compatibility with
+    // any code that constructs Symbol without knowing the end line.
+    pub end_line: usize,
 }
 
 #[derive(Default)]
@@ -50,7 +55,6 @@ impl SymbolRegistry {
             .collect()
     }
 
-    /// Helper to find a specific symbol at a location.
     pub fn find_at(&self, name: &str, file: &str, line: usize) -> Option<&Symbol> {
         self.find(name)
             .into_iter()
@@ -67,16 +71,51 @@ impl SymbolRegistry {
         })
     }
 
+    /// Find the NodeIndex of the function whose body contains `line`.
+    ///
+    /// Resolution order:
+    /// 1. Range match  — if end_line > 0, the function owns every line in
+    ///    [start_line, end_line]. This is the preferred path once discovery
+    ///    sets end_line correctly.
+    /// 2. Exact match  — if end_line == 0 (symbol built without range info),
+    ///    fall back to exact start-line comparison. This preserves compatibility
+    ///    with older code paths and tests that construct Symbol manually.
+    ///
+    /// When multiple functions match (e.g. nested functions both contain the
+    /// line), the innermost one wins — it has the smallest line span.
     pub fn find_function_at(&self, file: &str, line: usize) -> Option<NodeIndex> {
+        let mut best: Option<(NodeIndex, usize)> = None; // (idx, span_size)
+
         for idx in self.graph.all_nodes() {
             if let Some(sym) = self.graph.get_symbol(idx) {
-                if sym.kind == SymbolKind::Function && sym.file_path == file && sym.line == line {
-                    return Some(idx);
+                if sym.kind != SymbolKind::Function || sym.file_path != file {
+                    continue;
+                }
+
+                let matched = if sym.end_line > 0 {
+                    // Range match: line must fall inside the function body
+                    line >= sym.line && line <= sym.end_line
+                } else {
+                    // Exact match: backwards-compatible fallback
+                    sym.line == line
+                };
+
+                if matched {
+                    let span = sym.end_line.saturating_sub(sym.line);
+                    match best {
+                        None => best = Some((idx, span)),
+                        Some((_, prev_span)) if span < prev_span => {
+                            best = Some((idx, span));
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
-        None
+
+        best.map(|(idx, _)| idx)
     }
+
     pub fn add_call_edge(&mut self, file_path: &Path, caller: &str, callee: &str) {
         let path_str = file_path.to_string_lossy();
         let callers = self.graph.find_nodes(caller);
@@ -96,19 +135,17 @@ impl SymbolRegistry {
             }
         }
     }
+
     pub fn check_graph_deadlock(&self) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        // Find all functions in the graph
         for idx in self.graph.all_nodes() {
             if let Some(crate::semantics::graph::SemanticNode::Declaration(sym)) =
                 self.graph.get_node(idx)
             {
                 if sym.kind == crate::semantics::SymbolKind::Function {
-                    // Find all events in this function's scope (ORDERED)
                     let events = self.graph.ordered_events_in_scope(idx);
 
-                    // Check for Acquire -> Await sequence
                     let mut lock_held = false;
                     for ev in events {
                         match ev.event_type {
@@ -118,7 +155,10 @@ impl SymbolRegistry {
                                 advisories.push(Advisory {
                                     rule_id: "GRAPH_DEADLOCK".to_string(),
                                     severity: crate::Severity::Critical,
-                                    observation: format!("Potential Deadlock: Lock '{}' held across await point at {}:{}.", ev.label, ev.line, ev.column),
+                                    observation: format!(
+                                        "Potential Deadlock: Lock '{}' held across await point at {}:{}.",
+                                        ev.label, ev.line, ev.column
+                                    ),
                                     impact: "May cause permanent thread/task starvation.".to_string(),
                                     improvement: "Release the lock before awaiting or use an async-aware mutex.".to_string(),
                                     line: ev.line,

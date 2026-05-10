@@ -25,6 +25,10 @@ fn test_temporal_consistency_rust_deadlock() {
         .discover_symbols(Path::new("test.rs"), content)
         .unwrap();
     for s in syms {
+        println!(
+            "DEBUG: Discovered symbol: {} at {}:{}",
+            s.name, s.file_path, s.line
+        );
         registry.insert(s);
     }
     auditor
@@ -78,6 +82,11 @@ fn test_temporal_consistency_rust_deadlock() {
     while scope_node.kind() != "function_item" && scope_node.parent().is_some() {
         scope_node = scope_node.parent().unwrap();
     }
+    println!(
+        "DEBUG: scope_node kind: {}, line: {}",
+        scope_node.kind(),
+        scope_node.start_position().row + 1
+    );
 
     let advisories_ast = ast_analyzer.check_temporal(
         scope_node,
@@ -92,6 +101,22 @@ fn test_temporal_consistency_rust_deadlock() {
     println!("AST Advisories: {:?}", advisories_ast.len());
     println!("Graph Advisories: {:?}", advisories_graph.len());
 
+    if advisories_ast.is_empty() {
+        println!("DEBUG: AST path failed. Dumping graph events for scope...");
+        // We need to find the scope_idx manually to debug
+        let file_path = "test.rs";
+        let line = scope_node.start_position().row + 1;
+        if let Some(idx) = registry.find_function_at(file_path, line) {
+            let events = registry.graph.ordered_events_in_scope(idx);
+            println!("DEBUG: Events in scope: {:?}", events.len());
+            for (i, ev) in events.iter().enumerate() {
+                println!("  {}: {} ({:?})", i, ev.label, ev.event_type);
+            }
+        } else {
+            println!("DEBUG: Could not find function in registry at {file_path}:{line}");
+        }
+    }
+
     assert!(
         !advisories_ast.is_empty(),
         "AST path should find the deadlock"
@@ -101,7 +126,5 @@ fn test_temporal_consistency_rust_deadlock() {
         "Graph path should find the deadlock"
     );
 
-    // Note: They might not be EQUAL yet because of different rule_ids or descriptions,
-    // but they commute on the fact that an issue exists at the same location.
     assert_eq!(advisories_ast[0].line, advisories_graph[0].line);
 }

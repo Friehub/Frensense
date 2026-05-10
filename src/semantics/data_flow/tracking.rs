@@ -216,9 +216,23 @@ impl<'a> DataFlowAnalyzer<'a> {
                 }
             }
 
+            // FIX (Bug 3): Replaced EdgeKind::InScope with EdgeKind::Calls.
+            //
+            // The original array contained InScope, which links a function node
+            // to every event inside it. This caused catastrophic over-taint:
+            // any source event inside a function would propagate via InScope to
+            // the function node, then back out via InScope to ALL other events
+            // in that function, regardless of actual data flow. One tainted call
+            // would contaminate an entire function's worth of nodes.
+            //
+            // EdgeKind::Calls is the correct interprocedural edge: it connects
+            // a caller to a callee and was already present in the graph but
+            // never used by this BFS. Adding it here enables real cross-function
+            // taint propagation — a source in one function now correctly flows
+            // into functions it calls — without the whole-scope contamination.
             let next_edges = [
                 crate::semantics::graph::EdgeKind::FlowsFrom,
-                crate::semantics::graph::EdgeKind::InScope,
+                crate::semantics::graph::EdgeKind::Calls, // FIX: was InScope
                 crate::semantics::graph::EdgeKind::SequentiallyFollows,
             ];
             for &kind in &next_edges {
