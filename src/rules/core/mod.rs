@@ -10,6 +10,12 @@ use helpers::serde_regex_opt;
 use regex::Regex;
 use tree_sitter::Node;
 
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct TemporalConfig {
+    pub sequence: Vec<String>,
+    pub behavior: String, // "must_follow", "must_not_follow"
+}
+
 /// Generic Declarative Rule: Configurable via YAML for a stress-free developer experience.
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct CoreRule {
@@ -38,6 +44,8 @@ pub struct CoreRule {
     pub source_pattern: Option<Regex>,
     #[serde(default, with = "serde_regex_opt")]
     pub sink_pattern: Option<Regex>,
+    #[serde(default)]
+    pub temporal: Option<TemporalConfig>,
     pub severity: Option<crate::Severity>,
     pub category: Option<String>,
     #[serde(default)]

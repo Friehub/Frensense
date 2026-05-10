@@ -55,25 +55,40 @@ impl<'a> TemporalAnalyzer<'a> {
         match behavior {
             crate::rules::ir::TemporalBehavior::MustNotFollow => {
                 let mut found_first = false;
-                for (event, p_idx) in matches {
-                    if p_idx == 0 {
-                        found_first = true;
-                    } else if p_idx == 1 && found_first {
-                        advisories.push(Advisory {
-                            rule_id: rule.id().to_string(),
-                            severity: rule.severity(),
-                            observation: format!(
-                                "Temporal Violation: '{}' must NOT follow '{}' in this scope.",
-                                sequence[1], sequence[0]
-                            ),
-                            impact: rule.impact().to_string(),
-                            improvement: rule.improvement().to_string(),
-                            line: event.line,
-                            column: event.column,
-                            file_path: event.file_path.clone(),
-                            original_content: String::new(),
-                            proposed_replacement: None,
-                        });
+                for event in &events {
+                    let mut matched_p = None;
+                    for (i, re) in regexes.iter().enumerate() {
+                        if re.is_match(&event.label) {
+                            matched_p = Some(i);
+                            break;
+                        }
+                    }
+
+                    if let Some(p_idx) = matched_p {
+                        if p_idx == 0 {
+                            found_first = true;
+                        } else if p_idx == 1 && found_first {
+                            advisories.push(Advisory {
+                                rule_id: rule.id().to_string(),
+                                severity: rule.severity(),
+                                observation: format!(
+                                    "Temporal Violation: '{}' must NOT follow '{}' in this scope.",
+                                    sequence[1], sequence[0]
+                                ),
+                                impact: rule.impact().to_string(),
+                                improvement: rule.improvement().to_string(),
+                                line: event.line,
+                                column: event.column,
+                                file_path: event.file_path.clone(),
+                                original_content: String::new(),
+                                proposed_replacement: None,
+                            });
+                        }
+                    }
+
+                    // Reset if we see a Release event
+                    if event.event_type == crate::semantics::graph::EventType::Release {
+                        found_first = false;
                     }
                 }
             }

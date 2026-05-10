@@ -114,7 +114,7 @@ impl GenSenseAuditor {
                     (None, String::new())
                 }
             }
-            "variable_declarator" | "assignment_expression" => {
+            "variable_declarator" | "assignment_expression" | "let_declaration" => {
                 let name_node = node
                     .child_by_field_name("name")
                     .or_else(|| node.child_by_field_name("pattern"))
