@@ -32,21 +32,22 @@ pub fn is_suppressed(
 
     // 2. Inline suppression
     let start_row = node.start_position().row;
-    let lines: Vec<&str> = source.lines().collect();
     let target = format!("gensense-ignore: {rule_id}");
     let target_all = "gensense-ignore: all";
 
     let search_start = start_row.saturating_sub(2);
-    for i in search_start..start_row {
-        if let Some(line) = lines.get(i) {
-            if line.contains("//") && (line.contains(&target) || line.contains(target_all)) {
-                return true;
-            }
-        }
-    }
-    if let Some(line) = lines.get(start_row) {
-        if line.contains("//") && (line.contains(&target) || line.contains(target_all)) {
+    let mut current_row = 0;
+    for line in source.lines() {
+        if current_row >= search_start
+            && current_row <= start_row
+            && line.contains("//")
+            && (line.contains(&target) || line.contains(target_all))
+        {
             return true;
+        }
+        current_row += 1;
+        if current_row > start_row {
+            break;
         }
     }
 

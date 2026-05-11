@@ -18,8 +18,8 @@ impl GenSenseRule for TracingGuard {
     fn category(&self) -> &str {
         "Observability"
     }
-    fn tags(&self) -> Vec<&str> {
-        vec!["beta"]
+    fn tags(&self) -> Vec<String> {
+        vec!["beta".to_string()]
     }
 
     fn applies_to(&self, ext: &str) -> bool {
@@ -31,7 +31,7 @@ impl GenSenseRule for TracingGuard {
         Some("(function_item) @fn")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let code = &context.source_code[node.start_byte()..node.end_byte()];

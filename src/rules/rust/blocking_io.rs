@@ -23,7 +23,7 @@ impl GenSenseRule for BlockingIoDetector {
         Some("(call_expression) @call")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         if self.is_in_async_scope(node, context.source_code) {

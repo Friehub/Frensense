@@ -123,5 +123,5 @@ rules:
     impact: "Data flow analysis confirms that sensitive input (e.g. passwords) is reaching a logging sink through intermediate variables."
     improvement: "Remove the logging of tainted variables or use a secure masking utility."
     on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
-    source_pattern: "password|secret|token|key"
+    source_pattern: "(?i)password|secret|token|key"
     sink_pattern: "console\\.log"

@@ -3,6 +3,7 @@
 pub mod consistency;
 pub mod data_flow;
 pub mod graph;
+pub mod registry;
 pub mod symbols;
 pub mod temporal;
 

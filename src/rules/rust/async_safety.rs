@@ -24,7 +24,7 @@ impl GenSenseRule for AsyncPanicSafety {
         Some("[ (call_expression) (macro_invocation) ] @node")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         // The engine finds the node, we verify the scope and context.

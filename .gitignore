@@ -35,3 +35,9 @@ test-*.js
 fuzz/corpus
 fuzz/artifacts
 fuzz/target
+
+# Benchmarking
+bench_samples/
+correctness_samples/
+__pycache__/
+scripts/__pycache__/

@@ -2,6 +2,7 @@
 
 use crate::semantics::symbols::Symbol;
 use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::visit::EdgeRef;
 use std::collections::HashMap;
 
 /// The type of relationship between two semantic symbols.
@@ -13,9 +14,9 @@ pub enum EdgeKind {
     Inherits,
     Overrides,
     FlowsFrom,
-    SequentiallyFollows, // NEW: For temporal order
-    InScope,             // NEW: Linking events to symbols
-    Parameter,           // NEW: Linking function to its parameters
+    SequentiallyFollows,
+    InScope,
+    Parameter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +45,6 @@ pub enum SemanticNode {
 }
 
 /// A directed graph representing the semantic structure of the codebase.
-/// This enables advanced reasoning like "who calls this?" or "is this variable tainted?".
 #[derive(Default)]
 pub struct SemanticGraph {
     pub graph: DiGraph<SemanticNode, EdgeKind>,
@@ -56,7 +56,6 @@ impl SemanticGraph {
         Self::default()
     }
 
-    /// Adds a symbol to the graph and updates the name index.
     pub fn add_symbol(&mut self, symbol: Symbol) -> NodeIndex {
         let name = symbol.name.clone();
         let idx = self.graph.add_node(SemanticNode::Declaration(symbol));
@@ -90,12 +89,39 @@ impl SemanticGraph {
         }
     }
 
-    /// Returns all node indices in the graph.
-    pub fn all_nodes(&self) -> Vec<NodeIndex> {
-        self.graph.node_indices().collect()
+    pub fn all_symbols(&self) -> Vec<&Symbol> {
+        self.graph
+            .node_weights()
+            .filter_map(|n| {
+                if let SemanticNode::Declaration(s) = n {
+                    Some(s)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
-    /// Returns neighbors of a node given a relationship kind.
+    pub fn find_node(&self, name: &str, file: &str, line: usize) -> Option<NodeIndex> {
+        self.find_nodes(name).into_iter().find(|&idx| {
+            if let Some(SemanticNode::Declaration(s)) = self.get_node(idx) {
+                s.file_path == file && s.line == line
+            } else {
+                false
+            }
+        })
+    }
+
+    pub fn find_node_at_line(&self, file: &str, line: usize) -> Option<NodeIndex> {
+        self.graph.node_indices().find(|&idx| {
+            if let Some(SemanticNode::Declaration(s)) = self.get_node(idx) {
+                s.file_path == file && (s.line == line || (line >= s.line && line <= s.end_line))
+            } else {
+                false
+            }
+        })
+    }
+
     pub fn neighbors_of(&self, idx: NodeIndex, kind: EdgeKind) -> Vec<NodeIndex> {
         self.graph
             .edges(idx)
@@ -104,20 +130,6 @@ impl SemanticGraph {
             .collect()
     }
 
-    /// Returns all events in a scope, ordered by their execution sequence.
-    ///
-    /// FIX (Bug 1 — two changes):
-    ///
-    /// 1. Start-node search: the original code used `break` after the first
-    ///    node with no incoming in-scope predecessor. If the graph has
-    ///    out-of-order insertions (which nested blocks produce), this can pick
-    ///    a mid-sequence node as the "start", silently truncating the chain.
-    ///    Fixed by scanning ALL nodes with `Iterator::find` — no early break.
-    ///
-    /// 2. Walk loop: the original code called `event_indices.contains()` where
-    ///    `event_indices` is a Vec, making each check O(n) and the full
-    ///    traversal O(n²). Fixed by using `event_set` (HashSet) which is
-    ///    already built above, giving O(1) per check.
     pub fn ordered_events_in_scope(&self, scope_idx: NodeIndex) -> Vec<TemporalEvent> {
         let mut events = Vec::new();
         let event_indices: Vec<NodeIndex> = self
@@ -126,7 +138,6 @@ impl SemanticGraph {
             .filter(|&idx| matches!(self.get_node(idx), Some(SemanticNode::Event(_))))
             .collect();
 
-        // Build a HashSet for O(1) membership checks throughout this function.
         let event_set: std::collections::HashSet<NodeIndex> =
             event_indices.iter().copied().collect();
 
@@ -157,20 +168,14 @@ impl SemanticGraph {
             });
         }
         let mut current = starts.first().copied();
-
-        // Traverse the sequence from start to end.
         let mut visited = std::collections::HashSet::new();
         while let Some(idx) = current {
             if !visited.insert(idx) {
-                break; // Cycle guard
+                break;
             }
-
             if let Some(SemanticNode::Event(ev)) = self.get_node(idx) {
                 events.push(ev.clone());
             }
-
-            // FIX 2: Use event_set (HashSet, O(1)) instead of
-            // event_indices (Vec, O(n)) for the membership check.
             let mut next_edges: Vec<_> = self
                 .graph
                 .edges(idx)
@@ -178,7 +183,6 @@ impl SemanticGraph {
                     *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.target())
                 })
                 .collect();
-
             if next_edges.len() > 1 {
                 next_edges.sort_by(|a, b| {
                     let node_a = self.get_node(a.target());
@@ -193,9 +197,6 @@ impl SemanticGraph {
             }
             current = next_edges.first().map(|e| e.target());
         }
-
         events
     }
 }
-
-use petgraph::visit::EdgeRef;

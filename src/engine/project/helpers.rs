@@ -2,7 +2,7 @@
 
 use super::super::fingerprint::FunctionFingerprint;
 use super::Engine;
-use crate::Advisory;
+use crate::{Advisory, FileId};
 use std::path::Path;
 
 impl Engine {
@@ -13,13 +13,16 @@ impl Engine {
         if !sbom_txt.exists() && !bom_json.exists() {
             advisories.push(Advisory {
                 rule_id: "MISSING_SBOM".to_string(),
+                file_id: FileId(0),
+                file_path: root.to_string_lossy().to_string(),
                 severity: crate::Severity::Warning,
                 observation: "Project Health: No Software Bill of Materials (SBOM) found.".to_string(),
                 impact: "Supply Chain Security: A verifiable SBOM is recommended for production-grade systems to track dependencies.".to_string(),
                 improvement: "Generate an SBOM using 'cargo cyclonedx' and place it at 'bom.json'.".to_string(),
                 line: 0,
                 column: 0,
-                file_path: "project".to_string(),
+                start_byte: 0,
+                end_byte: 0,
                 original_content: String::new(),
                 proposed_replacement: None,
             });
@@ -61,25 +64,19 @@ impl Engine {
                 if similarity >= 0.8 {
                     advisories.push(Advisory {
                         rule_id: "REDUNDANT_BOILERPLATE".to_string(),
+                        file_id: FileId(0), // Global finding
+                        file_path: f1.file_path.clone(),
                         severity: crate::Severity::Warning,
                         observation: format!(
                             "Redundant Boilerplate: Block '{}' is {}% similar to '{}' in {}:{}.",
-                            f1.function_name,
-                            (similarity * 100.0) as u32,
-                            f2.function_name,
-                            f2.file_path,
-                            f2.line
+                            f1.function_name, (similarity * 100.0) as u32, f2.function_name, f2.file_path, f2.line
                         ),
-                        impact:
-                            "Engineering Principle: Structural duplication increases technical debt and maintenance overhead."
-                                .to_string(),
-                        improvement: format!(
-                            "Abstract common logic shared with {}.",
-                            f2.function_name
-                        ),
-                        line: f1.line,
+                        impact: "Engineering Principle: Structural duplication increases technical debt and maintenance overhead.".to_string(),
+                        improvement: format!("Abstract common logic shared with {}.", f2.function_name),
+                        line: f1.line as u32,
                         column: 0,
-                        file_path: f1.file_path.clone(),
+                        start_byte: 0,
+                        end_byte: 0,
                         original_content: String::new(),
                         proposed_replacement: None,
                     });

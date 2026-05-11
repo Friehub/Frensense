@@ -1,45 +1,48 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
-// Copyright (c) 2026 Friehub. All rights reserved.
+// SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use std::borrow::Cow;
+use std::sync::OnceLock;
 use tree_sitter::Node;
 
 pub struct DeadlockGuard;
 
+static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
+
 impl GenSenseRule for DeadlockGuard {
-    fn id(&self) -> &str {
-        "RUST_ASYNC_MUTEX_DEADLOCK"
+    fn metadata(&self) -> &RuleMetadata {
+        METADATA.get_or_init(|| RuleMetadata {
+            id: Cow::Borrowed("RUST_ASYNC_MUTEX_DEADLOCK"),
+            name: Cow::Borrowed("Async Mutex Deadlock Detector"),
+            severity: Severity::Critical,
+            impact: Cow::Borrowed("Holding a standard Mutex guard across an await point can block the entire executor thread."),
+            improvement: Cow::Borrowed("Use tokio::sync::Mutex or ensure the guard is dropped before the await."),
+            tags: vec![Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
+            category: Cow::Borrowed("Reliability"),
+        })
     }
 
-    fn description(&self) -> &str {
-        "Potential deadlock: async lock guard held across .await point."
-    }
-
-    fn category(&self) -> &str {
-        "Reliability"
-    }
     fn applies_to(&self, ext: &str) -> bool {
         ext == "rs"
     }
 
     fn query(&self) -> Option<&str> {
-        // Find all await points - we check for locks in their parent scopes
         Some("(await_expression) @await")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        // The engine found an 'await_expression'
         if let Some(parent_fn) = self.find_parent_function(node) {
             if self.has_mutex_lock(parent_fn, node, context.source_code) {
-                let _pos = node.start_position();
-                advisories.push(self.new_advisory(
-                    &node,
-                    "Potential async deadlock detected.".to_string(),
-                    "Holding a standard Mutex guard across an await point can block the entire executor thread.".to_string(),
-                    "Use tokio::sync::Mutex or ensure the guard is dropped before the await.".to_string(),
-                ));
+                advisories.push(
+                    self.new_advisory(
+                        &node,
+                        context,
+                        "Potential async deadlock detected: Mutex guard held across .await point."
+                            .to_string(),
+                    ),
+                );
             }
         }
 
@@ -48,7 +51,6 @@ impl GenSenseRule for DeadlockGuard {
 }
 
 impl DeadlockGuard {
-    /// Internal Helper: Finds the nearest parent function or closure scope.
     fn find_parent_function<'a>(&self, node: Node<'a>) -> Option<Node<'a>> {
         let mut current = node;
         while let Some(parent) = current.parent() {
@@ -60,14 +62,12 @@ impl DeadlockGuard {
         None
     }
 
-    /// Internal Helper: Scans a scope for 'lock()' calls before the await point.
     fn has_mutex_lock(&self, scope: Node, await_node: Node, source: &str) -> bool {
         let await_start = await_node.start_byte();
         scan_for_lock(scope, await_start, source)
     }
 }
 
-/// Recursive AST walk: find .lock() calls before a given byte offset.
 fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
     if node.kind() == "call_expression" {
         if let Some(f) = node.child_by_field_name("function") {
@@ -79,16 +79,9 @@ fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
     }
 
     let mut cursor = node.walk();
-    if cursor.goto_first_child() {
-        loop {
-            if cursor.node().start_byte() < before_byte
-                && scan_for_lock(cursor.node(), before_byte, source)
-            {
-                return true;
-            }
-            if !cursor.goto_next_sibling() {
-                break;
-            }
+    for child in node.children(&mut cursor) {
+        if child.start_byte() < before_byte && scan_for_lock(child, before_byte, source) {
+            return true;
         }
     }
     false

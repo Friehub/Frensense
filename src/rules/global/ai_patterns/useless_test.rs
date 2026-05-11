@@ -17,7 +17,7 @@ impl GenSenseRule for UselessTest {
         Some("(function_item) @func")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
         if code.contains("#[test]") || code.contains("#[tokio::test]") {

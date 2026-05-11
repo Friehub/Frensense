@@ -10,11 +10,13 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use super::auditor::{GenSenseAuditor, ScanResult};
+use super::source::SourceRegistry;
 use super::suppression::SuppressConfig;
 use crate::{parser::ParserRegistry, semantics::SymbolRegistry, Advisory, Result};
 
 pub struct Engine {
     pub auditor: GenSenseAuditor,
+    pub source_registry: SourceRegistry,
     pub enabled_categories: HashSet<String>,
     pub enabled_tags: HashSet<String>,
     pub environment: crate::GenSenseEnvironment,
@@ -28,6 +30,7 @@ impl Engine {
     pub fn new(auditor: GenSenseAuditor) -> Self {
         Self {
             auditor,
+            source_registry: SourceRegistry::new(),
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
             environment: crate::GenSenseEnvironment::Development,
@@ -54,19 +57,14 @@ impl Engine {
         self.enabled_tags.insert(tag.to_string());
     }
 
-    pub fn list_rules(&self) -> Vec<(&str, &str, crate::Severity)> {
+    pub fn list_rules(&self) -> Vec<(String, String, crate::Severity)> {
         self.auditor
             .rules()
             .iter()
-            .filter(|r| {
-                self.auditor.is_rule_enabled(
-                    r.as_ref(),
-                    &self.enabled_categories,
-                    &self.enabled_tags,
-                    self.environment,
-                )
+            .map(|r| {
+                let meta = r.metadata();
+                (meta.id.to_string(), meta.impact.to_string(), meta.severity)
             })
-            .map(|r| (r.id(), r.description(), r.severity()))
             .collect()
     }
 
@@ -83,12 +81,8 @@ impl Engine {
             if let Some(config_rules_dir) = &config.rules_dir {
                 dirs.push(PathBuf::from(config_rules_dir));
             }
-
-            // Build rules dynamically (merging embedded + user rules from disk)
             self.auditor.rules =
                 GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
-
-            // Apply disabled rules
             if let Some(disabled) = &config.disabled_rules {
                 let disabled_set: HashSet<&str> = disabled.iter().map(|s| s.as_str()).collect();
                 self.auditor
@@ -107,13 +101,22 @@ impl Engine {
         }
 
         let files = self.collect_files(root)?;
+
+        let mut file_ids = Vec::new();
+        for p in &files {
+            if let Ok(content) = std::fs::read_to_string(p) {
+                let id = self.source_registry.register(p, content);
+                file_ids.push((id, p.clone()));
+            }
+        }
+
         let mut symbols = SymbolRegistry::new();
 
-        let discovered: Result<Vec<Vec<crate::semantics::Symbol>>> = files
+        let discovered: Result<Vec<Vec<crate::semantics::Symbol>>> = file_ids
             .par_iter()
-            .map(|p| {
-                let content = std::fs::read_to_string(p)?;
-                self.auditor.discover_symbols(p, &content)
+            .map(|(id, p)| {
+                let source = self.source_registry.get(*id).unwrap();
+                self.auditor.discover_symbols(p, &source.content)
             })
             .collect();
 
@@ -123,11 +126,12 @@ impl Engine {
             }
         }
 
-        let edge_results: Result<Vec<super::auditor::FileEdges>> = files
+        #[allow(clippy::type_complexity)]
+        let edge_results: Result<Vec<(PathBuf, Vec<(String, String)>)>> = file_ids
             .par_iter()
-            .map(|p| {
-                let content = std::fs::read_to_string(p)?;
-                let edges = self.auditor.scan_for_edges(p, &content)?;
+            .map(|(id, p)| {
+                let source = self.source_registry.get(*id).unwrap();
+                let edges = self.auditor.scan_for_edges(p, &source.content)?;
                 Ok((p.clone(), edges))
             })
             .collect();
@@ -138,25 +142,14 @@ impl Engine {
             }
         }
 
-        // Pass 3: Event Discovery (Temporal timelines)
-        // Sequential because it mutates the shared SymbolRegistry.
-        for p in &files {
-            let content = std::fs::read_to_string(p)?;
-            self.auditor.discover_events(p, &content, &mut symbols)?;
-        }
-
-        let total_symbols = symbols.graph.graph.node_count();
-        if total_symbols > 0 {
-            eprintln!("[INFO] Semantic Discovery: Indexed {total_symbols} symbols across project.");
-        }
-
-        let results: Result<Vec<ScanResult>> = files
+        let results: Result<Vec<ScanResult>> = file_ids
             .into_par_iter()
-            .map(|p| {
-                let content = std::fs::read_to_string(&p)?;
+            .map(|(id, p)| {
+                let source = self.source_registry.get(id).unwrap();
                 let (mut advisories, fingerprints) = self.auditor.audit(
+                    id,
                     &p,
-                    &content,
+                    &source.content,
                     &symbols,
                     &self.enabled_categories,
                     &self.enabled_tags,
@@ -164,35 +157,23 @@ impl Engine {
                 )?;
 
                 if self.verify_consistency {
-                    advisories.extend(self.run_consistency_analysis(&p, &content, &symbols));
+                    advisories.extend(self.run_consistency_analysis(
+                        id,
+                        &p,
+                        &source.content,
+                        &symbols,
+                    ));
                 }
 
-                for adv in &mut advisories {
-                    adv.file_path = p.to_string_lossy().to_string();
-                }
                 Ok((advisories, fingerprints))
             })
             .collect();
 
-        let results = results?;
-
         let mut all_advisories = Vec::new();
-        #[cfg(feature = "fingerprinting")]
-        let mut all_fingerprints = Vec::new();
-
-        for (adv, fp) in results {
+        for (adv, _) in results? {
             all_advisories.extend(adv);
-            #[cfg(feature = "fingerprinting")]
-            all_fingerprints.extend(fp);
         }
 
-        #[cfg(feature = "fingerprinting")]
-        all_advisories.append(&mut self.post_process_ngrams(&all_fingerprints));
-        if self.enabled_tags.contains("governance") || self.enabled_tags.contains("sbom") {
-            all_advisories.append(&mut self.run_governance_checks(root));
-        }
-
-        // Apply severity overrides
         if let Some(overrides) = &config.severity_override {
             for adv in &mut all_advisories {
                 if let Some(sev) = overrides.get(&adv.rule_id) {
@@ -204,24 +185,6 @@ impl Engine {
         Ok((all_advisories, symbols))
     }
 
-    pub fn run_content(&self, file_path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        let mut symbols = SymbolRegistry::new();
-        let discovered = self.auditor.discover_symbols(file_path, content)?;
-        for sym in discovered {
-            symbols.insert(sym);
-        }
-
-        let (advisories, _) = self.auditor.audit(
-            file_path,
-            content,
-            &symbols,
-            &self.enabled_categories,
-            &self.enabled_tags,
-            self.environment,
-        )?;
-        Ok(advisories)
-    }
-
     fn collect_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
         if root.is_file() {
             return Ok(vec![root.to_path_buf()]);
@@ -229,13 +192,12 @@ impl Engine {
         Ok(WalkDir::new(root)
             .into_iter()
             .filter_entry(|e| {
-                // Only prune directories — never prune the root or files
                 if e.file_type().is_dir() {
                     let name = e.file_name().to_string_lossy();
-                    // Skip hidden dirs (.git, .cargo, etc.), target, node_modules
-                    // but allow the root entry itself (path == root)
                     if e.path() != root {
-                        return name != "target" && name != "node_modules" && !name.starts_with('.');
+                        return name != "target"
+                            && name != "node_modules"
+                            && !name.starts_with('.');
                     }
                 }
                 true
@@ -245,11 +207,6 @@ impl Engine {
             .filter(|e| {
                 if let Ok(meta) = e.metadata() {
                     if meta.len() > 1024 * 1024 {
-                        eprintln!(
-                            "[WARNING] Skipping large file ({} MB): {}. Parsing large files can degrade performance.",
-                            meta.len() / 1024 / 1024,
-                            e.path().display()
-                        );
                         return false;
                     }
                 }
@@ -257,5 +214,26 @@ impl Engine {
             })
             .map(|e| e.path().to_path_buf())
             .collect())
+    }
+
+    pub fn run_content(&self, file_path: &Path, content: &str) -> Result<Vec<Advisory>> {
+        let mut registry = SourceRegistry::new();
+        let id = registry.register(file_path, content.to_string());
+        let mut symbols = SymbolRegistry::new();
+        let discovered = self.auditor.discover_symbols(file_path, content)?;
+        for sym in discovered {
+            symbols.insert(sym);
+        }
+
+        let (advisories, _) = self.auditor.audit(
+            id,
+            file_path,
+            content,
+            &symbols,
+            &self.enabled_categories,
+            &self.enabled_tags,
+            self.environment,
+        )?;
+        Ok(advisories)
     }
 }
