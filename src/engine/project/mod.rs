@@ -102,46 +102,54 @@ impl Engine {
 
         let files = self.collect_files(root)?;
 
-        let mut file_ids = Vec::new();
-        for p in &files {
-            if let Ok(content) = std::fs::read_to_string(p) {
-                let id = self.source_registry.register(p, content);
-                file_ids.push((id, p.clone()));
-            }
+        // Pass 1: Parallel Mapping (Immutable Snapshots)
+        // Each file is processed in isolation, producing its local semantic snapshots.
+        #[derive(Debug)]
+        struct FileSnapshot {
+            path: PathBuf,
+            content: String,
+            symbols: Vec<crate::semantics::Symbol>,
+            edges: Vec<(String, String)>,
         }
 
-        let mut symbols = SymbolRegistry::new();
-
-        let discovered: Result<Vec<Vec<crate::semantics::Symbol>>> = file_ids
-            .par_iter()
-            .map(|(id, p)| {
-                let source = self.source_registry.get(*id).unwrap();
-                self.auditor.discover_symbols(p, &source.content)
+        let snapshots: Result<Vec<FileSnapshot>> = files
+            .into_par_iter()
+            .map(|p| {
+                let content = std::fs::read_to_string(&p)?;
+                let symbols = self.auditor.discover_symbols(&p, &content)?;
+                let edges = self.auditor.scan_for_edges(&p, &content)?;
+                Ok(FileSnapshot {
+                    path: p,
+                    content,
+                    symbols,
+                    edges,
+                })
             })
             .collect();
 
-        for file_symbols in discovered? {
-            for sym in file_symbols {
+        // Pass 2: Sequential Assembly (Converging snapshots into the dependency graph)
+        let mut symbols = SymbolRegistry::new();
+        let mut file_ids = Vec::new();
+
+        let snapshots = snapshots?;
+        for snap in &snapshots {
+            let id = self
+                .source_registry
+                .register(&snap.path, snap.content.clone());
+            file_ids.push((id, snap.path.clone()));
+            for sym in snap.symbols.clone() {
                 symbols.insert(sym);
             }
         }
 
-        #[allow(clippy::type_complexity)]
-        let edge_results: Result<Vec<(PathBuf, Vec<(String, String)>)>> = file_ids
-            .par_iter()
-            .map(|(id, p)| {
-                let source = self.source_registry.get(*id).unwrap();
-                let edges = self.auditor.scan_for_edges(p, &source.content)?;
-                Ok((p.clone(), edges))
-            })
-            .collect();
-
-        for (path, file_edges) in edge_results? {
-            for (caller, callee) in file_edges {
-                symbols.add_call_edge(&path, &caller, &callee);
+        // Pass 3: Dependency Connection (Connecting the snapshots)
+        for snap in &snapshots {
+            for (caller, callee) in &snap.edges {
+                symbols.add_call_edge(&snap.path, caller, callee);
             }
         }
 
+        // Pass 4: Parallel Audit (Read-only access to the assembled graph)
         let results: Result<Vec<ScanResult>> = file_ids
             .into_par_iter()
             .map(|(id, p)| {

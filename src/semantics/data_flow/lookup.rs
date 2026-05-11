@@ -9,7 +9,23 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
         name: &str,
         registry: &super::TaintRegistry<'a>,
     ) -> Option<Node<'a>> {
-        registry.find_symbol(name)
+        // 1. Check local lexical scopes (Active bindings in TaintRegistry)
+        if let Some(node) = registry.find_symbol(name) {
+            return Some(node);
+        }
+
+        // 2. Fallback to Hierarchical Index (Definitions discovered in previous passes)
+        let file_path = self.context.file_path.to_string_lossy();
+        let line = self.root.start_position().row + 1;
+
+        if let Some(sym) = self.context.symbols.find_at(name, &file_path, line) {
+            // Find the node in the current tree based on the symbol's byte range
+            return self
+                .root
+                .descendant_for_byte_range(sym.start_byte, sym.end_byte);
+        }
+
+        None
     }
 
     pub fn map_params(

@@ -1,18 +1,25 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
-// Copyright (c) 2026 Friehub. All rights reserved.
+// SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use std::borrow::Cow;
+use std::sync::OnceLock;
 use tree_sitter::Node;
 
 pub struct FakeAsyncDetector;
 
-impl GenSenseRule for FakeAsyncDetector {
-    fn id(&self) -> &str {
-        "RUST_FAKE_ASYNC"
-    }
+static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
-    fn description(&self) -> &str {
-        "Function marked as async but contains no .await points (Fake Async)."
+impl GenSenseRule for FakeAsyncDetector {
+    fn metadata(&self) -> &RuleMetadata {
+        METADATA.get_or_init(|| RuleMetadata {
+            id: Cow::Borrowed("RUST_FAKE_ASYNC"),
+            name: Cow::Borrowed("Fake Async Detector"),
+            severity: Severity::Info,
+            impact: Cow::Borrowed("Async functions without awaits introduce state machine overhead and return a future unnecessarily without concurrency benefits."),
+            improvement: Cow::Borrowed("Remove the 'async' keyword if the function doesn't need to be concurrent, or implement the intended await points."),
+            tags: vec![Cow::Borrowed("optimization"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
+            category: Cow::Borrowed("Performance"),
+        })
     }
 
     fn applies_to(&self, ext: &str) -> bool {
@@ -20,28 +27,24 @@ impl GenSenseRule for FakeAsyncDetector {
     }
 
     fn query(&self) -> Option<&str> {
-        // Match all function items - we will filter for 'async' in check()
         Some("(function_item) @func")
     }
 
-    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        // 1. Verify it's an async function
         let header_end = node
             .child_by_field_name("body")
             .map_or(node.end_byte(), |b| b.start_byte());
         let header = &context.source_code[node.start_byte()..header_end];
 
         if header.contains("async") {
-            // 2. Scan body for await points
             if let Some(body) = node.child_by_field_name("body") {
                 if !has_await(body) {
                     advisories.push(self.new_advisory(
                         &node,
-                        "Async function without await points (Fake Async).".to_string(),
-                        "Async functions without awaits introduce state machine overhead without concurrency benefits.".to_string(),
-                        "Remove the 'async' keyword or implement intended concurrency.".to_string(),
+                        context,
+                        "Async function contains no await points (Fake Async).".to_string(),
                     ));
                 }
             }
@@ -51,20 +54,14 @@ impl GenSenseRule for FakeAsyncDetector {
     }
 }
 
-/// Recursive AST walk: checks if any child is an await_expression.
 fn has_await(node: Node) -> bool {
     if node.kind() == "await_expression" {
         return true;
     }
     let mut cursor = node.walk();
-    if cursor.goto_first_child() {
-        loop {
-            if has_await(cursor.node()) {
-                return true;
-            }
-            if !cursor.goto_next_sibling() {
-                break;
-            }
+    for child in node.children(&mut cursor) {
+        if has_await(child) {
+            return true;
         }
     }
     false
