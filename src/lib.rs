@@ -21,7 +21,6 @@ pub mod semantics;
 pub use crate::engine::auditor::GenSenseAuditor;
 pub use crate::engine::Engine;
 
-use crate::semantics::data_flow::normalization::SemanticOp;
 use crate::semantics::SymbolRegistry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -73,15 +72,15 @@ pub struct Advisory {
     pub proposed_replacement: Option<String>,
 }
 
-pub type SemanticCache<'a> = RefCell<HashMap<usize, Vec<SemanticOp<'a>>>>;
-pub type TaintCache = RefCell<HashMap<(String, usize), Vec<Advisory>>>;
+pub type TaintCache = RefCell<HashMap<(String, String, usize), Vec<Advisory>>>;
 
 pub struct GenSenseContext<'a> {
     pub file_id: FileId,
     pub file_path: &'a Path,
     pub source_code: &'a str,
+    pub tree: &'a tree_sitter::Tree,
     pub symbols: &'a SymbolRegistry,
-    pub semantic_cache: &'a SemanticCache<'a>,
+    pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub taint_cache: &'a TaintCache,
 }
 
@@ -140,6 +139,29 @@ pub trait GenSenseRule: Send + Sync {
         let mut adv = self.new_advisory(node, context, observation);
         adv.proposed_replacement = Some(replacement);
         adv
+    }
+}
+
+pub use crate::engine::source::SourceRegistry;
+
+/// A project-level rule that operates across all files simultaneously.
+/// Receives the fully assembled, immutable SymbolRegistry and SourceRegistry.
+pub trait ProjectRule: Send + Sync {
+    fn metadata(&self) -> &RuleMetadata;
+
+    /// The core logic. Receives the complete project graph (read-only).
+    fn check_project(&self, symbols: &SymbolRegistry, sources: &SourceRegistry) -> Vec<Advisory>;
+
+    fn id(&self) -> &str {
+        self.metadata().id.as_ref()
+    }
+
+    fn is_enabled_in(&self, env: GenSenseEnvironment) -> bool {
+        let meta = self.metadata();
+        if env == GenSenseEnvironment::Production {
+            return !meta.tags.iter().any(|t| t == "beta");
+        }
+        true
     }
 }
 

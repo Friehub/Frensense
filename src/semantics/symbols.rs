@@ -2,6 +2,7 @@
 
 use crate::semantics::graph::SemanticGraph;
 use petgraph::graph::NodeIndex;
+use petgraph::visit::EdgeRef;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -108,18 +109,21 @@ impl SymbolRegistry {
         let callers = self.find(caller);
         let callees = self.find(callee);
 
-        // For the caller, we look for the definition in the current file
+        // 1. Resolve Caller: Must be in the current file
         let caller_idx = callers
             .iter()
             .find(|s| s.file_path == file_str)
             .and_then(|s| self.graph.find_node(&s.name, &s.file_path, s.line));
 
-        // For the callee, if it's unambiguous (only one definition in the project), we link it.
-        // In Phase 7, this will be improved with qualified name resolution.
-        let callee_idx = if callees.len() == 1 {
+        // 2. Resolve Callee: Priority is local file, then unambiguous global
+        let callee_idx = if let Some(local) = callees.iter().find(|s| s.file_path == file_str) {
+            self.graph
+                .find_node(&local.name, &local.file_path, local.line)
+        } else if callees.len() == 1 {
             self.graph
                 .find_node(&callees[0].name, &callees[0].file_path, callees[0].line)
         } else {
+            // Still ambiguous or external - in a full implementation, we'd use imports/usings
             None
         };
 
@@ -127,5 +131,40 @@ impl SymbolRegistry {
             self.graph
                 .add_edge(c1, c2, crate::semantics::graph::EdgeKind::Calls);
         }
+    }
+
+    pub fn find_by_regex(&self, re: &regex::Regex) -> Vec<&Symbol> {
+        self.graph
+            .all_symbols()
+            .into_iter()
+            .filter(|s| re.is_match(&s.name))
+            .collect()
+    }
+
+    pub fn get_callees(&self, sym: &Symbol) -> Vec<&Symbol> {
+        let idx = match self.graph.find_node(&sym.name, &sym.file_path, sym.line) {
+            Some(i) => i,
+            None => return Vec::new(),
+        };
+
+        self.graph
+            .neighbors_of(idx, crate::semantics::graph::EdgeKind::Calls)
+            .into_iter()
+            .filter_map(|i| self.graph.get_symbol(i))
+            .collect()
+    }
+
+    pub fn get_callers(&self, sym: &Symbol) -> Vec<&Symbol> {
+        let idx = match self.graph.find_node(&sym.name, &sym.file_path, sym.line) {
+            Some(i) => i,
+            None => return Vec::new(),
+        };
+
+        self.graph
+            .graph
+            .edges_directed(idx, petgraph::Direction::Incoming)
+            .filter(|e| *e.weight() == crate::semantics::graph::EdgeKind::Calls)
+            .filter_map(|e| self.graph.get_symbol(e.source()))
+            .collect()
     }
 }
