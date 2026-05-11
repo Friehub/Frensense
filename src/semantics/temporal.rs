@@ -4,12 +4,12 @@ use crate::{Advisory, GenSenseContext, GenSenseRule};
 use regex::Regex;
 use tree_sitter::Node;
 
-pub struct TemporalAnalyzer<'a> {
-    pub context: &'a GenSenseContext<'a>,
+pub struct TemporalAnalyzer<'a, 'ctx> {
+    pub context: &'ctx GenSenseContext<'a>,
 }
 
-impl<'a> TemporalAnalyzer<'a> {
-    pub fn new(context: &'a GenSenseContext<'a>) -> Self {
+impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
+    pub fn new(context: &'ctx GenSenseContext<'a>) -> Self {
         Self { context }
     }
 
@@ -23,34 +23,21 @@ impl<'a> TemporalAnalyzer<'a> {
         let mut advisories = Vec::new();
         let regexes: Vec<Regex> = sequence.iter().map(|p| Regex::new(p).unwrap()).collect();
 
-        // 1. Find the function in the graph
         let file_path = self.context.file_path.to_string_lossy();
         let line = scope.start_position().row + 1;
 
-        // Find enclosing function index
         let scope_idx = self.context.symbols.find_function_at(&file_path, line);
-
         let scope_idx = match scope_idx {
             Some(idx) => idx,
             None => return Vec::new(),
         };
 
-        // 2. Get ordered events from the graph
         let events = self
             .context
             .symbols
             .graph
             .ordered_events_in_scope(scope_idx);
-
-        // 3. Find matches for each step in the sequence
-        let mut matches = Vec::new();
-        for event in &events {
-            for (i, re) in regexes.iter().enumerate() {
-                if re.is_match(&event.label) {
-                    matches.push((event.clone(), i));
-                }
-            }
-        }
+        let meta = rule.metadata();
 
         match behavior {
             crate::rules::ir::TemporalBehavior::MustNotFollow => {
@@ -69,24 +56,26 @@ impl<'a> TemporalAnalyzer<'a> {
                             found_first = true;
                         } else if p_idx == 1 && found_first {
                             advisories.push(Advisory {
-                                rule_id: rule.id().to_string(),
-                                severity: rule.severity(),
+                                rule_id: meta.id.to_string(),
+                                file_id: self.context.file_id,
+                                file_path: self.context.file_path.to_string_lossy().to_string(),
+                                severity: meta.severity,
                                 observation: format!(
                                     "Temporal Violation: '{}' must NOT follow '{}' in this scope.",
                                     sequence[1], sequence[0]
                                 ),
-                                impact: rule.impact().to_string(),
-                                improvement: rule.improvement().to_string(),
-                                line: event.line,
-                                column: event.column,
-                                file_path: event.file_path.clone(),
+                                impact: meta.impact.to_string(),
+                                improvement: meta.improvement.to_string(),
+                                line: event.line as u32,
+                                column: event.column as u32,
+                                start_byte: 0,
+                                end_byte: 0,
                                 original_content: String::new(),
                                 proposed_replacement: None,
                             });
                         }
                     }
 
-                    // Reset if we see a Release event
                     if event.event_type == crate::semantics::graph::EventType::Release {
                         found_first = false;
                     }
@@ -94,32 +83,22 @@ impl<'a> TemporalAnalyzer<'a> {
             }
             crate::rules::ir::TemporalBehavior::MustFollow => {
                 let mut current_step = 0;
-                for (_event, p_idx) in &matches {
-                    if *p_idx == current_step {
+                for event in &events {
+                    if current_step < regexes.len() && regexes[current_step].is_match(&event.label)
+                    {
                         current_step += 1;
-                        if current_step == sequence.len() {
-                            break;
-                        }
                     }
                 }
 
                 if current_step < sequence.len() {
-                    advisories.push(Advisory {
-                        rule_id: rule.id().to_string(),
-                        severity: rule.severity(),
-                        observation: format!(
-                            "Temporal Violation: Expected sequence [{}] was incomplete (stopped at '{}').",
-                            sequence.join(", "),
-                            sequence[current_step.saturating_sub(1)]
+                    advisories.push(rule.new_advisory(
+                        &scope,
+                        self.context,
+                        format!(
+                            "Temporal Violation: Expected sequence [{}] was incomplete.",
+                            sequence.join(", ")
                         ),
-                        impact: rule.impact().to_string(),
-                        improvement: rule.improvement().to_string(),
-                        line: scope.start_position().row + 1,
-                        column: scope.start_position().column + 1,
-                        file_path: file_path.to_string(),
-                        original_content: String::new(),
-                        proposed_replacement: None,
-                    });
+                    ));
                 }
             }
             crate::rules::ir::TemporalBehavior::ForbiddenBetween(start_p, end_p) => {
@@ -136,17 +115,17 @@ impl<'a> TemporalAnalyzer<'a> {
                         for (i, re) in regexes.iter().enumerate() {
                             if re.is_match(&event.label) {
                                 advisories.push(Advisory {
-                                    rule_id: rule.id().to_string(),
-                                    severity: rule.severity(),
-                                    observation: format!(
-                                        "Temporal Violation: '{}' found between '{}' and '{}', which is forbidden.",
-                                        sequence[i], start_p, end_p
-                                    ),
-                                    impact: rule.impact().to_string(),
-                                    improvement: rule.improvement().to_string(),
-                                    line: event.line,
-                                    column: event.column,
-                                    file_path: event.file_path.clone(),
+                                    rule_id: meta.id.to_string(),
+                                    file_id: self.context.file_id,
+                                    file_path: self.context.file_path.to_string_lossy().to_string(),
+                                    severity: meta.severity,
+                                    observation: format!("Temporal Violation: '{}' found between '{}' and '{}', which is forbidden.", sequence[i], start_p, end_p),
+                                    impact: meta.impact.to_string(),
+                                    improvement: meta.improvement.to_string(),
+                                    line: event.line as u32,
+                                    column: event.column as u32,
+                                    start_byte: 0,
+                                    end_byte: 0,
                                     original_content: String::new(),
                                     proposed_replacement: None,
                                 });

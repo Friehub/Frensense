@@ -13,12 +13,10 @@ use tree_sitter::{Language, Node, Query, QueryCursor, Tree};
 use super::fingerprint::{extract_fingerprints, FunctionFingerprint};
 use super::suppression::{is_suppressed, SuppressConfig};
 use crate::{
-    parser::ParserRegistry, semantics::SymbolRegistry, Advisory, GenSenseContext, GenSenseError,
-    GenSenseRule, Result,
+    parser::ParserRegistry, semantics::SymbolRegistry, Advisory, FileId, GenSenseContext,
+    GenSenseError, GenSenseRule, Result, SemanticCache, TaintCache,
 };
 
-pub type CallEdges = Vec<(String, String)>;
-pub type FileEdges = (std::path::PathBuf, CallEdges);
 pub type ScanResult = (Vec<Advisory>, Vec<FunctionFingerprint>);
 
 pub struct GenSenseAuditor {
@@ -50,11 +48,13 @@ impl GenSenseAuditor {
         &self.rules
     }
 
-    pub fn audit(
+    #[allow(clippy::too_many_arguments)]
+    pub fn audit<'a>(
         &self,
-        path: &Path,
-        content: &str,
-        symbols: &SymbolRegistry,
+        file_id: FileId,
+        path: &'a Path,
+        content: &'a str,
+        symbols: &'a SymbolRegistry,
         category_filter: &HashSet<String>,
         tag_filter: &HashSet<String>,
         env: crate::GenSenseEnvironment,
@@ -73,6 +73,18 @@ impl GenSenseAuditor {
             .parse(content, None)
             .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
 
+        let semantic_cache = SemanticCache::default();
+        let taint_cache = TaintCache::default();
+
+        let context = GenSenseContext {
+            file_id,
+            file_path: path,
+            source_code: content,
+            symbols,
+            semantic_cache: &semantic_cache,
+            taint_cache: &taint_cache,
+        };
+
         for rule in &self.rules {
             if !self.is_rule_enabled(rule.as_ref(), category_filter, tag_filter, env) {
                 continue;
@@ -80,13 +92,12 @@ impl GenSenseAuditor {
 
             let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
             if rule.applies_to(ext) {
-                let rule_advisories = if let Some(query_str) = rule.query() {
+                if let Some(query_str) = rule.query() {
                     let query = Query::new(&language, query_str)
                         .map_err(|e| GenSenseError::Config(e.to_string()))?;
                     let mut cursor = QueryCursor::new();
                     let query_matches =
                         cursor.matches(&query, tree.root_node(), content.as_bytes());
-                    let mut matches = Vec::new();
                     for m in query_matches {
                         for capture in m.captures {
                             if !is_suppressed(
@@ -96,25 +107,16 @@ impl GenSenseAuditor {
                                 content,
                                 path,
                             ) {
-                                matches.extend(rule.check(
-                                    capture.node,
-                                    &GenSenseContext {
-                                        file_path: path,
-                                        source_code: content,
-                                        symbols,
-                                    },
-                                ));
+                                advisories.extend(rule.check(capture.node, &context));
                             }
                         }
                     }
-                    matches
                 } else {
-                    self.run_recursive(tree.root_node(), rule.as_ref(), content, path, symbols)
-                };
-
-                for mut adv in rule_advisories {
-                    adv.file_path = path.to_string_lossy().to_string();
-                    advisories.push(adv);
+                    advisories.extend(self.run_recursive(
+                        tree.root_node(),
+                        rule.as_ref(),
+                        &context,
+                    ));
                 }
             }
         }
@@ -125,59 +127,38 @@ impl GenSenseAuditor {
         Ok((advisories, fingerprints))
     }
 
-    pub fn run_recursive(
+    pub fn run_recursive<'a>(
         &self,
-        node: Node,
+        node: Node<'a>,
         rule: &dyn GenSenseRule,
-        content: &str,
-        path: &Path,
-        symbols: &SymbolRegistry,
+        context: &GenSenseContext<'a>,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
-        if !is_suppressed(&self.suppressions, node, rule.id(), content, path) {
-            advisories.extend(rule.check(
-                node,
-                &GenSenseContext {
-                    file_path: path,
-                    source_code: content,
-                    symbols,
-                },
-            ));
+        if !is_suppressed(
+            &self.suppressions,
+            node,
+            rule.id(),
+            context.source_code,
+            context.file_path,
+        ) {
+            advisories.extend(rule.check(node, context));
         }
+
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            advisories.extend(self.run_recursive(child, rule, content, path, symbols));
+            advisories.extend(self.run_recursive(child, rule, context));
         }
+
         advisories
     }
 
-    pub fn parse_source(&self, path: &Path, content: &str) -> Result<(Language, Tree)> {
+    pub fn parse_source(&self, path: &Path, content: &str) -> crate::Result<(Language, Tree)> {
         let language = ParserRegistry::get_language(path)?;
         let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&language)
-            .map_err(|e| GenSenseError::Config(e.to_string()))?;
+        parser.set_language(&language)?;
         let tree = parser
             .parse(content, None)
             .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
         Ok((language, tree))
-    }
-
-    pub fn find_enclosing_function<'a>(&self, node: Node<'a>) -> Option<Node<'a>> {
-        let mut parent = node.parent();
-        while let Some(p) = parent {
-            if matches!(
-                p.kind(),
-                "function_item"
-                    | "function_declaration"
-                    | "method_definition"
-                    | "closure_expression"
-                    | "arrow_function"
-            ) {
-                return Some(p);
-            }
-            parent = p.parent();
-        }
-        None
     }
 }

@@ -123,7 +123,7 @@ fn main() -> Result<()> {
 
         if let Some(finding) = advisories.iter().find(|a| a.rule_id == expected_id) {
             if let Some(expected_line) = expect_line {
-                if finding.line as u32 != expected_line {
+                if finding.line != expected_line {
                     println!(
                         "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
                         expected_line, finding.line
@@ -150,12 +150,13 @@ fn main() -> Result<()> {
         doc.push_str("| Rule ID | Severity | Category | Description |\n");
         doc.push_str("| :--- | :--- | :--- | :--- |\n");
         for rule in engine.auditor.rules() {
+            let meta = rule.metadata();
             doc.push_str(&format!(
                 "| `{}` | {:?} | {} | {} |\n",
                 rule.id(),
-                rule.severity(),
-                rule.category(),
-                rule.description()
+                meta.severity,
+                meta.category,
+                meta.impact
             ));
         }
         std::fs::write("RULES.md", doc).expect("Failed to write RULES.md");
@@ -247,6 +248,7 @@ fn main() -> Result<()> {
         i += 1;
     }
 
+    eprintln!("[DEBUG] Main: Initializing Engine...");
     let mut engine = Engine::new(GenSenseAuditor::default_auditor());
     engine.extra_rule_dirs = extra_rule_dirs;
     if no_builtin {
