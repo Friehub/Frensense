@@ -9,13 +9,14 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use super::auditor::{GenSenseAuditor, ScanResult};
+use super::auditor::{GenSenseAuditor, ProjectAuditor, ScanResult};
 use super::source::SourceRegistry;
 use super::suppression::SuppressConfig;
-use crate::{parser::ParserRegistry, semantics::SymbolRegistry, Advisory, Result};
+use crate::{parser::ParserRegistry, semantics::SymbolRegistry, Advisory, ProjectRule, Result};
 
 pub struct Engine {
     pub auditor: GenSenseAuditor,
+    pub project_rules: Vec<Box<dyn ProjectRule>>,
     pub source_registry: SourceRegistry,
     pub enabled_categories: HashSet<String>,
     pub enabled_tags: HashSet<String>,
@@ -30,6 +31,7 @@ impl Engine {
     pub fn new(auditor: GenSenseAuditor) -> Self {
         Self {
             auditor,
+            project_rules: Vec::new(),
             source_registry: SourceRegistry::new(),
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
@@ -81,13 +83,17 @@ impl Engine {
             if let Some(config_rules_dir) = &config.rules_dir {
                 dirs.push(PathBuf::from(config_rules_dir));
             }
-            self.auditor.rules =
+            let (rules, project_rules) =
                 GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
+            self.auditor.rules = rules;
+            self.project_rules = project_rules;
+
             if let Some(disabled) = &config.disabled_rules {
                 let disabled_set: HashSet<&str> = disabled.iter().map(|s| s.as_str()).collect();
                 self.auditor
                     .rules
                     .retain(|r| !disabled_set.contains(r.id()));
+                self.project_rules.retain(|r| !disabled_set.contains(r.id()));
             }
         }
 
@@ -108,21 +114,27 @@ impl Engine {
         struct FileSnapshot {
             path: PathBuf,
             content: String,
+            tree: tree_sitter::Tree,
             symbols: Vec<crate::semantics::Symbol>,
             edges: Vec<(String, String)>,
+            semantic_ops: Vec<crate::semantics::data_flow::normalization::SemanticOp>,
         }
 
         let snapshots: Result<Vec<FileSnapshot>> = files
             .into_par_iter()
             .map(|p| {
                 let content = std::fs::read_to_string(&p)?;
-                let symbols = self.auditor.discover_symbols(&p, &content)?;
-                let edges = self.auditor.scan_for_edges(&p, &content)?;
+                let (language, tree) = self.auditor.parse_source(&p, &content)?;
+                let symbols = self.auditor.discover_symbols(&p, &content, &language, &tree)?;
+                let edges = self.auditor.scan_for_edges(&p, &content, &language, &tree)?;
+                let semantic_ops = self.auditor.extract_semantic_ops(&p, &content, &tree);
                 Ok(FileSnapshot {
                     path: p,
                     content,
+                    tree,
                     symbols,
                     edges,
+                    semantic_ops,
                 })
             })
             .collect();
@@ -132,11 +144,14 @@ impl Engine {
         let mut file_ids = Vec::new();
 
         let snapshots = snapshots?;
+        let mut snapshot_map = std::collections::HashMap::new();
+
         for snap in &snapshots {
             let id = self
                 .source_registry
                 .register(&snap.path, snap.content.clone());
             file_ids.push((id, snap.path.clone()));
+            snapshot_map.insert(id, snap);
             for sym in snap.symbols.clone() {
                 symbols.insert(sym);
             }
@@ -153,11 +168,13 @@ impl Engine {
         let results: Result<Vec<ScanResult>> = file_ids
             .into_par_iter()
             .map(|(id, p)| {
-                let source = self.source_registry.get(id).unwrap();
+                let snap = snapshot_map.get(&id).unwrap();
                 let (mut advisories, fingerprints) = self.auditor.audit(
                     id,
                     &p,
-                    &source.content,
+                    &snap.content,
+                    &snap.tree,
+                    &snap.semantic_ops,
                     &symbols,
                     &self.enabled_categories,
                     &self.enabled_tags,
@@ -168,7 +185,7 @@ impl Engine {
                     advisories.extend(self.run_consistency_analysis(
                         id,
                         &p,
-                        &source.content,
+                        &snap.content,
                         &symbols,
                     ));
                 }
@@ -181,6 +198,12 @@ impl Engine {
         for (adv, _) in results? {
             all_advisories.extend(adv);
         }
+
+        // Pass 5: Project Audit (Cross-file rules)
+        let project_auditor = ProjectAuditor::new(std::mem::take(&mut self.project_rules));
+        let project_advisories =
+            project_auditor.run(&symbols, &self.source_registry, self.environment);
+        all_advisories.extend(project_advisories);
 
         if let Some(overrides) = &config.severity_override {
             for adv in &mut all_advisories {
@@ -228,15 +251,20 @@ impl Engine {
         let mut registry = SourceRegistry::new();
         let id = registry.register(file_path, content.to_string());
         let mut symbols = SymbolRegistry::new();
-        let discovered = self.auditor.discover_symbols(file_path, content)?;
+
+        let (language, tree) = self.auditor.parse_source(file_path, content)?;
+        let discovered = self.auditor.discover_symbols(file_path, content, &language, &tree)?;
         for sym in discovered {
             symbols.insert(sym);
         }
+        let semantic_ops = self.auditor.extract_semantic_ops(file_path, content, &tree);
 
         let (advisories, _) = self.auditor.audit(
             id,
             file_path,
             content,
+            &tree,
+            &semantic_ops,
             &symbols,
             &self.enabled_categories,
             &self.enabled_tags,

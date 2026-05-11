@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: MIT
 
 use super::GenSenseAuditor;
-use crate::{GenSenseRule, EMBEDDED_RULES_DIR};
+use crate::{GenSenseRule, ProjectRule, EMBEDDED_RULES_DIR};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+#[derive(serde::Deserialize)]
+struct RulesWrapper {
+    #[serde(default)]
+    rules: Vec<crate::rules::core::CoreRule>,
+    #[serde(default)]
+    project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
+}
 
 impl GenSenseAuditor {
     pub fn is_rule_enabled(
@@ -39,38 +47,18 @@ impl GenSenseAuditor {
         false
     }
 
-    pub fn default_rules() -> Vec<Box<dyn GenSenseRule>> {
+    pub fn default_rules() -> (Vec<Box<dyn GenSenseRule>>, Vec<Box<dyn ProjectRule>>) {
         let mut rules: Vec<Box<dyn GenSenseRule>> = Vec::new();
+        let mut project_rules: Vec<Box<dyn ProjectRule>> = Vec::new();
 
         #[cfg(feature = "rust")]
         {
             rules.push(Box::new(crate::rules::rust::deadlock_guard::DeadlockGuard));
-            // Temporarily disabled for migration
-            // rules.push(Box::new(crate::rules::rust::async_safety::AsyncPanicSafety));
-            // rules.push(Box::new(crate::rules::rust::fake_async::FakeAsyncDetector));
-            // rules.push(Box::new(crate::rules::rust::blocking_io::BlockingIoDetector));
-            // rules.push(Box::new(crate::rules::rust::tracing_guard::TracingGuard));
-            // rules.push(Box::new(crate::rules::rust::timeout_guard::TimeoutGuard));
-        }
-
-        // Global rules temporarily disabled for migration
-        /*
-        rules.push(Box::new(crate::rules::global::ai_patterns::placeholder_panic::PlaceholderPanic));
-        rules.push(Box::new(crate::rules::global::ai_patterns::tautological_assert::TautologicalAssert));
-        rules.push(Box::new(crate::rules::global::ai_patterns::dead_result::DeadResult));
-        rules.push(Box::new(crate::rules::global::ai_patterns::useless_test::UselessTest));
-        rules.push(Box::new(crate::rules::global::ai_patterns::redundant_comment::RedundantComment));
-        */
-
-        #[cfg(feature = "typescript")]
-        /*
-        rules.push(Box::new(crate::rules::global::ai_patterns::ts_floating_promise::TsFloatingPromiseDetector));
-        */
-        // rules.push(Box::new(crate::rules::global::secret_guard::SecretGuard));
-        // rules.push(Box::new(crate::rules::global::todo_guard::TodoGuard));
-        #[derive(serde::Deserialize)]
-        struct RulesWrapper {
-            rules: Vec<crate::rules::core::CoreRule>,
+            rules.push(Box::new(crate::rules::rust::blocking_io::BlockingIoDetector));
+            rules.push(Box::new(crate::rules::rust::async_safety::AsyncPanicSafety));
+            rules.push(Box::new(crate::rules::rust::timeout_guard::TimeoutGuard));
+            rules.push(Box::new(crate::rules::rust::tracing_guard::TracingGuard));
+            rules.push(Box::new(crate::rules::rust::fake_async::FakeAsyncDetector));
         }
 
         fn collect_yml_files<'a>(
@@ -102,6 +90,13 @@ impl GenSenseAuditor {
                                         crate::rules::compiler::RuleCompiler::compile(dsl_rule);
                                     rules.push(Box::new(compiled));
                                 }
+                                for p_rule in wrapper.project_rules {
+                                    let compiled =
+                                        crate::rules::compiler::ProjectRuleCompiler::compile(
+                                            p_rule,
+                                        );
+                                    project_rules.push(Box::new(compiled));
+                                }
                             }
                             Err(err) => {
                                 eprintln!(
@@ -116,7 +111,7 @@ impl GenSenseAuditor {
             }
         }
 
-        if rules.is_empty() {
+        if rules.is_empty() && project_rules.is_empty() {
             collect_yml_files(&EMBEDDED_RULES_DIR, &mut rule_files);
             for file in rule_files {
                 if let Some(rules_yml) = file.contents_utf8() {
@@ -126,6 +121,11 @@ impl GenSenseAuditor {
                                 let compiled =
                                     crate::rules::compiler::RuleCompiler::compile(dsl_rule);
                                 rules.push(Box::new(compiled));
+                            }
+                            for p_rule in wrapper.project_rules {
+                                let compiled =
+                                    crate::rules::compiler::ProjectRuleCompiler::compile(p_rule);
+                                project_rules.push(Box::new(compiled));
                             }
                         }
                         Err(e) => {
@@ -140,24 +140,31 @@ impl GenSenseAuditor {
             }
         }
 
-        rules
+        (rules, project_rules)
     }
 
     pub fn build_rule_set(
         project_root: &Path,
         extra_dirs: &[PathBuf],
         no_builtin_rules: bool,
-    ) -> Vec<Box<dyn GenSenseRule>> {
-        let mut rules = if no_builtin_rules {
-            Vec::new()
+    ) -> (Vec<Box<dyn GenSenseRule>>, Vec<Box<dyn ProjectRule>>) {
+        let (mut rules, mut project_rules) = if no_builtin_rules {
+            (Vec::new(), Vec::new())
         } else {
             Self::default_rules()
         };
 
-        let user_rules = super::user_rules::load_user_rules(project_root, extra_dirs);
+        let (user_rules, user_project_rules) =
+            super::user_rules::load_user_rules(project_root, extra_dirs);
+
         let user_ids: HashSet<&str> = user_rules.iter().map(|r| r.id()).collect();
         rules.retain(|r| !user_ids.contains(r.id()));
         rules.extend(user_rules);
-        rules
+
+        let user_project_ids: HashSet<&str> = user_project_rules.iter().map(|r| r.id()).collect();
+        project_rules.retain(|r| !user_project_ids.contains(r.id()));
+        project_rules.extend(user_project_rules);
+
+        (rules, project_rules)
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "gensense"
-version = "0.1.7"
+version = "0.2.0-beta"
 authors = ["Friehub Developers"]
 edition = "2021"
 description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
@@ -60,3 +60,8 @@ napi-build = "2.0"
 
 [dev-dependencies]
 tempfile = "3"
+criterion = "0.5"
+
+[[bench]]
+name = "engine_perf"
+harness = false

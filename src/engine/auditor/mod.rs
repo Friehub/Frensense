@@ -2,8 +2,11 @@
 
 pub mod discovery;
 pub mod events;
+pub mod project_auditor;
 pub mod rules;
 pub mod user_rules;
+
+pub use project_auditor::ProjectAuditor;
 
 use glob::Pattern;
 use std::collections::HashSet;
@@ -14,7 +17,7 @@ use super::fingerprint::{extract_fingerprints, FunctionFingerprint};
 use super::suppression::{is_suppressed, SuppressConfig};
 use crate::{
     parser::ParserRegistry, semantics::SymbolRegistry, Advisory, FileId, GenSenseContext,
-    GenSenseError, GenSenseRule, Result, SemanticCache, TaintCache,
+    GenSenseError, GenSenseRule, Result, TaintCache,
 };
 
 pub type ScanResult = (Vec<Advisory>, Vec<FunctionFingerprint>);
@@ -33,7 +36,8 @@ impl GenSenseAuditor {
     }
 
     pub fn default_auditor() -> Self {
-        Self::new(Self::default_rules())
+        let (rules, _) = Self::default_rules();
+        Self::new(rules)
     }
 
     pub fn set_suppressions(&mut self, config: SuppressConfig) {
@@ -54,6 +58,8 @@ impl GenSenseAuditor {
         file_id: FileId,
         path: &'a Path,
         content: &'a str,
+        tree: &'a tree_sitter::Tree,
+        semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
         symbols: &'a SymbolRegistry,
         category_filter: &HashSet<String>,
         tag_filter: &HashSet<String>,
@@ -67,21 +73,15 @@ impl GenSenseAuditor {
             Err(_) => return Ok((Vec::new(), Vec::new())),
         };
 
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&language)?;
-        let tree = parser
-            .parse(content, None)
-            .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
-
-        let semantic_cache = SemanticCache::default();
         let taint_cache = TaintCache::default();
 
         let context = GenSenseContext {
             file_id,
             file_path: path,
             source_code: content,
+            tree,
             symbols,
-            semantic_cache: &semantic_cache,
+            semantic_ops,
             taint_cache: &taint_cache,
         };
 
