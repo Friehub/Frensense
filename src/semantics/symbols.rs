@@ -2,6 +2,7 @@
 
 use crate::semantics::graph::SemanticGraph;
 use petgraph::graph::NodeIndex;
+use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -33,6 +34,7 @@ pub struct Symbol {
 #[derive(Default)]
 pub struct SymbolRegistry {
     pub graph: SemanticGraph,
+    pub file_index: HashMap<String, Vec<NodeIndex>>,
 }
 
 impl SymbolRegistry {
@@ -41,7 +43,11 @@ impl SymbolRegistry {
     }
 
     pub fn insert(&mut self, symbol: Symbol) -> NodeIndex {
-        self.graph.add_symbol(symbol)
+        let file_path = symbol.file_path.clone();
+        let idx = self.graph.add_symbol(symbol);
+
+        self.file_index.entry(file_path).or_default().push(idx);
+        idx
     }
 
     pub fn find(&self, name: &str) -> Vec<&Symbol> {
@@ -52,14 +58,40 @@ impl SymbolRegistry {
             .collect()
     }
 
+    /// Finds the innermost symbol with a specific name at a specific location.
+    /// This handles variable shadowing by selecting the smallest containing interval.
     pub fn find_at(&self, name: &str, file: &str, line: usize) -> Option<&Symbol> {
-        self.find(name).into_iter().find(|s| {
-            s.file_path == file && (s.line == line || (line >= s.line && line <= s.end_line))
-        })
+        self.file_index
+            .get(file)?
+            .iter()
+            .filter_map(|&idx| {
+                let s = self.graph.get_symbol(idx)?;
+                if s.name == name && line >= s.line && line <= s.end_line {
+                    Some(s)
+                } else {
+                    None
+                }
+            })
+            .min_by_key(|s| s.end_line - s.line)
     }
 
+    /// Finds the innermost function containing the specified line.
     pub fn find_function_at(&self, file: &str, line: usize) -> Option<NodeIndex> {
-        self.graph.find_node_at_line(file, line)
+        self.file_index
+            .get(file)?
+            .iter()
+            .filter(|&&idx| {
+                if let Some(s) = self.graph.get_symbol(idx) {
+                    s.kind == SymbolKind::Function && line >= s.line && line <= s.end_line
+                } else {
+                    false
+                }
+            })
+            .min_by_key(|&&idx| {
+                let s = self.graph.get_symbol(idx).unwrap();
+                s.end_line - s.line
+            })
+            .copied()
     }
 
     pub fn query_all(&self) -> Vec<&Symbol> {
@@ -68,6 +100,7 @@ impl SymbolRegistry {
 
     pub fn clear(&mut self) {
         self.graph = SemanticGraph::default();
+        self.file_index.clear();
     }
 
     pub fn add_call_edge(&mut self, file_path: &Path, caller: &str, callee: &str) {
@@ -75,11 +108,14 @@ impl SymbolRegistry {
         let callers = self.find(caller);
         let callees = self.find(callee);
 
+        // For the caller, we look for the definition in the current file
         let caller_idx = callers
             .iter()
             .find(|s| s.file_path == file_str)
             .and_then(|s| self.graph.find_node(&s.name, &s.file_path, s.line));
 
+        // For the callee, if it's unambiguous (only one definition in the project), we link it.
+        // In Phase 7, this will be improved with qualified name resolution.
         let callee_idx = if callees.len() == 1 {
             self.graph
                 .find_node(&callees[0].name, &callees[0].file_path, callees[0].line)
