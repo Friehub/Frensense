@@ -179,7 +179,12 @@ impl Engine {
         let results: Result<Vec<ScanResult>> = file_ids
             .into_par_iter()
             .map(|(id, p)| {
-                let snap = snapshot_map.get(&id).unwrap();
+                let snap = snapshot_map.get(&id).ok_or_else(|| {
+                    crate::GenSenseError::Engine(format!(
+                        "Missing snapshot for file ID {} at path {:?}",
+                        id.0, p
+                    ))
+                })?;
                 let (mut advisories, fingerprints) = self.auditor.audit(
                     id,
                     &p,

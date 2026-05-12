@@ -15,6 +15,7 @@ impl GenSenseRule for FakeAsyncDetector {
             id: Cow::Borrowed("RUST_FAKE_ASYNC"),
             name: Cow::Borrowed("Fake Async Detector"),
             severity: Severity::Info,
+            observation: Cow::Borrowed("Async function detected that contains no await points."),
             impact: Cow::Borrowed("Async functions without awaits introduce state machine overhead and return a future unnecessarily without concurrency benefits."),
             improvement: Cow::Borrowed("Remove the 'async' keyword if the function doesn't need to be concurrent, or implement the intended await points."),
             tags: vec![Cow::Borrowed("optimization"), Cow::Borrowed("async"), Cow::Borrowed("rust")],

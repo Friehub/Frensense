@@ -195,3 +195,16 @@ rules:
   severity: Warning
   tags: []
   category: Security
+- id: TS_FLOATING_PROMISE
+  domain: reliability
+  target_ext: ts
+  observation: A promise-returning call is made without an 'await'.
+  impact: Floating promises can lead to race conditions, unhandled rejections, and non-deterministic behavior.
+  improvement: Always await promise-returning calls or explicitly handle them (e.g. .catch()).
+  on_node: expression_statement
+  if_matches: fetch\(
+  must_contain: await
+  name: Ts Floating Promise
+  severity: Warning
+  tags: []
+  category: Reliability

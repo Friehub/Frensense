@@ -96,6 +96,7 @@ fn test_taint_through_destructuring() {
             id: "DUMMY".into(),
             name: "Dummy".into(),
             severity: gensense::Severity::Info,
+            observation: "Dummy finding".into(),
             impact: "None".into(),
             improvement: "None".into(),
             tags: vec![],

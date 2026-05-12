@@ -244,3 +244,15 @@ rules:
   severity: Warning
   tags: []
   category: Safety
+- id: SECRET_LEAK_DETECTION
+  domain: security
+  target_ext: rs
+  observation: Potential secret or credential leakage detected in source code.
+  impact: Hardcoding secrets (API keys, private keys, etc.) in source code is a major security risk and can lead to unauthorized access.
+  improvement: Move the secret to a secure vault or environment variable.
+  on_node: let_declaration
+  if_matches: (?i)(api_key|secret|password|private_key|mnemonic).*['"][a-zA-Z0-9]{16,}['"]
+  name: Secret Leak Detection
+  severity: Critical
+  tags: []
+  category: Security

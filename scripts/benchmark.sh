@@ -11,6 +11,7 @@ BINARY="./target/release/gensense"
 SAMPLES=(
     "src"
     "tests/samples"
+    "tests/benchmarks/samples"
 )
 
 echo "### GenSense Performance Benchmark ###"

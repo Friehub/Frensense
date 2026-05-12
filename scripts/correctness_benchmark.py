@@ -6,26 +6,26 @@ GENSENSE_BIN = "./target/release/gensense"
 
 POSITIVE_TESTS = [
     {
-        "file": "correctness_samples/positive/rust_clone_in_loop.rs",
+        "file": "tests/correctness/samples/positive/rust_clone_in_loop.rs",
         "expected_rule": "RUST_CLONE_IN_LOOP"
     },
     {
-        "file": "correctness_samples/positive/ts_floating_promise.ts",
+        "file": "tests/correctness/samples/positive/ts_floating_promise.ts",
         "expected_rule": "TS_FLOATING_PROMISE"
     },
     {
-        "file": "correctness_samples/positive/secret_leak.rs",
+        "file": "tests/correctness/samples/positive/secret_leak.rs",
         "expected_rule": "SECRET_LEAK_DETECTION"
     }
 ]
 
 NEGATIVE_TESTS = [
     {
-        "file": "correctness_samples/negative/rust_clone_clean.rs",
+        "file": "tests/correctness/samples/negative/rust_clone_clean.rs",
         "unexpected_rule": "RUST_CLONE_IN_LOOP"
     },
     {
-        "file": "correctness_samples/negative/ts_awaited_promise.ts",
+        "file": "tests/correctness/samples/negative/ts_awaited_promise.ts",
         "unexpected_rule": "TS_FLOATING_PROMISE"
     }
 ]

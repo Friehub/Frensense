@@ -15,6 +15,7 @@ impl GenSenseRule for TimeoutGuard {
             id: Cow::Borrowed("RUST_ASYNC_MISSING_TIMEOUT"),
             name: Cow::Borrowed("Missing Timeout Guard"),
             severity: Severity::Critical,
+            observation: Cow::Borrowed("Risky I/O operation detected without an explicit timeout guard."),
             impact: Cow::Borrowed("A network or I/O call that never responds can hang an entire worker task indefinitely, leading to protocol-level stalls or cascading failures."),
             improvement: Cow::Borrowed("Wrap this operation in 'tokio::time::timeout(Duration, ...).await' to ensure system liveness even if the remote peer stops responding."),
             tags: vec![Cow::Borrowed("liveness"), Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],

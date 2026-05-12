@@ -15,6 +15,7 @@ impl GenSenseRule for BlockingIoDetector {
             id: Cow::Borrowed("RUST_ASYNC_BLOCKING_IO"),
             name: Cow::Borrowed("Sync Blocking IO in Async"),
             severity: Severity::Warning,
+            observation: Cow::Borrowed("Synchronous blocking call detected in an async context."),
             impact: Cow::Borrowed("Calling synchronous blocking functions inside an async task blocks the entire executor thread, stalling all other tasks on that thread."),
             improvement: Cow::Borrowed("Use asynchronous alternatives (e.g., tokio::time::sleep, tokio::fs, or tokio::net). If no async version exists, use spawn_blocking."),
             tags: vec![Cow::Borrowed("performance"), Cow::Borrowed("async"), Cow::Borrowed("rust")],

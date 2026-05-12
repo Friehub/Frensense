@@ -8,7 +8,7 @@ use std::path::Path;
 use thiserror::Error;
 use tree_sitter::Node;
 
-pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/rules");
+pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/rules/definitions");
 pub const GENSENSE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod engine;
@@ -48,6 +48,7 @@ pub struct RuleMetadata {
     pub id: Cow<'static, str>,
     pub name: Cow<'static, str>,
     pub severity: Severity,
+    pub observation: Cow<'static, str>,
     pub impact: Cow<'static, str>,
     pub improvement: Cow<'static, str>,
     pub tags: Vec<Cow<'static, str>>,
@@ -177,6 +178,8 @@ pub enum GenSenseError {
     Parser(#[from] tree_sitter::LanguageError),
     #[error("Pattern error: {0}")]
     Pattern(String),
+    #[error("Engine error: {0}")]
+    Engine(String),
 }
 
 pub type Result<T> = std::result::Result<T, GenSenseError>;

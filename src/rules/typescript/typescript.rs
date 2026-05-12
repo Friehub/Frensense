@@ -15,6 +15,7 @@ impl GenSenseRule for TypeScriptUnsafeCast {
             id: Cow::Borrowed("TS_UNSAFE_TYPE_ASSERTION"),
             name: Cow::Borrowed("Unsafe Type Assertion"),
             severity: Severity::Warning,
+            observation: Cow::Borrowed("Unsafe TypeScript type assertion (as any) detected."),
             impact: Cow::Borrowed("Unsafe type assertion (as any) bypasses TypeScript's type safety guarantees, potentially leading to runtime crashes or silent data corruption."),
             improvement: Cow::Borrowed("Use type guards (is), proper interface definitions, or 'unknown' with validation instead of 'any'."),
             tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("typescript")],

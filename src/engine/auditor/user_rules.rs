@@ -53,26 +53,44 @@ pub fn load_user_rules(
             let path = entry.path();
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("yml") {
                 match std::fs::read_to_string(path) {
-                    Ok(content) => match serde_yaml::from_str::<RulesWrapper>(&content) {
-                        Ok(wrapper) => {
-                            for rule in wrapper.rules {
-                                let compiled = crate::rules::compiler::RuleCompiler::compile(rule);
-                                rules.push(Box::new(compiled) as Box<dyn GenSenseRule>);
+                    Ok(content) => {
+                        match serde_yaml::from_str::<RulesWrapper>(&content) {
+                            Ok(wrapper) => {
+                                for rule in wrapper.rules {
+                                    match crate::rules::compiler::RuleCompiler::compile(rule) {
+                                        Ok(compiled) => {
+                                            rules.push(Box::new(compiled) as Box<dyn GenSenseRule>)
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "[WARNING] Failed to compile rule in {}: {}",
+                                                path.display(),
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                                for p_rule in wrapper.project_rules {
+                                    match crate::rules::compiler::ProjectRuleCompiler::compile(
+                                        p_rule,
+                                    ) {
+                                        Ok(compiled) => project_rules
+                                            .push(Box::new(compiled) as Box<dyn ProjectRule>),
+                                        Err(e) => {
+                                            eprintln!("[WARNING] Failed to compile project rule in {}: {}", path.display(), e);
+                                        }
+                                    }
+                                }
                             }
-                            for p_rule in wrapper.project_rules {
-                                let compiled =
-                                    crate::rules::compiler::ProjectRuleCompiler::compile(p_rule);
-                                project_rules.push(Box::new(compiled) as Box<dyn ProjectRule>);
+                            Err(e) => {
+                                eprintln!(
+                                    "[WARNING] Failed to parse YAML rules in {}: {}",
+                                    path.display(),
+                                    e
+                                );
                             }
                         }
-                        Err(e) => {
-                            eprintln!(
-                                "[WARNING] Failed to parse YAML rules in {}: {}",
-                                path.display(),
-                                e
-                            );
-                        }
-                    },
+                    }
                     Err(e) => {
                         eprintln!(
                             "[WARNING] Failed to read rule file {}: {}",

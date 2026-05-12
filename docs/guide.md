@@ -23,6 +23,87 @@ GenSense detects this as `RUST_ASYNC_MUTEX_DEADLOCK` and produces a structured a
 
 ---
 
+## What GenSense Is NOT
+
+GenSense is a *semantic* analyzer, not a replacement for other tools. Understand what it doesn't do:
+
+| Tool | Purpose | GenSense? |
+|------|---------|-----------|
+| **ESLint / Clippy** | Syntax, formatting, basic errors | ❌ No — use alongside |
+| **TypeScript / Rust compiler** | Type checking | ❌ No — not a type checker |
+| **Rustfmt / Prettier** | Code formatting | ❌ No — not a formatter |
+| **Performance profiler** | Runtime metrics | ❌ No — not a profiler |
+| **Secret Scanner** | Finding hardcoded secrets | ✅ Yes — built-in rule |
+| **Linter for logic errors** | Runtime correctness | ✅ Yes — primary purpose |
+| **AI code pattern detector** | Catching AI-generated bugs | ✅ Yes — specialized rules |
+
+**Key Point:** GenSense works *with* your existing toolchain, not instead of it. Run GenSense *after* your linter passes.
+
+### Complementary Tool Integration
+
+**Typical workflow:**
+```bash
+# 1. Check formatting and basic lint
+npm run lint       # ESLint / Clippy
+
+# 2. Check types
+npm run typecheck  # TypeScript / rustc
+
+# 3. Check runtime logic
+npm run audit      # GenSense (catches what #1 and #2 miss)
+
+# 4. Deploy
+npm run build && deploy
+```
+
+All three steps are necessary.
+
+---
+
+## When to Use GenSense
+
+### Use GenSense If You:
+
+✅ **Write async/concurrent code** (Rust, TypeScript)
+- GenSense specializes in concurrency patterns (deadlocks, race conditions, missing timeouts)
+- If your codebase has async/await, tokio, or promises, GenSense catches bugs other tools miss
+
+✅ **Use AI coding assistants** (Copilot, Claude, ChatGPT)
+- AI often generates placeholder panics (`todo!()`), dead code, and tautological logic
+- GenSense catches these patterns before they reach production
+
+✅ **Need security audit or compliance checks**
+- GenSense detects hardcoded secrets, unsafe patterns, and architectural violations
+- Generates SARIF reports for integration with security dashboards
+
+✅ **Define architectural standards for your team**
+- Write custom YAML rules (no recompilation) to enforce team patterns
+- Examples: "Prisma queries must use `select()`", "All API calls must have timeouts"
+
+✅ **Gate deployments on code quality** (CI/CD)
+- Use `--strict` mode to fail builds on critical findings
+- Integrates with GitHub Actions in one line
+
+### Skip GenSense If You:
+
+❌ **Only write synchronous code**
+- GenSense's concurrency analysis won't help; you'd only get basic findings
+- Still run your standard linter instead
+
+❌ **Have strict type checking elsewhere**
+- If TypeScript or Rust compiler catches your issues, GenSense won't add value
+- Though it still catches runtime logic bugs, so optional
+
+❌ **Need a code formatter** (Rustfmt, Prettier)
+- GenSense is analysis-only, not formatting
+- Use Rustfmt/Prettier for formatting
+
+❌ **Don't have async code, security concerns, or AI-assisted development**
+- GenSense's value drops in fully synchronous, low-risk codebases
+- Standard linting is probably sufficient
+
+---
+
 ## Supported Languages
 
 | Language | Status | Feature Flag |
@@ -52,7 +133,7 @@ npm install --save-dev @friehub/gensense
 
 ```toml
 [dependencies]
-gensense = "0.1.7"
+gensense = "0.2.0-beta"
 ```
 
 ---
@@ -163,6 +244,47 @@ Full GitHub Actions example:
 - name: Run GenSense Audit
   run: npx @friehub/gensense . --strict --severity critical
 ```
+
+---
+
+## Integration Examples
+
+### Pre-Commit Hook
+
+Add to `.git/hooks/pre-commit` (or use [pre-commit.com](https://pre-commit.com)):
+
+```bash
+#!/bin/bash
+gensense --strict --severity critical
+if [ $? -ne 0 ]; then
+  echo "GenSense audit failed. Fix issues or use 'gensense-ignore' comments."
+  exit 1
+fi
+```
+
+### Monorepo Setup
+
+Audit multiple packages with shared rules:
+
+```bash
+gensense packages/*/src --rules-dir .gensense/rules/
+```
+
+### VS Code Integration
+
+Add to `.vscode/tasks.json`:
+
+```json
+{
+  "label": "GenSense Audit",
+  "type": "shell",
+  "command": "npx @friehub/gensense ${workspaceFolder}",
+  "group": "build",
+  "presentation": { "reveal": "always", "panel": "shared" }
+}
+```
+
+Run via **Terminal > Run Task** or `Ctrl+Shift+B`.
 
 ---
 

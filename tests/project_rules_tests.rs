@@ -16,6 +16,7 @@ project_rules:
   - id: GUARD_CHECK
     name: "Guard Check"
     severity: Critical
+    observation: "Security guard check failed"
     category: Security
     impact: "Impact"
     improvement: "Improve"
@@ -38,7 +39,7 @@ project_rules:
     let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
     let p_rule_val = &wrapper["project_rules"][0];
     let p_rule_dsl: ProjectCoreRule = serde_yaml::from_value(p_rule_val.clone()).unwrap();
-    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl);
+    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl).expect("Failed to compile project rule");
 
     let mut symbols = SymbolRegistry::new();
     let mut sources = SourceRegistry::new();
@@ -124,6 +125,7 @@ project_rules:
   - id: INTERNAL_CHECK
     name: "Internal Check"
     severity: Warning
+    observation: "Internal logic leakage detected"
     category: Architecture
     impact: "Impact"
     improvement: "Improve"
@@ -137,7 +139,7 @@ project_rules:
     let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
     let p_rule_val = &wrapper["project_rules"][0];
     let p_rule_dsl: ProjectCoreRule = serde_yaml::from_value(p_rule_val.clone()).unwrap();
-    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl);
+    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl).expect("Failed to compile project rule");
 
     let mut symbols = SymbolRegistry::new();
     let mut sources = SourceRegistry::new();
@@ -217,6 +219,7 @@ project_rules:
   - id: TAINT_CHECK
     name: "Taint Check"
     severity: Critical
+    observation: "Taint flow detected"
     category: Security
     impact: "Impact"
     improvement: "Improve"
@@ -230,7 +233,7 @@ project_rules:
     let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
     let p_rule_val = &wrapper["project_rules"][0];
     let p_rule_dsl: ProjectCoreRule = serde_yaml::from_value(p_rule_val.clone()).unwrap();
-    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl);
+    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl).expect("Failed to compile project rule");
 
     let mut symbols = SymbolRegistry::new();
     let mut sources = SourceRegistry::new();

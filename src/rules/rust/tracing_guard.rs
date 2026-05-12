@@ -15,6 +15,7 @@ impl GenSenseRule for TracingGuard {
             id: Cow::Borrowed("RUST_MISSING_TRACING_SPAN"),
             name: Cow::Borrowed("Missing Observability Span"),
             severity: Severity::Info,
+            observation: Cow::Borrowed("Async function detected without observability instrumentation (tracing span)."),
             impact: Cow::Borrowed("Production-grade protocol logic must be visible in telemetry. Missing spans make debugging distributed hangs or latency spikes extremely difficult."),
             improvement: Cow::Borrowed("Add #[tracing::instrument] to the function or create an explicit span using 'info_span!' or 'debug_span!'."),
             tags: vec![Cow::Borrowed("observability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],

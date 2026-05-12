@@ -108,8 +108,13 @@ fn main() -> Result<()> {
             serde_yaml::from_str(&rule_content).expect("Failed to parse YAML rules");
         let mut rules: Vec<Box<dyn gensense::GenSenseRule>> = Vec::new();
         for rule in wrapper.rules {
-            let compiled = gensense::rules::compiler::RuleCompiler::compile(rule);
-            rules.push(Box::new(compiled));
+            match gensense::rules::compiler::RuleCompiler::compile(rule) {
+                Ok(compiled) => rules.push(Box::new(compiled)),
+                Err(e) => {
+                    eprintln!("Error compiling rule: {e}");
+                    std::process::exit(1);
+                }
+            }
         }
 
         let mut auditor = GenSenseAuditor::default_auditor();
@@ -194,8 +199,17 @@ fn main() -> Result<()> {
         std::process::exit(0);
     }
 
-    let input_path_str = args.get(1).unwrap();
-    let input_path = Path::new(input_path_str);
+    // Validate that we have a path argument before proceeding
+    let input_path_str = match args.get(1) {
+        Some(path) if !path.starts_with("--") => path.clone(),
+        _ => {
+            eprintln!("Usage: gensense <path> [options]");
+            eprintln!();
+            eprintln!("Run 'gensense --help' for more information");
+            std::process::exit(1);
+        }
+    };
+    let input_path = Path::new(&input_path_str);
 
     let mut format = "text".to_string();
     let mut is_strict = false;
@@ -269,12 +283,17 @@ fn main() -> Result<()> {
         "json" => {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&filtered_advisories).unwrap()
+                serde_json::to_string_pretty(&filtered_advisories)
+                    .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?
             );
         }
         "sarif" => {
             let sarif = gensense::reporter::Reporter::to_sarif(&filtered_advisories, input_path);
-            println!("{}", serde_json::to_string_pretty(&sarif).unwrap());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&sarif)
+                    .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?
+            );
         }
         _ => {
             if filtered_advisories.is_empty() {
