@@ -29,7 +29,7 @@ None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. Gen
 | Rust | Stable |
 | TypeScript / JavaScript | Stable |
 | YAML | Stable (rule files) |
-| Solidity | Disabled (version mismatch — re-enable with `--features solidity`) |
+| Solidity | Beta (enable with `--features solidity`) |
 
 ---
 
@@ -51,7 +51,7 @@ npx @friehub/gensense .
 
 ```toml
 [dependencies]
-gensense = "0.2.0-beta"
+gensense = "0.2.0"
 ```
 
 ### Node.js Programmatic API

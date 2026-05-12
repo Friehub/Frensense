@@ -89,7 +89,10 @@ impl SymbolRegistry {
                 }
             })
             .min_by_key(|&&idx| {
-                let s = self.graph.get_symbol(idx).unwrap();
+                let s = self
+                    .graph
+                    .get_symbol(idx)
+                    .expect("Symbol missing after filter");
                 s.end_line - s.line
             })
             .copied()
