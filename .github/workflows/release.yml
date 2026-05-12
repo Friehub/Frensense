@@ -73,7 +73,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Publish
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # 3. Publish to NPM
   publish-npm:
