@@ -15,6 +15,7 @@ impl GenSenseRule for DeadlockGuard {
             id: Cow::Borrowed("RUST_ASYNC_MUTEX_DEADLOCK"),
             name: Cow::Borrowed("Async Mutex Deadlock Detector"),
             severity: Severity::Critical,
+            observation: Cow::Borrowed("Potential async deadlock detected: Mutex guard held across .await point."),
             impact: Cow::Borrowed("Holding a standard Mutex guard across an await point can block the entire executor thread."),
             improvement: Cow::Borrowed("Use tokio::sync::Mutex or ensure the guard is dropped before the await."),
             tags: vec![Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],

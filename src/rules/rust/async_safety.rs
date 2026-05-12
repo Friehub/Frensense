@@ -15,6 +15,7 @@ impl GenSenseRule for AsyncPanicSafety {
             id: Cow::Borrowed("RUST_ASYNC_PANIC_PREVENTION"),
             name: Cow::Borrowed("Async Panic Prevention"),
             severity: Severity::Warning,
+            observation: Cow::Borrowed("Potential panic point detected in an async scope."),
             impact: Cow::Borrowed("Unwrapped Result or Option in async context can lead to unhandled task failures and cascading system instability."),
             improvement: Cow::Borrowed("Use '?' (try operator) or handle the error gracefully to ensure the async task remains stable."),
             tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("async"), Cow::Borrowed("rust")],

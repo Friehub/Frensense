@@ -19,14 +19,14 @@ pub struct AstQuery {
 #[derive(Debug, Clone)]
 pub enum FlowConstraint {
     TaintReached {
-        source: String, // Regex pattern
-        sink: String,   // Regex pattern
+        source: regex::Regex,
+        sink: regex::Regex,
     },
     ScopeConstraint {
         pattern: String, // e.g., "async_fn"
     },
     Temporal {
-        sequence: Vec<String>, // List of call patterns
+        sequence: Vec<regex::Regex>, // List of call patterns
         behavior: TemporalBehavior,
     },
 }
@@ -35,7 +35,7 @@ pub enum FlowConstraint {
 pub enum TemporalBehavior {
     MustFollow,
     MustNotFollow,
-    ForbiddenBetween(String, String), // No X between Y and Z
+    ForbiddenBetween(regex::Regex, regex::Regex), // No X between Y and Z
 }
 
 /// The Intermediate Representation (IR) of a GenSense Rule.
@@ -111,6 +111,19 @@ impl GenSenseRule for CoreRuleIr {
             if !re.is_match(code) {
                 return Vec::new();
             }
+            // If it's a simple pattern rule (no other constraints), it fires here.
+            if self.flow_constraints.is_empty()
+                && self.must_contain.is_none()
+                && self.must_not_contain.is_none()
+                && self.max_lines.is_none()
+                && self.max_depth.is_none()
+            {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    self.metadata.observation.to_string(),
+                ));
+            }
         }
 
         // 2. Content Constraints
@@ -166,15 +179,13 @@ impl GenSenseRule for CoreRuleIr {
         for constraint in &self.flow_constraints {
             match constraint {
                 FlowConstraint::TaintReached { source, sink } => {
-                    let src_re = regex::Regex::new(source).unwrap();
-                    let sink_re = regex::Regex::new(sink).unwrap();
                     let analyzer = DataFlowAnalyzer::new(context, top);
                     let mut registry = TaintRegistry::default();
                     analyzer.discover_symbols(&mut registry);
 
                     let target_node = node.child_by_field_name("body").unwrap_or(node);
                     let findings =
-                        analyzer.analyze_block(target_node, &src_re, &sink_re, self, registry);
+                        analyzer.analyze_block(target_node, source, sink, self, registry);
 
                     if !findings.is_empty() {
                         advisories.extend(findings);
@@ -202,17 +213,20 @@ pub enum ProjectFlowConstraint {
     /// Asserts that every symbol matching `source_pattern`
     /// has a reachable symbol matching `guard_pattern`.
     MustHaveGuard {
-        source_pattern: String,
-        guard_pattern: String,
-        source_file_glob: String,
-        guard_file_glob: String,
+        source_re: regex::Regex,
+        guard_re: regex::Regex,
+        source_glob: glob::Pattern,
+        guard_glob: glob::Pattern,
     },
     /// Asserts no symbol matching `pattern` is reachable from outside its own file.
-    MustBeInternal { pattern: String, file_glob: String },
+    MustBeInternal {
+        re: regex::Regex,
+        glob: glob::Pattern,
+    },
     /// Asserts that taint from `source_pattern` cannot reach `sink_pattern` across any call chain.
     CrossFileTaintFree {
-        source_pattern: String,
-        sink_pattern: String,
+        source_re: regex::Regex,
+        sink_re: regex::Regex,
     },
 }
 
@@ -233,22 +247,15 @@ impl ProjectRule for ProjectRuleIr {
         for constraint in &self.constraints {
             match constraint {
                 ProjectFlowConstraint::MustHaveGuard {
-                    source_pattern,
-                    guard_pattern,
-                    source_file_glob,
-                    guard_file_glob,
+                    source_re,
+                    guard_re,
+                    source_glob,
+                    guard_glob,
                 } => {
-                    let src_re = regex::Regex::new(source_pattern).unwrap();
-                    let guard_re = regex::Regex::new(guard_pattern).unwrap();
-                    let src_glob = glob::Pattern::new(source_file_glob)
-                        .unwrap_or_else(|_| glob::Pattern::new("*").unwrap());
-                    let guard_glob = glob::Pattern::new(guard_file_glob)
-                        .unwrap_or_else(|_| glob::Pattern::new("*").unwrap());
-
-                    let source_symbols = symbols.find_by_regex(&src_re);
+                    let source_symbols = symbols.find_by_regex(source_re);
 
                     for sym in source_symbols {
-                        if !src_glob.matches(&sym.file_path) {
+                        if !source_glob.matches(&sym.file_path) {
                             continue;
                         }
 
@@ -280,20 +287,17 @@ impl ProjectRule for ProjectRuleIr {
                                 sources,
                                 format!(
                                     "Critical Path Violation: '{}' is missing a reachable security guard matching '{}' in files matching '{}'.",
-                                    sym.name, guard_pattern, guard_file_glob
+                                    sym.name, guard_re.as_str(), guard_glob.as_str()
                                 ),
                             ));
                         }
                     }
                 }
-                ProjectFlowConstraint::MustBeInternal { pattern, file_glob } => {
-                    let re = regex::Regex::new(pattern).unwrap();
-                    let target_glob = glob::Pattern::new(file_glob)
-                        .unwrap_or_else(|_| glob::Pattern::new("*").unwrap());
-                    let target_symbols = symbols.find_by_regex(&re);
+                ProjectFlowConstraint::MustBeInternal { re, glob } => {
+                    let target_symbols = symbols.find_by_regex(re);
 
                     for sym in target_symbols {
-                        if !target_glob.matches(&sym.file_path) {
+                        if !glob.matches(&sym.file_path) {
                             continue;
                         }
 
@@ -311,15 +315,9 @@ impl ProjectRule for ProjectRuleIr {
                         }
                     }
                 }
-                ProjectFlowConstraint::CrossFileTaintFree {
-                    source_pattern,
-                    sink_pattern,
-                } => {
-                    let src_re = regex::Regex::new(source_pattern).unwrap();
-                    let sink_re = regex::Regex::new(sink_pattern).unwrap();
-
-                    let source_symbols = symbols.find_by_regex(&src_re);
-                    let sink_symbols = symbols.find_by_regex(&sink_re);
+                ProjectFlowConstraint::CrossFileTaintFree { source_re, sink_re } => {
+                    let source_symbols = symbols.find_by_regex(source_re);
+                    let sink_symbols = symbols.find_by_regex(sink_re);
 
                     if sink_symbols.is_empty() {
                         continue;

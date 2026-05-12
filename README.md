@@ -51,7 +51,7 @@ npx @friehub/gensense .
 
 ```toml
 [dependencies]
-gensense = "0.1.7"
+gensense = "0.2.0-beta"
 ```
 
 ### Node.js Programmatic API

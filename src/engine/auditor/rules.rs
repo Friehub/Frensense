@@ -84,7 +84,7 @@ impl GenSenseAuditor {
         }
 
         let mut rule_files = Vec::new();
-        let local_rules_path = Path::new("rules");
+        let local_rules_path = Path::new("src/rules/definitions");
         if local_rules_path.exists() && local_rules_path.is_dir() {
             for e in WalkDir::new(local_rules_path).into_iter().flatten() {
                 if e.path().extension().and_then(|s| s.to_str()) == Some("yml") {
@@ -92,16 +92,24 @@ impl GenSenseAuditor {
                         match serde_yaml::from_str::<RulesWrapper>(&content) {
                             Ok(wrapper) => {
                                 for dsl_rule in wrapper.rules {
-                                    let compiled =
-                                        crate::rules::compiler::RuleCompiler::compile(dsl_rule);
-                                    rules.push(Box::new(compiled));
+                                    match crate::rules::compiler::RuleCompiler::compile(dsl_rule) {
+                                        Ok(compiled) => rules.push(Box::new(compiled)),
+                                        Err(e) => {
+                                            eprintln!("[ERROR] Failed to compile rule: {e}");
+                                        }
+                                    }
                                 }
                                 for p_rule in wrapper.project_rules {
-                                    let compiled =
-                                        crate::rules::compiler::ProjectRuleCompiler::compile(
-                                            p_rule,
-                                        );
-                                    project_rules.push(Box::new(compiled));
+                                    match crate::rules::compiler::ProjectRuleCompiler::compile(
+                                        p_rule,
+                                    ) {
+                                        Ok(compiled) => project_rules.push(Box::new(compiled)),
+                                        Err(e) => {
+                                            eprintln!(
+                                                "[ERROR] Failed to compile project rule: {e}"
+                                            );
+                                        }
+                                    }
                                 }
                                 yaml_rules_loaded = true;
                             }
@@ -126,14 +134,20 @@ impl GenSenseAuditor {
                     match serde_yaml::from_str::<RulesWrapper>(rules_yml) {
                         Ok(wrapper) => {
                             for dsl_rule in wrapper.rules {
-                                let compiled =
-                                    crate::rules::compiler::RuleCompiler::compile(dsl_rule);
-                                rules.push(Box::new(compiled));
+                                match crate::rules::compiler::RuleCompiler::compile(dsl_rule) {
+                                    Ok(compiled) => rules.push(Box::new(compiled)),
+                                    Err(e) => {
+                                        eprintln!("[ERROR] Failed to compile rule: {e}");
+                                    }
+                                }
                             }
                             for p_rule in wrapper.project_rules {
-                                let compiled =
-                                    crate::rules::compiler::ProjectRuleCompiler::compile(p_rule);
-                                project_rules.push(Box::new(compiled));
+                                match crate::rules::compiler::ProjectRuleCompiler::compile(p_rule) {
+                                    Ok(compiled) => project_rules.push(Box::new(compiled)),
+                                    Err(e) => {
+                                        eprintln!("[ERROR] Failed to compile project rule: {e}");
+                                    }
+                                }
                             }
                         }
                         Err(e) => {

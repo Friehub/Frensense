@@ -7,7 +7,7 @@ use crate::rules::ir::{AstQuery, CoreRuleIr, FlowConstraint};
 pub struct RuleCompiler;
 
 impl RuleCompiler {
-    pub fn compile(dsl: CoreRule) -> CoreRuleIr {
+    pub fn compile(dsl: CoreRule) -> crate::Result<CoreRuleIr> {
         let mut match_queries = Vec::new();
         let mut flow_constraints = Vec::new();
 
@@ -29,10 +29,10 @@ impl RuleCompiler {
             });
         }
 
-        if let (Some(src), Some(sink)) = (dsl.source_pattern, dsl.sink_pattern) {
+        if let (Some(src_re), Some(sink_re)) = (dsl.source_pattern, dsl.sink_pattern) {
             flow_constraints.push(FlowConstraint::TaintReached {
-                source: src.as_str().to_string(),
-                sink: sink.as_str().to_string(),
+                source: src_re,
+                sink: sink_re,
             });
         }
 
@@ -41,15 +41,20 @@ impl RuleCompiler {
         }
 
         if let Some(temp) = dsl.temporal {
+            let mut sequence = Vec::new();
+            for p in temp.sequence {
+                sequence.push(
+                    regex::Regex::new(&p)
+                        .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                );
+            }
+
             let behavior = match temp.behavior.as_str() {
                 "must_follow" => crate::rules::ir::TemporalBehavior::MustFollow,
                 "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
                 _ => crate::rules::ir::TemporalBehavior::MustFollow,
             };
-            flow_constraints.push(FlowConstraint::Temporal {
-                sequence: temp.sequence,
-                behavior,
-            });
+            flow_constraints.push(FlowConstraint::Temporal { sequence, behavior });
         }
 
         let use_query = dsl.use_query.unwrap_or_else(|| {
@@ -57,7 +62,7 @@ impl RuleCompiler {
             !dsl.on_node.contains('|') && dsl.on_node.contains(' ')
         });
 
-        CoreRuleIr {
+        Ok(CoreRuleIr {
             metadata: dsl.metadata,
             match_queries,
             flow_constraints,
@@ -68,7 +73,7 @@ impl RuleCompiler {
             max_depth: dsl.max_depth,
             target_ext: dsl.target_ext,
             use_query,
-        }
+        })
     }
 }
 
@@ -78,35 +83,43 @@ use crate::rules::ir::{ProjectFlowConstraint, ProjectRuleIr};
 pub struct ProjectRuleCompiler;
 
 impl ProjectRuleCompiler {
-    pub fn compile(dsl: ProjectCoreRule) -> ProjectRuleIr {
+    pub fn compile(dsl: ProjectCoreRule) -> crate::Result<ProjectRuleIr> {
         let mut constraints = Vec::new();
 
         if let Some(guard) = dsl.must_have_guard {
             constraints.push(ProjectFlowConstraint::MustHaveGuard {
-                source_pattern: guard.source_pattern,
-                guard_pattern: guard.guard_pattern,
-                source_file_glob: guard.source_file_glob,
-                guard_file_glob: guard.guard_file_glob,
+                source_re: regex::Regex::new(&guard.source_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                guard_re: regex::Regex::new(&guard.guard_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                source_glob: glob::Pattern::new(&guard.source_file_glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                guard_glob: glob::Pattern::new(&guard.guard_file_glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
             });
         }
 
         if let Some(internal) = dsl.must_be_internal {
             constraints.push(ProjectFlowConstraint::MustBeInternal {
-                pattern: internal.pattern,
-                file_glob: internal.file_glob,
+                re: regex::Regex::new(&internal.pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                glob: glob::Pattern::new(&internal.file_glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
             });
         }
 
         if let Some(taint) = dsl.cross_file_taint_free {
             constraints.push(ProjectFlowConstraint::CrossFileTaintFree {
-                source_pattern: taint.source_pattern,
-                sink_pattern: taint.sink_pattern,
+                source_re: regex::Regex::new(&taint.source_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                sink_re: regex::Regex::new(&taint.sink_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
             });
         }
 
-        ProjectRuleIr {
+        Ok(ProjectRuleIr {
             metadata: dsl.metadata,
             constraints,
-        }
+        })
     }
 }

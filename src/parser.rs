@@ -29,10 +29,7 @@ impl ParserRegistry {
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
             #[cfg(feature = "solidity")]
-            // "sol" => Ok(tree_sitter_solidity::language().into()),
-            "sol" => Err(GenSenseError::Config(
-                "Solidity parser is temporarily disabled due to version mismatch".to_string(),
-            )),
+            "sol" => Ok(tree_sitter_solidity::LANGUAGE.into()),
             "yml" | "yaml" => Ok(tree_sitter_yaml::LANGUAGE.into()),
             _ => Err(GenSenseError::Config(format!(
                 "Unsupported file extension or feature not enabled: {ext}"

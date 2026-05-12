@@ -51,7 +51,10 @@ fn test_temporal_consistency_rust_deadlock() {
     };
 
     let ast_analyzer = gensense::semantics::temporal::TemporalAnalyzer::new(&context);
-    let sequence = vec!["lock".to_string(), r"\.await".to_string()];
+    let sequence = vec![
+        regex::Regex::new("lock").unwrap(),
+        regex::Regex::new(r"\.await").unwrap(),
+    ];
 
     struct MockRule {
         metadata: RuleMetadata,
@@ -73,6 +76,7 @@ fn test_temporal_consistency_rust_deadlock() {
             id: "DEADLOCK".into(),
             name: "Deadlock".into(),
             severity: Severity::Critical,
+            observation: "Potential deadlock detected".into(),
             impact: "Deadlock".into(),
             improvement: "Unlock before await".into(),
             tags: vec![],
