@@ -3,8 +3,7 @@
 use crate::semantics::data_flow::{DataFlowAnalyzer, TaintRegistry};
 use crate::semantics::SymbolRegistry;
 use crate::{
-    Advisory, FileId, GenSenseContext, GenSenseRule, ProjectRule, RuleMetadata,
-    SourceRegistry,
+    Advisory, FileId, GenSenseContext, GenSenseRule, ProjectRule, RuleMetadata, SourceRegistry,
 };
 use std::path::Path;
 use tree_sitter::Node;
@@ -86,24 +85,30 @@ impl GenSenseRule for CoreRuleIr {
             .map(|s| s.line)
             .unwrap_or(0); // Fallback to 0 if not in a function (e.g. global)
 
+        // Use node's own start position as part of the key for non-function scope
+        // to avoid cache collisions for global-scope nodes
+        let cache_key = (
+            self.id().to_string(),
+            file_path.clone(),
+            if function_line == 0 {
+                node.start_position().row
+            } else {
+                function_line
+            },
+        );
+
         {
             let cache = context.taint_cache.borrow();
-            if cache.contains_key(&(self.id().to_string(), file_path.clone(), function_line)) {
+            if cache.contains_key(&cache_key) {
                 return Vec::new();
             }
         }
 
         let code = &context.source_code[node.start_byte()..node.end_byte()];
 
-        // 1. Regex Content Matching
+        // 1. Regex Content Matching (Gate)
         if let Some(re) = &self.if_matches {
-            if re.is_match(code) {
-                advisories.push(self.new_advisory(
-                    &node,
-                    context,
-                    self.metadata.impact.to_string(),
-                ));
-            } else {
+            if !re.is_match(code) {
                 return Vec::new();
             }
         }
@@ -141,6 +146,22 @@ impl GenSenseRule for CoreRuleIr {
             }
         }
 
+        if let Some(max) = self.max_depth {
+            let mut depth = 0;
+            let mut curr = node;
+            while let Some(parent) = curr.parent() {
+                depth += 1;
+                curr = parent;
+            }
+            if depth > max {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    format!("Nesting depth ({depth}) exceeds threshold of {max}."),
+                ));
+            }
+        }
+
         // 4. Flow Constraints
         for constraint in &self.flow_constraints {
             match constraint {
@@ -152,24 +173,16 @@ impl GenSenseRule for CoreRuleIr {
                     analyzer.discover_symbols(&mut registry);
 
                     let target_node = node.child_by_field_name("body").unwrap_or(node);
-                    let findings = analyzer.analyze_block(
-                        target_node,
-                        &src_re,
-                        &sink_re,
-                        self,
-                        registry,
-                    );
-                    
+                    let findings =
+                        analyzer.analyze_block(target_node, &src_re, &sink_re, self, registry);
+
                     if !findings.is_empty() {
                         advisories.extend(findings);
                     }
 
                     // Cache results for the current function
                     let mut cache = context.taint_cache.borrow_mut();
-                    cache.insert(
-                        (self.id().to_string(), file_path.clone(), function_line),
-                        advisories.clone(),
-                    );
+                    cache.insert(cache_key.clone(), advisories.clone());
                 }
                 FlowConstraint::ScopeConstraint { .. } => {}
                 FlowConstraint::Temporal { sequence, behavior } => {
@@ -195,10 +208,7 @@ pub enum ProjectFlowConstraint {
         guard_file_glob: String,
     },
     /// Asserts no symbol matching `pattern` is reachable from outside its own file.
-    MustBeInternal {
-        pattern: String,
-        file_glob: String,
-    },
+    MustBeInternal { pattern: String, file_glob: String },
     /// Asserts that taint from `source_pattern` cannot reach `sink_pattern` across any call chain.
     CrossFileTaintFree {
         source_pattern: String,
@@ -225,15 +235,23 @@ impl ProjectRule for ProjectRuleIr {
                 ProjectFlowConstraint::MustHaveGuard {
                     source_pattern,
                     guard_pattern,
-                    source_file_glob: _,
-                    guard_file_glob: _,
+                    source_file_glob,
+                    guard_file_glob,
                 } => {
                     let src_re = regex::Regex::new(source_pattern).unwrap();
                     let guard_re = regex::Regex::new(guard_pattern).unwrap();
+                    let src_glob = glob::Pattern::new(source_file_glob)
+                        .unwrap_or_else(|_| glob::Pattern::new("*").unwrap());
+                    let guard_glob = glob::Pattern::new(guard_file_glob)
+                        .unwrap_or_else(|_| glob::Pattern::new("*").unwrap());
 
                     let source_symbols = symbols.find_by_regex(&src_re);
 
                     for sym in source_symbols {
+                        if !src_glob.matches(&sym.file_path) {
+                            continue;
+                        }
+
                         // BFS to find if any reachable symbol matches guard_pattern
                         let mut visited = std::collections::HashSet::new();
                         let mut queue = std::collections::VecDeque::new();
@@ -242,7 +260,9 @@ impl ProjectRule for ProjectRuleIr {
 
                         let mut has_guard = false;
                         while let Some(current) = queue.pop_front() {
-                            if guard_re.is_match(&current.name) {
+                            if guard_re.is_match(&current.name)
+                                && guard_glob.matches(&current.file_path)
+                            {
                                 has_guard = true;
                                 break;
                             }
@@ -259,18 +279,24 @@ impl ProjectRule for ProjectRuleIr {
                                 sym,
                                 sources,
                                 format!(
-                                    "Critical Path Violation: '{}' is missing a reachable security guard matching '{}'.",
-                                    sym.name, guard_pattern
+                                    "Critical Path Violation: '{}' is missing a reachable security guard matching '{}' in files matching '{}'.",
+                                    sym.name, guard_pattern, guard_file_glob
                                 ),
                             ));
                         }
                     }
                 }
-                ProjectFlowConstraint::MustBeInternal { pattern, file_glob: _ } => {
+                ProjectFlowConstraint::MustBeInternal { pattern, file_glob } => {
                     let re = regex::Regex::new(pattern).unwrap();
+                    let target_glob = glob::Pattern::new(file_glob)
+                        .unwrap_or_else(|_| glob::Pattern::new("*").unwrap());
                     let target_symbols = symbols.find_by_regex(&re);
 
                     for sym in target_symbols {
+                        if !target_glob.matches(&sym.file_path) {
+                            continue;
+                        }
+
                         for caller in symbols.get_callers(sym) {
                             if caller.file_path != sym.file_path {
                                 advisories.push(self.new_advisory_for_symbol(
@@ -285,14 +311,19 @@ impl ProjectRule for ProjectRuleIr {
                         }
                     }
                 }
-                ProjectFlowConstraint::CrossFileTaintFree { source_pattern, sink_pattern } => {
+                ProjectFlowConstraint::CrossFileTaintFree {
+                    source_pattern,
+                    sink_pattern,
+                } => {
                     let src_re = regex::Regex::new(source_pattern).unwrap();
                     let sink_re = regex::Regex::new(sink_pattern).unwrap();
 
                     let source_symbols = symbols.find_by_regex(&src_re);
                     let sink_symbols = symbols.find_by_regex(&sink_re);
 
-                    if sink_symbols.is_empty() { continue; }
+                    if sink_symbols.is_empty() {
+                        continue;
+                    }
 
                     for sym in source_symbols {
                         let mut visited = std::collections::HashSet::new();

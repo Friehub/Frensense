@@ -93,8 +93,15 @@ impl Engine {
                 self.auditor
                     .rules
                     .retain(|r| !disabled_set.contains(r.id()));
-                self.project_rules.retain(|r| !disabled_set.contains(r.id()));
+                self.project_rules
+                    .retain(|r| !disabled_set.contains(r.id()));
             }
+        } else if !self.extra_rule_dirs.is_empty() {
+            // Still apply any extra rule dirs even in isolated mode
+            let (user_rules, user_project_rules) =
+                crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
+            self.auditor.rules.extend(user_rules);
+            self.project_rules.extend(user_project_rules);
         }
 
         let suppress_file = root.join(".gensense-suppress.yml");
@@ -125,8 +132,12 @@ impl Engine {
             .map(|p| {
                 let content = std::fs::read_to_string(&p)?;
                 let (language, tree) = self.auditor.parse_source(&p, &content)?;
-                let symbols = self.auditor.discover_symbols(&p, &content, &language, &tree)?;
-                let edges = self.auditor.scan_for_edges(&p, &content, &language, &tree)?;
+                let symbols = self
+                    .auditor
+                    .discover_symbols(&p, &content, &language, &tree)?;
+                let edges = self
+                    .auditor
+                    .scan_for_edges(&p, &content, &language, &tree)?;
                 let semantic_ops = self.auditor.extract_semantic_ops(&p, &content, &tree);
                 Ok(FileSnapshot {
                     path: p,
@@ -253,7 +264,9 @@ impl Engine {
         let mut symbols = SymbolRegistry::new();
 
         let (language, tree) = self.auditor.parse_source(file_path, content)?;
-        let discovered = self.auditor.discover_symbols(file_path, content, &language, &tree)?;
+        let discovered = self
+            .auditor
+            .discover_symbols(file_path, content, &language, &tree)?;
         for sym in discovered {
             symbols.insert(sym);
         }

@@ -8,8 +8,8 @@ use std::path::Path;
 #[test]
 fn test_project_rule_must_have_guard() {
     let auditor = GenSenseAuditor::new(Vec::new());
-    let engine = Engine::new(auditor);
-    
+    let _engine = Engine::new(auditor);
+
     // Add a project rule via YAML compilation simulation
     let yaml = r#"
 project_rules:
@@ -27,12 +27,12 @@ project_rules:
       source_file_glob: "*"
       guard_file_glob: "*"
 "#;
-    
+
     // We can't easily mock the whole file system for Engine, but we can test the ProjectRuleIr directly.
-    use gensense::rules::core::project::ProjectCoreRule;
     use gensense::rules::compiler::ProjectRuleCompiler;
-    use gensense::ProjectRule;
+    use gensense::rules::core::project::ProjectCoreRule;
     use gensense::semantics::symbols::{Symbol, SymbolKind};
+    use gensense::ProjectRule;
     use gensense::SourceRegistry;
 
     let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
@@ -54,7 +54,10 @@ project_rules:
         column: 1,
         end_line: 5,
     };
-    sources.register(Path::new("src/main.rs"), "fn handle_request() {}".to_string());
+    sources.register(
+        Path::new("src/main.rs"),
+        "fn handle_request() {}".to_string(),
+    );
     let h_idx = symbols.insert(handler.clone());
 
     // File B: other func (no guard)
@@ -74,10 +77,14 @@ project_rules:
     // No edges yet. Should fail.
     let advisories = p_rule.check_project(&symbols, &sources);
     assert_eq!(advisories.len(), 1);
-    assert!(advisories[0].observation.contains("missing a reachable security guard"));
+    assert!(advisories[0]
+        .observation
+        .contains("missing a reachable security guard"));
 
     // Add call edge to a non-guard
-    symbols.graph.add_edge(h_idx, o_idx, gensense::semantics::graph::EdgeKind::Calls);
+    symbols
+        .graph
+        .add_edge(h_idx, o_idx, gensense::semantics::graph::EdgeKind::Calls);
     let advisories = p_rule.check_project(&symbols, &sources);
     assert_eq!(advisories.len(), 1); // Still fails
 
@@ -94,20 +101,22 @@ project_rules:
     };
     sources.register(Path::new("src/auth.rs"), "fn check_auth() {}".to_string());
     let g_idx = symbols.insert(guard);
-    
+
     // handle -> other -> guard
-    symbols.graph.add_edge(o_idx, g_idx, gensense::semantics::graph::EdgeKind::Calls);
-    
+    symbols
+        .graph
+        .add_edge(o_idx, g_idx, gensense::semantics::graph::EdgeKind::Calls);
+
     let advisories = p_rule.check_project(&symbols, &sources);
     assert_eq!(advisories.len(), 0); // Passes now!
 }
 
 #[test]
 fn test_project_rule_must_be_internal() {
-    use gensense::rules::core::project::ProjectCoreRule;
     use gensense::rules::compiler::ProjectRuleCompiler;
-    use gensense::ProjectRule;
+    use gensense::rules::core::project::ProjectCoreRule;
     use gensense::semantics::symbols::{Symbol, SymbolKind};
+    use gensense::ProjectRule;
     use gensense::SourceRegistry;
 
     let yaml = r#"
@@ -143,7 +152,10 @@ project_rules:
         column: 1,
         end_line: 5,
     };
-    sources.register(Path::new("src/secret.rs"), "fn internal_logic() {}".to_string());
+    sources.register(
+        Path::new("src/secret.rs"),
+        "fn internal_logic() {}".to_string(),
+    );
     let i_idx = symbols.insert(internal);
 
     let external = Symbol {
@@ -175,23 +187,29 @@ project_rules:
         end_line: 15,
     };
     let l_idx = symbols.insert(local_caller);
-    symbols.graph.add_edge(l_idx, i_idx, gensense::semantics::graph::EdgeKind::Calls);
+    symbols
+        .graph
+        .add_edge(l_idx, i_idx, gensense::semantics::graph::EdgeKind::Calls);
     let advisories = p_rule.check_project(&symbols, &sources);
     assert_eq!(advisories.len(), 0);
 
     // External call (different file). Fails.
-    symbols.graph.add_edge(e_idx, i_idx, gensense::semantics::graph::EdgeKind::Calls);
+    symbols
+        .graph
+        .add_edge(e_idx, i_idx, gensense::semantics::graph::EdgeKind::Calls);
     let advisories = p_rule.check_project(&symbols, &sources);
     assert_eq!(advisories.len(), 1);
-    assert!(advisories[0].observation.contains("called from outside its file"));
+    assert!(advisories[0]
+        .observation
+        .contains("called from outside its file"));
 }
 
 #[test]
 fn test_project_rule_cross_file_taint_free() {
-    use gensense::rules::core::project::ProjectCoreRule;
     use gensense::rules::compiler::ProjectRuleCompiler;
-    use gensense::ProjectRule;
+    use gensense::rules::core::project::ProjectCoreRule;
     use gensense::semantics::symbols::{Symbol, SymbolKind};
+    use gensense::ProjectRule;
     use gensense::SourceRegistry;
 
     let yaml = r#"
@@ -261,10 +279,16 @@ project_rules:
     assert_eq!(advisories.len(), 0);
 
     // Add path: req -> db -> exec
-    symbols.graph.add_edge(s_idx, m_idx, gensense::semantics::graph::EdgeKind::Calls);
-    symbols.graph.add_edge(m_idx, snk_idx, gensense::semantics::graph::EdgeKind::Calls);
+    symbols
+        .graph
+        .add_edge(s_idx, m_idx, gensense::semantics::graph::EdgeKind::Calls);
+    symbols
+        .graph
+        .add_edge(m_idx, snk_idx, gensense::semantics::graph::EdgeKind::Calls);
 
     let advisories = p_rule.check_project(&symbols, &sources);
     assert_eq!(advisories.len(), 1);
-    assert!(advisories[0].observation.contains("can reach sensitive sink"));
+    assert!(advisories[0]
+        .observation
+        .contains("can reach sensitive sink"));
 }

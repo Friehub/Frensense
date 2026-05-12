@@ -41,10 +41,13 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             // Only process ops within the current block's range
             match op {
                 SemanticOp::Binding { name, value_range } => {
-                    if value_range.start_byte >= block_range.0 && value_range.end_byte <= block_range.1 {
+                    if value_range.start_byte >= block_range.0
+                        && value_range.end_byte <= block_range.1
+                    {
                         let v_node = self.node_at(*value_range);
                         registry.register_symbol(name, v_node);
-                        let v_code = &self.context.source_code[v_node.start_byte()..v_node.end_byte()];
+                        let v_code =
+                            &self.context.source_code[v_node.start_byte()..v_node.end_byte()];
                         if source_re.is_match(v_code) {
                             registry.taint(name, "source");
                         } else if let Some(origin) = self.resolve_taint(v_node, &registry) {
@@ -52,10 +55,16 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
                         }
                     }
                 }
-                SemanticOp::Assignment { target, value_range } => {
-                    if value_range.start_byte >= block_range.0 && value_range.end_byte <= block_range.1 {
+                SemanticOp::Assignment {
+                    target,
+                    value_range,
+                } => {
+                    if value_range.start_byte >= block_range.0
+                        && value_range.end_byte <= block_range.1
+                    {
                         let v_node = self.node_at(*value_range);
-                        let v_code = &self.context.source_code[v_node.start_byte()..v_node.end_byte()];
+                        let v_code =
+                            &self.context.source_code[v_node.start_byte()..v_node.end_byte()];
                         if source_re.is_match(v_code) {
                             registry.taint(target, "source");
                         } else if let Some(origin) = self.resolve_taint(v_node, &registry) {
@@ -83,25 +92,26 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
                     }
                 }
                 SemanticOp::EnterBlock(body_range) => {
-                    if body_range.start_byte > block_range.0 && body_range.end_byte < block_range.1 {
-                        if self.depth < self.max_depth {
-                            let body_node = self.node_at(*body_range);
-                            registry.push_scope();
-                            let sub_analyzer = DataFlowAnalyzer::with_depth(
-                                self.context,
-                                body_node,
-                                self.depth + 1,
-                                self.max_depth,
-                            );
-                            advisories.extend(sub_analyzer.analyze_block(
-                                body_node,
-                                source_re,
-                                sink_re,
-                                rule,
-                                registry.clone(),
-                            ));
-                            registry.pop_scope();
-                        }
+                    if body_range.start_byte > block_range.0
+                        && body_range.end_byte < block_range.1
+                        && self.depth < self.max_depth
+                    {
+                        let body_node = self.node_at(*body_range);
+                        registry.push_scope();
+                        let sub_analyzer = DataFlowAnalyzer::with_depth(
+                            self.context,
+                            body_node,
+                            self.depth + 1,
+                            self.max_depth,
+                        );
+                        advisories.extend(sub_analyzer.analyze_block(
+                            body_node,
+                            source_re,
+                            sink_re,
+                            rule,
+                            registry.clone(),
+                        ));
+                        registry.pop_scope();
                     }
                 }
             }

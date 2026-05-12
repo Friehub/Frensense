@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#![allow(clippy::type_complexity)]
 
 use crate::{GenSenseRule, ProjectRule};
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ struct RulesWrapper {
     project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
 }
 
+#[allow(clippy::type_complexity)]
 pub fn load_user_rules(
     project_root: &Path,
     extra_dirs: &[PathBuf],

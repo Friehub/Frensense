@@ -13,13 +13,12 @@ impl GenSenseAuditor {
         language: &tree_sitter::Language,
         tree: &tree_sitter::Tree,
     ) -> Result<Vec<crate::semantics::Symbol>> {
-
         let query_str = match ParserRegistry::get_symbol_query(path) {
             Some(q) => q,
             None => return Ok(Vec::new()),
         };
         let query =
-            Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -90,13 +89,12 @@ impl GenSenseAuditor {
         language: &tree_sitter::Language,
         tree: &tree_sitter::Tree,
     ) -> Result<Vec<(String, String)>> {
-
         let query_str = match ParserRegistry::get_call_query(path) {
             Some(q) => q,
             None => return Ok(Vec::new()),
         };
         let query =
-            Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());

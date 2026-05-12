@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#![allow(clippy::type_complexity)]
 
 use super::GenSenseAuditor;
 use crate::{GenSenseRule, ProjectRule, EMBEDDED_RULES_DIR};
@@ -51,10 +52,15 @@ impl GenSenseAuditor {
         let mut rules: Vec<Box<dyn GenSenseRule>> = Vec::new();
         let mut project_rules: Vec<Box<dyn ProjectRule>> = Vec::new();
 
+        // Track whether YAML rules were successfully loaded
+        let mut yaml_rules_loaded = false;
+
         #[cfg(feature = "rust")]
         {
             rules.push(Box::new(crate::rules::rust::deadlock_guard::DeadlockGuard));
-            rules.push(Box::new(crate::rules::rust::blocking_io::BlockingIoDetector));
+            rules.push(Box::new(
+                crate::rules::rust::blocking_io::BlockingIoDetector,
+            ));
             rules.push(Box::new(crate::rules::rust::async_safety::AsyncPanicSafety));
             rules.push(Box::new(crate::rules::rust::timeout_guard::TimeoutGuard));
             rules.push(Box::new(crate::rules::rust::tracing_guard::TracingGuard));
@@ -97,6 +103,7 @@ impl GenSenseAuditor {
                                         );
                                     project_rules.push(Box::new(compiled));
                                 }
+                                yaml_rules_loaded = true;
                             }
                             Err(err) => {
                                 eprintln!(
@@ -111,7 +118,8 @@ impl GenSenseAuditor {
             }
         }
 
-        if rules.is_empty() && project_rules.is_empty() {
+        // Load embedded YAML rules if local rules were not loaded
+        if !yaml_rules_loaded {
             collect_yml_files(&EMBEDDED_RULES_DIR, &mut rule_files);
             for file in rule_files {
                 if let Some(rules_yml) = file.contents_utf8() {
@@ -143,6 +151,7 @@ impl GenSenseAuditor {
         (rules, project_rules)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn build_rule_set(
         project_root: &Path,
         extra_dirs: &[PathBuf],

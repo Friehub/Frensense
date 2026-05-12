@@ -24,10 +24,7 @@ pub enum SemanticOp {
     /// A new variable binding (e.g., const x = y, let a = 1)
     Binding { name: String, value_range: Range },
     /// An assignment to an existing variable (e.g., x = z)
-    Assignment {
-        target: String,
-        value_range: Range,
-    },
+    Assignment { target: String, value_range: Range },
     /// A function or method call
     Call {
         function_name: String,
@@ -52,12 +49,7 @@ impl SemanticExtractor {
         ops
     }
 
-    fn extract_bindings(
-        node: Node,
-        source: &str,
-        value_node: Node,
-        ops: &mut Vec<SemanticOp>,
-    ) {
+    fn extract_bindings(node: Node, source: &str, value_node: Node, ops: &mut Vec<SemanticOp>) {
         match node.kind() {
             "identifier" | "variable_declarator" => {
                 let name = source[node.start_byte()..node.end_byte()].to_string();
@@ -90,7 +82,10 @@ impl SemanticExtractor {
                 // If it's a leaf identifier we didn't catch
                 if node.child_count() == 0 && node.kind() == "identifier" {
                     let name = source[node.start_byte()..node.end_byte()].to_string();
-                    ops.push(SemanticOp::Binding { name, value_range: value_node.into() });
+                    ops.push(SemanticOp::Binding {
+                        name,
+                        value_range: value_node.into(),
+                    });
                 }
             }
         }

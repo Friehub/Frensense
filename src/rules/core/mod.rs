@@ -95,9 +95,19 @@ impl GenSenseRule for CoreRule {
             .map(|s| s.line)
             .unwrap_or(0);
 
+        let cache_key = (
+            self.id().to_string(),
+            file_path.clone(),
+            if function_line == 0 {
+                node.start_position().row
+            } else {
+                function_line
+            },
+        );
+
         {
             let cache = context.taint_cache.borrow();
-            if cache.contains_key(&(self.id().to_string(), file_path.clone(), function_line)) {
+            if cache.contains_key(&cache_key) {
                 return Vec::new();
             }
         }
@@ -115,10 +125,7 @@ impl GenSenseRule for CoreRule {
             advisories.extend(analyzer.analyze_block(target_node, src_re, sink_re, self, registry));
 
             let mut cache = context.taint_cache.borrow_mut();
-            cache.insert(
-                (self.id().to_string(), file_path.clone(), function_line),
-                advisories.clone(),
-            );
+            cache.insert(cache_key, advisories.clone());
             return advisories;
         }
 
