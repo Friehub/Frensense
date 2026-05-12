@@ -47,7 +47,9 @@ impl ParserRegistry {
                 r#"
                 (function_item name: (identifier) @name)
                 (parameter pattern: (identifier) @name)
+                (parameter pattern: (tuple_pattern (identifier) @name))
                 (let_declaration pattern: (identifier) @name)
+                (let_declaration pattern: (tuple_pattern (identifier) @name))
                 (struct_item name: (type_identifier) @name)
                 (enum_item name: (type_identifier) @name)
                 (trait_item name: (type_identifier) @name)

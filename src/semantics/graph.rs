@@ -112,16 +112,6 @@ impl SemanticGraph {
         })
     }
 
-    pub fn find_node_at_line(&self, file: &str, line: usize) -> Option<NodeIndex> {
-        self.graph.node_indices().find(|&idx| {
-            if let Some(SemanticNode::Declaration(s)) = self.get_node(idx) {
-                s.file_path == file && (s.line == line || (line >= s.line && line <= s.end_line))
-            } else {
-                false
-            }
-        })
-    }
-
     pub fn neighbors_of(&self, idx: NodeIndex, kind: EdgeKind) -> Vec<NodeIndex> {
         self.graph
             .edges(idx)

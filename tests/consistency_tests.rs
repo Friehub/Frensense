@@ -21,28 +21,32 @@ fn test_temporal_consistency_rust_deadlock() {
     parser
         .set_language(&tree_sitter_rust::LANGUAGE.into())
         .unwrap();
-    let tree = parser.parse(content, None).unwrap();
+    let _tree = parser.parse(content, None).unwrap();
     let mut registry = SymbolRegistry::new();
     let auditor = GenSenseAuditor::new(vec![]);
     let path = Path::new("test.rs");
 
-    let syms = auditor.discover_symbols(path, content).unwrap();
+    let (language, tree) = auditor.parse_source(path, content).unwrap();
+    let syms = auditor
+        .discover_symbols(path, content, &language, &tree)
+        .unwrap();
     for s in syms {
         registry.insert(s);
     }
     auditor
-        .discover_events(path, content, &mut registry)
+        .discover_events(path, content, &tree, &mut registry)
         .unwrap();
 
-    let sc = RefCell::new(HashMap::new());
     let tc = RefCell::new(HashMap::new());
+    let ops = auditor.extract_semantic_ops(path, content, &tree);
 
     let context = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
+        tree: &tree,
         symbols: &registry,
-        semantic_cache: &sc,
+        semantic_ops: &ops,
         taint_cache: &tc,
     };
 

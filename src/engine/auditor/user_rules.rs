@@ -1,16 +1,25 @@
 // SPDX-License-Identifier: MIT
+#![allow(clippy::type_complexity)]
 
-use crate::GenSenseRule;
+use crate::{GenSenseRule, ProjectRule};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 #[derive(serde::Deserialize)]
 struct RulesWrapper {
+    #[serde(default)]
     rules: Vec<crate::rules::core::CoreRule>,
+    #[serde(default)]
+    project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
 }
 
-pub fn load_user_rules(project_root: &Path, extra_dirs: &[PathBuf]) -> Vec<Box<dyn GenSenseRule>> {
+#[allow(clippy::type_complexity)]
+pub fn load_user_rules(
+    project_root: &Path,
+    extra_dirs: &[PathBuf],
+) -> (Vec<Box<dyn GenSenseRule>>, Vec<Box<dyn ProjectRule>>) {
     let mut rules = Vec::new();
+    let mut project_rules = Vec::new();
     let mut dirs_to_check = Vec::new();
 
     // 1. Project-local rules: <project_root>/.gensense/rules/
@@ -50,6 +59,11 @@ pub fn load_user_rules(project_root: &Path, extra_dirs: &[PathBuf]) -> Vec<Box<d
                                 let compiled = crate::rules::compiler::RuleCompiler::compile(rule);
                                 rules.push(Box::new(compiled) as Box<dyn GenSenseRule>);
                             }
+                            for p_rule in wrapper.project_rules {
+                                let compiled =
+                                    crate::rules::compiler::ProjectRuleCompiler::compile(p_rule);
+                                project_rules.push(Box::new(compiled) as Box<dyn ProjectRule>);
+                            }
                         }
                         Err(e) => {
                             eprintln!(
@@ -71,5 +85,5 @@ pub fn load_user_rules(project_root: &Path, extra_dirs: &[PathBuf]) -> Vec<Box<d
         }
     }
 
-    rules
+    (rules, project_rules)
 }

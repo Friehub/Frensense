@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod helpers;
+pub mod project;
 
 use crate::{
     semantics::data_flow::{DataFlowAnalyzer, TaintRegistry},
@@ -45,6 +46,8 @@ pub struct CoreRule {
     pub sink_pattern: Option<Regex>,
     #[serde(default)]
     pub temporal: Option<TemporalConfig>,
+    #[serde(default)]
+    pub use_query: Option<bool>,
 }
 
 impl GenSenseRule for CoreRule {
@@ -53,6 +56,15 @@ impl GenSenseRule for CoreRule {
     }
 
     fn query(&self) -> Option<&str> {
+        if let Some(explicit) = self.use_query {
+            if explicit {
+                return Some(&self.on_node);
+            } else {
+                return None;
+            }
+        }
+
+        // Default heuristic
         if self.on_node.contains("|") || !self.on_node.contains(" ") {
             None
         } else {
@@ -75,9 +87,27 @@ impl GenSenseRule for CoreRule {
             top = parent;
         }
 
+        let file_path = context.file_path.to_string_lossy().to_string();
+        let function_line = context
+            .symbols
+            .find_function_at(&file_path, node.start_position().row + 1)
+            .and_then(|idx| context.symbols.graph.get_symbol(idx))
+            .map(|s| s.line)
+            .unwrap_or(0);
+
+        let cache_key = (
+            self.id().to_string(),
+            file_path.clone(),
+            if function_line == 0 {
+                node.start_position().row
+            } else {
+                function_line
+            },
+        );
+
         {
             let cache = context.taint_cache.borrow();
-            if cache.contains_key(&(self.id().to_string(), top.id())) {
+            if cache.contains_key(&cache_key) {
                 return Vec::new();
             }
         }
@@ -95,7 +125,7 @@ impl GenSenseRule for CoreRule {
             advisories.extend(analyzer.analyze_block(target_node, src_re, sink_re, self, registry));
 
             let mut cache = context.taint_cache.borrow_mut();
-            cache.insert((self.id().to_string(), top.id()), Vec::new());
+            cache.insert(cache_key, advisories.clone());
             return advisories;
         }
 

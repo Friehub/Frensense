@@ -248,12 +248,10 @@ fn main() -> Result<()> {
         i += 1;
     }
 
-    eprintln!("[DEBUG] Main: Initializing Engine...");
     let mut engine = Engine::new(GenSenseAuditor::default_auditor());
     engine.extra_rule_dirs = extra_rule_dirs;
     if no_builtin {
-        // We clear embedded rules. They'll be replaced entirely by user rules in build_rule_set
-        engine.auditor.rules.clear();
+        engine.no_builtin_rules = true;
     }
 
     for tag in enabled_tags {

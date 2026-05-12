@@ -10,18 +10,15 @@ impl GenSenseAuditor {
         &self,
         path: &Path,
         content: &str,
+        language: &tree_sitter::Language,
+        tree: &tree_sitter::Tree,
     ) -> Result<Vec<crate::semantics::Symbol>> {
-        let (language, tree) = match self.parse_source(path, content) {
-            Ok(res) => res,
-            Err(_) => return Ok(Vec::new()),
-        };
-
         let query_str = match ParserRegistry::get_symbol_query(path) {
             Some(q) => q,
             None => return Ok(Vec::new()),
         };
         let query =
-            Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -85,18 +82,19 @@ impl GenSenseAuditor {
         Ok(symbols)
     }
 
-    pub fn scan_for_edges(&self, path: &Path, content: &str) -> Result<Vec<(String, String)>> {
-        let (language, tree) = match self.parse_source(path, content) {
-            Ok(res) => res,
-            Err(_) => return Ok(Vec::new()),
-        };
-
+    pub fn scan_for_edges(
+        &self,
+        path: &Path,
+        content: &str,
+        language: &tree_sitter::Language,
+        tree: &tree_sitter::Tree,
+    ) -> Result<Vec<(String, String)>> {
         let query_str = match ParserRegistry::get_call_query(path) {
             Some(q) => q,
             None => return Ok(Vec::new()),
         };
         let query =
-            Query::new(&language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -131,12 +129,9 @@ impl GenSenseAuditor {
         &self,
         path: &Path,
         content: &str,
+        tree: &tree_sitter::Tree,
         registry: &mut SymbolRegistry,
     ) -> Result<()> {
-        let (_, tree) = match self.parse_source(path, content) {
-            Ok(res) => res,
-            Err(_) => return Ok(()),
-        };
         self.link_symbols_to_scopes(tree.root_node(), path, content, registry);
         let mut cursor = tree.walk();
         self.traverse_for_events(tree.root_node(), &mut cursor, path, content, registry, None);
@@ -225,5 +220,19 @@ impl GenSenseAuditor {
             }
         }
         None
+    }
+
+    pub fn extract_semantic_ops(
+        &self,
+        path: &Path,
+        content: &str,
+        tree: &tree_sitter::Tree,
+    ) -> Vec<crate::semantics::data_flow::normalization::SemanticOp> {
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        crate::semantics::data_flow::normalization::SemanticExtractor::extract(
+            tree.root_node(),
+            content,
+            ext,
+        )
     }
 }
