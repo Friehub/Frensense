@@ -21,13 +21,15 @@ fn test_temporal_consistency_rust_deadlock() {
     parser
         .set_language(&tree_sitter_rust::LANGUAGE.into())
         .unwrap();
-    let tree = parser.parse(content, None).unwrap();
+    let _tree = parser.parse(content, None).unwrap();
     let mut registry = SymbolRegistry::new();
     let auditor = GenSenseAuditor::new(vec![]);
     let path = Path::new("test.rs");
 
     let (language, tree) = auditor.parse_source(path, content).unwrap();
-    let syms = auditor.discover_symbols(path, content, &language, &tree).unwrap();
+    let syms = auditor
+        .discover_symbols(path, content, &language, &tree)
+        .unwrap();
     for s in syms {
         registry.insert(s);
     }

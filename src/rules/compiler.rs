@@ -54,7 +54,7 @@ impl RuleCompiler {
 
         let use_query = dsl.use_query.unwrap_or_else(|| {
             // Default heuristic if not explicitly specified
-            !(dsl.on_node.contains("|") || !dsl.on_node.contains(" "))
+            !dsl.on_node.contains('|') && dsl.on_node.contains(' ')
         });
 
         CoreRuleIr {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseEnvironment, ProjectRule, SourceRegistry};
 use crate::semantics::SymbolRegistry;
+use crate::{Advisory, GenSenseEnvironment, ProjectRule, SourceRegistry};
 
 pub struct ProjectAuditor {
     pub rules: Vec<Box<dyn ProjectRule>>,
