@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: sync-${{ github.ref }}
+  cancel-in-progress: false
+
 # Restrict permissions as much as possible
 permissions:
   contents: write
@@ -14,7 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: "!contains(github.event.head_commit.message, 'chore: prepare v')"
+    # Skip if this is already a version-sync commit to prevent loops
+    if: |
+      !contains(github.event.head_commit.message, 'chore: prepare v') &&
+      !contains(github.event.head_commit.message, 'chore: sync version to Cargo.toml')
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@v2
@@ -39,7 +46,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "current_version=$VERSION" >> $GITHUB_OUTPUT
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+          if git rev-parse "v$VERSION" > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -49,8 +56,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add Cargo.toml
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: sync version to Cargo.toml [skip ci]" && git push)
+          # Stage all files the sync script may have touched
+          git add Cargo.toml package.json
+          git diff --quiet && git diff --staged --quiet || \
+            (git commit -m "chore: sync version to Cargo.toml [skip ci]" && git push)
 
       - name: Create and Push Tag
         if: steps.version_check.outputs.exists == 'false'
