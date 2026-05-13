@@ -1,6 +1,5 @@
 rules:
 - id: JUMIA_GOD_SERVICE
-  domain: maintainability
   target_ext: ts
   on_node: (program) @node
   max_lines: 300
@@ -13,7 +12,6 @@ rules:
   tags: [maintainability, architecture]
 
 - id: JUMIA_REPETITIVE_DECIMAL_LOGIC
-  domain: maintainability
   target_ext: ts
   on_node: (call_expression) @node
   if_matches: \.toNumber\(\)|\.toFixed\(2\)|Decimal\.ROUND_HALF_UP
@@ -26,7 +24,6 @@ rules:
   tags: [quality, refactor]
 
 - id: JUMIA_STUB_FALLBACK
-  domain: production
   target_ext: ts
   on_node: (catch_clause) @node
   if_matches: RustClient|fallback|fallback to Prisma
@@ -39,7 +36,6 @@ rules:
   tags: [production, reliability]
 
 - id: JUMIA_NESTING_LIMIT
-  domain: quality
   target_ext: ts
   on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
   max_depth: 3
@@ -52,7 +48,6 @@ rules:
   tags: [quality, readability]
 
 - id: JUMIA_ASYNC_FOR_EACH
-  domain: reliability
   target_ext: ts
   on_node: (call_expression) @node
   if_matches: forEach\(\s*async

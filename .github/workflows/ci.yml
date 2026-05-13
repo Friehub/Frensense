@@ -2,19 +2,30 @@ name: GenSense CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "**" ]
   pull_request:
     branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
 
+# Top-level default — most restrictive
+permissions:
+  contents: read
+
 jobs:
   # --- Quality Assurance ---
   qa:
     name: Quality Assurance (Rust)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
       
       - name: Install Rust
@@ -23,13 +34,13 @@ jobs:
           components: rustfmt, clippy
           
       - name: Cache Cargo dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/.cargo/git/cache/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           
@@ -37,54 +48,129 @@ jobs:
         run: cargo fmt --all -- --check
         
       - name: Semantic Lints (Clippy)
-        run: cargo clippy --all-targets --features cli -- -D warnings
+        run: cargo clippy --all-targets --features full -- -D warnings
 
-  # --- Security Audit ---
+  # --- Supply Chain Audit ---
   security:
-    name: Security Audit
+    name: Supply Chain Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
-      
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --no-default-features --features=fix
-        
-      - name: Dependency Vulnerability Check
-        run: cargo audit
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses bans
+
+  # --- NPM Security Audit ---
+  npm-security:
+    name: NPM Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+
+  # --- Static Analysis (SAST) ---
+  semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+      - run: semgrep scan --config=p/rust --config=p/secrets --error
+
+  # --- MSRV Check ---
+  msrv:
+    name: MSRV Check (1.88)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88
+      - run: cargo check --features cli,solidity,fingerprinting
 
   # --- Correctness (Rust) ---
   test-rust:
-    name: Rust Tests
+    name: Rust Tests (${{ matrix.features }})
     runs-on: ubuntu-latest
     needs: [qa]
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        features: [cli, "full", "rust,typescript,solidity"]
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         
       - name: Run Full Regression Suite
-        run: cargo test --features cli
+        run: cargo test --features ${{ matrix.features }}
 
   # --- Correctness (Node.js Bindings) ---
   test-node:
     name: Node.js Binding Verification
     runs-on: ubuntu-latest
     needs: [qa]
+    permissions:
+      contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
         
       - name: Build Native Addon
         run: npm run build:debug
@@ -98,7 +184,14 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     needs: [test-rust, test-node]
+    permissions:
+      contents: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -116,7 +209,7 @@ jobs:
       - name: Build VitePress Site
         run: npm run docs:build
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/.vitepress/dist

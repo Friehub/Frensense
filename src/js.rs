@@ -55,6 +55,10 @@ impl GenSenseEngine {
         self.inner.set_environment(env_enum);
     }
 
+    /// Analyse a single file in isolation. Per-file rules (style, security patterns,
+    /// AI artifacts) run in full. Cross-file project rules (MustHaveGuard,
+    /// MustBeInternal, CrossFileTaintFree) are NOT run — use `audit_project` for
+    /// those.
     #[napi]
     pub fn audit_content(
         &self,
@@ -70,8 +74,33 @@ impl GenSenseEngine {
                     observation: a.observation,
                     impact: a.impact,
                     improvement: a.improvement,
-                    line: a.line as u32,
-                    column: a.column as u32,
+                    line: a.line,
+                    column: a.column,
+                    file_path: a.file_path,
+                })
+                .collect()),
+            Err(e) => Err(napi::Error::from_reason(format!(
+                "GenSense Engine Error: {e}"
+            ))),
+        }
+    }
+
+    /// Audit an entire project directory, including cross-file project rules.
+    /// Use this instead of `audit_content` when you need MustHaveGuard,
+    /// MustBeInternal, or CrossFileTaintFree rules to run.
+    #[napi]
+    pub fn audit_project(&mut self, root_dir: String) -> napi::Result<Vec<JsAdvisory>> {
+        match self.inner.run(Path::new(&root_dir)) {
+            Ok(advisories) => Ok(advisories
+                .into_iter()
+                .map(|a| JsAdvisory {
+                    rule_id: a.rule_id,
+                    severity: format!("{:?}", a.severity),
+                    observation: a.observation,
+                    impact: a.impact,
+                    improvement: a.improvement,
+                    line: a.line,
+                    column: a.column,
                     file_path: a.file_path,
                 })
                 .collect()),
@@ -92,8 +121,8 @@ impl GenSenseEngine {
                     observation: a.observation,
                     impact: a.impact,
                     improvement: a.improvement,
-                    line: a.line as u32,
-                    column: a.column as u32,
+                    line: a.line,
+                    column: a.column,
                     file_path: a.file_path,
                 })
                 .collect()),
