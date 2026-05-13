@@ -63,13 +63,13 @@ jobs:
         run: cargo build --release --features cli --target ${{ matrix.settings.target }}
 
       - name: Upload NAPI Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: library-${{ matrix.settings.target }}
           path: gensense.node
 
       - name: Upload CLI Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.settings.target }}
           path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
