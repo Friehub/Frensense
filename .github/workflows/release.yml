@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch: {}
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # Top-level default — most restrictive
 permissions:
   contents: read
@@ -27,7 +31,8 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
             bin_name: gensense
-          - host: macos-latest
+          # Use macos-14 (Apple Silicon) for native arm64 builds — macos-latest is x86
+          - host: macos-14
             target: aarch64-apple-darwin
             bin_name: gensense
           - host: windows-latest
@@ -36,14 +41,14 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 20
           cache: 'npm'
@@ -54,7 +59,7 @@ jobs:
           targets: ${{ matrix.settings.target }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build NAPI Library
         run: npm run build -- --target ${{ matrix.settings.target }}
@@ -63,13 +68,13 @@ jobs:
         run: cargo build --release --features cli --target ${{ matrix.settings.target }}
 
       - name: Upload NAPI Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.6.0
         with:
           name: library-${{ matrix.settings.target }}
           path: gensense.node
 
       - name: Upload CLI Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.6.0
         with:
           name: cli-${{ matrix.settings.target }}
           path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
@@ -85,11 +90,11 @@ jobs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
         with:
           egress-policy: audit
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234b430549bb47c6fd # v4.1.8
         with:
           path: artifacts
       - name: Generate hashes
@@ -121,14 +126,26 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
         with:
           egress-policy: audit
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Check version not already published
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          if cargo search gensense --limit 1 2>/dev/null | grep -q "\"$VERSION\""; then
+            echo "Version $VERSION already exists on crates.io. Skipping."
+            exit 0
+          fi
+      # Publish without NAPI/node features — those require native linking not valid for the crates.io registry
       - name: Publish
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish \
+            --token ${{ secrets.CARGO_REGISTRY_TOKEN }} \
+            --no-default-features \
+            --features rust,typescript,fingerprinting,remediation
 
   # 5. Publish to NPM
   publish-npm:
@@ -138,40 +155,48 @@ jobs:
     environment: production
     permissions:
       contents: read
-      id-token: write # For OIDC provenance
+      id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
         with:
           egress-policy: audit
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
+      # Rust is required for the `cargo run --generate-docs` step below
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234b430549bb47c6fd # v4.1.8
         with:
           path: artifacts
 
       - name: Prepare NPM package
         run: |
-          mkdir -p dist
-          # Copy Linux binary as default 'gensense' for the package root
+          mkdir -p dist/binaries
           cp artifacts/cli-x86_64-unknown-linux-gnu/gensense ./dist/gensense
           cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node ./gensense.node
-          
-          # Copy all platform binaries for the intelligent wrapper
-          mkdir -p dist/binaries
-          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense ./dist/binaries/gensense-linux-x64
-          cp artifacts/cli-x86_64-apple-darwin/gensense ./dist/binaries/gensense-macos-x64
-          cp artifacts/cli-aarch64-apple-darwin/gensense ./dist/binaries/gensense-macos-arm64
-          cp artifacts/cli-x86_64-pc-windows-msvc/gensense.exe ./dist/binaries/gensense-windows-x64.exe
+          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense    ./dist/binaries/gensense-linux-x64
+          cp artifacts/cli-x86_64-apple-darwin/gensense          ./dist/binaries/gensense-macos-x64
+          cp artifacts/cli-aarch64-apple-darwin/gensense          ./dist/binaries/gensense-macos-arm64
+          cp artifacts/cli-x86_64-pc-windows-msvc/gensense.exe   ./dist/binaries/gensense-windows-x64.exe
 
       - name: Generate Rule Docs
-        run: cargo run --features cli -- --generate-docs
+        run: |
+          cargo run --features cli -- --generate-docs
+
+      - name: Check version not already published
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view @friehub/gensense@$VERSION version 2>/dev/null | grep -q "$VERSION"; then
+            echo "Version $VERSION already exists on NPM. Skipping."
+            exit 0
+          fi
 
       - name: Publish to NPM
         run: npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
@@ -188,12 +213,12 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
         with:
           egress-policy: audit
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234b430549bb47c6fd # v4.1.8
         with:
           path: artifacts
       - name: Prepare binaries for release
@@ -206,7 +231,7 @@ jobs:
             cp "${dir}gensense${ext}" "release-binaries/gensense-${target}${ext}"
           done
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           files: release-binaries/*
           generate_release_notes: true
