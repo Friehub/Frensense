@@ -1,41 +1,46 @@
-// [LICENSE] Proprietary - Friehub (GenSense Gateway)
-// Copyright (c) 2026 Friehub. All rights reserved.
+// SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use std::borrow::Cow;
+use std::sync::OnceLock;
 use tree_sitter::Node;
 
 pub struct TypeScriptUnsafeCast;
 
-impl GenSenseRule for TypeScriptUnsafeCast {
-    fn id(&self) -> &str {
-        "TS_UNSAFE_TYPE_ASSERTION"
-    }
+static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
-    fn description(&self) -> &str {
-        "Unsafe type assertion (as any) detected. This bypasses TypeScript's type safety guarantees."
+impl GenSenseRule for TypeScriptUnsafeCast {
+    fn metadata(&self) -> &RuleMetadata {
+        METADATA.get_or_init(|| RuleMetadata {
+            id: Cow::Borrowed("TS_UNSAFE_TYPE_ASSERTION"),
+            name: Cow::Borrowed("Unsafe Type Assertion"),
+            severity: Severity::Warning,
+            observation: Cow::Borrowed("Unsafe TypeScript type assertion (as any) detected."),
+            impact: Cow::Borrowed("Unsafe type assertion (as any) bypasses TypeScript's type safety guarantees, potentially leading to runtime crashes or silent data corruption."),
+            improvement: Cow::Borrowed("Use type guards (is), proper interface definitions, or 'unknown' with validation instead of 'any'."),
+            tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("typescript")],
+            category: Cow::Borrowed("Safety"),
+        })
     }
 
     fn query(&self) -> Option<&str> {
-        Some("as_expression")
+        Some("(as_expression) @as")
     }
 
     fn applies_to(&self, ext: &str) -> bool {
         ext == "ts" || ext == "tsx"
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        // Check if the target type is 'any'
         if let Some(type_node) = node.child_by_field_name("type") {
             let type_code = &context.source_code[type_node.start_byte()..type_node.end_byte()];
             if type_code == "any" {
-                let _pos = node.start_position();
                 advisories.push(self.new_advisory(
                     &node,
-                    "Unsafe TypeScript type assertion (as) detected.".to_string(),
-                    "Force-casting types with 'as' can hide underlying type mismatches and lead to runtime errors.".to_string(),
-                    "Use type guards or proper interface definitions to ensure type safety.".to_string(),
+                    context,
+                    "Unsafe TypeScript type assertion (as any) detected.".to_string(),
                 ));
             }
         }

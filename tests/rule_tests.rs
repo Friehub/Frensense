@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: MIT
+
+use gensense::engine::auditor::GenSenseAuditor;
+use gensense::engine::project::Engine;
+use std::path::Path;
+
+fn run_test(rule_id: &str, content: &str, expected_count: usize, ext: &str) {
+    let engine = Engine::new(GenSenseAuditor::default_auditor());
+    let path = Path::new("test").with_extension(ext);
+    let advisories = engine.run_content(&path, content).unwrap();
+
+    let rule_findings: Vec<_> = advisories.iter().filter(|a| a.rule_id == rule_id).collect();
+    assert_eq!(
+        rule_findings.len(),
+        expected_count,
+        "Rule {} expected {} findings but got {}. Content: {}",
+        rule_id,
+        expected_count,
+        rule_findings.len(),
+        content
+    );
+}
+
+#[test]
+fn test_rust_blocking_io() {
+    let rule_id = "RUST_ASYNC_BLOCKING_IO";
+
+    // Positive
+    run_test(rule_id, "async fn t() { std::thread::sleep(d); }", 1, "rs");
+
+    // Negative (not in async)
+    run_test(rule_id, "fn t() { std::thread::sleep(d); }", 0, "rs");
+
+    // Negative (async but safe)
+    run_test(
+        rule_id,
+        "async fn t() { tokio::time::sleep(d).await; }",
+        0,
+        "rs",
+    );
+}
+
+#[test]
+fn test_rust_clone_in_loop() {
+    let rule_id = "RUST_CLONE_IN_LOOP";
+
+    // Positive
+    run_test(
+        rule_id,
+        "fn t() { for x in v { let y = x.clone(); } }",
+        1,
+        "rs",
+    );
+
+    // Negative
+    run_test(
+        rule_id,
+        "fn t() { let y = x.clone(); for x in v { } }",
+        0,
+        "rs",
+    );
+}
+
+#[test]
+fn test_rust_panic_in_lib() {
+    let rule_id = "RUST_PANIC_IN_LIB";
+
+    // Positive
+    run_test(rule_id, "fn t() { panic!(\"error\"); }", 1, "rs");
+
+    // Negative
+    run_test(rule_id, "fn t() { return Err(\"error\"); }", 0, "rs");
+}
+
+#[test]
+fn test_ts_god_function() {
+    let rule_id = "TS_GOD_FUNCTION";
+
+    // Positive (101 lines)
+    let mut big_func = "function big() {\n".to_string();
+    for i in 0..100 {
+        big_func.push_str(&format!("  console.log({i});\n"));
+    }
+    big_func.push('}');
+    run_test(rule_id, &big_func, 1, "ts");
+
+    // Negative (10 lines)
+    run_test(rule_id, "function small() { console.log(1); }", 0, "ts");
+}

@@ -26,18 +26,18 @@ new GenSense(options?: GenSenseOptions)
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `environment` | `'development' \| 'staging' \| 'production'` | `'development'` | Sets the execution context. Some rules are gated by environment. |
-| `tags` | `string[]` | `[]` | Activates rule groups. An empty array activates all rules. |
+| `environment` | `'development' \| 'staging' \| 'production'` | `'development'` | Sets the execution context. Rules tagged `beta` are suppressed in production. |
+| `tags` | `string[]` | `[]` | Activates optional rule groups. An empty array activates all rules. |
 
 **Example**
 
 ```javascript
 const { GenSense } = require('@friehub/gensense');
 
-// Activate all rules
+// All rules active
 const engine = new GenSense();
 
-// Activate only security and reliability rules
+// Security and reliability rules only, in production mode
 const engine = new GenSense({
   environment: 'production',
   tags: ['security', 'reliability']
@@ -84,7 +84,7 @@ for (const f of findings) {
 
 #### `engine.auditPath(targetPath)`
 
-Recursively walks a directory or audits a single file on disk.
+Recursively walks a directory or audits a single file on disk. Respects the same directory exclusion rules as the CLI (`target/`, `.git/`, `node_modules/` are skipped automatically).
 
 **Signature**
 
@@ -106,7 +106,10 @@ const findings = engine.auditPath('./src');
 if (findings.length === 0) {
   console.log('No issues found.');
 } else {
-  process.exit(1); // Fail CI if findings are present
+  const critical = findings.filter(f => f.severity === 'Critical');
+  if (critical.length > 0) {
+    process.exit(1); // Fail CI on critical findings
+  }
 }
 ```
 
@@ -118,14 +121,14 @@ The structured finding returned by the engine for each detected issue.
 
 ```typescript
 interface Advisory {
-  ruleId:      string;  // e.g., "RUST_ASYNC_MUTEX_DEADLOCK"
-  severity:    string;  // "Warning" | "Critical"
-  observation: string;  // What was found
-  impact:      string;  // Why it matters
-  improvement: string;  // What to do about it
-  line:        number;  // 1-indexed line number
-  column:      number;  // 1-indexed column number
-  filePath:    string;  // The file path passed to auditContent or resolved by auditPath
+  ruleId:      string;   // e.g. "RUST_ASYNC_MUTEX_DEADLOCK"
+  severity:    string;   // "Critical" | "Warning" | "Info"
+  observation: string;   // What was found (specific to this instance)
+  impact:      string;   // Why it matters — concrete technical consequence
+  improvement: string;   // What to do about it
+  line:        number;   // 1-indexed line number
+  column:      number;   // 1-indexed column number
+  filePath:    string;   // The resolved file path
 }
 ```
 
@@ -139,31 +142,55 @@ The Rust library exposes the engine directly for use in build tools, custom CLI 
 
 ```toml
 [dependencies]
-gensense = "0.1.0"
+gensense = "0.1.7"
 ```
 
-### Usage
+### Single File Audit
 
 ```rust
-use gensense::Engine;
+use gensense::{Engine, GenSenseAuditor};
+use std::path::Path;
 
-fn main() {
-    let mut engine = Engine::new();
+fn main() -> gensense::Result<()> {
+    let auditor = GenSenseAuditor::default_auditor();
+    let engine = Engine::new(auditor);
 
-    let source = std::fs::read_to_string("src/main.rs").unwrap();
-    let findings = engine.run_content("src/main.rs", &source);
+    let source = std::fs::read_to_string("src/main.rs")?;
+    let advisories = engine.run_content(Path::new("src/main.rs"), &source)?;
 
-    for finding in &findings {
+    for adv in &advisories {
         eprintln!(
             "[{}] {} at {}:{}",
-            finding.severity, finding.rule_id, finding.line, finding.column
+            adv.rule_id, adv.observation, adv.line, adv.column
         );
-        eprintln!("  {}", finding.observation);
     }
 
-    if findings.iter().any(|f| f.severity == "Critical") {
+    if advisories.iter().any(|a| a.severity == gensense::Severity::Critical) {
         std::process::exit(1);
     }
+
+    Ok(())
+}
+```
+
+### Project-Wide Audit
+
+```rust
+use gensense::{Engine, GenSenseAuditor};
+use std::path::Path;
+
+fn main() -> gensense::Result<()> {
+    let auditor = GenSenseAuditor::default_auditor();
+    let mut engine = Engine::new(auditor);
+
+    // Activate optional tags
+    engine.enable_tag("security");
+    engine.enable_tag("governance");
+
+    let advisories = engine.run(Path::new("./src"))?;
+
+    println!("Total findings: {}", advisories.len());
+    Ok(())
 }
 ```
 
@@ -171,24 +198,65 @@ fn main() {
 
 ## CLI Reference
 
-The CLI is the primary interface for project-level auditing.
+### Synopsis
 
 ```
-USAGE:
-    gensense <COMMAND> [OPTIONS]
-
-COMMANDS:
-    audit <path>        Run a semantic audit on a file or directory
-    --generate-docs     Generate a RULES.md catalog from all loaded rules
-
-OPTIONS:
-    --tag <tag>         Filter analysis by rule tag (can be specified multiple times)
-    --help              Print help information
+gensense <path> [options]
+gensense test-rule <rule.yml> [options]
+gensense --list-rules
+gensense --debug <file>
+gensense --generate-docs
+gensense --version
 ```
+
+### Analysis Options
+
+| Flag | Description |
+| :--- | :--- |
+| `--severity <level>` | Filter findings by severity: `critical`, `warning`, or `info` |
+| `--tag <name>` | Enable an optional diagnostic tag (can be specified multiple times) |
+| `--strict` | Exit with code 1 if any findings match the active filter |
+| `--json` | Output findings as a JSON array |
+| `--sarif` | Output findings in SARIF v2.1.0 format |
+| `--fix` | Apply automated remediations where available |
+| `--diff` | Preview proposed fixes as a unified diff |
+
+### Custom Rule Options
+
+| Flag | Description |
+| :--- | :--- |
+| `--rules-dir <path>` | Load additional YAML rules from the specified directory |
+| `--no-builtin-rules` | Disable all embedded rules (run only user-supplied rules) |
+
+### Utility Commands
+
+| Command | Description |
+| :--- | :--- |
+| `--list-rules` | Print all active rules in a formatted catalog |
+| `--generate-docs` | Write a `RULES.md` catalog file to the current directory |
+| `--debug <file>` | Print the tree-sitter AST of a file (useful when writing rules) |
+| `--version` | Print the engine version and enabled feature flags |
+
+### Rule Testing
+
+```bash
+gensense test-rule <rule.yml> \
+  --fixture <file> \
+  --expect-finding <RULE_ID> \
+  --expect-line <N>
+```
+
+| Flag | Description |
+| :--- | :--- |
+| `--fixture <file>` | The source file to run the rule against |
+| `--expect-finding <id>` | Assert that a finding with this rule ID is produced |
+| `--expect-line <n>` | Assert that the finding appears at this line number |
+
+Exits 0 on pass, 1 on fail. Use in CI to verify rules before deploying them.
 
 ### Exit Codes
 
 | Code | Meaning |
 | :--- | :--- |
-| `0` | No findings, or only informational output |
-| `1` | One or more findings were produced |
+| `0` | Success — no findings, or findings present but `--strict` not set |
+| `1` | Findings produced and `--strict` is set, or `test-rule` failed |

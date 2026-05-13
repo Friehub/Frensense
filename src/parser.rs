@@ -29,10 +29,7 @@ impl ParserRegistry {
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
             #[cfg(feature = "solidity")]
-            // "sol" => Ok(tree_sitter_solidity::language().into()),
-            "sol" => Err(GenSenseError::Config(
-                "Solidity parser is temporarily disabled due to version mismatch".to_string(),
-            )),
+            "sol" => Ok(tree_sitter_solidity::LANGUAGE.into()),
             "yml" | "yaml" => Ok(tree_sitter_yaml::LANGUAGE.into()),
             _ => Err(GenSenseError::Config(format!(
                 "Unsupported file extension or feature not enabled: {ext}"
@@ -45,39 +42,69 @@ impl ParserRegistry {
         match ext {
             "rs" => Some(
                 r#"
-                (function_item name: (identifier) @name) @fn
-                (struct_item name: (type_identifier) @name) @struct
-                (enum_item name: (type_identifier) @name) @enum
-                (trait_item name: (type_identifier) @name) @interface
-                (const_item name: (identifier) @name) @const
+                (function_item name: (identifier) @name)
+                (parameter pattern: (identifier) @name)
+                (parameter pattern: (tuple_pattern (identifier) @name))
+                (let_declaration pattern: (identifier) @name)
+                (let_declaration pattern: (tuple_pattern (identifier) @name))
+                (struct_item name: (type_identifier) @name)
+                (enum_item name: (type_identifier) @name)
+                (trait_item name: (type_identifier) @name)
+                (const_item name: (identifier) @name)
             "#,
             ),
             "ts" | "tsx" => Some(
                 r#"
-                (function_declaration name: (identifier) @name) @fn
-                (class_declaration name: (type_identifier) @name) @class
-                (interface_declaration name: (type_identifier) @name) @interface
-                (enum_declaration name: (identifier) @name) @enum
-                (variable_declarator name: (identifier) @name) @var
-                (lexical_declaration (variable_declarator name: (identifier) @name)) @var
+                (function_declaration name: (identifier) @name)
+                (class_declaration name: (type_identifier) @name)
+                (interface_declaration name: (type_identifier) @name)
+                (enum_declaration name: (identifier) @name)
+                (variable_declarator name: (identifier) @name)
+                (lexical_declaration (variable_declarator name: (identifier) @name))
             "#,
             ),
             "js" | "jsx" => Some(
                 r#"
-                (function_declaration name: (identifier) @name) @fn
-                (class_declaration name: (identifier) @name) @class
-                (variable_declarator name: (identifier) @name) @var
-                (lexical_declaration (variable_declarator name: (identifier) @name)) @var
+                (function_declaration name: (identifier) @name)
+                (class_declaration name: (identifier) @name)
+                (variable_declarator name: (identifier) @name)
+                (lexical_declaration (variable_declarator name: (identifier) @name))
             "#,
             ),
+            #[cfg(feature = "solidity")]
             "sol" => Some(
                 r#"
-                (contract_declaration name: (identifier) @name) @class
-                (interface_declaration name: (identifier) @name) @interface
-                (library_declaration name: (identifier) @name) @module
-                (function_definition name: (identifier) @name) @fn
-                (struct_definition name: (identifier) @name) @struct
-                (enum_definition name: (identifier) @name) @enum
+                (contract_declaration name: (identifier) @name)
+                (interface_declaration name: (identifier) @name)
+                (library_declaration name: (identifier) @name)
+                (function_definition name: (identifier) @name)
+                (struct_definition name: (identifier) @name)
+                (enum_definition name: (identifier) @name)
+            "#,
+            ),
+            _ => None,
+        }
+    }
+
+    pub fn get_call_query(path: &Path) -> Option<&'static str> {
+        let ext = path.extension().and_then(|s| s.to_str())?;
+        match ext {
+            "rs" => Some(
+                r#"
+                (call_expression function: (identifier) @call)
+                (call_expression function: (field_expression field: (field_identifier) @call))
+            "#,
+            ),
+            "ts" | "tsx" | "js" | "jsx" => Some(
+                r#"
+                (call_expression function: (identifier) @call)
+                (call_expression function: (member_expression property: (property_identifier) @call))
+            "#,
+            ),
+            #[cfg(feature = "solidity")]
+            "sol" => Some(
+                r#"
+                (function_call (identifier) @call)
             "#,
             ),
             _ => None,
@@ -86,9 +113,7 @@ impl ParserRegistry {
 
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        matches!(
-            ext,
-            "rs" | "ts" | "tsx" | "js" | "jsx" | "sol" | "yml" | "yaml"
-        )
+        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")
+            || (cfg!(feature = "solidity") && ext == "sol")
     }
 }
