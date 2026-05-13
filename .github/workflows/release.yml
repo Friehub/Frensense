@@ -2,22 +2,92 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.2.1)'
+        required: false
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-# Top-level default — most restrictive
 permissions:
   contents: read
 
 jobs:
+  # 0. Prepare: Decide if we should release and ensure tags exist
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      tag_name: ${{ steps.check.outputs.tag_name }}
+    permissions:
+      contents: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version and tags
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+            if [[ -z "$TAG" ]]; then
+              TAG="v$(node -p "require('./package.json').version")"
+            fi
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
+            # Check for version change
+            VERSION=$(node -p "require('./package.json').version")
+            TAG="v$VERSION"
+            
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists. Skipping automatic release."
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            else
+              echo "New version $VERSION detected on main. Creating tag $TAG."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              
+              # Attempt to sync Cargo.toml if needed (might fail due to branch protection)
+              node scripts/sync-version.js
+              git add Cargo.toml package.json
+              if ! git diff --cached --quiet; then
+                git commit -m "chore: sync version to $VERSION [skip ci]" || true
+                git push origin main || echo "Failed to push version sync to main (likely branch protection). Continuing with tag."
+              fi
+              
+              git tag "$TAG"
+              git push origin "$TAG"
+              
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
   # 1. Build Native Artifacts for all platforms
   build-native:
     name: Build Native (${{ matrix.settings.target }})
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
     runs-on: ${{ matrix.settings.host }}
     permissions:
       contents: read
@@ -31,7 +101,6 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
             bin_name: gensense
-          # Use macos-14 (Apple Silicon) for native arm64 builds — macos-latest is x86
           - host: macos-14
             target: aarch64-apple-darwin
             bin_name: gensense
@@ -46,6 +115,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag_name }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -83,7 +154,7 @@ jobs:
   generate-hashes:
     name: Generate Hashes
     runs-on: ubuntu-latest
-    needs: build-native
+    needs: [prepare, build-native]
     permissions:
       contents: read
     outputs:
@@ -106,7 +177,7 @@ jobs:
 
   # 3. SLSA Provenance
   provenance:
-    needs: [generate-hashes]
+    needs: [prepare, generate-hashes]
     permissions:
       actions: read
       id-token: write
@@ -120,7 +191,7 @@ jobs:
   publish-cargo:
     name: Publish to Crates.io
     runs-on: ubuntu-latest
-    needs: build-native
+    needs: [prepare, build-native]
     environment: production
     permissions:
       contents: read
@@ -130,6 +201,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag_name }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Check version not already published
@@ -139,7 +212,6 @@ jobs:
             echo "Version $VERSION already exists on crates.io. Skipping."
             exit 0
           fi
-      # Publish without NAPI/node features — those require native linking not valid for the crates.io registry
       - name: Publish
         run: |
           cargo publish \
@@ -151,7 +223,7 @@ jobs:
   publish-npm:
     name: Publish to NPM
     runs-on: ubuntu-latest
-    needs: build-native
+    needs: [prepare, build-native]
     environment: production
     permissions:
       contents: read
@@ -162,12 +234,13 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag_name }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
-      # Rust is required for the `cargo run --generate-docs` step below
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -207,7 +280,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-native, provenance]
+    needs: [prepare, build-native, provenance]
     environment: production
     permissions:
       contents: write
@@ -217,6 +290,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag_name }}
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -233,6 +308,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
           files: release-binaries/*
           generate_release_notes: true
           prerelease: false
