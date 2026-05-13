@@ -105,7 +105,7 @@ jobs:
 
   # --- MSRV Check ---
   msrv:
-    name: MSRV Check (1.77)
+    name: MSRV Check (1.78)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -118,7 +118,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.77
+          toolchain: 1.78
       - run: cargo check --all-features
 
   # --- Correctness (Rust) ---

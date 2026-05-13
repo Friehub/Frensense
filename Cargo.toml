@@ -9,7 +9,7 @@ homepage = "https://friehub.github.io/gensense/"
 documentation = "https://friehub.github.io/gensense/"
 license = "MIT"
 publish = true
-rust-version = "1.77"
+rust-version = "1.78"
 autobins = false
 
 [lib]
