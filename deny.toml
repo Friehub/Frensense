@@ -1,8 +1,10 @@
 [advisories]
+# The check for vulnerabilities
+vulnerability = "deny"
+# The scope of the unmaintained check
+unmaintained = "all"
 # Whether to check for yanked crates
 yanked = "deny"
-# The scope/level for unmaintained check
-unmaintained = "warn"
 
 [licenses]
 # The list of allowed licenses
