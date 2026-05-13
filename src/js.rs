@@ -30,7 +30,16 @@ impl GenSenseEngine {
             inner: Engine::new(auditor),
         }
     }
+}
 
+impl Default for GenSenseEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[napi]
+impl GenSenseEngine {
     #[napi]
     pub fn enable_tag(&mut self, tag: String) {
         self.inner.enable_tag(&tag);
@@ -67,8 +76,7 @@ impl GenSenseEngine {
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
-                "GenSense Engine Error: {}",
-                e
+                "GenSense Engine Error: {e}"
             ))),
         }
     }
@@ -90,8 +98,7 @@ impl GenSenseEngine {
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
-                "GenSense Engine Error: {}",
-                e
+                "GenSense Engine Error: {e}"
             ))),
         }
     }

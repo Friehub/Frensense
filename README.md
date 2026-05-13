@@ -1,8 +1,8 @@
 # GenSense
 
-GenSense is an experimental semantic diagnostic engine that analyzes code at the AST level to detect logical flaws, security risks, and architectural patterns that conventional linters miss.
+GenSense is a fast, modular semantic diagnostic engine that analyzes source code at the AST level to detect logical flaws, security risks, and AI-generated code patterns that conventional linters miss.
 
-It is designed for teams who want a second pair of eyes on code that is structurally valid but semantically problematic: unchecked error propagation, async safety violations, hardcoded secrets, AI-generated placeholder logic, and more.
+It operates on **semantic patterns** — not syntax. Code that compiles cleanly can still deadlock, leak secrets, silently swallow errors, or contain AI-generated placeholder logic that will fail in production. GenSense catches those classes of problems.
 
 Full documentation: [https://friehub.github.io/gensense](https://friehub.github.io/gensense)
 
@@ -10,15 +10,15 @@ Full documentation: [https://friehub.github.io/gensense](https://friehub.github.
 
 ## Why GenSense
 
-Most linters operate on syntax trees and enforce stylistic or type-level constraints. GenSense operates on semantic patterns:
+Most linters enforce syntax rules and type constraints. GenSense operates one level higher:
 
-- A function compiles successfully but panics at runtime if a specific branch is reached.
-- An async block acquires a mutex lock and then awaits — a deadlock waiting to happen.
-- A developer left `todo!()` in a path that is reachable in production.
-- A hardcoded secret or URL was committed to the repository.
-- AI-generated code added an assertion that is always true.
+- An async block acquires a `std::sync::Mutex` guard and then awaits — a deadlock waiting to happen.
+- A `todo!()` or `unimplemented!()` call sits on a code path reachable in production.
+- A hardcoded secret, API key, or environment URL was committed to the repository.
+- AI-generated code added an assertion that is always true, a test that tests nothing, or an error branch that silently returns a default value.
+- A Prisma query fetches all fields when only one is needed.
 
-None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. GenSense is built to catch exactly these classes of problems.
+None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. GenSense is built for exactly these patterns.
 
 ---
 
@@ -28,7 +28,8 @@ None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. Gen
 | :--- | :--- |
 | Rust | Stable |
 | TypeScript / JavaScript | Stable |
-| Solidity | Experimental |
+| YAML | Stable (rule files) |
+| Solidity | Beta (enable with `--features solidity`) |
 
 ---
 
@@ -43,16 +44,14 @@ npm install -g @friehub/gensense
 Or use without installing:
 
 ```bash
-npx @friehub/gensense audit .
+npx @friehub/gensense .
 ```
 
-### Rust Library (via Cargo)
-
-Add to your `Cargo.toml`:
+### Rust (via Cargo)
 
 ```toml
 [dependencies]
-gensense = "0.1.0"
+gensense = "0.2.0"
 ```
 
 ### Node.js Programmatic API
@@ -68,19 +67,50 @@ npm install @friehub/gensense
 ### CLI
 
 ```bash
-# Audit the current directory
-gensense audit .
+# Audit a directory
+gensense <path>
 
-# Audit a specific file
-gensense audit src/main.rs
+# Audit a single file
+gensense src/main.rs
 
-# Filter by tag
-gensense audit . --tag security
-gensense audit . --tag reliability
-gensense audit . --tag observability
+# Filter by severity
+gensense . --severity critical
 
-# Generate a full rule catalog
-gensense --generate-docs
+# Enable optional diagnostic tags
+gensense . --tag security
+gensense . --tag governance
+gensense . --tag sbom
+
+# Output as JSON or SARIF
+gensense . --json
+gensense . --sarif
+
+# Exit with code 1 if any findings match the filter (CI mode)
+gensense . --strict
+
+# Print the active rule catalog
+gensense . --list-rules
+
+# Generate RULES.md documentation
+gensense . --generate-docs
+
+# Dump the AST of a file (for writing rules)
+gensense --debug src/main.rs
+
+# Apply automated fixes where available
+gensense . --fix
+
+# Preview proposed fixes as a unified diff
+gensense . --diff
+
+# Load additional custom YAML rules from a directory
+gensense . --rules-dir .gensense/rules/
+
+# Test a single YAML rule against a fixture file
+gensense test-rule .gensense/rules/my_rule.yml \
+  --fixture tests/samples/bad_code.rs \
+  --expect-finding MY_RULE_ID \
+  --expect-line 14
 ```
 
 ### Node.js API
@@ -93,7 +123,7 @@ const engine = new GenSense({
   tags: ['security', 'reliability']
 });
 
-// Audit a string of code (ideal for editor extensions or CI pipelines)
+// Audit a string of source code
 const findings = engine.auditContent('src/handler.rs', sourceCode);
 
 findings.forEach(finding => {
@@ -110,15 +140,21 @@ const projectFindings = engine.auditPath('./src');
 ### Rust Library API
 
 ```rust
-use gensense::Engine;
+use gensense::{Engine, GenSenseAuditor};
+use std::path::Path;
 
-fn main() {
-    let mut engine = Engine::new();
-    let findings = engine.run_content("handler.rs", source_code);
+fn main() -> gensense::Result<()> {
+    let auditor = GenSenseAuditor::default_auditor();
+    let mut engine = Engine::new(auditor);
 
-    for finding in &findings {
-        println!("[{}] {} at line {}", finding.severity, finding.rule_id, finding.line);
+    let advisories = engine.run(Path::new("./src"))?;
+
+    for adv in &advisories {
+        println!("[{}] {} at {}:{}", adv.severity, adv.rule_id, adv.file_path, adv.line);
+        println!("  {}", adv.observation);
     }
+
+    Ok(())
 }
 ```
 
@@ -126,18 +162,18 @@ fn main() {
 
 ## Advisory Format
 
-Every finding returned by GenSense follows a consistent structure:
+Every finding follows a consistent structure:
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `ruleId` | `string` | Unique identifier for the rule that triggered |
-| `severity` | `string` | `Warning` or `Critical` |
-| `observation` | `string` | What was detected |
-| `impact` | `string` | Why it matters |
+| `rule_id` | `string` | Unique identifier for the rule that triggered |
+| `severity` | `string` | `Critical`, `Warning`, or `Info` |
+| `observation` | `string` | What was detected in this specific instance |
+| `impact` | `string` | Why it matters — concrete technical consequence |
 | `improvement` | `string` | Recommended corrective action |
-| `line` | `number` | Line number of the finding |
-| `column` | `number` | Column number of the finding |
-| `filePath` | `string` | File path that was analyzed |
+| `line` | `number` | Line number of the finding (1-indexed) |
+| `column` | `number` | Column number of the finding (1-indexed) |
+| `file_path` | `string` | Full path to the file that was analyzed |
 
 ---
 
@@ -149,7 +185,7 @@ Add an inline comment directly above the flagged line:
 
 ```rust
 // gensense-ignore: RUST_UNWRAP_SAFETY
-let config = load_config().unwrap();
+let config = load_config().unwrap(); // Guaranteed to succeed — config is pre-validated
 ```
 
 ### File-Level Suppression
@@ -157,117 +193,93 @@ let config = load_config().unwrap();
 Create a `.gensense-suppress.yml` file in your project root:
 
 ```yaml
-suppress:
-  - rule: RUST_STD_OUTPUT
-    paths:
-      - src/bin/
-      - tests/
-  - rule: GLOBAL_TODO_PLACEHOLDER
-    paths:
-      - docs/
+suppressions:
+  - rule_id: RUST_STD_OUTPUT
+    path: src/bin/**
+  - rule_id: GLOBAL_TODO_PLACEHOLDER
+    path: docs/**
 ```
 
 ---
 
-## Editor Integration
+## Custom Rules
 
-### VS Code
+GenSense is designed so that writing a new rule requires no Rust knowledge and no recompile.
 
-GenSense does not yet ship an official VS Code extension, but you can integrate it into your existing editor workflow today:
-
-**Option 1: Task Runner Integration**
-
-Add a task to `.vscode/tasks.json` to run GenSense on save or on demand:
-
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "GenSense: Audit Project",
-      "type": "shell",
-      "command": "npx @friehub/gensense audit ${workspaceFolder}",
-      "group": "build",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    }
-  ]
-}
-```
-
-You can then run it via `Ctrl+Shift+B` or the Command Palette.
-
-**Option 2: On-Save Integration (via Run on Save extension)**
-
-Install the [Run on Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension and add to your `settings.json`:
-
-```json
-{
-  "emeraldwalk.runonsave": {
-    "commands": [
-      {
-        "match": "\\.(rs|ts|js|sol)$",
-        "cmd": "npx @friehub/gensense audit ${file}"
-      }
-    ]
-  }
-}
-```
-
-**Option 3: Pre-commit Hook**
-
-Install [husky](https://github.com/typicode/husky) and add a pre-commit hook:
+### Quick Start
 
 ```bash
-npx husky add .husky/pre-commit "npx @friehub/gensense audit ."
+# Create the rules directory in your project
+mkdir -p .gensense/rules
+
+# Write a rule
+cat > .gensense/rules/my_rules.yml << 'EOF'
+rules:
+  - id: "MYCO_NO_PRINTLN"
+    domain: "maintainability"
+    target_ext: "rs"
+    on_node: "macro_invocation"
+    if_matches: "println!"
+    observation: "Direct println! usage detected."
+    impact: "All output must route through the company logger."
+    improvement: "Replace with log::info!() or tracing::info!()."
+    severity: Warning
+EOF
+
+# Test the rule against a fixture before deploying it
+gensense test-rule .gensense/rules/my_rules.yml \
+  --fixture src/main.rs \
+  --expect-finding MYCO_NO_PRINTLN
+
+# Run with all rules merged (embedded + custom)
+gensense src/
 ```
 
-### CI / GitHub Actions
+See [docs/extending.md](docs/extending.md) for the full YAML rule reference, temporal rules, and advanced patterns.
 
+---
+
+## Semantic Discovery
+
+When GenSense scans a project it runs a four-pass pipeline before rule execution:
+
+1. **Symbol Discovery** — extracts all named functions, variables, types, and constants into a `SymbolRegistry`.
+2. **Call Edge Discovery** — maps function call relationships into a `SemanticGraph`.
+3. **Event Discovery** — builds a temporal event chain (lock, await, return, assignment) inside each function scope.
+4. **Rule Execution** — runs all rules in parallel (via Rayon). Each rule receives the AST node and the full semantic context.
+
+The `[INFO] Semantic Discovery: Indexed N symbols` line you see at runtime is output from this phase.
+
+---
+
+## Suppression
+
+### Inline
+```rust
+// gensense-ignore: RULE_ID
+```
+
+### Project-level (`.gensense-suppress.yml`)
 ```yaml
-- name: Run GenSense Audit
-  run: npx @friehub/gensense audit . --tag security
+suppressions:
+  - rule_id: RUST_STD_OUTPUT
+    path: src/bin/**
 ```
 
 ---
 
-## Extending GenSense: Custom Rules
-
-### Declarative Rules (YAML)
-
-Add a `.yml` file inside the `rules/` directory of the engine:
+## CI Integration
 
 ```yaml
-rules:
-  - id: "RUST_DANGEROUS_UNWRAP"
-    domain: "reliability"
-    target_ext: "rs"
-    on_node: "(call_expression) @node"
-    if_matches: ".*\\.unwrap\\(\\)"
-    observation: "An '.unwrap()' call was detected without a documented safety justification."
-    impact: "If the value is None or Err, this will panic the process at runtime."
-    improvement: "Use 'match', '?', or 'unwrap_or_else' for safe error handling. If unwrap is intentional, add a '// SAFETY:' comment."
+# .github/workflows/audit.yml
+- name: Run GenSense
+  run: npx @friehub/gensense . --strict --severity critical
 ```
 
-### Procedural Rules (Rust)
-
-For complex multi-node semantic analysis, implement the `Rule` trait in `src/rules/`:
-
-```rust
-pub struct MyCustomRule;
-
-impl Rule for MyCustomRule {
-    fn id(&self) -> &'static str { "MY_CUSTOM_RULE" }
-    fn severity(&self) -> Severity { Severity::Warning }
-
-    fn check(&self, node: &Node, source: &str, ctx: &Context) -> Option<Advisory> {
-        // Implement custom AST traversal logic here
-        None
-    }
-}
+To gate on custom rules only:
+```yaml
+- name: Run custom rules
+  run: gensense . --rules-dir .gensense/rules/ --no-builtin-rules --strict
 ```
 
 ---
@@ -275,33 +287,33 @@ impl Rule for MyCustomRule {
 ## Development
 
 ```bash
+# Build the CLI binary
+cargo build --features cli
+
 # Build the native Node.js addon
 npm run build
 
-# Build in debug mode (faster)
-npm run build:debug
+# Run all tests
+cargo test
 
-# Run integration tests
-npm test
+# Run with verbose output on the GenSense codebase itself
+./target/debug/gensense .
 
-# Run Rust unit tests
-cargo test --features cli
+# Dump AST for a file (use this to write rules)
+./target/debug/gensense --debug src/parser.rs
 
-# Serve the documentation locally
-npm run docs:dev
-
-# Generate the full rule catalog markdown
-cargo run --features cli -- --generate-docs
+# Generate the full rule catalog
+./target/debug/gensense . --generate-docs
 ```
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please follow the existing code style enforced by `rustfmt` and `clippy`. All rules must include an `id`, `severity`, `observation`, `impact`, and `improvement` field to maintain a consistent advisory format.
+Contributions are welcome. All rules must include `id`, `severity`, `observation`, `impact`, and `improvement`. Follow the advisory content guidelines in [docs/extending.md](docs/extending.md). Run `cargo test` and `cargo clippy` before opening a pull request.
 
 ---
 
 ## License
 
-MIT License
+MIT

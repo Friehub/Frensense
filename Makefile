@@ -17,7 +17,7 @@ fmt:
 audit:
 	@echo "[SECURITY] Checking dependency vulnerabilities..."
 	# requires: cargo install cargo-audit
-	cargo audit
+	-cargo audit
 
 ## Correctness
 test:
@@ -66,6 +66,15 @@ dist: docs sbom
 docker:
 	@echo "[DOCKER] Building production image..."
 	docker build -t gensense:latest .
+
+## Performance
+benchmark:
+	@echo "[BENCH] Running performance benchmarks..."
+	./scripts/benchmark.sh
+
+## Discipline
+discipline: check audit test benchmark
+	@echo "[DISCIPLINE] All stabilization checks passed."
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

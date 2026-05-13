@@ -18,7 +18,7 @@ impl GenSenseRule for RedundantComment {
         Some("(function_item) @func")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         if let Some(name_node) = node.child_by_field_name("name") {
             let name =

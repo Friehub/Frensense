@@ -1,6 +1,6 @@
 [package]
 name = "gensense"
-version = "0.1.7"
+version = "0.2.0"
 authors = ["Friehub Developers"]
 edition = "2021"
 description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
@@ -41,6 +41,8 @@ include_dir = { version = "0.7", features = ["glob"] }
 glob = "0.3"
 napi = { version = "2.12", default-features = false, features = ["napi4"], optional = true }
 napi-derive = { version = "2.12", optional = true }
+petgraph = "0.6"
+dirs = "5.0"
 
 [features]
 default = ["rust", "typescript", "fingerprinting", "remediation"]
@@ -58,3 +60,8 @@ napi-build = "2.0"
 
 [dev-dependencies]
 tempfile = "3"
+criterion = "0.5"
+
+[[bench]]
+name = "engine_perf"
+harness = false

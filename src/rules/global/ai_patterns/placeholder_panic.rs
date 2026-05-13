@@ -17,7 +17,7 @@ impl GenSenseRule for PlaceholderPanic {
         Some("(macro_invocation) @macro")
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         if let Some(macro_name_node) = node.child(0) {
             let macro_name =

@@ -20,7 +20,6 @@ index.d.ts
 # Diagnostics & Logs
 *.log
 bom.json
-RULES.md
 test-*.js
 
 # OS / IDE
@@ -28,9 +27,17 @@ test-*.js
 .vscode/
 .idea/
 *.swp
-TODO.md
+/TODO.md
+/future_improvements.md
+/RULES.md
 
 # Fuzzing
 fuzz/corpus
 fuzz/artifacts
 fuzz/target
+
+# Benchmarking
+bench_samples/
+correctness_samples/
+__pycache__/
+scripts/__pycache__/

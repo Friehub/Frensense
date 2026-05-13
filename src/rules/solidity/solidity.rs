@@ -24,7 +24,7 @@ impl GenSenseRule for SolidityReentrancyGuard {
         ext == "sol"
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let mut has_call = false;

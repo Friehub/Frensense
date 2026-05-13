@@ -56,6 +56,94 @@ fn main() -> Result<()> {
         std::process::exit(0);
     }
 
+    if args.len() > 1 && args[1] == "test-rule" {
+        if args.len() < 7 {
+            eprintln!("Usage: gensense test-rule <rule.yml> --fixture <file> --expect-finding <id> [--expect-line <N>]");
+            std::process::exit(1);
+        }
+        let rule_file_path = args[2].clone();
+
+        let mut fixture = None;
+        let mut expect_id = None;
+        let mut expect_line = None;
+
+        let mut i = 3;
+        while i < args.len() {
+            match args[i].as_str() {
+                "--fixture" => {
+                    if let Some(f) = args.get(i + 1) {
+                        fixture = Some(f.clone());
+                        i += 1;
+                    }
+                }
+                "--expect-finding" => {
+                    if let Some(id) = args.get(i + 1) {
+                        expect_id = Some(id.clone());
+                        i += 1;
+                    }
+                }
+                "--expect-line" => {
+                    if let Some(line) = args.get(i + 1) {
+                        expect_line = line.parse::<u32>().ok();
+                        i += 1;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+
+        let fixture_path = fixture.expect("Missing --fixture argument");
+        let expected_id = expect_id.expect("Missing --expect-finding argument");
+
+        let rule_content =
+            std::fs::read_to_string(&rule_file_path).expect("Failed to read rule file");
+
+        #[derive(serde::Deserialize)]
+        struct RulesWrapper {
+            rules: Vec<gensense::rules::core::CoreRule>,
+        }
+
+        let wrapper: RulesWrapper =
+            serde_yaml::from_str(&rule_content).expect("Failed to parse YAML rules");
+        let mut rules: Vec<Box<dyn gensense::GenSenseRule>> = Vec::new();
+        for rule in wrapper.rules {
+            match gensense::rules::compiler::RuleCompiler::compile(rule) {
+                Ok(compiled) => rules.push(Box::new(compiled)),
+                Err(e) => {
+                    eprintln!("Error compiling rule: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        let mut auditor = GenSenseAuditor::default_auditor();
+        auditor.rules = rules;
+        let mut engine = Engine::new(auditor);
+        engine.isolate_rules = true;
+
+        let advisories = engine
+            .run(Path::new(&fixture_path))
+            .expect("Analysis failed");
+
+        if let Some(finding) = advisories.iter().find(|a| a.rule_id == expected_id) {
+            if let Some(expected_line) = expect_line {
+                if finding.line != expected_line {
+                    println!(
+                        "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
+                        expected_line, finding.line
+                    );
+                    std::process::exit(1);
+                }
+            }
+            println!("[PASS]");
+            std::process::exit(0);
+        } else {
+            println!("[FAIL: Rule not triggered] Expected to find rule {expected_id}");
+            std::process::exit(1);
+        }
+    }
+
     if args.contains(&"--generate-docs".to_string()) {
         let engine = Engine::new(GenSenseAuditor::default_auditor());
         let _ = engine.list_rules();
@@ -67,12 +155,13 @@ fn main() -> Result<()> {
         doc.push_str("| Rule ID | Severity | Category | Description |\n");
         doc.push_str("| :--- | :--- | :--- | :--- |\n");
         for rule in engine.auditor.rules() {
+            let meta = rule.metadata();
             doc.push_str(&format!(
                 "| `{}` | {:?} | {} | {} |\n",
                 rule.id(),
-                rule.severity(),
-                rule.category(),
-                rule.description()
+                meta.severity,
+                meta.category,
+                meta.impact
             ));
         }
         std::fs::write("RULES.md", doc).expect("Failed to write RULES.md");
@@ -110,8 +199,17 @@ fn main() -> Result<()> {
         std::process::exit(0);
     }
 
-    let input_path_str = args.get(1).unwrap();
-    let input_path = Path::new(input_path_str);
+    // Validate that we have a path argument before proceeding
+    let input_path_str = match args.get(1) {
+        Some(path) if !path.starts_with("--") => path.clone(),
+        _ => {
+            eprintln!("Usage: gensense <path> [options]");
+            eprintln!();
+            eprintln!("Run 'gensense --help' for more information");
+            std::process::exit(1);
+        }
+    };
+    let input_path = Path::new(&input_path_str);
 
     let mut format = "text".to_string();
     let mut is_strict = false;
@@ -119,6 +217,8 @@ fn main() -> Result<()> {
     let mut show_diff = false;
     let mut severity_filter: Option<gensense::Severity> = None;
     let mut enabled_tags = Vec::new();
+    let mut extra_rule_dirs = Vec::new();
+    let mut no_builtin = false;
 
     let mut i = 2;
     while i < args.len() {
@@ -130,6 +230,13 @@ fn main() -> Result<()> {
             "--fix" => do_fix = true,
             #[cfg(feature = "remediation")]
             "--diff" => show_diff = true,
+            "--no-builtin-rules" => no_builtin = true,
+            "--rules-dir" => {
+                if let Some(dir) = args.get(i + 1) {
+                    extra_rule_dirs.push(std::path::PathBuf::from(dir));
+                    i += 1;
+                }
+            }
             "--severity" => {
                 if let Some(level) = args.get(i + 1) {
                     severity_filter = match level.to_lowercase().as_str() {
@@ -156,6 +263,11 @@ fn main() -> Result<()> {
     }
 
     let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    engine.extra_rule_dirs = extra_rule_dirs;
+    if no_builtin {
+        engine.no_builtin_rules = true;
+    }
+
     for tag in enabled_tags {
         engine.enable_tag(&tag);
     }
@@ -171,12 +283,17 @@ fn main() -> Result<()> {
         "json" => {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&filtered_advisories).unwrap()
+                serde_json::to_string_pretty(&filtered_advisories)
+                    .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?
             );
         }
         "sarif" => {
             let sarif = gensense::reporter::Reporter::to_sarif(&filtered_advisories, input_path);
-            println!("{}", serde_json::to_string_pretty(&sarif).unwrap());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&sarif)
+                    .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?
+            );
         }
         _ => {
             if filtered_advisories.is_empty() {

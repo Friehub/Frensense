@@ -23,7 +23,7 @@ impl GenSenseRule for TodoGuard {
         true
     }
 
-    fn check(&self, node: Node, context: &GenSenseContext) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         if node.kind().contains("comment") {
@@ -41,7 +41,6 @@ impl GenSenseRule for TodoGuard {
                     "We found an unresolved 'TODO', 'FIXME', or 'HACK' in the code.".to_string(),
                     "Unresolved placeholders in production code can indicate incomplete features or deferred debt that might be forgotten.".to_string(),
                     "We suggest resolving the task or tracking it in the project's issue management system.".to_string(),
-                    code.to_string(),
                     proposed,
                 ));
             }

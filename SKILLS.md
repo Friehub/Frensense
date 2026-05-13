@@ -48,6 +48,24 @@ Since high-complexity static analysis requires precision, we implement a protoco
 
 ---
 
+---
+
+## 5. The Stability Engine: Architectural Pillars
+
+To maintain extreme performance (1M+ LOC) and total reliability, we adhere to two core architectural models:
+
+### The Snapshot Model (Scalability & Cacheability)
+We process projects in two distinct passes to ensure stability and parallel safety:
+*   **Pass 1 (Parallel Isolation):** Every file is analyzed into an immutable `FileSnapshot`. This snapshot contains the AST, symbols, and semantic operations discovered in total isolation. Because snapshots are deterministic outputs of file content, they are **fully cacheable** via file hashing.
+*   **Pass 2 (Sequential Assembly):** Individual snapshots are converged into a global `SymbolRegistry`. This separates the "heavy lifting" of per-file analysis from the global reasoning logic.
+
+### The Taint Summary Model (Deterministic Propagation)
+To avoid exponential blowup during cross-file analysis, we do not perform deep inlining or recursion:
+*   **Function Summaries:** We compute a summary of what a function does to its inputs (e.g., `propagates`, `cleans`, or `sink`).
+*   **Zero-Recursion Auditing:** During the audit phase, we check the summary instead of traversing the callee's body. This allows GenSense to scale linearly with the number of call sites rather than exponentially with call depth.
+
+---
+
 ## 📜 Continuous Improvement
 
 This document is living. As the GenSense engine evolves, these standards will be refined to ensure we are building the most reliable and high-performance semantic engine possible.
