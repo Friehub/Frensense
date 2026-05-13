@@ -54,7 +54,7 @@ fingerprinting = []
 remediation = ["dep:diff"]
 node = ["dep:napi", "dep:napi-derive"]
 cli = ["rust", "typescript", "remediation"]
-full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "node", "cli"]
+full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "cli"]
 
 [build-dependencies]
 napi-build = "2.0"
