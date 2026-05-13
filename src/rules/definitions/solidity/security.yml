@@ -1,6 +1,5 @@
 rules:
 - id: SOL_INTEGER_OVERFLOW
-  domain: security
   target_ext: sol
   on_node: (unchecked_statement) @node
   if_matches: unchecked
@@ -16,7 +15,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_MISSING_ACCESS_CONTROL
-  domain: security
   target_ext: sol
   on_node: (function_definition) @node
   if_matches: function.*(external|public)

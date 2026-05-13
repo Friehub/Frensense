@@ -62,6 +62,18 @@ class GenSense {
       : path.resolve(process.cwd(), targetPath);
     return this.engine.auditPath(absolutePath);
   }
+
+  /**
+   * Audit an entire project directory, including cross-file project rules.
+   * @param {string} rootDir Absolute path to the project root
+   * @returns {import('./index').JsAdvisory[]} Array of semantic findings
+   */
+  auditProject(rootDir) {
+    const absolutePath = path.isAbsolute(rootDir)
+      ? rootDir
+      : path.resolve(process.cwd(), rootDir);
+    return this.engine.auditProject(absolutePath);
+  }
 }
 
 module.exports = {

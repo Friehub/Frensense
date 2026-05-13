@@ -260,10 +260,10 @@ impl ProjectRule for ProjectRuleIr {
                         }
 
                         // BFS to find if any reachable symbol matches guard_pattern
-                        let mut visited = std::collections::HashSet::new();
+                        let mut visited = std::collections::HashSet::<(String, String)>::new();
                         let mut queue = std::collections::VecDeque::new();
                         queue.push_back(sym);
-                        visited.insert(sym.name.clone()); // Simplification: name as ID for now
+                        visited.insert((sym.name.clone(), sym.file_path.clone()));
 
                         let mut has_guard = false;
                         while let Some(current) = queue.pop_front() {
@@ -275,7 +275,7 @@ impl ProjectRule for ProjectRuleIr {
                             }
 
                             for callee in symbols.get_callees(current) {
-                                if visited.insert(callee.name.clone()) {
+                                if visited.insert((callee.name.clone(), callee.file_path.clone())) {
                                     queue.push_back(callee);
                                 }
                             }
@@ -324,10 +324,10 @@ impl ProjectRule for ProjectRuleIr {
                     }
 
                     for sym in source_symbols {
-                        let mut visited = std::collections::HashSet::new();
+                        let mut visited = std::collections::HashSet::<(String, String)>::new();
                         let mut queue = std::collections::VecDeque::new();
                         queue.push_back(sym);
-                        visited.insert(sym.name.clone());
+                        visited.insert((sym.name.clone(), sym.file_path.clone()));
 
                         while let Some(current) = queue.pop_front() {
                             if sink_re.is_match(&current.name) {
@@ -343,7 +343,7 @@ impl ProjectRule for ProjectRuleIr {
                             }
 
                             for callee in symbols.get_callees(current) {
-                                if visited.insert(callee.name.clone()) {
+                                if visited.insert((callee.name.clone(), callee.file_path.clone())) {
                                     queue.push_back(callee);
                                 }
                             }
@@ -381,7 +381,9 @@ impl ProjectRuleIr {
             column: sym.column as u32,
             start_byte: sym.start_byte as u32,
             end_byte: sym.end_byte as u32,
-            original_content: String::new(), // Symbols don't store full content yet
+            original_content: sources
+                .resolve_snippet(file_id, sym.start_byte as u32, sym.end_byte as u32)
+                .unwrap_or_default(),
             proposed_replacement: None,
         }
     }
