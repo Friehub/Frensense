@@ -5,18 +5,24 @@ on:
     branches:
       - main
 
+# Restrict permissions as much as possible
+permissions:
+  contents: write
+
 jobs:
   sync-and-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: "!contains(github.event.head_commit.message, 'chore: prepare v')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@3932cf5a60c0f9a4a621746c19a9d70104961559 # v4.1.0
         with:
           node-version: 20
 
