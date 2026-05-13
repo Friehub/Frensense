@@ -7,12 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-05-13
 
 ### Added
-- **Cross-File Project Rules**: Full support for `MustHaveGuard`, `MustBeInternal`, and `CrossFileTaintFree` rules in the core engine.
-- **Node.js API Extensions**: Exposed `auditProject` and `auditPath` to the Node.js bindings for comprehensive project-wide analysis.
-- **Supply Chain Security**: Integrated `cargo deny` for dependency auditing and `npm audit` for JS package security.
-- **SLSA Provenance**: Added Level 3 provenance attestation to release artifacts for cryptographic build verification.
-- **Egress Auditing**: Integrated StepSecurity Harden Runner for outbound network call monitoring in CI.
-- **E2E Testing**: Added comprehensive integration tests for project-wide rules and configuration overrides.
+- **Multi-File Scanning (GenSense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
+- **Graph-First Semantic Engine**: Migrated to a global symbol graph for high-precision inter-procedural taint analysis across files.
+- **Multi-Pass Audit Loop**: Implemented a sophisticated audit pipeline that performs local AST checks followed by cross-file project-level enforcement.
+- **Cross-File Project Rules**: Full support for `MustHaveGuard`, `MustBeInternal`, and `CrossFileTaintFree` rules.
+- **Node.js API Extensions**: Exposed `auditProject` and `auditPath` for full project-wide scanning from JavaScript.
+- **Supply Chain Security**: Integrated `cargo deny`, `npm audit`, and SLSA Level 3 provenance for production-grade security.
+- **Egress Auditing**: Integrated StepSecurity Harden Runner for CI network protection.
 
 ### Fixed
 - **BFS Deduplication**: Fixed a critical bug where BFS traversal incorrectly deduplicated symbols with the same name across different files.
