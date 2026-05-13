@@ -22,7 +22,7 @@ required-features = ["cli"]
 
 [dependencies]
 tree-sitter = "0.23"
-tree-sitter-rust = { version = "0.23", optional = true }
+tree-sitter-rust = { version = "0.24", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-solidity = { version = "1.2", optional = true }
 tree-sitter-yaml = "0.7"
