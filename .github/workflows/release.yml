@@ -73,7 +73,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Publish
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # 3. Publish to NPM
   publish-npm:
@@ -113,7 +113,7 @@ jobs:
       - name: Publish to NPM
         run: |
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish --tag alpha --registry https://registry.npmjs.org/ --access public
+          npm publish --tag latest --registry https://registry.npmjs.org/ --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -144,4 +144,4 @@ jobs:
         with:
           files: release-binaries/*
           generate_release_notes: true
-          prerelease: true
+          prerelease: false
