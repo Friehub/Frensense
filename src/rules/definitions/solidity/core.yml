@@ -1,6 +1,5 @@
 rules:
 - id: SOL_STATE_MUTATION_CHECK
-  domain: gas_optimization
   target_ext: sol
   observation: Hey, I noticed a state mutation that looks like it might be inside
     a view or pure context.
@@ -16,7 +15,6 @@ rules:
   tags: []
   category: Gas_Optimization
 - id: SOL_SELFDESTRUCT_ADVISORY
-  domain: security
   target_ext: sol
   observation: 'Just a quick note: ''selfdestruct'' is being used here.'
   impact: Contract destruction is a high-impact event that can sometimes lock funds
@@ -30,7 +28,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_PRAGMA_STABILITY
-  domain: stability
   target_ext: sol
   observation: We noticed a floating pragma (e.g., ^0.8.0) in the contract header.
   impact: Floating pragmas can lead to non-deterministic builds if different compiler
@@ -44,7 +41,6 @@ rules:
   tags: []
   category: Stability
 - id: SOL_ACCESS_CONTROL_SETTER
-  domain: security
   target_ext: sol
   observation: We observed a state mutation in a function that may be missing access
     control.
@@ -60,7 +56,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_ZERO_ADDRESS_CHECK
-  domain: quality
   target_ext: sol
   observation: We noticed an address assignment that might be missing a zero-address
     check.
@@ -75,7 +70,6 @@ rules:
   tags: []
   category: Quality
 - id: SOL_MISSING_EVENT_INDEX
-  domain: quality
   target_ext: sol
   observation: We noticed an event parameter that is not 'indexed'.
   impact: Missing 'indexed' attributes on critical event parameters (like addresses)
@@ -89,7 +83,6 @@ rules:
   tags: []
   category: Quality
 - id: SOL_HARDCODED_ADDRESS
-  domain: security
   target_ext: sol
   observation: We observed a hardcoded hexadecimal address literal.
   impact: Hardcoding addresses (other than the zero address) makes the contract inflexible
@@ -103,7 +96,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_TX_ORIGIN
-  domain: security
   target_ext: sol
   observation: We noticed 'tx.origin' being used for authentication.
   impact: Using 'tx.origin' makes the contract vulnerable to phishing-style reentrancy
@@ -117,7 +109,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_TIMESTAMP_DEPENDENCY
-  domain: security
   target_ext: sol
   observation: I noticed the use of 'block.timestamp' for timing logic.
   impact: Block timestamps can be slightly manipulated by miners, which might be risky
@@ -131,7 +122,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_REENTRANCY_RISK
-  domain: security
   target_ext: sol
   observation: I noticed an external call that might be missing a reentrancy guard.
   impact: 'External calls (like ''.call{value: ...}'') can trigger fallback functions,
@@ -146,7 +136,6 @@ rules:
   tags: []
   category: Security
 - id: SOL_PRECISION_LOSS
-  domain: fintech
   target_ext: sol
   observation: It looks like a division operation occurs before multiplication here.
   impact: In Solidity, integer division truncates. Dividing before multiplying can

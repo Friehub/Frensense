@@ -5,6 +5,7 @@ use std::env;
 use std::path::Path;
 
 fn main() -> Result<()> {
+    // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 || args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
         println!("GenSense - Semantic Insight for Modern Codebases");

@@ -1,6 +1,5 @@
 rules:
 - id: JS_DYNAMIC_EXECUTION
-  domain: security
   target_ext: js
   observation: We observed a pattern of dynamic code execution using 'eval()'.
   impact: Dynamic execution can introduce unpredictability and increase the surface
@@ -14,7 +13,6 @@ rules:
   tags: []
   category: Security
 - id: TS_DYNAMIC_EXECUTION
-  domain: security
   target_ext: ts
   observation: We observed a pattern of dynamic code execution using 'eval()'.
   impact: Dynamic execution can introduce unpredictability and increase the surface
@@ -28,7 +26,6 @@ rules:
   tags: []
   category: Security
 - id: TS_ALIASED_DYNAMIC_EXECUTION
-  domain: security
   target_ext: ts
   observation: Aliased dynamic code execution detected.
   impact: Aliasing 'eval' to another variable can be used to bypass static analysis
@@ -42,7 +39,6 @@ rules:
   tags: []
   category: Security
 - id: TS_CONSOLE_USAGE
-  domain: quality
   target_ext: ts
   observation: I noticed 'console.log' being used here.
   impact: Direct console outputs can be tricky to filter in production logs.
@@ -55,7 +51,6 @@ rules:
   tags: []
   category: Quality
 - id: TS_BLOCKING_IO
-  domain: performance
   target_ext: ts
   observation: We observed a synchronous I/O call within a potentially asynchronous
     execution path.
@@ -70,7 +65,6 @@ rules:
   tags: []
   category: Performance
 - id: TS_EMPTY_CATCH
-  domain: reliability
   target_ext: ts
   observation: Hey, it looks like this catch block is empty.
   impact: Silently swallowing errors makes debugging very difficult and can leave
@@ -84,7 +78,6 @@ rules:
   tags: []
   category: Reliability
 - id: TS_NON_NULL_ASSERTION
-  domain: quality
   target_ext: ts
   observation: We noticed a non-null assertion (!) being used.
   impact: 'Non-null assertions bypass TypeScript''s safety checks and can lead to
@@ -97,7 +90,6 @@ rules:
   tags: []
   category: Quality
 - id: TS_MAGIC_NUMBER
-  domain: maintainability
   target_ext: ts
   observation: We noticed a raw numeric literal (magic number) being used.
   impact: Magic numbers make code harder to read and maintain as their intent is not
@@ -111,7 +103,6 @@ rules:
   tags: []
   category: Maintainability
 - id: TS_ANY_TYPE
-  domain: quality
   target_ext: ts
   observation: I spotted an 'any' type annotation.
   impact: Using 'any' completely disables TypeScript's safety checks for that variable.
@@ -124,7 +115,6 @@ rules:
   tags: []
   category: Quality
 - id: TS_REACT_HOOK_DEPS
-  domain: quality
   target_ext: tsx
   observation: I noticed a 'useEffect' hook with an empty dependency array [].
   impact: Empty dependency arrays can cause stale closures if the hook references
@@ -138,7 +128,6 @@ rules:
   tags: []
   category: Quality
 - id: TS_BUNDLE_BLOAT
-  domain: performance
   target_ext: ts
   observation: Hey, it looks like a heavy library is being imported entirely using
     'import *'.
@@ -153,7 +142,6 @@ rules:
   tags: []
   category: Performance
 - id: TS_ASYNC_FOR_EACH
-  domain: reliability
   target_ext: ts
   observation: I noticed a '.forEach' call with an 'async' callback.
   impact: Array.prototype.forEach is not promise-aware. The loop will continue without
@@ -167,7 +155,6 @@ rules:
   tags: []
   category: Reliability
 - id: TS_SENSITIVE_DATA_LOGGING
-  domain: security
   target_ext: ts
   observation: I noticed a logging call that seems to include sensitive keywords (password,
     token, secret).
@@ -182,7 +169,6 @@ rules:
   tags: []
   category: Security
 - id: TS_DATA_LEAK_TRACKER
-  domain: security
   target_ext: ts
   observation: Sensitive data flow into unsafe sink detected via Taint Analysis
   impact: Data flow analysis confirms that sensitive input (e.g. passwords) is reaching
@@ -196,7 +182,6 @@ rules:
   tags: []
   category: Security
 - id: TS_FLOATING_PROMISE
-  domain: reliability
   target_ext: ts
   observation: A promise-returning call is made without an 'await'.
   impact: Floating promises can lead to race conditions, unhandled rejections, and non-deterministic behavior.

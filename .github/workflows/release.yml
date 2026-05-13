@@ -6,11 +6,17 @@ on:
       - 'v*'
   workflow_dispatch: {}
 
+# Top-level default — most restrictive
+permissions:
+  contents: read
+
 jobs:
   # 1. Build Native Artifacts for all platforms
   build-native:
     name: Build Native (${{ matrix.settings.target }})
     runs-on: ${{ matrix.settings.host }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +35,11 @@ jobs:
             bin_name: gensense.exe
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
       
       - name: Setup Node
@@ -63,24 +74,76 @@ jobs:
           name: cli-${{ matrix.settings.target }}
           path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
 
-  # 2. Publish to Crates.io
+  # 2. Generate Hashes for SLSA
+  generate-hashes:
+    name: Generate Hashes
+    runs-on: ubuntu-latest
+    needs: build-native
+    permissions:
+      contents: read
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Generate hashes
+        id: hash
+        run: |
+          cd artifacts
+          find . -type f | xargs sha256sum | base64 -w0 > hashes.txt
+          echo "hashes=$(cat hashes.txt)" >> $GITHUB_OUTPUT
+
+  # 3. SLSA Provenance
+  provenance:
+    needs: [generate-hashes]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.generate-hashes.outputs.hashes }}
+      upload-assets: true
+
+  # 4. Publish to Crates.io
   publish-cargo:
     name: Publish to Crates.io
     runs-on: ubuntu-latest
     needs: build-native
+    environment: production
+    permissions:
+      contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Publish
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  # 3. Publish to NPM
+  # 5. Publish to NPM
   publish-npm:
     name: Publish to NPM
     runs-on: ubuntu-latest
     needs: build-native
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # For OIDC provenance
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -111,20 +174,23 @@ jobs:
         run: cargo run --features cli -- --generate-docs
 
       - name: Publish to NPM
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish --tag latest --registry https://registry.npmjs.org/ --access public
+        run: npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # 4. Create GitHub Release
+  # 6. Create GitHub Release
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build-native
+    needs: [build-native, provenance]
+    environment: production
     permissions:
       contents: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@v4
       - name: Download all artifacts
         uses: actions/download-artifact@v4

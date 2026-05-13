@@ -295,3 +295,140 @@ project_rules:
         .observation
         .contains("can reach sensitive sink"));
 }
+
+#[test]
+fn test_bfs_does_not_deduplicate_across_files() {
+    use gensense::rules::compiler::ProjectRuleCompiler;
+    use gensense::rules::core::project::ProjectCoreRule;
+    use gensense::semantics::symbols::{Symbol, SymbolKind};
+    use gensense::ProjectRule;
+    use gensense::SourceRegistry;
+    // Let's use the pattern from the document.
+    let yaml = r#"
+project_rules:
+  - id: GUARD_CHECK
+    name: "Guard Check"
+    severity: Critical
+    observation: "Security guard check failed"
+    category: Security
+    impact: "Impact"
+    improvement: "Improve"
+    tags: ["security"]
+    target_ext: "rs"
+    must_have_guard:
+      source_pattern: "handle_.*"
+      guard_pattern: "auth_.*"
+      source_file_glob: "*"
+      guard_file_glob: "*"
+"#;
+
+    let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+    let p_rule_val = &wrapper["project_rules"][0];
+    let p_rule_dsl: ProjectCoreRule = serde_yaml::from_value(p_rule_val.clone()).unwrap();
+    let _p_rule = ProjectRuleCompiler::compile(p_rule_dsl).unwrap();
+
+    let mut symbols = SymbolRegistry::new();
+    let mut sources = SourceRegistry::new();
+
+    // 1. handler in api.rs
+    let h_idx = symbols.insert(Symbol {
+        name: "handle_request".to_string(),
+        kind: SymbolKind::Function,
+        start_byte: 0,
+        end_byte: 10,
+        file_path: "src/api.rs".to_string(),
+        line: 1,
+        column: 1,
+        end_line: 5,
+    });
+    sources.register(
+        Path::new("src/api.rs"),
+        "fn handle_request() {}".to_string(),
+    );
+
+    // 2. "new" in db.rs (intermediate, same name as guard)
+    let db_new_idx = symbols.insert(Symbol {
+        name: "new".to_string(),
+        kind: SymbolKind::Function,
+        start_byte: 0,
+        end_byte: 10,
+        file_path: "src/db.rs".to_string(),
+        line: 1,
+        column: 1,
+        end_line: 5,
+    });
+    sources.register(Path::new("src/db.rs"), "fn new() {}".to_string());
+
+    // 3. "new" in auth.rs (the real guard, but wait, guard_pattern is auth_.*)
+    // Let's change the test to match the doc's logic better.
+    // If both are named "new", and the guard is the one in auth.rs.
+
+    let auth_new_idx = symbols.insert(Symbol {
+        name: "new".to_string(),
+        kind: SymbolKind::Function,
+        start_byte: 0,
+        end_byte: 10,
+        file_path: "src/auth.rs".to_string(),
+        line: 1,
+        column: 1,
+        end_line: 5,
+    });
+    sources.register(Path::new("src/auth.rs"), "fn new() {}".to_string());
+
+    // Update rule to look for "new" as guard, but only in auth.rs
+    let yaml_v2 = r#"
+project_rules:
+  - id: GUARD_CHECK
+    name: "Guard Check"
+    severity: Critical
+    observation: "Security guard check failed"
+    category: Security
+    impact: "Impact"
+    improvement: "Improve"
+    tags: ["security"]
+    target_ext: "rs"
+    must_have_guard:
+      source_pattern: "handle_.*"
+      guard_pattern: "new"
+      source_file_glob: "*"
+      guard_file_glob: "src/auth.rs"
+"#;
+    let wrapper_v2: serde_yaml::Value = serde_yaml::from_str(yaml_v2).unwrap();
+    let p_rule_val_v2 = &wrapper_v2["project_rules"][0];
+    let p_rule_dsl_v2: ProjectCoreRule = serde_yaml::from_value(p_rule_val_v2.clone()).unwrap();
+    let p_rule_v2 = ProjectRuleCompiler::compile(p_rule_dsl_v2).unwrap();
+
+    // Connect handler -> db::new -> auth::new
+    symbols.graph.add_edge(
+        h_idx,
+        db_new_idx,
+        gensense::semantics::graph::EdgeKind::Calls,
+    );
+    symbols.graph.add_edge(
+        db_new_idx,
+        auth_new_idx,
+        gensense::semantics::graph::EdgeKind::Calls,
+    );
+
+    let advisories = p_rule_v2.check_project(&symbols, &sources);
+
+    // With the bug:
+    // BFS visits db::new, marks "new" visited.
+    // BFS then looks at callees of db::new, which includes auth::new.
+    // auth::new has name "new", which is already in visited.
+    // BFS skips auth::new.
+    // BFS finishes without finding a guard matching "new" in "src/auth.rs".
+    // Advisory is generated (False Negative).
+
+    // With the fix:
+    // BFS visits ("new", "src/db.rs").
+    // BFS then visits ("new", "src/auth.rs") because it's a different key.
+    // auth::new matches the guard pattern AND the glob.
+    // No advisory is generated.
+
+    assert_eq!(
+        advisories.len(),
+        0,
+        "BFS should have visited both 'new' functions and found the guard"
+    );
+}

@@ -1,0 +1,7 @@
+# Global ownership — all PRs require review from at least one of these
+* @friehub/core-reviewers
+
+# Extra scrutiny for security-sensitive paths
+src/engine/suppression.rs   @friehub/security
+src/rules/ir.rs             @friehub/security
+.github/workflows/          @friehub/security

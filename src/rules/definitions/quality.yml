@@ -1,6 +1,5 @@
 rules:
 - id: RUST_GOD_FUNCTION
-  domain: quality
   target_ext: rs
   on_node: (function_item) @node
   max_lines: 100
@@ -13,7 +12,6 @@ rules:
   tags: []
   category: Quality
 - id: RUST_NESTING_LIMIT
-  domain: quality
   target_ext: rs
   on_node: (function_item) @node
   max_depth: 4
@@ -26,7 +24,6 @@ rules:
   tags: []
   category: Quality
 - id: TS_GOD_FUNCTION
-  domain: quality
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
   max_lines: 100
@@ -38,7 +35,6 @@ rules:
   tags: []
   category: Quality
 - id: TS_NESTING_LIMIT
-  domain: quality
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
   max_depth: 4
