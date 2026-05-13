@@ -1,7 +1,7 @@
 [advisories]
-vulnerability = "deny"
-unmaintained = "workspace"
 yanked = "warn"
+unmaintained = "workspace"
+ignore = []
 
 [bans]
 multiple-versions = "warn"
