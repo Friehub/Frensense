@@ -35,6 +35,11 @@ jobs:
             bin_name: gensense.exe
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       
       - name: Setup Node
@@ -69,7 +74,44 @@ jobs:
           name: cli-${{ matrix.settings.target }}
           path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
 
-  # 2. Publish to Crates.io
+  # 2. Generate Hashes for SLSA
+  generate-hashes:
+    name: Generate Hashes
+    runs-on: ubuntu-latest
+    needs: build-native
+    permissions:
+      contents: read
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+      - name: Download all artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.7
+        with:
+          path: artifacts
+      - name: Generate hashes
+        id: hash
+        run: |
+          cd artifacts
+          find . -type f | xargs sha256sum | base64 -w0 > hashes.txt
+          echo "hashes=$(cat hashes.txt)" >> $GITHUB_OUTPUT
+
+  # 3. SLSA Provenance
+  provenance:
+    needs: [generate-hashes]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@5a775b367a5d28732c7416a17f69a5a3a1671d0e # v2.0.0
+    with:
+      base64-subjects: ${{ needs.generate-hashes.outputs.hashes }}
+      upload-assets: true
+
+  # 4. Publish to Crates.io
   publish-cargo:
     name: Publish to Crates.io
     runs-on: ubuntu-latest
@@ -78,13 +120,17 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Rust
         uses: dtolnay/rust-toolchain@4305bc73974b4c2e4df9e72db5c5bb65f09a27a # stable
       - name: Publish
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  # 3. Publish to NPM
+  # 5. Publish to NPM
   publish-npm:
     name: Publish to NPM
     runs-on: ubuntu-latest
@@ -94,6 +140,10 @@ jobs:
       contents: read
       id-token: write # For OIDC provenance
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Setup Node
         uses: actions/setup-node@3932cf5a60c0f9a4a621746c19a9d70104961559 # v4.1.0
@@ -128,15 +178,19 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # 4. Create GitHub Release
+  # 6. Create GitHub Release
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build-native
+    needs: [build-native, provenance]
     environment: production
     permissions:
       contents: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Download all artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.7

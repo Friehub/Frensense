@@ -21,6 +21,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       
       - name: Install Rust
@@ -35,7 +40,7 @@ jobs:
             ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/.cargo/git/cache/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           
@@ -52,6 +57,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: EmbarkStudios/cargo-deny-action@3f4a70b6d2146e2797615024734898144b611c03 # v2.0.1
         with:
@@ -64,6 +74,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@3932cf5a60c0f9a4a621746c19a9d70104961559 # v4.1.0
         with:
@@ -80,6 +95,11 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - run: semgrep scan --config=p/rust --config=p/secrets --error
 
@@ -90,6 +110,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: dtolnay/rust-toolchain@4305bc73974b4c2e4df9e72db5c5bb65f09a27a # stable
         with:
@@ -107,6 +132,11 @@ jobs:
       matrix:
         features: [cli, "full", "rust,typescript,solidity"]
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       
       - name: Install Rust
@@ -123,6 +153,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       
       - name: Install Rust
@@ -152,6 +187,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f63886ee327175c92c554523315e07671 # v2.10.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Setup Node
         uses: actions/setup-node@3932cf5a60c0f9a4a621746c19a9d70104961559 # v4.1.0
