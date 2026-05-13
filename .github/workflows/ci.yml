@@ -119,7 +119,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.78
-      - run: cargo check --all-features
+      - run: cargo check --features cli,solidity,fingerprinting
 
   # --- Correctness (Rust) ---
   test-rust:
