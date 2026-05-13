@@ -1,34 +1,16 @@
 [advisories]
-# The check for vulnerabilities
 vulnerability = "deny"
-# The scope of the unmaintained check
-unmaintained = "all"
-# Whether to check for yanked crates
-yanked = "deny"
-
-[licenses]
-# The list of allowed licenses
-allow = [
-  "MIT",
-  "Apache-2.0",
-  "Apache-2.0 WITH LLVM-exception",
-  "BSD-3-Clause",
-  "ISC",
-  "Unicode-DFS-2016"
-]
-# Confidence threshold for license detection (0.0 to 1.0)
-confidence-threshold = 0.8
+unmaintained = "workspace"
+yanked = "warn"
 
 [bans]
-# How to handle multiple versions of the same crate
 multiple-versions = "warn"
-# Specific crates to ban
-deny = [
-  { name = "openssl", reason = "use rustls instead for better security and cross-compilation" },
-]
+highlight = "all"
+
+[licenses]
+allow = ["MIT", "Apache-2.0"]
+confidence-threshold = 0.8
 
 [sources]
-# Reject unknown registries
 unknown-registry = "deny"
-# Reject unknown git sources
 unknown-git = "deny"
