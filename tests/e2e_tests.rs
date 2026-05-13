@@ -112,3 +112,154 @@ severity_override:
         "Severity should have been overridden to Critical"
     );
 }
+
+#[test]
+fn test_e2e_project_rule_fires_via_engine() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    // Write two source files: a handler and a helper (no auth guard)
+    fs::write(root.join("api.rs"), "fn handle_request() { db_query(); }").unwrap();
+    fs::write(root.join("db.rs"), "fn db_query() {}").unwrap();
+
+    // Write a project rule requiring handle_* to call check_auth
+    let rules_dir = root.join(".gensense").join("rules");
+    fs::create_dir_all(&rules_dir).unwrap();
+    fs::write(
+        rules_dir.join("guard.yml"),
+        r#"
+project_rules:
+  - id: MUST_HAVE_AUTH
+    name: "Auth Guard"
+    severity: Critical
+    observation: "Handler missing auth guard"
+    category: Security
+    impact: "Unauthenticated access"
+    improvement: "Call check_auth"
+    tags: ["security"]
+    target_ext: "rs"
+    must_have_guard:
+      source_pattern: "handle_.*"
+      guard_pattern: "check_auth"
+      source_file_glob: "*"
+      guard_file_glob: "*"
+"#,
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let advisories = engine.run(root).unwrap();
+
+    assert!(
+        advisories.iter().any(|a| a.rule_id == "MUST_HAVE_AUTH"),
+        "Project rule should fire via full engine pipeline. Got: {advisories:?}"
+    );
+}
+
+#[test]
+fn test_e2e_project_rule_suppressed_by_disabled_rules() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    fs::write(root.join("api.rs"), "fn handle_request() {}").unwrap();
+
+    let config_dir = root.join(".gensense");
+    let rules_dir = config_dir.join("rules");
+    fs::create_dir_all(&rules_dir).unwrap();
+
+    // Write the project rule
+    fs::write(
+        config_dir.join("rules").join("guard.yml"),
+        r#"
+project_rules:
+  - id: MUST_HAVE_AUTH
+    name: "Auth Guard"
+    severity: Critical
+    observation: "Handler missing auth guard"
+    category: Security
+    impact: "Unauthenticated access"
+    improvement: "Call check_auth"
+    tags: ["security"]
+    target_ext: "rs"
+    must_have_guard:
+      source_pattern: "handle_.*"
+      guard_pattern: "check_auth"
+      source_file_glob: "*"
+      guard_file_glob: "*"
+"#,
+    )
+    .unwrap();
+
+    // Disable it via config
+    fs::write(
+        config_dir.join("config.yml"),
+        r#"
+disabled_rules:
+  - MUST_HAVE_AUTH
+"#,
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let advisories = engine.run(root).unwrap();
+
+    assert!(
+        !advisories.iter().any(|a| a.rule_id == "MUST_HAVE_AUTH"),
+        "Project rule should be suppressed by disabled_rules config"
+    );
+}
+
+#[test]
+fn test_e2e_project_rule_severity_override() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    fs::write(root.join("api.rs"), "fn handle_request() {}").unwrap();
+
+    let config_dir = root.join(".gensense");
+    let rules_dir = config_dir.join("rules");
+    fs::create_dir_all(&rules_dir).unwrap();
+    fs::write(
+        config_dir.join("rules").join("guard.yml"),
+        r#"
+project_rules:
+  - id: MUST_HAVE_AUTH
+    name: "Auth Guard"
+    severity: Critical
+    observation: "Handler missing auth guard"
+    category: Security
+    impact: "Unauthenticated access"
+    improvement: "Call check_auth"
+    tags: ["security"]
+    target_ext: "rs"
+    must_have_guard:
+      source_pattern: "handle_.*"
+      guard_pattern: "check_auth"
+      source_file_glob: "*"
+      guard_file_glob: "*"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        config_dir.join("config.yml"),
+        r#"
+severity_override:
+  MUST_HAVE_AUTH: Warning
+"#,
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let advisories = engine.run(root).unwrap();
+
+    let adv = advisories
+        .iter()
+        .find(|a| a.rule_id == "MUST_HAVE_AUTH")
+        .expect("Rule should fire");
+
+    assert_eq!(
+        adv.severity,
+        gensense::Severity::Warning,
+        "Severity should be overridden to Warning"
+    );
+}

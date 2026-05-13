@@ -1,0 +1,15 @@
+project_rules:
+  - id: GUARD_CHECK
+    name: "Guard Check"
+    severity: Critical
+    observation: "Security guard check failed"
+    category: Security
+    impact: "Impact"
+    improvement: "Improve"
+    tags: ["security"]
+    target_ext: "rs"
+    must_have_guard:
+      source_pattern: "handle_.*"
+      guard_pattern: "check_auth"
+      source_file_glob: "*"
+      guard_file_glob: "*"

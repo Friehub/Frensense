@@ -23,7 +23,6 @@ pub struct TemporalConfig {
 pub struct CoreRule {
     #[serde(flatten)]
     pub metadata: RuleMetadata,
-    pub domain: String,
     pub target_ext: String,
     pub on_node: String,
     #[serde(default, with = "serde_regex_opt")]

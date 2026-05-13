@@ -23,7 +23,7 @@
   },
   "scripts": {
     "build": "napi build --release --features node,rust,typescript",
-    "build:debug": "napi build --features node",
+    "build:debug": "napi build --features node,rust,typescript",
     "test": "node tests/node/integration.test.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
