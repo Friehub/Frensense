@@ -70,7 +70,7 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: EmbarkStudios/cargo-deny-action@34899fc7f71f2b7a5e95f3e849b21be53f062e79 # v2.0.4
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories licenses bans
 
