@@ -1,6 +1,5 @@
 rules:
 - id: RUST_UNSAFE_BLOCK
-  domain: security
   target_ext: rs
   observation: Hey, I noticed an 'unsafe' block here.
   impact: Unsafe code bypasses Rust's safety guarantees, which can sometimes lead
@@ -14,7 +13,6 @@ rules:
   tags: []
   category: Security
 - id: RUST_HOST_INTERACTION
-  domain: isolation
   target_ext: rs
   observation: We observed a direct interaction with host processes using 'std::process'.
   impact: Isolated workers are designed to be environment-agnostic; host interaction
@@ -28,7 +26,6 @@ rules:
   tags: []
   category: Isolation
 - id: RUST_STD_OUTPUT
-  domain: quality
   target_ext: rs
   observation: We observed the use of println! or eprintln! in library code.
   impact: Direct standard output from libraries can interfere with the host application's
@@ -42,7 +39,6 @@ rules:
   tags: []
   category: Quality
 - id: RUST_ALLOCATION_IN_LOG
-  domain: performance
   target_ext: rs
   observation: We noticed 'format!' being used inside a logging macro.
   impact: This can cause unnecessary allocations even when the specific log level
@@ -56,7 +52,6 @@ rules:
   tags: []
   category: Performance
 - id: RUST_CLONE_IN_LOOP
-  domain: performance
   target_ext: rs
   observation: Just a heads-up, there's a '.clone()' call inside this loop.
   impact: Allocating memory repeatedly inside a loop can quietly degrade performance.
@@ -69,7 +64,6 @@ rules:
   tags: []
   category: Performance
 - id: RUST_CONSTRUCTOR_BLOAT
-  domain: maintainability
   target_ext: rs
   observation: It looks like this constructor has quite a few arguments.
   impact: Constructors with many arguments can be tricky to read and maintain.
@@ -83,7 +77,6 @@ rules:
   tags: []
   category: Maintainability
 - id: RUST_SILENT_FAILURE
-  domain: reliability
   target_ext: rs
   observation: We observed a pattern of logging a failure but returning 'Ok(())'.
   impact: Logging a failure without propagating it or changing the system state is
@@ -97,7 +90,6 @@ rules:
   tags: []
   category: Reliability
 - id: RUST_VEC_FRONT_REMOVE
-  domain: performance
   target_ext: rs
   observation: We noticed '.remove(0)' being called on a Vec.
   impact: Removing from the front of a Vec requires shifting all subsequent elements,
@@ -112,7 +104,6 @@ rules:
   tags: []
   category: Performance
 - id: RUST_ALGO_N2_LOOP
-  domain: performance
   target_ext: rs
   observation: We observed a search operation (.contains/.find) inside a loop over
     a collection.
@@ -127,7 +118,6 @@ rules:
   tags: []
   category: Performance
 - id: RUST_CHANNEL_UNBOUNDED
-  domain: concurrency
   target_ext: rs
   observation: We observed the creation of an unbounded channel (unbounded_channel).
   impact: Unbounded channels can grow indefinitely if the consumer is slower than
@@ -141,7 +131,6 @@ rules:
   tags: []
   category: Concurrency
 - id: RUST_OVER_GENERAL_VARIABLE
-  domain: quality
   target_ext: rs
   observation: 'Semantic Smell: Over-generic variable naming detected.'
   impact: Names like 'info', 'data', or 'item' are hallmark AI scaffolding and hide
@@ -155,7 +144,6 @@ rules:
   tags: []
   category: Quality
 - id: RUST_LOCK_IO
-  domain: performance
   target_ext: rs
   observation: I spotted a lock (Mutex/RwLock) that might be held across an I/O or
     await point.
@@ -171,7 +159,6 @@ rules:
   tags: []
   category: Performance
 - id: RUST_UNCHECKED_IO
-  domain: reliability
   target_ext: rs
   observation: I noticed an I/O operation followed directly by an `.unwrap()`.
   impact: I/O operations (like opening files or network requests) are prone to failure.
@@ -185,7 +172,6 @@ rules:
   tags: []
   category: Reliability
 - id: RUST_UNWRAP_SAFETY
-  domain: reliability
   target_ext: rs
   observation: I noticed an '.unwrap()' call that doesn't seem to have a '// SAFETY:'
     comment nearby.
@@ -201,7 +187,6 @@ rules:
   tags: []
   category: Reliability
 - id: RUST_TOKIO_SELECT_ELSE
-  domain: reliability
   target_ext: rs
   observation: I noticed a 'tokio::select!' block that might be missing an 'else'
     or 'default' branch.
@@ -217,7 +202,6 @@ rules:
   tags: []
   category: Reliability
 - id: RUST_LARGE_STACK_ALLOCATION
-  domain: reliability
   target_ext: rs
   on_node: array_expression
   if_matches: \[.*;\s*(\d{5,})\]
@@ -230,7 +214,6 @@ rules:
   tags: []
   category: Reliability
 - id: RUST_PANIC_IN_LIB
-  domain: safety
   target_ext: rs
   on_node: macro_invocation
   if_matches: (panic|todo|unimplemented)!
@@ -245,7 +228,6 @@ rules:
   tags: []
   category: Safety
 - id: SECRET_LEAK_DETECTION
-  domain: security
   target_ext: rs
   observation: Potential secret or credential leakage detected in source code.
   impact: Hardcoding secrets (API keys, private keys, etc.) in source code is a major security risk and can lead to unauthorized access.

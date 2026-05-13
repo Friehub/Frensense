@@ -6,15 +6,35 @@ const path = require('path');
 let native;
 try {
   native = require('./gensense.node');
-} catch (e) {
-  // If local binary is missing, we try the built-in loader pattern (for multi-platform)
+} catch (e1) {
   try {
     native = require('./dist/gensense.node');
-  } catch (err) {
-    throw new Error(
-      `[GenSense] Failed to load native binary. Please ensure the package was built correctly for your platform.\n` +
-      `Error: ${err.message}`
-    );
+  } catch (e2) {
+    // Platform-specific fallback (common in CI/CD environments)
+    const fs = require('fs');
+    const path = require('path');
+    const rootFiles = fs.existsSync('.') ? fs.readdirSync('.').filter(f => f.endsWith('.node')) : [];
+    const distFiles = fs.existsSync('./dist') ? fs.readdirSync('./dist').filter(f => f.endsWith('.node')) : [];
+    
+    const binary = rootFiles[0] || distFiles[0];
+    if (binary) {
+      try {
+        native = require(path.join(rootFiles[0] ? '.' : './dist', binary));
+      } catch (e3) {
+        throw new Error(
+          `[GenSense] Failed to load native binary '${binary}'.\n` +
+          `Error: ${e3.message}`
+        );
+      }
+    } else {
+      throw new Error(
+        `[GenSense] Failed to load native binary. Please ensure the package was built correctly for your platform.\n` +
+        `Primary error: ${e1.message}\n` +
+        `Secondary error: ${e2.message}\n` +
+        `Available root files: ${rootFiles.join(', ') || 'none'}\n` +
+        `Available dist files: ${distFiles.join(', ') || 'none'}`
+      );
+    }
   }
 }
 
@@ -61,6 +81,18 @@ class GenSense {
       ? targetPath 
       : path.resolve(process.cwd(), targetPath);
     return this.engine.auditPath(absolutePath);
+  }
+
+  /**
+   * Audit an entire project directory, including cross-file project rules.
+   * @param {string} rootDir Absolute path to the project root
+   * @returns {import('./index').JsAdvisory[]} Array of semantic findings
+   */
+  auditProject(rootDir) {
+    const absolutePath = path.isAbsolute(rootDir)
+      ? rootDir
+      : path.resolve(process.cwd(), rootDir);
+    return this.engine.auditProject(absolutePath);
   }
 }
 

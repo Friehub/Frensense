@@ -9,6 +9,7 @@ homepage = "https://friehub.github.io/gensense/"
 documentation = "https://friehub.github.io/gensense/"
 license = "MIT"
 publish = true
+rust-version = "1.88"
 autobins = false
 
 [lib]
@@ -53,7 +54,7 @@ fingerprinting = []
 remediation = ["dep:diff"]
 node = ["dep:napi", "dep:napi-derive"]
 cli = ["rust", "typescript", "remediation"]
-full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "node", "cli"]
+full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "cli"]
 
 [build-dependencies]
 napi-build = "2.0"
