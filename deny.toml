@@ -1,14 +1,21 @@
 [advisories]
 vulnerability = "deny"
-unmaintained = "warn"
+unmaintained = "all"
 yanked = "deny"
 
 [licenses]
 unlicensed = "deny"
-allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-3-Clause", "ISC", "Unicode-DFS-2016"]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-DFS-2016"
+]
 
 [bans]
 multiple-versions = "warn"
 deny = [
-  { name = "openssl", reason = "use rustls instead" },
+  { name = "openssl", reason = "use rustls instead for security and easier cross-compilation" },
 ]
