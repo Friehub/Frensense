@@ -1,10 +1,15 @@
 [advisories]
-vulnerability = "deny"
+# The severity threshold for advisories to be considered an error
+severity-threshold = "low"
+# The scope of the unmaintained check
 unmaintained = "all"
+# Whether to check for yanked crates
 yanked = "deny"
 
 [licenses]
-unlicensed = "deny"
+# Confidence threshold for license detection (0.0 to 1.0)
+confidence-threshold = 0.8
+# The list of allowed licenses
 allow = [
   "MIT",
   "Apache-2.0",
@@ -15,7 +20,9 @@ allow = [
 ]
 
 [bans]
+# How to handle multiple versions of the same crate
 multiple-versions = "warn"
+# Specific crates to ban
 deny = [
-  { name = "openssl", reason = "use rustls instead for security and easier cross-compilation" },
+  { name = "openssl", reason = "use rustls instead for better security and cross-compilation" },
 ]
