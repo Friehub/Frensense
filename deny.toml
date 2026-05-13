@@ -1,5 +1,4 @@
 [advisories]
-vulnerability = "deny"
 unmaintained = "workspace"
 yanked = "warn"
 
