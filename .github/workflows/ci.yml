@@ -2,9 +2,16 @@ name: GenSense CI
 
 on:
   push:
-    branches: [ "**" ]
+    branches:
+      - main
+      - 'feature/**'
+      - 'fix/**'
   pull_request:
     branches: [ main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,12 +34,12 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          
+
       - name: Cache Cargo dependencies
         uses: actions/cache@v4
         with:
@@ -43,10 +50,10 @@ jobs:
             ~/.cargo/git/cache/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          
+
       - name: Enforce Style (rustfmt)
         run: cargo fmt --all -- --check
-        
+
       - name: Semantic Lints (Clippy)
         run: cargo clippy --all-targets --features full -- -D warnings
 
@@ -83,6 +90,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      # Use strict ci — do not fall back to npm install
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
 
@@ -93,7 +101,7 @@ jobs:
     permissions:
       contents: read
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep:1.73.0
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@v2
@@ -138,10 +146,10 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        
+
       - name: Run Full Regression Suite
         run: cargo test --features ${{ matrix.features }}
 
@@ -159,30 +167,31 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          
+
       - name: Install dependencies
-        run: npm ci || npm install
-        
+        run: npm ci
+
       - name: Build Native Addon
         run: npm run build:debug
-        
+
       - name: Verify JS Bridge
         run: npm test
 
   # --- Documentation Deployment ---
+  # Only runs on main when tests pass AND the version tag is new (guarded by sync.yml)
   deploy-docs:
     name: Deploy Documentation
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [test-rust, test-node]
     permissions:
       contents: write
@@ -201,7 +210,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm ci
       - name: Generate Rule Docs
         run: |
           cargo run --features cli -- --generate-docs
