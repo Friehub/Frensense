@@ -7,6 +7,10 @@
   "bin": {
     "gensense": "bin/gensense.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Friehub/gensense"
+  },
   "files": [
     "bin",
     "dist",
