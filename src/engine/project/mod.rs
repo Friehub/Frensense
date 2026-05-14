@@ -71,6 +71,12 @@ impl Engine {
     }
 
     pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
+        if !root.exists() {
+            return Err(crate::GenSenseError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Path not found: {}", root.display()),
+            )));
+        }
         let (advisories, _) = self.run_detailed(root)?;
         Ok(advisories)
     }
