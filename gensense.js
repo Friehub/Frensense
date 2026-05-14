@@ -62,6 +62,14 @@ class GenSense {
   }
 
   /**
+   * The current version of the GenSense engine.
+   * @type {string}
+   */
+  get version() {
+    return this.engine.version;
+  }
+
+  /**
    * Audit a single code string.
    * @param {string} filePath Virtual file path (used for rule matching)
    * @param {string} content The source code content to audit

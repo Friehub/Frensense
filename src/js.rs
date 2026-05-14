@@ -30,6 +30,11 @@ impl GenSenseEngine {
             inner: Engine::new(auditor),
         }
     }
+
+    #[napi(getter)]
+    pub fn version(&self) -> String {
+        crate::GENSENSE_VERSION.to_string()
+    }
 }
 
 impl Default for GenSenseEngine {

@@ -1,6 +1,6 @@
 [package]
 name = "gensense"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Friehub Developers"]
 edition = "2021"
 description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
