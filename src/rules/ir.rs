@@ -51,6 +51,11 @@ pub struct CoreRuleIr {
     pub max_depth: Option<usize>,
     pub target_ext: String,
     pub use_query: bool,
+    pub fix_pattern: Option<regex::Regex>,
+    pub fix_template: Option<String>,
+    pub inject_import: Option<String>,
+    pub if_name_matches: Option<regex::Regex>,
+    pub body_must_contain: Option<regex::Regex>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -61,6 +66,9 @@ impl GenSenseRule for CoreRuleIr {
     fn applies_to(&self, ext: &str) -> bool {
         if self.target_ext == "*" {
             return true;
+        }
+        if self.target_ext.contains('|') {
+            return self.target_ext.split('|').any(|e| e.trim() == ext);
         }
         self.target_ext == ext
     }
@@ -111,17 +119,87 @@ impl GenSenseRule for CoreRuleIr {
             if !re.is_match(code) {
                 return Vec::new();
             }
+
+            // Semantic Remediation Logic
+            if let Some(fix_re) = &self.fix_pattern {
+                if let Some(template) = &self.fix_template {
+                    if let Some(_caps) = fix_re.captures(code) {
+                        let replacement = fix_re.replace_all(code, template).to_string();
+
+                        // Idempotency check
+                        if replacement == code {
+                            return Vec::new();
+                        }
+
+                        let import = if let Some(import_template) = &self.inject_import {
+                            let mut import_stmt = String::new();
+                            let caps = fix_re.captures(code).unwrap();
+                            caps.expand(import_template, &mut import_stmt);
+                            Some(import_stmt)
+                        } else {
+                            None
+                        };
+
+                        advisories.push(self.new_remediated_advisory(
+                            &node,
+                            context,
+                            self.metadata.observation.to_string(),
+                            replacement,
+                            import,
+                        ));
+                        return advisories;
+                    }
+                }
+            }
+
             // If it's a simple pattern rule (no other constraints), it fires here.
             if self.flow_constraints.is_empty()
                 && self.must_contain.is_none()
                 && self.must_not_contain.is_none()
                 && self.max_lines.is_none()
                 && self.max_depth.is_none()
+                && self.if_name_matches.is_none()
+                && self.body_must_contain.is_none()
             {
                 advisories.push(self.new_advisory(
                     &node,
                     context,
                     self.metadata.observation.to_string(),
+                ));
+            }
+        }
+
+        // CSA: Name matching
+        if let Some(re) = &self.if_name_matches {
+            let name_node = node.child_by_field_name("name").or_else(|| {
+                // Heuristic for languages/nodes where name isn't a field
+                node.children(&mut node.walk())
+                    .find(|c| c.kind().contains("identifier"))
+            });
+
+            if let Some(name_node) = name_node {
+                let name = &context.source_code[name_node.start_byte()..name_node.end_byte()];
+                if !re.is_match(name) {
+                    return Vec::new();
+                }
+            } else {
+                // If it has no name but we require one, it doesn't match
+                return Vec::new();
+            }
+        }
+
+        // CSA: Body content matching
+        if let Some(re) = &self.body_must_contain {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            let body_code = &context.source_code[body_node.start_byte()..body_node.end_byte()];
+            if !re.is_match(body_code) {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    format!(
+                        "Function body is missing required structural element for '{}'.",
+                        re.as_str()
+                    ),
                 ));
             }
         }
@@ -385,6 +463,8 @@ impl ProjectRuleIr {
                 .resolve_snippet(file_id, sym.start_byte as u32, sym.end_byte as u32)
                 .unwrap_or_default(),
             proposed_replacement: None,
+            proposed_import: None,
+            enclosing_symbol: Some(sym.name.clone()),
         }
     }
 }

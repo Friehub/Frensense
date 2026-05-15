@@ -39,12 +39,20 @@ pub struct CoreRule {
     pub within_scope: Option<String>,
     #[serde(default)]
     pub fix_with: Option<String>,
+    #[serde(default)]
+    pub fix_pattern: Option<String>,
+    #[serde(default)]
+    pub inject_import: Option<String>,
     #[serde(default, with = "serde_regex_opt")]
     pub source_pattern: Option<Regex>,
     #[serde(default, with = "serde_regex_opt")]
     pub sink_pattern: Option<Regex>,
     #[serde(default)]
     pub temporal: Option<TemporalConfig>,
+    #[serde(default, with = "serde_regex_opt")]
+    pub if_name_matches: Option<Regex>,
+    #[serde(default, with = "serde_regex_opt")]
+    pub body_must_contain: Option<Regex>,
     #[serde(default)]
     pub use_query: Option<bool>,
 }
@@ -131,6 +139,60 @@ impl GenSenseRule for CoreRule {
         if let Some(re) = &self.if_matches {
             if !re.is_match(code) {
                 return Vec::new();
+            }
+
+            if let (Some(fix_pat_str), Some(template)) = (&self.fix_pattern, &self.fix_with) {
+                if let Ok(fix_re) = Regex::new(fix_pat_str) {
+                    if let Some(_caps) = fix_re.captures(code) {
+                        let replacement = fix_re.replace_all(code, template).to_string();
+                        if replacement != code {
+                            let import = self.inject_import.as_ref().map(|import_template| {
+                                fix_re.replace_all(code, import_template).to_string()
+                            });
+                            advisories.push(self.new_remediated_advisory(
+                                &node,
+                                context,
+                                self.metadata.observation.to_string(),
+                                replacement,
+                                import,
+                            ));
+                            return advisories;
+                        }
+                    }
+                }
+            }
+        }
+
+        // CSA: Name matching
+        if let Some(re) = &self.if_name_matches {
+            let name_node = node.child_by_field_name("name").or_else(|| {
+                node.children(&mut node.walk())
+                    .find(|c| c.kind().contains("identifier"))
+            });
+
+            if let Some(name_node) = name_node {
+                let name = &context.source_code[name_node.start_byte()..name_node.end_byte()];
+                if !re.is_match(name) {
+                    return Vec::new();
+                }
+            } else {
+                return Vec::new();
+            }
+        }
+
+        // CSA: Body content matching
+        if let Some(re) = &self.body_must_contain {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            let body_code = &context.source_code[body_node.start_byte()..body_node.end_byte()];
+            if !re.is_match(body_code) {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    format!(
+                        "Function body is missing required structural element for '{}'.",
+                        re.as_str()
+                    ),
+                ));
             }
         }
 

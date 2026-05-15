@@ -53,10 +53,18 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                         if p_idx == 0 {
                             found_first = true;
                         } else if p_idx == 1 && found_first {
+                            let file_path = self.context.file_path.to_string_lossy().to_string();
+                            let enclosing_symbol = self
+                                .context
+                                .symbols
+                                .find_function_at(&file_path, event.line)
+                                .and_then(|idx| self.context.symbols.graph.get_symbol(idx))
+                                .map(|s| s.name.clone());
+
                             advisories.push(Advisory {
                                 rule_id: meta.id.to_string(),
                                 file_id: self.context.file_id,
-                                file_path: self.context.file_path.to_string_lossy().to_string(),
+                                file_path,
                                 severity: meta.severity,
                                 observation: format!(
                                     "Temporal Violation: '{}' must NOT follow '{}' in this scope.",
@@ -69,8 +77,10 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                                 column: event.column as u32,
                                 start_byte: 0,
                                 end_byte: 0,
-                                original_content: String::new(),
+                                original_content: event.label.clone(),
                                 proposed_replacement: None,
+                                proposed_import: None,
+                                enclosing_symbol,
                             });
                         }
                     }
@@ -116,10 +126,19 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                     } else if in_forbidden_zone {
                         for (i, re) in sequence.iter().enumerate() {
                             if re.is_match(&event.label) {
+                                let file_path =
+                                    self.context.file_path.to_string_lossy().to_string();
+                                let enclosing_symbol = self
+                                    .context
+                                    .symbols
+                                    .find_function_at(&file_path, event.line)
+                                    .and_then(|idx| self.context.symbols.graph.get_symbol(idx))
+                                    .map(|s| s.name.clone());
+
                                 advisories.push(Advisory {
                                     rule_id: meta.id.to_string(),
                                     file_id: self.context.file_id,
-                                    file_path: self.context.file_path.to_string_lossy().to_string(),
+                                    file_path,
                                     severity: meta.severity,
                                     observation: format!(
                                         "Temporal Violation: '{}' found between '{}' and '{}', which is forbidden.",
@@ -133,8 +152,10 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                                     column: event.column as u32,
                                     start_byte: 0,
                                     end_byte: 0,
-                                    original_content: String::new(),
+                                    original_content: event.label.clone(),
                                     proposed_replacement: None,
+                                    proposed_import: None,
+                                    enclosing_symbol,
                                 });
                             }
                         }

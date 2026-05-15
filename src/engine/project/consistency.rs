@@ -35,6 +35,8 @@ impl Engine {
                 end_byte: 0,
                 original_content: String::new(),
                 proposed_replacement: None,
+                proposed_import: None,
+                enclosing_symbol: missing.enclosing_symbol.clone(),
             });
         }
 

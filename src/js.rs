@@ -14,6 +14,7 @@ pub struct JsAdvisory {
     pub line: u32,
     pub column: u32,
     pub file_path: String,
+    pub enclosing_symbol: Option<String>,
 }
 
 #[napi]
@@ -82,6 +83,7 @@ impl GenSenseEngine {
                     line: a.line,
                     column: a.column,
                     file_path: a.file_path,
+                    enclosing_symbol: a.enclosing_symbol,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
@@ -107,6 +109,7 @@ impl GenSenseEngine {
                     line: a.line,
                     column: a.column,
                     file_path: a.file_path,
+                    enclosing_symbol: a.enclosing_symbol,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
@@ -129,6 +132,7 @@ impl GenSenseEngine {
                     line: a.line,
                     column: a.column,
                     file_path: a.file_path,
+                    enclosing_symbol: a.enclosing_symbol,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(

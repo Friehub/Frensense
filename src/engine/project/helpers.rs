@@ -25,6 +25,8 @@ impl Engine {
                 end_byte: 0,
                 original_content: String::new(),
                 proposed_replacement: None,
+                proposed_import: None,
+                enclosing_symbol: None,
             });
         }
         advisories
@@ -79,6 +81,8 @@ impl Engine {
                         end_byte: 0,
                         original_content: String::new(),
                         proposed_replacement: None,
+                        proposed_import: None,
+                        enclosing_symbol: Some(f1.function_name.clone()),
                     });
                 }
             }

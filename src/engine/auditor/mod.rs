@@ -93,8 +93,10 @@ impl GenSenseAuditor {
             let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
             if rule.applies_to(ext) {
                 if let Some(query_str) = rule.query() {
-                    let query = Query::new(&language, query_str)
-                        .map_err(|e| GenSenseError::Config(e.to_string()))?;
+                    let query = match Query::new(&language, query_str) {
+                        Ok(q) => q,
+                        Err(_) => continue, // Skip rule if query is invalid for this language
+                    };
                     let mut cursor = QueryCursor::new();
                     let query_matches =
                         cursor.matches(&query, tree.root_node(), content.as_bytes());

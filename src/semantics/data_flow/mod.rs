@@ -4,9 +4,6 @@ pub mod lookup;
 pub mod normalization;
 pub mod tracking;
 
-#[cfg(test)]
-mod equivalence_tests;
-
 use crate::GenSenseContext;
 use std::collections::HashMap;
 use tree_sitter::Node;

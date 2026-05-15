@@ -186,6 +186,30 @@ jobs:
       - name: Verify JS Bridge
         run: npm test
 
+  # --- Performance Regression ---
+  bench:
+    name: Performance Regression
+    runs-on: ubuntu-latest
+    needs: [test-rust]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Benchmarks Compile
+        run: cargo bench --no-run --features full
+
+      - name: Smoke Test Benchmarks
+        run: cargo bench --features full -- --test
+
   # --- Documentation Deployment ---
   # Only runs on main when tests pass AND the version tag is new (guarded by sync.yml)
   deploy-docs:

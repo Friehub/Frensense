@@ -73,6 +73,32 @@ pub struct Advisory {
     pub original_content: String,
     /// The suggested replacement code, if any.
     pub proposed_replacement: Option<String>,
+    /// The suggested import statement to inject, if any.
+    pub proposed_import: Option<String>,
+    /// The name of the symbol (function/class) enclosing this finding.
+    pub enclosing_symbol: Option<String>,
+}
+
+impl Advisory {
+    /// Returns a unique identity key for this advisory, used for baseline comparisons.
+    pub fn identity(&self) -> (String, String, Option<String>, u32, u32) {
+        (
+            self.rule_id.clone(),
+            self.file_path.clone(),
+            self.enclosing_symbol.clone(),
+            self.line,
+            self.column,
+        )
+    }
+
+    pub fn fuzzy_identity(&self) -> (String, String, Option<String>, String) {
+        (
+            self.rule_id.clone(),
+            self.file_path.clone(),
+            self.enclosing_symbol.clone(),
+            self.original_content.clone(),
+        )
+    }
 }
 
 pub type TaintCache = RefCell<HashMap<(String, String, usize), Vec<Advisory>>>;
@@ -115,10 +141,17 @@ pub trait GenSenseRule: Send + Sync {
         observation: String,
     ) -> Advisory {
         let meta = self.metadata();
+        let file_path = context.file_path.to_string_lossy().to_string();
+        let enclosing_symbol = context
+            .symbols
+            .find_function_at(&file_path, node.start_position().row + 1)
+            .and_then(|idx| context.symbols.graph.get_symbol(idx))
+            .map(|s| s.name.clone());
+
         Advisory {
             rule_id: meta.id.to_string(),
             file_id: context.file_id,
-            file_path: context.file_path.to_string_lossy().to_string(),
+            file_path,
             severity: meta.severity,
             observation,
             impact: meta.impact.to_string(),
@@ -129,6 +162,8 @@ pub trait GenSenseRule: Send + Sync {
             end_byte: node.end_byte() as u32,
             original_content: context.source_code[node.start_byte()..node.end_byte()].to_string(),
             proposed_replacement: None,
+            proposed_import: None,
+            enclosing_symbol,
         }
     }
 
@@ -138,9 +173,11 @@ pub trait GenSenseRule: Send + Sync {
         context: &GenSenseContext,
         observation: String,
         replacement: String,
+        import: Option<String>,
     ) -> Advisory {
         let mut adv = self.new_advisory(node, context, observation);
         adv.proposed_replacement = Some(replacement);
+        adv.proposed_import = import;
         adv
     }
 }

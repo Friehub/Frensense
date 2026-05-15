@@ -55,5 +55,38 @@ fn bench_assembly_phase(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_symbol_lookup, bench_assembly_phase);
+fn bench_sri_lookup(c: &mut Criterion) {
+    let mut registry = SymbolRegistry::new();
+    let num_symbols = 50_000;
+    let file_path = "large_file.ts";
+
+    for i in 0..num_symbols {
+        registry.insert(Symbol {
+            name: format!("func_{i}"),
+            kind: SymbolKind::Function,
+            start_byte: i * 100,
+            end_byte: (i * 100) + 50,
+            line: i * 10 + 1,
+            end_line: i * 10 + 5,
+            column: 1,
+            file_path: file_path.to_string(),
+        });
+    }
+
+    c.bench_function("sri_find_function_at_50k", |b| {
+        b.iter(|| {
+            registry.find_function_at(
+                black_box(file_path),
+                black_box(250_000), // Middle of the file
+            )
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    bench_symbol_lookup,
+    bench_assembly_phase,
+    bench_sri_lookup
+);
 criterion_main!(benches);

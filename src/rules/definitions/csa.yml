@@ -1,0 +1,102 @@
+rules:
+  # Rule 1: Validators
+  - id: "SOL_CSA_VALIDATE_UNCONDITIONAL"
+    name: "Validator With No Rejection Path (Solidity)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "sol"
+    on_node: "function_definition"
+    if_name_matches: "\\b(validate|verify|check)_"
+    body_must_contain: "revert|require\\(|Error"
+    observation: "This validator function appears to have no rejection path."
+    impact: "Validators that always succeed allow invalid data to propagate."
+    improvement: "Ensure the function uses 'require' or 'revert' for invalid input."
+    tags: ["csa", "ai-risk", "security"]
+
+  - id: "TS_CSA_VALIDATE_UNCONDITIONAL"
+    name: "Validator With No Rejection Path (TS/JS)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "ts|js|tsx|jsx"
+    on_node: "function_declaration|method_definition"
+    if_name_matches: "(validate|verify|check)"
+    body_must_contain: "return\\s+(false|null|undefined)|throw|Error"
+    observation: "This validator function appears to have no rejection path."
+    impact: "Validators that always succeed allow invalid data to propagate."
+    improvement: "Ensure the function returns false or throws for invalid input."
+    tags: ["csa", "ai-risk", "security"]
+
+  - id: "RUST_CSA_VALIDATE_UNCONDITIONAL"
+    name: "Validator With No Rejection Path (Rust)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "rs"
+    on_node: "function_item"
+    if_name_matches: "(validate|verify|check)"
+    body_must_contain: "return\\s+(false|None|Err)|panic!|Result::Err"
+    observation: "This validator function appears to have no rejection path."
+    impact: "Validators that always succeed allow invalid data to propagate."
+    improvement: "Ensure the function returns false, Option::None, or Result::Err for invalid input."
+    tags: ["csa", "ai-risk", "security"]
+
+  # Rule 2: Sanitizers
+  - id: "SOL_CSA_SANITIZE_PASSTHROUGH"
+    name: "Sanitizer Returning Unmodified Input (Solidity)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "sol"
+    on_node: "function_definition"
+    if_name_matches: "\\b(sanitize|escape|clean)_"
+    body_must_contain: "encodePacked|keccak256|abi\\.encode"
+    observation: "This sanitizer function appears to return input without any transformation."
+    impact: "Passthrough sanitizers leave the system vulnerable to injection attacks."
+    improvement: "Implement proper input transformation logic."
+    tags: ["csa", "ai-risk", "security"]
+
+  - id: "TS_CSA_SANITIZE_PASSTHROUGH"
+    name: "Sanitizer Returning Unmodified Input (TS/JS)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "ts|js|tsx|jsx"
+    on_node: "function_declaration|method_definition"
+    if_name_matches: "^(sanitize|escape|clean)_"
+    body_must_contain: "\\.replace|\\.trim|\\.encode|\\.decode|\\.map|regex|filter|slice|substring"
+    observation: "This sanitizer function appears to return input without any transformation."
+    impact: "Passthrough sanitizers leave the system vulnerable to injection attacks."
+    improvement: "Implement proper input transformation logic."
+    tags: ["csa", "ai-risk", "security"]
+
+  # Rule 3: Finders
+  - id: "TS_CSA_FIND_NEVER_EMPTY"
+    name: "Finder With No Empty Path (TS/JS)"
+    domain: "reliability"
+    category: "Architecture"
+    severity: Warning
+    target_ext: "ts|js|tsx|jsx"
+    on_node: "function_declaration|method_definition"
+    if_name_matches: "^(find|get|fetch)_"
+    body_must_contain: "return\\s+(null|undefined)|throw|Error"
+    observation: "This lookup function appears to have no 'not found' path."
+    impact: "Finders that never return null/undefined can cause crashes."
+    improvement: "Ensure the function handles missing data."
+    tags: ["csa", "ai-risk", "reliability"]
+
+  # Rule 4: Auth
+  - id: "TS_CSA_AUTH_NO_REJECTION"
+    name: "Auth Function With No Rejection Path (TS/JS)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "ts|js|tsx|jsx"
+    on_node: "function_declaration|method_definition"
+    if_name_matches: "\\b(auth|authenticate|authorize)"
+    body_must_contain: "return\\s+(false|null|undefined|error|Unauthorized|Forbidden)|throw|Error"
+    observation: "This authentication function has no rejection path."
+    impact: "Unprotected auth functions allow unauthorized access."
+    improvement: "Implement rejection logic."
+    tags: ["csa", "ai-risk", "security"]

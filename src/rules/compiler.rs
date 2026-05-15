@@ -62,6 +62,15 @@ impl RuleCompiler {
             !dsl.on_node.contains('|') && dsl.on_node.contains(' ')
         });
 
+        let fix_pattern = if let Some(pat) = dsl.fix_pattern {
+            Some(
+                regex::Regex::new(&pat)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+            )
+        } else {
+            None
+        };
+
         Ok(CoreRuleIr {
             metadata: dsl.metadata,
             match_queries,
@@ -73,6 +82,11 @@ impl RuleCompiler {
             max_depth: dsl.max_depth,
             target_ext: dsl.target_ext,
             use_query,
+            fix_pattern,
+            fix_template: dsl.fix_with,
+            inject_import: dsl.inject_import,
+            if_name_matches: dsl.if_name_matches,
+            body_must_contain: dsl.body_must_contain,
         })
     }
 }

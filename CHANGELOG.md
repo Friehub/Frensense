@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-15
+
+### Added
+- **Contract Surface Analysis (CSA)**: New framework to detect semantically hollow, LLM-generated code by verifying implementation bodies against function name promises.
+- **Structural AST Auditing**: Extended DSL with `if_name_matches` and `body_must_contain` for cross-language semantic verification.
+- **Baseline / Regression Mode**: Added `--emit-baseline` and `--compare-baseline` flags to enable "diagnostic ratcheting" and enforce quality gates in CI.
+- **Symbol-Relative Identity (SRI)**: Transitioned from fragile line-based reporting to logical symbol-anchored identity, eliminating "line-drift" false positives.
+- **Fuzzy Baseline Comparison**: Implemented a resilient matching engine that recognizes findings across line shifts, stabilizing technical debt tracking.
+- **CSA Rule Family**: Integrated 8 new rules for Validators, Sanitizers, Finders, and Auth across TypeScript, Rust, and Solidity.
+
+### Fixed
+- **Baseline Resilience**: Resolved "Line-Drift" fragility where vertical code shifts would cause false positive regression failures.
+- **Engine: Extension Matching**: Fixed `applies_to` to correctly handle multi-extension strings (e.g., `ts|js|tsx|jsx`).
+- **Engine: Query Safety**: Implemented graceful skipping of language-incompatible Tree-sitter queries during cross-language scans.
+- **CLI: Descriptive Reporting**: Updated reporting to include regression/resolved summaries and net change metrics.
+- **JS/NAPI SRI Bridge**: Exposed semantic anchoring metadata to the Node.js API for consistent identity tracking.
+
 ## [0.2.2] - 2026-05-14
 
 ### Added
