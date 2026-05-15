@@ -208,7 +208,71 @@ jobs:
         run: cargo bench --no-run --features full
 
       - name: Smoke Test Benchmarks
+        # --test runs each benchmark function once to verify correctness.
+        # Full timing runs are reserved for release candidates to avoid
+        # consuming excessive CI minutes on every commit.
         run: cargo bench --features full -- --test
+
+  # --- Self-Audit (Engine scans itself) ---
+  self-audit:
+    name: Self-Audit (Engine scans own source)
+    runs-on: ubuntu-latest
+    needs: [test-rust]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/cache/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Self-Audit Tests
+        # Fails the build if the engine finds any Critical-severity issue in
+        # its own source, or if the warning count exceeds the soft threshold.
+        run: cargo test --features full self_audit
+
+      - name: Build Release Binary
+        run: cargo build --release --features full
+
+      - name: CLI Self-Audit (full scan output)
+        # Runs the CLI against src/ and captures the report as a build artifact.
+        # Does not fail on findings — the test suite handles the gate.
+        run: |
+          ./target/release/gensense ./src --json > self_audit_report.json || true
+          echo "Self-audit findings:"
+          cat self_audit_report.json | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          findings = data if isinstance(data, list) else data.get('advisories', [])
+          criticals = [f for f in findings if f.get('severity') == 'Critical']
+          warnings  = [f for f in findings if f.get('severity') == 'Warning']
+          print(f'  Critical: {len(criticals)}')
+          print(f'  Warning:  {len(warnings)}')
+          print(f'  Total:    {len(findings)}')
+          "
+
+      - name: Upload Self-Audit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-audit-report-${{ github.sha }}
+          path: self_audit_report.json
+          retention-days: 30
 
   # --- Documentation Deployment ---
   # Only runs on main when tests pass AND the version tag is new (guarded by sync.yml)
@@ -216,7 +280,7 @@ jobs:
     name: Deploy Documentation
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [test-rust, test-node]
+    needs: [test-rust, test-node, self-audit]
     permissions:
       contents: write
     steps:

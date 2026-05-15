@@ -17,7 +17,9 @@
     "gensense.js",
     "gensense.d.ts",
     "index.js",
-    "rules"
+    "rules",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "napi": {
     "name": "gensense",

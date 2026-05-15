@@ -26,6 +26,7 @@ export default defineConfig({
         items: [
           { text: 'API Reference', link: '/api' },
           { text: 'Rule Catalog', link: '/rules' },
+          { text: 'Rule Authoring & Schemas', link: '/authoring' },
         ]
       },
       {

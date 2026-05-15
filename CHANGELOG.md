@@ -7,12 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-15
 
 ### Added
-- **Contract Surface Analysis (CSA)**: New framework to detect semantically hollow, LLM-generated code by verifying implementation bodies against function name promises.
-- **Structural AST Auditing**: Extended DSL with `if_name_matches` and `body_must_contain` for cross-language semantic verification.
-- **Baseline / Regression Mode**: Added `--emit-baseline` and `--compare-baseline` flags to enable "diagnostic ratcheting" and enforce quality gates in CI.
-- **Symbol-Relative Identity (SRI)**: Transitioned from fragile line-based reporting to logical symbol-anchored identity, eliminating "line-drift" false positives.
+- **Auto-Remediation Engine**: Many rules now support automated fixes via the `--fix` and `--diff` flags, including prisma select injection and service-layer replacement.
+- **Rule Authoring & Schemas**: Added v0.3.0 and v0.2.2 JSON schemas for IDE IntelliSense and strict LLM validation.
+- **Rule Generation Expert**: Released the `rule-expert.md` system prompt to enable non-tech users and LLMs to generate high-precision GenSense rules.
+- **Contract Surface Analysis (CSA)**: New framework to detect semantically hollow code by verifying implementation bodies against function name promises.
+- **Symbol-Relative Identity (SRI)**: Transitioned to logical symbol-anchored identity, eliminating "line-drift" false positives in CI baselines.
+- **Performance Benchmarks**: Integrated `criterion` to track engine scanning, rule compilation, and patching throughput.
+- **Self-Audit**: The engine now scans its own source code for quality and security regressions, integrated as a hard gate in CI.
 - **Fuzzy Baseline Comparison**: Implemented a resilient matching engine that recognizes findings across line shifts, stabilizing technical debt tracking.
 - **CSA Rule Family**: Integrated 8 new rules for Validators, Sanitizers, Finders, and Auth across TypeScript, Rust, and Solidity.
+- **Structural AST Auditing**: Extended DSL with `if_name_matches` and `body_must_contain` for cross-language semantic verification.
+- **Baseline / Regression Mode**: Added `--emit-baseline` and `--compare-baseline` 
+flags to enable "diagnostic ratcheting" and enforce quality gates in CI.
 
 ### Fixed
 - **Baseline Resilience**: Resolved "Line-Drift" fragility where vertical code shifts would cause false positive regression failures.

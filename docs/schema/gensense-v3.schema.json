@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GenSense Rule Definition Schema (v0.3.0)",
+  "description": "Schema for defining high-precision semantic rules for GenSense.",
+  "type": "object",
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/file_rule"
+      }
+    },
+    "project_rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/project_rule"
+      }
+    }
+  },
+  "definitions": {
+    "severity": {
+      "type": "string",
+      "enum": ["Critical", "Warning", "Info"]
+    },
+    "common_fields": {
+      "type": "object",
+      "required": ["id", "name", "severity", "category", "observation", "impact", "improvement"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$",
+          "description": "Unique identifier in SCREAMING_SNAKE_CASE."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the rule."
+        },
+        "severity": {
+          "$ref": "#/definitions/severity"
+        },
+        "category": {
+          "type": "string",
+          "description": "Logical grouping (e.g., Security, Performance, Quality)."
+        },
+        "observation": {
+          "type": "string",
+          "description": "What the engine observed in the code."
+        },
+        "impact": {
+          "type": "string",
+          "description": "The consequence of this pattern remaining in the codebase."
+        },
+        "improvement": {
+          "type": "string",
+          "description": "Actionable advice on how to fix the issue."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "target_ext": {
+          "type": "string",
+          "description": "File extensions to target (e.g., 'ts', 'rs', 'ts|js')."
+        }
+      }
+    },
+    "file_rule": {
+      "allOf": [
+        { "$ref": "#/definitions/common_fields" },
+        {
+          "type": "object",
+          "required": ["on_node"],
+          "properties": {
+            "on_node": {
+              "type": "string",
+              "description": "Tree-sitter node type to anchor on."
+            },
+            "if_matches": {
+              "type": "string",
+              "description": "Regex to match against the node text."
+            },
+            "must_not_contain": {
+              "type": "string",
+              "description": "Regex that must NOT match the node text."
+            },
+            "must_contain": {
+              "type": "string",
+              "description": "Regex that MUST match the node text."
+            },
+            "max_lines": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_depth": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fix_pattern": {
+              "type": "string",
+              "description": "Regex with named capture groups for auto-remediation."
+            },
+            "fix_with": {
+              "type": "string",
+              "description": "Replacement template using ${group_name} variables."
+            },
+            "inject_import": {
+              "type": "string",
+              "description": "Import statement to inject when fix is applied. Use {{root}} for project root relative paths."
+            },
+            "source_pattern": {
+              "type": "string",
+              "description": "Regex for taint analysis source."
+            },
+            "sink_pattern": {
+              "type": "string",
+              "description": "Regex for taint analysis sink."
+            }
+          }
+        }
+      ]
+    },
+    "project_rule": {
+      "allOf": [
+        { "$ref": "#/definitions/common_fields" },
+        {
+          "type": "object",
+          "required": ["must_have_guard"],
+          "properties": {
+            "must_have_guard": {
+              "type": "object",
+              "required": ["source_pattern", "guard_pattern"],
+              "properties": {
+                "source_pattern": { "type": "string" },
+                "guard_pattern": { "type": "string" },
+                "source_file_glob": { "type": "string" },
+                "guard_file_glob": { "type": "string" }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
