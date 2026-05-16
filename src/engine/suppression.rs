@@ -16,6 +16,7 @@ pub struct Suppression {
     pub path: String,
 }
 
+#[must_use]
 pub fn is_suppressed(
     suppressions: &[(String, Pattern)],
     node: Node,

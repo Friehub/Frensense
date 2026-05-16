@@ -37,8 +37,8 @@ rules:
 - id: TS_NESTING_LIMIT
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
-  max_depth: 4
-  observation: 'Deep Nesting: logical depth exceeds standardized limit (4 levels).'
+  max_depth: 3
+  observation: 'Deep Nesting: logical depth exceeds standardized limit (3 levels).'
   impact: 'Rule #vibecoding: Extreme indentation indicates complex logic.'
   improvement: Extract inner logic into helper functions.
   name: Ts Nesting Limit

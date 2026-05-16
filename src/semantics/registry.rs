@@ -15,10 +15,14 @@ pub struct AnalysisRegistry {
 }
 
 impl AnalysisRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// # Panics
+    ///
+    /// Panics if the stored type `T` does not match the requested type.
     pub fn get_or_compute<T, F>(&mut self, rule_id: &str, scope: ScopeId, compute: F) -> Arc<T>
     where
         T: 'static + Send + Sync,

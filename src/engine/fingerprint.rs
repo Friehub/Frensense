@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
+use rustc_hash::{FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use tree_sitter::Node;
 
 #[cfg(feature = "fingerprinting")]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FunctionFingerprint {
     pub file_path: String,
     pub function_name: String,
     pub line: usize,
-    pub ngram_hashes: HashSet<u64>,
+    pub ngram_hashes: FxHashSet<u64>,
 }
 
 #[cfg(not(feature = "fingerprinting"))]
@@ -53,10 +54,9 @@ pub fn extract_fingerprints(
                 .collect();
 
             if tokens.len() >= 5 {
-                let mut ngram_hashes = HashSet::new();
-                use std::hash::{Hash, Hasher};
+                let mut ngram_hashes = FxHashSet::default();
                 for i in 0..=(tokens.len().saturating_sub(5)) {
-                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    let mut hasher = FxHasher::default();
                     tokens[i..i + 5].hash(&mut hasher);
                     ngram_hashes.insert(hasher.finish());
                 }

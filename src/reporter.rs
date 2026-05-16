@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 
 use crate::Advisory;
+use std::fmt::Write;
 use std::path::Path;
 
 pub struct Reporter;
 
 impl Reporter {
     /// Generates a professional Markdown report grouped by severity.
+    #[must_use]
     pub fn to_markdown(advisories: &[Advisory], path: &str) -> String {
         let mut md = format!("# GenSense: Semantic Analysis Report for {path}\n\n");
         md.push_str("> [!IMPORTANT]\n> This report contains automated structural observations. High-severity items should be prioritized for protocol stability.\n\n");
@@ -33,14 +35,14 @@ impl Reporter {
                 crate::Severity::Warning => "## Technical Debt & Quality Warnings",
                 crate::Severity::Info => "## Standardized & Style Suggestions",
             };
-            md.push_str(&format!("{title}\n\n"));
+            let _ = writeln!(md, "{title}\n");
 
             for adv in filtered {
-                md.push_str(&format!("### {}\n", adv.rule_id));
-                md.push_str(&format!("- **Location**: `line {}`  \n", adv.line));
-                md.push_str(&format!("- **Observation**: {}  \n", adv.observation));
-                md.push_str(&format!("- **Impact**: {}  \n", adv.impact));
-                md.push_str(&format!("- **Improvement**: {}  \n\n", adv.improvement));
+                let _ = writeln!(md, "### {}", adv.rule_id);
+                let _ = writeln!(md, "- **Location**: `line {}`  ", adv.line);
+                let _ = writeln!(md, "- **Observation**: {}  ", adv.observation);
+                let _ = writeln!(md, "- **Impact**: {}  ", adv.impact);
+                let _ = writeln!(md, "- **Improvement**: {}  \n", adv.improvement);
             }
         }
 
@@ -49,6 +51,7 @@ impl Reporter {
     }
 
     /// Generates a SARIF (Static Analysis Results Interchange Format) report for CI/CD integration.
+    #[must_use]
     pub fn to_sarif(advisories: &[Advisory], _root_path: &Path) -> serde_json::Value {
         let runs = serde_json::json!([{
             "tool": {

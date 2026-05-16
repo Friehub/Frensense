@@ -3,23 +3,25 @@
 use gensense::engine::auditor::GenSenseAuditor;
 use gensense::engine::project::Engine;
 use gensense::semantics::SymbolRegistry;
+use gensense::semantics::data_flow::TaintOrigin;
 use gensense::{FileId, GenSenseContext, TaintCache};
+use std::collections::HashMap;
 use std::path::Path;
 
 #[test]
 fn test_symbol_shadowing() {
-    let content = r#"
+    let content = r"
         let x = 1;
         fn inner() {
             let x = 2;
             let y = x;
         }
-    "#;
+    ";
     let path = Path::new("shadow.rs");
     let auditor = GenSenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
-        .discover_symbols(path, content, &lang, &tree)
+        .discover_symbols(path, FileId(1), content, &lang, &tree)
         .unwrap();
 
     let mut registry = SymbolRegistry::new();
@@ -34,15 +36,15 @@ fn test_symbol_shadowing() {
 
 #[test]
 fn test_taint_through_destructuring() {
-    let content = r#"
+    let content = r"
         let (a, b) = get_tainted_pair();
         sink(a);
-    "#;
+    ";
     let path = Path::new("destruct.rs");
     let auditor = GenSenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
-        .discover_symbols(path, content, &lang, &tree)
+        .discover_symbols(path, FileId(1), content, &lang, &tree)
         .unwrap();
     let mut registry = SymbolRegistry::new();
     for sym in symbols {
@@ -59,6 +61,7 @@ fn test_taint_through_destructuring() {
         symbols: &registry,
         semantic_ops: &ops,
         taint_cache: &taint_cache,
+        file_trees: &HashMap::new(),
     };
 
     let analyzer =
@@ -66,7 +69,7 @@ fn test_taint_through_destructuring() {
     let mut taint_reg = gensense::semantics::data_flow::TaintRegistry::default();
 
     // Manual source injection
-    taint_reg.taint("get_tainted_pair", "source");
+    taint_reg.taint("get_tainted_pair", TaintOrigin::UserInput);
 
     let source_re = regex::Regex::new("get_tainted_pair").unwrap();
     let sink_re = regex::Regex::new("sink").unwrap();
@@ -127,7 +130,7 @@ fn test_suppression_correctness() {
 fn test_snapshot_determinism() {
     let content = "fn main() { let x = 1; }";
     let path = Path::new("main.rs");
-    let engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
 
     let advisories1 = engine.run_content(path, content).unwrap();
     let advisories2 = engine.run_content(path, content).unwrap();

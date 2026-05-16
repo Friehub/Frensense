@@ -1,5 +1,4 @@
 use crate::engine::Engine;
-use crate::GenSenseAuditor;
 use napi_derive::napi;
 use std::path::Path;
 
@@ -15,6 +14,8 @@ pub struct JsAdvisory {
     pub column: u32,
     pub file_path: String,
     pub enclosing_symbol: Option<String>,
+    pub confidence: f64,
+    pub fingerprint: String,
 }
 
 #[napi]
@@ -25,14 +26,15 @@ pub struct GenSenseEngine {
 #[napi]
 impl GenSenseEngine {
     #[napi(constructor)]
+    #[must_use]
     pub fn new() -> Self {
-        let auditor = GenSenseAuditor::default_auditor();
         Self {
-            inner: Engine::new(auditor),
+            inner: Engine::new(),
         }
     }
 
     #[napi(getter)]
+    #[must_use]
     pub fn version(&self) -> String {
         crate::GENSENSE_VERSION.to_string()
     }
@@ -67,7 +69,7 @@ impl GenSenseEngine {
     /// those.
     #[napi]
     pub fn audit_content(
-        &self,
+        &mut self,
         file_path: String,
         content: String,
     ) -> napi::Result<Vec<JsAdvisory>> {
@@ -84,6 +86,8 @@ impl GenSenseEngine {
                     column: a.column,
                     file_path: a.file_path,
                     enclosing_symbol: a.enclosing_symbol,
+                    confidence: f64::from(a.confidence),
+                    fingerprint: a.fingerprint,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
@@ -110,6 +114,8 @@ impl GenSenseEngine {
                     column: a.column,
                     file_path: a.file_path,
                     enclosing_symbol: a.enclosing_symbol,
+                    confidence: f64::from(a.confidence),
+                    fingerprint: a.fingerprint,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
@@ -133,6 +139,8 @@ impl GenSenseEngine {
                     column: a.column,
                     file_path: a.file_path,
                     enclosing_symbol: a.enclosing_symbol,
+                    confidence: f64::from(a.confidence),
+                    fingerprint: a.fingerprint,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(

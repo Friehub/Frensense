@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::engine::auditor::GenSenseAuditor;
 use gensense::engine::project::Engine;
 use std::fs;
 use tempfile::tempdir;
@@ -36,7 +35,7 @@ rules:
     fs::write(&rs_file, "fn main() { todo!(); }").unwrap();
 
     // 3. Run engine
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     let has_custom = advisories.iter().any(|a| a.rule_id == "CUSTOM_TODO");
@@ -56,7 +55,7 @@ fn test_e2e_suppress_file_respected() {
     fs::write(&rs_file, "fn main() { panic!(\"error\"); }").unwrap();
 
     // 2. Verify it fires without suppression
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
     assert!(advisories.iter().any(|a| a.rule_id == "RUST_PANIC_IN_LIB"));
 
@@ -70,7 +69,7 @@ suppressions:
     fs::write(suppress_file, suppress_content).unwrap();
 
     // 4. Run again
-    let mut engine2 = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine2 = Engine::new();
     let advisories2 = engine2.run(root).unwrap();
     let has_panic = advisories2.iter().any(|a| a.rule_id == "RUST_PANIC_IN_LIB");
     assert!(
@@ -99,7 +98,7 @@ severity_override:
     fs::write(&rs_file, "fn main() { panic!(\"error\"); }").unwrap();
 
     // 3. Run engine
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     let panic_adv = advisories
@@ -147,7 +146,7 @@ project_rules:
     )
     .unwrap();
 
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     assert!(
@@ -200,7 +199,7 @@ disabled_rules:
     )
     .unwrap();
 
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     assert!(
@@ -249,7 +248,7 @@ severity_override:
     )
     .unwrap();
 
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     let adv = advisories

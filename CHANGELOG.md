@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2026-05-15
+### [0.3.0] - 2026-05-16
+
+### Changed (Breaking)
+- **Rust API: `GenSenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.
+- **Rust API: `GenSenseRule::new_remediation`**: Added a mandatory `import: Option<String>` parameter to support auto-injection of missing imports during patching.
+- **Data Model: `Advisory`**: Added mandatory fields `proposed_import`, `enclosing_symbol`, `confidence`, and `fingerprint` for higher fidelity result tracking.
+- **Edition Upgrade**: The project now requires **Rust 2024 Edition**.
 
 ### Added
 - **Auto-Remediation Engine**: Many rules now support automated fixes via the `--fix` and `--diff` flags, including prisma select injection and service-layer replacement.
@@ -19,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Structural AST Auditing**: Extended DSL with `if_name_matches` and `body_must_contain` for cross-language semantic verification.
 - **Baseline / Regression Mode**: Added `--emit-baseline` and `--compare-baseline` 
 flags to enable "diagnostic ratcheting" and enforce quality gates in CI.
+
+- **Hardened & Refactored CLI**:
+  - **Binary Architecture**: Extracted CLI logic into modular, testable handlers, significantly reducing `main()` complexity.
+  - **Zero-Panic Base**: Enforced `clippy::unwrap_used` globally in the library, ensuring no runtime panics in production.
+  - **Structured Logging**: Migrated from `println!` to standard `tracing` macros for robust, configurable diagnostics.
+  - **CLI Robustness**: Implemented a dedicated `CliOptions` struct for centralized, type-safe argument parsing.
+  - **Zero-Warning CI**: Achieved a 100% clean Clippy and cargo-check state across all workspace targets.
 
 ### Fixed
 - **Baseline Resilience**: Resolved "Line-Drift" fragility where vertical code shifts would cause false positive regression failures.

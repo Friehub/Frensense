@@ -15,15 +15,20 @@ fn test_sri_line_drift_resilience() {
 
     // 2. Generate initial baseline
     // We'll simulate what the CLI does by creating an Advisory manually or running the engine
-    let mut engine = gensense::engine::project::Engine::new(
-        gensense::engine::auditor::GenSenseAuditor::default_auditor(),
-    );
+    let mut engine = gensense::engine::project::Engine::new();
     let advisories = engine.run(root).unwrap();
 
+    println!("DEBUG: Advisories len={}", advisories.len());
     assert!(
         !advisories.is_empty(),
         "Should have found an 'any' violation"
     );
+    for a in &advisories {
+        println!(
+            "DEBUG: Advisory rule_id={}, enclosing_symbol={:?}",
+            a.rule_id, a.enclosing_symbol
+        );
+    }
     let baseline_advisory = &advisories[0];
     assert_eq!(
         baseline_advisory.enclosing_symbol,
@@ -62,9 +67,7 @@ fn test_sri_content_change_detection() {
     let ts_file = root.join("test.ts");
     fs::write(&ts_file, "function test() { let x: any = 1; }").unwrap();
 
-    let mut engine = gensense::engine::project::Engine::new(
-        gensense::engine::auditor::GenSenseAuditor::default_auditor(),
-    );
+    let mut engine = gensense::engine::project::Engine::new();
     let initial_advisories = engine.run(root).unwrap();
     let initial_fuzzy = initial_advisories[0].fuzzy_identity();
 

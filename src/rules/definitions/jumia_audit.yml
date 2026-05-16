@@ -35,17 +35,6 @@ rules:
   category: Reliability
   tags: [production, reliability]
 
-- id: JUMIA_NESTING_LIMIT
-  target_ext: ts
-  on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
-  max_depth: 3
-  observation: "Deep Nesting: logical depth exceeds Jumia-clone limit (3 levels)."
-  impact: "Deeply nested code is hard to read and often hide complex edge cases."
-  improvement: Flatten the logic using early returns or extract inner blocks into helper methods.
-  name: Jumia Nesting Limit
-  severity: Warning
-  category: Quality
-  tags: [quality, readability]
 
 - id: JUMIA_ASYNC_FOR_EACH
   target_ext: ts

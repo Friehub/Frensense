@@ -13,21 +13,48 @@ use std::collections::HashSet;
 use std::path::Path;
 use tree_sitter::{Language, Node, Query, QueryCursor, Tree};
 
-use super::fingerprint::{extract_fingerprints, FunctionFingerprint};
-use super::suppression::{is_suppressed, SuppressConfig};
+#[cfg(feature = "fingerprinting")]
+use super::fingerprint::{FunctionFingerprint, extract_fingerprints};
+use super::suppression::{SuppressConfig, is_suppressed};
 use crate::{
-    parser::ParserRegistry, semantics::SymbolRegistry, Advisory, FileId, GenSenseContext,
-    GenSenseError, GenSenseRule, Result, TaintCache,
+    Advisory, FileId, GenSenseContext, GenSenseError, GenSenseRule, Result, TaintCache,
+    parser::ParserRegistry, semantics::SymbolRegistry,
 };
 
-pub type ScanResult = (Vec<Advisory>, Vec<FunctionFingerprint>);
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
+pub struct ScanResult {
+    pub advisories: Vec<Advisory>,
+    #[cfg(feature = "fingerprinting")]
+    pub fingerprints: Vec<FunctionFingerprint>,
+}
 
 pub struct GenSenseAuditor {
-    pub rules: Vec<Box<dyn GenSenseRule>>,
-    pub suppressions: Vec<(String, Pattern)>,
+    rules: Vec<Box<dyn GenSenseRule>>,
+    suppressions: Vec<(String, Pattern)>,
+}
+
+pub struct AuditOptions<'a> {
+    pub file_id: FileId,
+    pub path: &'a Path,
+    pub content: &'a str,
+    pub tree: &'a tree_sitter::Tree,
+    pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
+    pub symbols: &'a SymbolRegistry,
+    pub file_trees: &'a std::collections::HashMap<
+        String,
+        (
+            tree_sitter::Tree,
+            String,
+            Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+        ),
+    >,
+    pub category_filter: &'a HashSet<String>,
+    pub tag_filter: &'a HashSet<String>,
+    pub env: crate::GenSenseEnvironment,
 }
 
 impl GenSenseAuditor {
+    #[must_use]
     pub fn new(rules: Vec<Box<dyn GenSenseRule>>) -> Self {
         Self {
             rules,
@@ -35,6 +62,7 @@ impl GenSenseAuditor {
         }
     }
 
+    #[must_use]
     pub fn default_auditor() -> Self {
         let (rules, _) = Self::default_rules();
         Self::new(rules)
@@ -48,112 +76,166 @@ impl GenSenseAuditor {
         }
     }
 
+    #[must_use]
     pub fn rules(&self) -> &[Box<dyn GenSenseRule>] {
         &self.rules
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn audit<'a>(
-        &self,
-        file_id: FileId,
-        path: &'a Path,
-        content: &'a str,
-        tree: &'a tree_sitter::Tree,
-        semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
-        symbols: &'a SymbolRegistry,
-        category_filter: &HashSet<String>,
-        tag_filter: &HashSet<String>,
-        env: crate::GenSenseEnvironment,
-    ) -> Result<ScanResult> {
+    pub fn set_rules(&mut self, rules: Vec<Box<dyn GenSenseRule>>) {
+        self.rules = rules;
+    }
+
+    pub fn add_rules(&mut self, rules: Vec<Box<dyn GenSenseRule>>) {
+        self.rules.extend(rules);
+    }
+
+    pub fn retain_rules<F>(&mut self, f: F)
+    where
+        F: FnMut(&Box<dyn GenSenseRule>) -> bool,
+    {
+        self.rules.retain(f);
+    }
+
+    /// Performs a security audit on a single file.
+    ///
+    /// # Example
+    /// ```rust
+    /// let options = AuditOptions {
+    ///     path: &PathBuf::from("src/main.rs"),
+    ///     content: "fn main() { println!(\"hello\"); }",
+    ///     tree: &parser_tree,
+    ///     // ... other options
+    /// };
+    /// let result = auditor.audit(&options)?;
+    /// ```
+    ///
+    /// # Errors
+    /// Currently this method always returns `Ok`, but it is marked as `Result` for potential future error conditions.
+    pub fn audit(&self, opts: &AuditOptions<'_>) -> Result<ScanResult> {
         let mut advisories = Vec::new();
+        #[cfg(feature = "fingerprinting")]
         let mut fingerprints = Vec::new();
 
-        let language = match ParserRegistry::get_language(path) {
-            Ok(l) => l,
-            Err(_) => return Ok((Vec::new(), Vec::new())),
+        let Ok(language) = ParserRegistry::get_language(opts.path) else {
+            return Ok(ScanResult::default());
         };
 
         let taint_cache = TaintCache::default();
 
         let context = GenSenseContext {
-            file_id,
-            file_path: path,
-            source_code: content,
-            tree,
-            symbols,
-            semantic_ops,
+            file_id: opts.file_id,
+            file_path: opts.path,
+            source_code: opts.content,
+            tree: opts.tree,
+            symbols: opts.symbols,
+            semantic_ops: opts.semantic_ops,
             taint_cache: &taint_cache,
+            file_trees: opts.file_trees,
         };
 
         for rule in &self.rules {
-            if !self.is_rule_enabled(rule.as_ref(), category_filter, tag_filter, env) {
+            if !self.is_rule_enabled(
+                rule.as_ref(),
+                opts.category_filter,
+                opts.tag_filter,
+                opts.env,
+            ) {
                 continue;
             }
 
-            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            let ext = opts.path.extension().and_then(|s| s.to_str()).unwrap_or("");
             if rule.applies_to(ext) {
                 if let Some(query_str) = rule.query() {
-                    let query = match Query::new(&language, query_str) {
-                        Ok(q) => q,
-                        Err(_) => continue, // Skip rule if query is invalid for this language
+                    let Ok(query) = Query::new(&language, query_str) else {
+                        continue; // Skip rule if query is invalid for this language
                     };
                     let mut cursor = QueryCursor::new();
                     let query_matches =
-                        cursor.matches(&query, tree.root_node(), content.as_bytes());
+                        cursor.matches(&query, opts.tree.root_node(), opts.content.as_bytes());
                     for m in query_matches {
                         for capture in m.captures {
                             if !is_suppressed(
                                 &self.suppressions,
                                 capture.node,
                                 rule.id(),
-                                content,
-                                path,
+                                opts.content,
+                                opts.path,
                             ) {
+                                tracing::debug!(
+                                    "DEBUG: Auditing rule {} on file {}",
+                                    rule.id(),
+                                    opts.path.display()
+                                );
                                 advisories.extend(rule.check(capture.node, &context));
                             }
                         }
                     }
                 } else {
-                    advisories.extend(self.run_recursive(
-                        tree.root_node(),
+                    self.walk_tree(
+                        opts.tree.root_node(),
                         rule.as_ref(),
                         &context,
-                    ));
+                        &mut advisories,
+                    );
                 }
             }
         }
 
         #[cfg(feature = "fingerprinting")]
-        extract_fingerprints(tree.root_node(), content, path, &mut fingerprints);
+        extract_fingerprints(
+            opts.tree.root_node(),
+            opts.content,
+            opts.path,
+            &mut fingerprints,
+        );
 
-        Ok((advisories, fingerprints))
+        Ok(ScanResult {
+            advisories,
+            #[cfg(feature = "fingerprinting")]
+            fingerprints,
+        })
     }
 
-    pub fn run_recursive<'a>(
+    fn walk_tree<'a>(
         &self,
-        node: Node<'a>,
+        root: Node<'a>,
         rule: &dyn GenSenseRule,
         context: &GenSenseContext<'a>,
-    ) -> Vec<Advisory> {
-        let mut advisories = Vec::new();
-        if !is_suppressed(
-            &self.suppressions,
-            node,
-            rule.id(),
-            context.source_code,
-            context.file_path,
-        ) {
-            advisories.extend(rule.check(node, context));
-        }
+        out: &mut Vec<Advisory>,
+    ) {
+        let mut cursor = root.walk();
+        loop {
+            let node = cursor.node();
 
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            advisories.extend(self.run_recursive(child, rule, context));
-        }
+            if !is_suppressed(
+                &self.suppressions,
+                node,
+                rule.id(),
+                context.source_code,
+                context.file_path,
+            ) {
+                out.extend(rule.check(node, context));
+            }
 
-        advisories
+            if cursor.goto_first_child() {
+                continue;
+            }
+
+            loop {
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+                if !cursor.goto_parent() {
+                    return;
+                }
+            }
+        }
     }
 
+    /// Parses source code into a tree-sitter tree.
+    ///
+    /// # Errors
+    /// Returns an error if the language is not supported or if the parser fails to initialize.
     pub fn parse_source(&self, path: &Path, content: &str) -> crate::Result<(Language, Tree)> {
         let language = ParserRegistry::get_language(path)?;
         let mut parser = tree_sitter::Parser::new();

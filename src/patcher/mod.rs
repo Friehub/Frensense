@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 
+#[cfg(feature = "remediation")]
 use crate::{Advisory, GenSenseError, Result};
 #[cfg(feature = "remediation")]
 use diff;
+#[cfg(feature = "remediation")]
 use pathdiff;
+#[cfg(feature = "remediation")]
+use std::fmt::Write;
+#[cfg(feature = "remediation")]
 use std::fs;
+#[cfg(feature = "remediation")]
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "remediation")]
@@ -54,7 +60,7 @@ impl PatchManager {
                             }
                             final_stmt = format!(
                                 "{}{}{}",
-                                &import_stmt[..start_quote + 1],
+                                &import_stmt[..=start_quote],
                                 s,
                                 &import_stmt[end_quote..]
                             );
@@ -67,31 +73,35 @@ impl PatchManager {
     }
 
     /// Generates a unified diff for an advisory's proposed replacement.
+    /// Generates a unified diff for an advisory's proposed replacement.
+    ///
+    /// # Errors
+    /// Returns an error if the diff generation fails.
     pub fn generate_diff(&self, advisory: &Advisory, file_path: &Path) -> Result<String> {
-        let proposed = match &advisory.proposed_replacement {
-            Some(p) => p,
-            None => return Ok(String::new()),
+        let Some(proposed) = &advisory.proposed_replacement else {
+            return Ok(String::new());
         };
 
         let mut diff_output = String::new();
-        diff_output.push_str(&format!("--- a/{}\n", file_path.display()));
-        diff_output.push_str(&format!("+++ b/{}\n", file_path.display()));
-        diff_output.push_str(&format!(
-            "@@ -{},{} +{},{} @@\n",
+        let _ = writeln!(diff_output, "--- a/{}", file_path.display());
+        let _ = writeln!(diff_output, "+++ b/{}", file_path.display());
+        let _ = writeln!(
+            diff_output,
+            "@@ -{},{} +{},{} @@",
             advisory.line, 1, advisory.line, 1
-        ));
+        );
 
         let result = diff::lines(&advisory.original_content, proposed);
         for line in result {
             match line {
                 diff::Result::Left(l) => {
-                    diff_output.push_str(&format!("-{l}\n"));
+                    let _ = writeln!(diff_output, "-{l}");
                 }
                 diff::Result::Both(l, _) => {
-                    diff_output.push_str(&format!(" {l}\n"));
+                    let _ = writeln!(diff_output, " {l}");
                 }
                 diff::Result::Right(r) => {
-                    diff_output.push_str(&format!("+{r}\n"));
+                    let _ = writeln!(diff_output, "+{r}");
                 }
             }
         }
@@ -100,10 +110,13 @@ impl PatchManager {
     }
 
     /// Applies the fix atomically using Shadow Writing.
+    /// Applies the fix atomically using Shadow Writing.
+    ///
+    /// # Errors
+    /// Returns an error if file reading, patching, or renaming fails.
     pub fn apply_fix(&self, advisory: &Advisory, file_path: &Path) -> Result<()> {
-        let proposed = match &advisory.proposed_replacement {
-            Some(p) => p,
-            None => return Ok(()),
+        let Some(proposed) = &advisory.proposed_replacement else {
+            return Ok(());
         };
 
         let absolute_path = self.root_dir.join(file_path);

@@ -34,7 +34,7 @@ impl GenSenseRule for AsyncPanicSafety {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if self.is_in_async_scope(node, context.source_code) {
+        if Self::is_in_async_scope(node, context.source_code) {
             let kind = node.kind();
             if kind == "call_expression" {
                 if let Some(func) = node.child_by_field_name("function") {
@@ -69,7 +69,7 @@ impl GenSenseRule for AsyncPanicSafety {
 }
 
 impl AsyncPanicSafety {
-    fn is_in_async_scope(&self, node: Node, source: &str) -> bool {
+    fn is_in_async_scope(node: Node, source: &str) -> bool {
         let mut current = node;
         while let Some(parent) = current.parent() {
             let kind = parent.kind();

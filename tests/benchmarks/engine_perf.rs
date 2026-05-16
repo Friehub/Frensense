@@ -1,7 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use gensense::Engine;
 use gensense::engine::auditor::GenSenseAuditor;
 use gensense::semantics::{Symbol, SymbolKind, SymbolRegistry};
-use gensense::Engine;
 use std::path::Path;
 
 // ─── Existing: SRI Symbol Registry ──────────────────────────────────────────
@@ -20,6 +20,7 @@ fn bench_symbol_lookup(c: &mut Criterion) {
             end_line: i + 1,
             column: 1,
             file_path: "bench.rs".to_string(),
+            file_id: gensense::FileId(0),
         });
     }
 
@@ -46,6 +47,7 @@ fn bench_assembly_phase(c: &mut Criterion) {
             end_line: i + 1,
             column: 1,
             file_path: format!("file_{}.rs", i / 10),
+            file_id: gensense::FileId(0),
         })
         .collect();
 
@@ -75,6 +77,7 @@ fn bench_sri_lookup(c: &mut Criterion) {
             end_line: i * 10 + 5,
             column: 1,
             file_path: file_path.to_string(),
+            file_id: gensense::FileId(0),
         });
     }
 
@@ -105,7 +108,7 @@ fn bench_full_scan_throughput(c: &mut Criterion) {
     let source = include_str!("../../src/lib.rs");
     c.bench_function("full_scan_lib_rs", |b| {
         b.iter(|| {
-            let engine = Engine::new(GenSenseAuditor::default_auditor());
+            let mut engine = Engine::new();
             let advisories =
                 engine.run_content(black_box(Path::new("src/lib.rs")), black_box(source));
             black_box(advisories)
@@ -151,6 +154,8 @@ fn bench_patcher_throughput(c: &mut Criterion) {
         start_byte,
         end_byte,
         enclosing_symbol: None,
+        confidence: 1.0,
+        fingerprint: "bench".into(),
     };
 
     let manager = PatchManager::new(root);

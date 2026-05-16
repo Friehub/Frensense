@@ -97,7 +97,7 @@ rules:
   improvement: We recommend defining a named constant (e.g., const MAX_RETRIES = 3;)
     for better clarity.
   on_node: (number) @node
-  if_matches: ^[0-9]{3,}$
+  if_matches: ^[0-9]{4,}$
   name: Ts Magic Number
   severity: Warning
   tags: []
@@ -111,7 +111,7 @@ rules:
   on_node: '[ (type_identifier) (predefined_type) ] @node'
   if_matches: any
   name: Ts Any Type
-  severity: Warning
+  severity: Info
   tags: []
   category: Quality
 - id: TS_REACT_HOOK_DEPS

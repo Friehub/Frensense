@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::engine::auditor::GenSenseAuditor;
 use gensense::engine::project::Engine;
 use std::path::Path;
 
 fn run_test(rule_id: &str, content: &str, expected_count: usize, ext: &str) {
-    let engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let path = Path::new("test").with_extension(ext);
     let advisories = engine.run_content(&path, content).unwrap();
 

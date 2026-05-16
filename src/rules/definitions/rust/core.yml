@@ -179,8 +179,7 @@ rules:
     assumption is wrong, the service will panic.
   improvement: Please add a '// SAFETY:' comment above this line explaining why this
     unwrap is guaranteed to succeed.
-  on_node: call_expression
-  if_matches: \.unwrap\(\)
+  on_node: "(call_expression function: (field_expression field: (field_identifier) @fn_name (#eq? @fn_name \"unwrap\"))) @node"
   must_contain: '// SAFETY:'
   name: Rust Unwrap Safety
   severity: Warning

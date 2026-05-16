@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: MIT
 
 use super::GenSenseAuditor;
-use crate::{parser::ParserRegistry, semantics::SymbolRegistry, GenSenseError, Result};
+use crate::{GenSenseError, Result, parser::ParserRegistry, semantics::SymbolRegistry};
 use std::path::Path;
 use tree_sitter::{Node, Query, QueryCursor};
 
 impl GenSenseAuditor {
+    /// Discovers symbols in a given file.
+    ///
+    /// # Errors
+    /// Returns an error if the tree-sitter query fails to compile.
     pub fn discover_symbols(
         &self,
         path: &Path,
+        file_id: crate::FileId,
         content: &str,
         language: &tree_sitter::Language,
         tree: &tree_sitter::Tree,
     ) -> Result<Vec<crate::semantics::Symbol>> {
-        let query_str = match ParserRegistry::get_symbol_query(path) {
-            Some(q) => q,
-            None => return Ok(Vec::new()),
+        let Some(query_str) = ParserRegistry::get_symbol_query(path) else {
+            return Ok(Vec::new());
         };
         let query =
             Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
@@ -42,9 +46,8 @@ impl GenSenseAuditor {
                     _ => continue,
                 };
 
-                let parent = match node.parent() {
-                    Some(p) => p,
-                    None => continue,
+                let Some(parent) = node.parent() else {
+                    continue;
                 };
 
                 let kind = match parent.kind() {
@@ -62,19 +65,27 @@ impl GenSenseAuditor {
                     _ => crate::semantics::SymbolKind::Unknown,
                 };
 
+                tracing::debug!(
+                    "DEBUG: Found node {} with parent {} for symbol {}",
+                    node.kind(),
+                    parent.kind(),
+                    name
+                );
                 if kind == crate::semantics::SymbolKind::Unknown {
+                    tracing::debug!("DEBUG: Skipping unknown kind for parent {}", parent.kind());
                     continue;
                 }
 
                 symbols.push(crate::semantics::Symbol {
                     name: name.to_string(),
-                    kind,
+                    kind: kind.clone(),
                     start_byte: parent.start_byte(),
                     end_byte: parent.end_byte(),
                     line: parent.start_position().row + 1,
                     end_line: parent.end_position().row + 1,
                     column: node.start_position().column + 1,
                     file_path: path_str.clone(),
+                    file_id,
                 });
             }
         }
@@ -82,6 +93,10 @@ impl GenSenseAuditor {
         Ok(symbols)
     }
 
+    /// Scans for call edges in a given file.
+    ///
+    /// # Errors
+    /// Returns an error if the tree-sitter query fails to compile.
     pub fn scan_for_edges(
         &self,
         path: &Path,
@@ -89,9 +104,8 @@ impl GenSenseAuditor {
         language: &tree_sitter::Language,
         tree: &tree_sitter::Tree,
     ) -> Result<Vec<(String, String)>> {
-        let query_str = match ParserRegistry::get_call_query(path) {
-            Some(q) => q,
-            None => return Ok(Vec::new()),
+        let Some(query_str) = ParserRegistry::get_call_query(path) else {
+            return Ok(Vec::new());
         };
         let query =
             Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
@@ -125,6 +139,10 @@ impl GenSenseAuditor {
         Ok(edges)
     }
 
+    /// Discovers events in a given file and links them to the registry.
+    ///
+    /// # Errors
+    /// This method currently returns `Ok(())` but is marked as `Result` for consistency.
     pub fn discover_events(
         &self,
         path: &Path,
@@ -171,7 +189,7 @@ impl GenSenseAuditor {
 
             if let Some(sym) = registry.find_at(name, &path_str, line) {
                 let idx = registry
-                    .graph
+                    .graph()
                     .find_node(&sym.name, &sym.file_path, sym.line);
                 if let (Some(idx), Some(func)) = (idx, self.find_enclosing_function(node)) {
                     if let Some(fname_node) = func.child_by_field_name("name") {
@@ -179,14 +197,14 @@ impl GenSenseAuditor {
                             Ok(s) if !s.is_empty() => s,
                             _ => return,
                         };
-                        for &f_idx in &registry.graph.find_nodes(fname) {
-                            if let Some(fsym) = registry.graph.get_symbol(f_idx) {
+                        for &f_idx in &registry.graph().find_nodes(fname) {
+                            if let Some(fsym) = registry.graph().get_symbol(f_idx) {
                                 if fsym.file_path == path_str {
                                     let kind = match node.kind() {
                                         "parameter" => crate::semantics::graph::EdgeKind::Parameter,
                                         _ => crate::semantics::graph::EdgeKind::InScope,
                                     };
-                                    registry.graph.add_edge(f_idx, idx, kind);
+                                    registry.graph_mut().add_edge(f_idx, idx, kind);
                                 }
                             }
                         }
@@ -208,6 +226,7 @@ impl GenSenseAuditor {
         }
     }
 
+    #[must_use]
     pub fn find_enclosing_function<'a>(&self, node: Node<'a>) -> Option<Node<'a>> {
         let mut current = node;
         while let Some(parent) = current.parent() {
@@ -222,6 +241,7 @@ impl GenSenseAuditor {
         None
     }
 
+    #[must_use]
     pub fn extract_semantic_ops(
         &self,
         path: &Path,

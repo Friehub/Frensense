@@ -3,18 +3,22 @@
 use crate::rules::core::CoreRule;
 use crate::rules::ir::{AstQuery, CoreRuleIr, FlowConstraint};
 
-/// The GenSense Rule Compiler.
+/// The `GenSense` Rule Compiler.
 pub struct RuleCompiler;
 
 impl RuleCompiler {
+    /// Compiles a DSL rule into its Internal Representation (IR).
+    ///
+    /// # Errors
+    /// Returns an error if the regex patterns in the rule are invalid.
     pub fn compile(dsl: CoreRule) -> crate::Result<CoreRuleIr> {
         let mut match_queries = Vec::new();
         let mut flow_constraints = Vec::new();
 
-        if dsl.on_node.contains(" ") || dsl.on_node.contains("(") {
+        if dsl.on_node.contains(' ') || dsl.on_node.contains('(') {
             match_queries.push(AstQuery {
                 selector: dsl.on_node.clone(),
-                capture_name: "node".to_string(),
+                _capture_name: "node".to_string(),
             });
         } else {
             let kinds: Vec<String> = dsl.on_node.split('|').map(|s| format!("({s})")).collect();
@@ -25,7 +29,7 @@ impl RuleCompiler {
             };
             match_queries.push(AstQuery {
                 selector: query,
-                capture_name: "node".to_string(),
+                _capture_name: "node".to_string(),
             });
         }
 
@@ -37,7 +41,9 @@ impl RuleCompiler {
         }
 
         if let Some(scope) = dsl.within_scope {
-            flow_constraints.push(FlowConstraint::ScopeConstraint { pattern: scope });
+            let re = regex::Regex::new(&scope)
+                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+            flow_constraints.push(FlowConstraint::ScopeConstraint { pattern: re });
         }
 
         if let Some(temp) = dsl.temporal {
@@ -50,7 +56,6 @@ impl RuleCompiler {
             }
 
             let behavior = match temp.behavior.as_str() {
-                "must_follow" => crate::rules::ir::TemporalBehavior::MustFollow,
                 "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
                 _ => crate::rules::ir::TemporalBehavior::MustFollow,
             };
@@ -71,6 +76,12 @@ impl RuleCompiler {
             None
         };
 
+        let target_kinds: Vec<String> = dsl
+            .on_node
+            .split('|')
+            .map(|s| s.trim().to_string())
+            .collect();
+
         Ok(CoreRuleIr {
             metadata: dsl.metadata,
             match_queries,
@@ -81,12 +92,14 @@ impl RuleCompiler {
             max_lines: dsl.max_lines,
             max_depth: dsl.max_depth,
             target_ext: dsl.target_ext,
+            target_kinds,
             use_query,
             fix_pattern,
             fix_template: dsl.fix_with,
             inject_import: dsl.inject_import,
             if_name_matches: dsl.if_name_matches,
             body_must_contain: dsl.body_must_contain,
+            body_may_delegate_via: dsl.body_may_delegate_via,
         })
     }
 }
@@ -97,6 +110,10 @@ use crate::rules::ir::{ProjectFlowConstraint, ProjectRuleIr};
 pub struct ProjectRuleCompiler;
 
 impl ProjectRuleCompiler {
+    /// Compiles a project-level DSL rule into its Internal Representation (IR).
+    ///
+    /// # Errors
+    /// Returns an error if the regex patterns or file globs in the rule are invalid.
     pub fn compile(dsl: ProjectCoreRule) -> crate::Result<ProjectRuleIr> {
         let mut constraints = Vec::new();
 

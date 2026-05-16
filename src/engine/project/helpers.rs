@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 
+#[cfg(feature = "fingerprinting")]
 use super::super::fingerprint::FunctionFingerprint;
 use super::Engine;
 use crate::{Advisory, FileId};
 use std::path::Path;
 
 impl Engine {
+    #[must_use]
     pub fn run_governance_checks(&self, root: &Path) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let sbom_txt = root.join("sbom.txt");
@@ -27,12 +29,15 @@ impl Engine {
                 proposed_replacement: None,
                 proposed_import: None,
                 enclosing_symbol: None,
+                confidence: 1.0,
+                fingerprint: String::new(),
             });
         }
         advisories
     }
 
     #[cfg(feature = "fingerprinting")]
+    #[must_use]
     pub fn post_process_ngrams(&self, fingerprints: &[FunctionFingerprint]) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let mut similarity_map: std::collections::HashMap<u64, Vec<usize>> =
@@ -62,6 +67,7 @@ impl Engine {
                 let f2 = &fingerprints[j];
                 let intersection = f1.ngram_hashes.intersection(&f2.ngram_hashes).count();
                 let union = f1.ngram_hashes.union(&f2.ngram_hashes).count();
+                #[allow(clippy::cast_precision_loss)]
                 let similarity = intersection as f64 / union as f64;
                 if similarity >= 0.8 {
                     advisories.push(Advisory {
@@ -69,13 +75,17 @@ impl Engine {
                         file_id: FileId(0), // Global finding
                         file_path: f1.file_path.clone(),
                         severity: crate::Severity::Warning,
-                        observation: format!(
-                            "Redundant Boilerplate: Block '{}' is {}% similar to '{}' in {}:{}.",
-                            f1.function_name, (similarity * 100.0) as u32, f2.function_name, f2.file_path, f2.line
-                        ),
+                        observation: {
+                            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                            let sim_pct = (similarity * 100.0) as u32;
+                            format!(
+                                "Redundant Boilerplate: Block '{}' is {}% similar to '{}' in {}:{}.",
+                                f1.function_name, sim_pct, f2.function_name, f2.file_path, f2.line
+                            )
+                        },
                         impact: "Engineering Principle: Structural duplication increases technical debt and maintenance overhead.".to_string(),
                         improvement: format!("Abstract common logic shared with {}.", f2.function_name),
-                        line: f1.line as u32,
+                        line: u32::try_from(f1.line).unwrap_or(u32::MAX),
                         column: 0,
                         start_byte: 0,
                         end_byte: 0,
@@ -83,6 +93,9 @@ impl Engine {
                         proposed_replacement: None,
                         proposed_import: None,
                         enclosing_symbol: Some(f1.function_name.clone()),
+                        #[allow(clippy::cast_possible_truncation)]
+                        confidence: similarity as f32,
+                        fingerprint: String::new(),
                     });
                 }
             }

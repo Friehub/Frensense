@@ -39,6 +39,7 @@ pub struct SemanticExtractor;
 
 impl SemanticExtractor {
     /// Extracts normalized semantic operations from a language-specific AST node.
+    #[must_use]
     pub fn extract(node: Node, source: &str, ext: &str) -> Vec<SemanticOp> {
         let mut ops = Vec::new();
         match ext {
@@ -93,12 +94,6 @@ impl SemanticExtractor {
 
     fn extract_typescript(node: Node, source: &str, ops: &mut Vec<SemanticOp>) {
         match node.kind() {
-            "program" | "statement_block" | "internal_module" => {
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    Self::extract_typescript(child, source, ops);
-                }
-            }
             "lexical_declaration" | "variable_declaration" => {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
@@ -167,20 +162,21 @@ impl SemanticExtractor {
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     ops.push(SemanticOp::EnterBlock(body.into()));
+                    Self::extract_typescript(body, source, ops);
                 }
             }
-            _ => {}
+            _ => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    Self::extract_typescript(child, source, ops);
+                }
+            }
         }
     }
 
     fn extract_rust(node: Node, source: &str, ops: &mut Vec<SemanticOp>) {
-        match node.kind() {
-            "source_file" | "block" => {
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    Self::extract_rust(child, source, ops);
-                }
-            }
+        let kind = node.kind();
+        match kind {
             "let_declaration" => {
                 let name_node = node.child_by_field_name("pattern");
                 let value_node = node.child_by_field_name("value");
@@ -237,30 +233,7 @@ impl SemanticExtractor {
                 }
             }
             "macro_invocation" => {
-                let macro_name_node = node.child_by_field_name("macro");
-                let args_node = node.child_by_field_name("arguments");
-                if let (Some(m), Some(a)) = (macro_name_node, args_node) {
-                    let mut arg_list = Vec::new();
-                    let mut cursor = a.walk();
-                    for arg in a.children(&mut cursor) {
-                        if !matches!(arg.kind(), "(" | ")" | "," | "token_tree") {
-                            arg_list.push(arg.into());
-                        } else if arg.kind() == "token_tree" {
-                            // Extract identifiers from token tree for better taint tracking
-                            let mut inner_cursor = arg.walk();
-                            for inner in arg.children(&mut inner_cursor) {
-                                if inner.kind() == "identifier" {
-                                    arg_list.push(inner.into());
-                                }
-                            }
-                        }
-                    }
-                    ops.push(SemanticOp::Call {
-                        function_name: source[m.start_byte()..m.end_byte()].to_string(),
-                        args: arg_list,
-                        range: node.into(),
-                    });
-                }
+                Self::handle_rust_macro(node, source, ops);
             }
             "function_item" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
@@ -271,9 +244,57 @@ impl SemanticExtractor {
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     ops.push(SemanticOp::EnterBlock(body.into()));
+                    Self::extract_rust(body, source, ops);
                 }
             }
-            _ => {}
+            _ => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    Self::extract_rust(child, source, ops);
+                }
+            }
+        }
+    }
+
+    fn handle_rust_macro(node: Node, source: &str, ops: &mut Vec<SemanticOp>) {
+        let macro_name_node = node.child_by_field_name("macro");
+        let args_node = node.child_by_field_name("arguments").or_else(|| {
+            let mut cursor = node.walk();
+            if cursor.goto_first_child() {
+                loop {
+                    let child = cursor.node();
+                    if child.kind() == "token_tree" {
+                        return Some(child);
+                    }
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+            None
+        });
+        if let (Some(m), Some(a)) = (macro_name_node, args_node) {
+            let mut arg_list = Vec::new();
+            let mut cursor = a.walk();
+            for arg in a.children(&mut cursor) {
+                if !matches!(arg.kind(), "(" | ")" | "," | "token_tree") {
+                    arg_list.push(arg.into());
+                } else if arg.kind() == "token_tree" {
+                    // Extract identifiers from token tree for better taint tracking
+                    let mut inner_cursor = arg.walk();
+                    for inner in arg.children(&mut inner_cursor) {
+                        if inner.kind() == "identifier" {
+                            arg_list.push(inner.into());
+                        }
+                    }
+                }
+            }
+            let op = SemanticOp::Call {
+                function_name: source[m.start_byte()..m.end_byte()].to_string(),
+                args: arg_list,
+                range: node.into(),
+            };
+            ops.push(op);
         }
     }
 }

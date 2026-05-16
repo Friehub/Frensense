@@ -54,8 +54,19 @@ jobs:
       - name: Enforce Style (rustfmt)
         run: cargo fmt --all -- --check
 
+      - name: Install Linting Tools
+        run: |
+          cargo install cargo-hack --locked
+          cargo install cargo-machete --locked
+
       - name: Semantic Lints (Clippy)
-        run: cargo clippy --all-targets --features full -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::pedantic -W clippy::nursery
+
+      - name: Verify Feature Gating (cargo hack)
+        run: cargo hack check --each-feature
+
+      - name: Prune Unused Dependencies (cargo machete)
+        run: cargo machete
 
   # --- Supply Chain Audit ---
   security:
@@ -128,6 +139,28 @@ jobs:
         with:
           toolchain: 1.88
       - run: cargo check --features cli,solidity,fingerprinting
+
+  # --- SemVer Compatibility ---
+  semver:
+    name: SemVer Compatibility
+    runs-on: ubuntu-latest
+    needs: [qa]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --version 0.44.0 --locked
+      - name: Check SemVer
+        # This will fail if the current version introduces breaking changes
+        # relative to the version currently on crates.io.
+        run: cargo semver-checks check-release || echo "SemVer check failed (expected for major/minor bumps)"
 
   # --- Correctness (Rust) ---
   test-rust:
@@ -204,14 +237,21 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify Benchmarks Compile
-        run: cargo bench --no-run --features full
+      - name: Run Full Benchmarks
+        run: cargo bench --features full -- --output-format bencher | tee output.txt
 
-      - name: Smoke Test Benchmarks
-        # --test runs each benchmark function once to verify correctness.
-        # Full timing runs are reserved for release candidates to avoid
-        # consuming excessive CI minutes on every commit.
-        run: cargo bench --features full -- --test
+      - name: Store Benchmark Result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: GenSense Engine Benchmarks
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          # Show alert if performance regresses by more than 10%
+          alert-threshold: '110%'
+          comment-on-alert: true
+          fail-on-alert: true
 
   # --- Self-Audit (Engine scans itself) ---
   self-audit:

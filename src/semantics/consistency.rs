@@ -16,13 +16,15 @@ pub struct Divergence {
 }
 
 impl ConsistencyCheck {
-    pub fn new(path_ast: Vec<Advisory>, path_graph: Vec<Advisory>) -> Self {
+    #[must_use]
+    pub const fn new(path_ast: Vec<Advisory>, path_graph: Vec<Advisory>) -> Self {
         Self {
             path_ast,
             path_graph,
         }
     }
 
+    #[must_use]
     pub fn verify(&self) -> bool {
         if self.path_ast.len() != self.path_graph.len() {
             return false;
@@ -34,6 +36,7 @@ impl ConsistencyCheck {
         set_a == set_b
     }
 
+    #[must_use]
     pub fn detect_divergence(&self) -> Divergence {
         let set_ast: HashSet<_> = self.path_ast.iter().collect();
         let set_graph: HashSet<_> = self.path_graph.iter().collect();

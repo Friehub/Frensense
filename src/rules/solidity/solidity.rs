@@ -69,7 +69,7 @@ impl SolidityReentrancyGuard {
                         let enclosing_symbol = context
                             .symbols
                             .find_function_at(&file_path, r)
-                            .and_then(|idx| context.symbols.graph.get_symbol(idx))
+                            .and_then(|idx| context.symbols.graph().get_symbol(idx))
                             .map(|s| s.name.clone());
 
                         advisories.push(Advisory {
