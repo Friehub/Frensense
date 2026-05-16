@@ -20,6 +20,7 @@ impl GenSenseRule for AsyncPanicSafety {
             improvement: Cow::Borrowed("Use '?' (try operator) or handle the error gracefully to ensure the async task remains stable."),
             tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Safety"),
+            confidence: 0.85,
         })
     }
 

@@ -15,6 +15,7 @@ impl GenSenseRule for DeadResult {
                 improvement: "Consider handling the result explicitly with 'match' or 'if let', or use '.expect()' if failure is truly impossible.".into(),
                 tags: vec!["ai-risk".into(), "reliability".into()],
                 category: "Logic".into(),
+                confidence: 0.85,
             }
         });
         &META
@@ -32,12 +33,11 @@ impl GenSenseRule for DeadResult {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
         if code.starts_with("let _ =") && code.contains('(') {
-            let advisory = self.new_advisory(
+            advisories.push(self.new_advisory(
                 &node,
                 context,
                 "Silent result discard detected.".to_string(),
-            );
-            advisories.push(self.with_confidence(advisory, 0.85));
+            ));
         }
         advisories
     }

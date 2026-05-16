@@ -60,6 +60,12 @@ pub struct RuleMetadata {
     pub improvement: Cow<'static, str>,
     pub tags: Vec<Cow<'static, str>>,
     pub category: Cow<'static, str>,
+    #[serde(default = "default_confidence")]
+    pub confidence: f32,
+}
+
+const fn default_confidence() -> f32 {
+    0.55
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
@@ -216,7 +222,7 @@ pub trait GenSenseRule: Send + Sync {
             file_id: context.file_id,
             file_path,
             severity: meta.severity,
-            confidence: 0.55,
+            confidence: meta.confidence,
             observation,
             impact: meta.impact.to_string(),
             improvement: meta.improvement.to_string(),

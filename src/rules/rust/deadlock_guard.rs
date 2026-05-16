@@ -20,6 +20,7 @@ impl GenSenseRule for DeadlockGuard {
             improvement: Cow::Borrowed("Use tokio::sync::Mutex or ensure the guard is dropped before the await."),
             tags: vec![Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Reliability"),
+            confidence: 0.85,
         })
     }
 
@@ -70,19 +71,31 @@ impl DeadlockGuard {
 }
 
 fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
-    if node.kind() == "call_expression" {
-        if let Some(f) = node.child_by_field_name("function") {
-            let code = &source[f.start_byte()..f.end_byte()];
-            if code.contains(".lock") && f.start_byte() < before_byte {
-                return true;
+    let mut cursor = node.walk();
+    let mut stack = vec![node];
+
+    while let Some(current) = stack.pop() {
+        if current.start_byte() >= before_byte {
+            continue;
+        }
+
+        if current.kind() == "call_expression" {
+            if let Some(f) = current.child_by_field_name("function") {
+                let code = &source[f.start_byte()..f.end_byte()];
+                if code.contains(".lock") {
+                    return true;
+                }
             }
         }
-    }
 
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.start_byte() < before_byte && scan_for_lock(child, before_byte, source) {
-            return true;
+        cursor.reset(current);
+        if cursor.goto_first_child() {
+            loop {
+                stack.push(cursor.node());
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
         }
     }
     false

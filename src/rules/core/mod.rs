@@ -51,6 +51,10 @@ pub struct CoreRule {
     pub body_must_contain: Option<Regex>,
     #[serde(default, with = "serde_regex_opt")]
     pub body_may_delegate_via: Option<Regex>,
+    #[serde(default, with = "serde_regex_opt")]
+    pub body_must_contain_any_of: Option<Regex>,
+    #[serde(default)]
+    pub must_be_preceded_by: Option<String>,
     #[serde(default)]
     pub use_query: Option<bool>,
 }

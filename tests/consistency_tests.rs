@@ -82,6 +82,7 @@ fn test_temporal_consistency_rust_deadlock() {
             improvement: "Unlock before await".into(),
             tags: vec![],
             category: "Security".into(),
+            confidence: 0.55,
         },
     };
 

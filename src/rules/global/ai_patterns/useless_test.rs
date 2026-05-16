@@ -1,20 +1,24 @@
-use crate::{Advisory, GenSenseContext, GenSenseRule};
+use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use std::borrow::Cow;
+use std::sync::OnceLock;
 use tree_sitter::Node;
 
 pub struct UselessTest;
+static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
 impl GenSenseRule for UselessTest {
-    fn id(&self) -> &str {
-        "AI_USELESS_TEST"
-    }
-    fn description(&self) -> &str {
-        "Test function detected that logs output but lacks assertions."
-    }
-    fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
-    }
-    fn query(&self) -> Option<&str> {
-        Some("(function_item) @func")
+    fn metadata(&self) -> &RuleMetadata {
+        METADATA.get_or_init(|| RuleMetadata {
+            id: Cow::Borrowed("AI_USELESS_TEST"),
+            name: Cow::Borrowed("Useless Test Detector"),
+            severity: Severity::Warning,
+            observation: Cow::Borrowed("Test function detected that logs output but lacks assertions."),
+            impact: Cow::Borrowed("Tests without assertions do not verify program correctness and can pass even if the logic under test is failing."),
+            improvement: Cow::Borrowed("Add assertions that validate the expected outcomes."),
+            tags: vec![Cow::Borrowed("testing"), Cow::Borrowed("rust")],
+            category: Cow::Borrowed("Testing"),
+            confidence: 0.85,
+        })
     }
 
     fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
@@ -31,9 +35,8 @@ impl GenSenseRule for UselessTest {
                 if only_logs && !has_assert {
                     advisories.push(self.new_advisory(
                         &node,
+                        context,
                         "We noticed a test function that logs output but lacks assertions.".to_string(),
-                        "Tests without assertions do not verify program correctness and can pass even if the logic under test is failing.".to_string(),
-                        "We recommend adding assertions that validate the expected outcomes.".to_string(),
                     ));
                 }
             }

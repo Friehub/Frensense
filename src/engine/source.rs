@@ -77,4 +77,12 @@ impl SourceRegistry {
             None
         }
     }
+
+    pub fn all_sources(&self) -> impl Iterator<Item = (&Path, &str)> {
+        self.files.values().map(|f| (f.path.as_path(), &*f.content))
+    }
+
+    pub fn all_files(&self) -> impl Iterator<Item = Arc<SourceFile>> {
+        self.files.values().cloned()
+    }
 }

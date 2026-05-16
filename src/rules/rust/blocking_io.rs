@@ -20,6 +20,7 @@ impl GenSenseRule for BlockingIoDetector {
             improvement: Cow::Borrowed("Use asynchronous alternatives (e.g., tokio::time::sleep, tokio::fs, or tokio::net). If no async version exists, use spawn_blocking."),
             tags: vec![Cow::Borrowed("performance"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Performance"),
+            confidence: 0.85,
         })
     }
 

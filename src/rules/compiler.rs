@@ -100,6 +100,8 @@ impl RuleCompiler {
             if_name_matches: dsl.if_name_matches,
             body_must_contain: dsl.body_must_contain,
             body_may_delegate_via: dsl.body_may_delegate_via,
+            body_must_contain_any_of: dsl.body_must_contain_any_of,
+            must_be_preceded_by: dsl.must_be_preceded_by,
         })
     }
 }

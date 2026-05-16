@@ -15,6 +15,7 @@ impl GenSenseRule for TsFloatingPromiseDetector {
                 improvement: "Ensure the promise is handled using 'await', 'return', or by assigning it to a variable.".into(),
                 tags: vec!["ai-risk".into(), "reliability".into(), "async".into()],
                 category: "Logic".into(),
+                confidence: 0.85,
             }
         });
         &META
@@ -51,13 +52,12 @@ impl GenSenseRule for TsFloatingPromiseDetector {
         });
 
         if !is_handled {
-            let advisory = self.new_advisory(
+            advisories.push(self.new_advisory(
                 &node,
                 context,
                 "Floating Promise: promise-returning call is not awaited, returned, or assigned."
                     .to_string(),
-            );
-            advisories.push(self.with_confidence(advisory, 0.85));
+            ));
         }
 
         advisories

@@ -57,6 +57,8 @@ pub struct CoreRuleIr {
     pub if_name_matches: Option<Regex>,
     pub body_must_contain: Option<Regex>,
     pub body_may_delegate_via: Option<Regex>,
+    pub body_must_contain_any_of: Option<Regex>,
+    pub must_be_preceded_by: Option<String>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -269,12 +271,53 @@ impl CoreRuleIr {
             }
         }
 
-        if let Some(re) = &self.must_not_contain {
+        if let Some(re) = &self.body_must_contain_any_of {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            let body_code = &context.source_code[body_node.start_byte()..body_node.end_byte()];
+            if re.is_match(body_code) {
+                let is_bypassed = if let Some(bypass_re) = &self.must_not_contain {
+                    bypass_re.is_match(code)
+                } else {
+                    false
+                };
+
+                if !is_bypassed {
+                    advisories.push(self.new_advisory(
+                        &node,
+                        context,
+                        self.metadata.observation.to_string(),
+                    ));
+                }
+            }
+        } else if let Some(re) = &self.must_not_contain {
             if re.is_match(code) {
                 advisories.push(self.new_advisory(
                     &node,
                     context,
                     format!("Prohibited pattern '{}' was found.", re.as_str()),
+                ));
+            }
+        }
+
+        if let Some(kind) = &self.must_be_preceded_by {
+            let mut prev = node.prev_sibling();
+            let mut found = false;
+            while let Some(p) = prev {
+                if p.kind() == kind {
+                    found = true;
+                    break;
+                }
+                if p.kind() == "line_comment" || p.kind() == "block_comment" {
+                    prev = p.prev_sibling();
+                    continue;
+                }
+                break;
+            }
+            if !found {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    self.metadata.observation.to_string(),
                 ));
             }
         }
@@ -375,7 +418,7 @@ impl CoreRuleIr {
                 )
                 .and_then(|id| context.symbols.get_symbol(id))
                 .map(|s| s.name.clone()),
-            confidence: 1.0,
+            confidence: self.metadata.confidence,
             fingerprint: String::new(),
         }
     }
@@ -521,7 +564,7 @@ impl ProjectRuleIr {
                     proposed_replacement: None,
                     proposed_import: None,
                     enclosing_symbol: Some(source.name.clone()),
-                    confidence: 1.0,
+                    confidence: self.metadata.confidence,
                     fingerprint: String::new(),
                     start_byte: u32::try_from(source.start_byte).unwrap_or(0),
                     end_byte: u32::try_from(source.end_byte).unwrap_or(0),
@@ -573,7 +616,7 @@ impl ProjectRuleIr {
                         proposed_replacement: None,
                         proposed_import: None,
                         enclosing_symbol: Some(caller.name.clone()),
-                        confidence: 1.0,
+                        confidence: self.metadata.confidence,
                         fingerprint: String::new(),
                         start_byte: u32::try_from(caller.start_byte).unwrap_or(0),
                         end_byte: u32::try_from(caller.end_byte).unwrap_or(0),
@@ -624,7 +667,7 @@ impl ProjectRuleIr {
                         proposed_replacement: None,
                         proposed_import: None,
                         enclosing_symbol: Some(source.name.clone()),
-                        confidence: 1.0,
+                        confidence: self.metadata.confidence,
                         fingerprint: String::new(),
                         start_byte: u32::try_from(source.start_byte).unwrap_or(0),
                         end_byte: u32::try_from(source.end_byte).unwrap_or(0),

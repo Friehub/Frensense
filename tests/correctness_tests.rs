@@ -104,6 +104,7 @@ fn test_taint_through_destructuring() {
             improvement: "None".into(),
             tags: vec![],
             category: "Test".into(),
+            confidence: 0.55,
         },
     };
 

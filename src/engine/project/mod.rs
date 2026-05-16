@@ -29,7 +29,6 @@ pub struct Engine {
     source_registry: SourceRegistry,
     min_confidence: f32,
     environment: GenSenseEnvironment,
-    verify_consistency: bool,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
     extra_rule_dirs: Vec<PathBuf>,
@@ -46,7 +45,6 @@ impl Engine {
             source_registry: SourceRegistry::new(),
             min_confidence: 0.1,
             environment: GenSenseEnvironment::Development,
-            verify_consistency: false,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
             extra_rule_dirs: Vec::new(),
@@ -105,10 +103,6 @@ impl Engine {
 
     pub fn enable_category(&mut self, category: &str) {
         self.enabled_categories.insert(category.to_string());
-    }
-
-    pub const fn set_verify_consistency(&mut self, val: bool) {
-        self.verify_consistency = val;
     }
 
     pub fn add_rule_dir<P: Into<PathBuf>>(&mut self, path: P) {
@@ -346,16 +340,7 @@ impl Engine {
                 };
                 let result = self.auditor.audit(&opts)?;
 
-                let mut advisories = result.advisories;
-
-                if self.verify_consistency {
-                    advisories.extend(self.run_consistency_analysis(
-                        *id,
-                        p,
-                        &snap.content,
-                        symbols,
-                    ));
-                }
+                let advisories = result.advisories;
 
                 Ok(ScanResult {
                     advisories,
@@ -397,17 +382,6 @@ impl Engine {
             .filter(|e| e.file_type().is_file())
             .map(|e| e.path().to_path_buf())
             .collect()
-    }
-
-    #[allow(clippy::unused_self)]
-    const fn run_consistency_analysis(
-        &self,
-        _file_id: FileId,
-        _path: &Path,
-        _content: &str,
-        _symbols: &SymbolRegistry,
-    ) -> Vec<Advisory> {
-        Vec::new()
     }
 }
 

@@ -15,6 +15,7 @@ impl GenSenseRule for PlaceholderPanic {
                 improvement: "Replace with a functional implementation or handle the error path gracefully (e.g., return Result::Err).".into(),
                 tags: vec!["ai-risk".into(), "security".into(), "reliability".into()],
                 category: "Logic".into(),
+                confidence: 0.85,
             }
         });
         &META
@@ -38,13 +39,14 @@ impl GenSenseRule for PlaceholderPanic {
 
         if matches!(macro_name, "todo" | "unimplemented") {
             // Fire on ALL todo!/unimplemented! — bare placeholders are dangerous
-            let advisory = self.new_advisory(
-                &node,
-                context,
-                "Placeholder macro detected — this will panic unconditionally at runtime."
-                    .to_string(),
+            advisories.push(
+                self.new_advisory(
+                    &node,
+                    context,
+                    "Placeholder macro detected — this will panic unconditionally at runtime."
+                        .to_string(),
+                ),
             );
-            advisories.push(self.with_confidence(advisory, 0.85));
         }
 
         advisories

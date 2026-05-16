@@ -153,7 +153,7 @@ rules:
     section as small as possible.
   on_node: function_item
   if_matches: (lock|write|read)\(.*\)
-  must_not_contain: \.await
+  must_contain: \.await
   name: Rust Lock Io
   severity: Warning
   tags: []
@@ -237,3 +237,75 @@ rules:
   severity: Critical
   tags: []
   category: Security
+- id: RUST_SPAWN_WITHOUT_JOINHANDLE
+  target_ext: rs
+  on_node: expression_statement
+  if_matches: tokio::spawn\(|thread::spawn\(
+  observation: Spawned task handle is immediately dropped — panics will be silently swallowed.
+  impact: A panic inside a detached task does not propagate to the spawner. The failure is lost.
+  improvement: Assign the JoinHandle and await it, or use a task supervisor like tokio::task::JoinSet.
+  severity: Warning
+  category: Concurrency
+  name: Rust Spawn Without Joinhandle
+  tags: []
+- id: RUST_ARC_CLONE_AMBIGUITY
+  target_ext: rs
+  on_node: for_expression
+  if_matches: \.clone\(\)
+  must_not_contain: tokio::spawn|thread::spawn
+  observation: A .clone() call inside a loop that spawns tasks — prefer Arc::clone(&handle) to make intent explicit.
+  impact: A .clone() call inside a loop that spawns tasks can obscure whether it's cloning the Arc or cloning the inner type.
+  improvement: Replace .clone() with Arc::clone(&variable) to signal this is a reference-count increment, not a deep copy.
+  severity: Info
+  category: Concurrency
+  name: Rust Arc Clone Ambiguity
+  tags: []
+- id: RUST_MUTEX_POISONING_UNHANDLED
+  target_ext: rs
+  on_node: call_expression
+  if_matches: \.lock\(\)\s*\.(unwrap|expect)\(
+  observation: Mutex::lock().unwrap() propagates poisoned mutex state silently.
+  impact: If another thread panicked while holding this lock, this code will also panic with a confusing error.
+  improvement: Use .unwrap_or_else(|p| p.into_inner()) to recover from poisoning, or use parking_lot::Mutex which doesn't poison.
+  severity: Warning
+  category: Concurrency
+  name: Rust Mutex Poisoning Unhandled
+  tags: []
+- id: RUST_BLOCKING_IN_ASYNC
+  target_ext: rs
+  on_node: function_item
+  if_matches: async fn
+  must_not_contain: tokio::task::spawn_blocking
+  body_must_contain_any_of: std::fs::|std::net::TcpStream::connect|thread::sleep
+  observation: Blocking stdlib call detected inside an async function.
+  impact: Blocking calls on async executor threads stall all tasks scheduled on that thread.
+  improvement: Use the tokio::fs, tokio::net, or tokio::time equivalents, or wrap in tokio::task::spawn_blocking.
+  severity: Critical
+  category: Performance
+  name: Rust Blocking In Async
+  tags: []
+- id: RUST_SERDE_MISSING_DENY_UNKNOWN
+  target_ext: rs
+  on_node: struct_item
+  if_matches: '#\[derive[^\]]*Deserialize'
+  must_contain: deny_unknown_fields
+  observation: Struct derives Deserialize but does not use #[serde(deny_unknown_fields)].
+  impact: Unknown fields in the payload are silently ignored. Mass-assignment vulnerabilities can arise when the same struct is used across different layers.
+  improvement: Add #[serde(deny_unknown_fields)] to structs that represent API input or sensitive domain objects.
+  severity: Warning
+  category: Security
+  tags: [security, serde, api]
+  name: Rust Serde Missing Deny Unknown
+- id: RUST_MISSING_DOC_ON_PUB
+  target_ext: rs
+  on_node: "[ (function_item) (struct_item) (trait_item) ] @node"
+  if_matches: "^pub "
+  must_be_preceded_by: doc_comment
+  observation: Public item has no doc comment.
+  impact: Undocumented public APIs make the codebase harder to maintain and onboard into.
+  improvement: Add a /// doc comment explaining what this item does and any non-obvious invariants.
+  severity: Info
+  category: Quality
+  name: Rust Missing Doc On Pub
+  tags: []
+

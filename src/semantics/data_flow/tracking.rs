@@ -337,43 +337,55 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         node: Node<'a>,
         registry: &TaintRegistry<'a>,
     ) -> Option<super::TaintOrigin> {
-        match node.kind() {
-            "identifier" => {
-                let name = &self.current_source[node.start_byte()..node.end_byte()];
-                registry.get_origin(name)
-            }
-            "member_expression" | "field_expression" => {
-                // Handle user.password
-                let object_node = node
-                    .child_by_field_name("object")
-                    .or_else(|| node.child(0))?;
-                let property_node = node
-                    .child_by_field_name("property")
-                    .or_else(|| node.child_by_field_name("field"))
-                    .or_else(|| node.child(2))?; // fallback for some tree-sitter grammars
+        let mut cursor = node.walk();
+        let mut stack = vec![node];
 
-                let obj_name =
-                    &self.current_source[object_node.start_byte()..object_node.end_byte()];
-                let prop_name =
-                    &self.current_source[property_node.start_byte()..property_node.end_byte()];
-
-                // Check specific field taint first
-                if let Some(origin) = registry.get_field_origin(obj_name, prop_name) {
-                    return Some(origin);
-                }
-
-                // Fallback: If the whole object is tainted, the field is tainted
-                registry.get_origin(obj_name)
-            }
-            _ => {
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    if let Some(origin) = self.resolve_taint(child, registry) {
+        while let Some(current) = stack.pop() {
+            match current.kind() {
+                "identifier" => {
+                    let name = &self.current_source[current.start_byte()..current.end_byte()];
+                    if let Some(origin) = registry.get_origin(name) {
                         return Some(origin);
                     }
                 }
-                None
+                "member_expression" | "field_expression" => {
+                    if let Some(object_node) = current
+                        .child_by_field_name("object")
+                        .or_else(|| current.child(0))
+                    {
+                        if let Some(property_node) = current
+                            .child_by_field_name("property")
+                            .or_else(|| current.child_by_field_name("field"))
+                            .or_else(|| current.child(2))
+                        {
+                            let obj_name = &self.current_source
+                                [object_node.start_byte()..object_node.end_byte()];
+                            let prop_name = &self.current_source
+                                [property_node.start_byte()..property_node.end_byte()];
+
+                            if let Some(origin) = registry.get_field_origin(obj_name, prop_name) {
+                                return Some(origin);
+                            }
+
+                            if let Some(origin) = registry.get_origin(obj_name) {
+                                return Some(origin);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    cursor.reset(current);
+                    if cursor.goto_first_child() {
+                        loop {
+                            stack.push(cursor.node());
+                            if !cursor.goto_next_sibling() {
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
+        None
     }
 }

@@ -15,6 +15,7 @@ impl GenSenseRule for TautologicalAssert {
                 improvement: "Replace with a meaningful check or remove the redundant assertion.".into(),
                 tags: vec!["ai-risk".into(), "correctness".into()],
                 category: "Logic".into(),
+                confidence: 0.85,
             }
         });
         &META
@@ -91,13 +92,12 @@ impl GenSenseRule for TautologicalAssert {
         };
 
         if is_tautology {
-            let advisory = self.new_advisory(
+            advisories.push(self.new_advisory(
                 &node,
                 context,
                 "Tautological assertion: both sides are identical or the condition is a literal."
                     .to_string(),
-            );
-            advisories.push(self.with_confidence(advisory, 0.85));
+            ));
         } else {
             // Fallback: If AST isn't structured (common in macros), use regex/string comparison on the whole argument list
             let text = context.source_code[token_tree.start_byte()..token_tree.end_byte()].trim();

@@ -87,6 +87,7 @@ rules:
     impact: "Finders that never return null/undefined can cause crashes."
     improvement: "Ensure the function handles missing data."
     tags: ["csa", "ai-risk", "reliability"]
+    confidence: 0.85
 
   # Rule 4: Auth
   - id: "TS_CSA_AUTH_NO_REJECTION"
