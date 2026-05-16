@@ -145,32 +145,30 @@ impl CoreRuleIr {
                 return false;
             }
 
-            if let Some(fix_re) = &self.fix_pattern {
-                if let Some(template) = &self.fix_template {
-                    if let Some(_caps) = fix_re.captures(code) {
-                        let replacement = fix_re.replace_all(code, template).to_string();
-                        if replacement == code {
-                            return false;
-                        }
-
-                        let import = self.inject_import.as_ref().map(|import_template| {
-                            let mut import_stmt = String::new();
-                            let caps = fix_re.captures(code).expect(
-                                "Regex captures should not fail since we just checked them",
-                            );
-                            caps.expand(import_template, &mut import_stmt);
-                            import_stmt
-                        });
-
-                        advisories.push(self.new_remediated_advisory(
-                            &node,
-                            context,
-                            self.metadata.observation.to_string(),
-                            replacement,
-                            import,
-                        ));
+            if let (Some(fix_re), Some(template)) = (&self.fix_pattern, &self.fix_template) {
+                if let Some(_caps) = fix_re.captures(code) {
+                    let replacement = fix_re.replace_all(code, template).to_string();
+                    if replacement == code {
                         return false;
                     }
+
+                    let import = self.inject_import.as_ref().map(|import_template| {
+                        let mut import_stmt = String::new();
+                        let caps = fix_re
+                            .captures(code)
+                            .expect("Regex captures should not fail since we just checked them");
+                        caps.expand(import_template, &mut import_stmt);
+                        import_stmt
+                    });
+
+                    advisories.push(self.new_remediated_advisory(
+                        &node,
+                        context,
+                        self.metadata.observation.to_string(),
+                        replacement,
+                        import,
+                    ));
+                    return false;
                 }
             }
 

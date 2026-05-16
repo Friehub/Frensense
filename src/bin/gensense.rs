@@ -57,7 +57,12 @@ fn print_version() {
     println!("  [x] Auto-Remediation");
 }
 
-fn handle_test_rule(args: &[String]) -> Result<()> {
+#[derive(serde::Deserialize)]
+struct RulesWrapper {
+    rules: Vec<gensense::rules::core::CoreRule>,
+}
+
+fn handle_test_rule(args: &[String]) {
     if args.len() < 7 {
         eprintln!(
             "Usage: gensense test-rule <rule.yml> --fixture <file> --expect-finding <id> [--expect-line <N>]"
@@ -101,11 +106,6 @@ fn handle_test_rule(args: &[String]) -> Result<()> {
 
     let rule_content = std::fs::read_to_string(&rule_file_path).expect("Failed to read rule file");
 
-    #[derive(serde::Deserialize)]
-    struct RulesWrapper {
-        rules: Vec<gensense::rules::core::CoreRule>,
-    }
-
     let wrapper: RulesWrapper =
         serde_yaml::from_str(&rule_content).expect("Failed to parse YAML rules");
     let mut rules: Vec<Box<dyn gensense::GenSenseRule>> = Vec::new();
@@ -127,25 +127,32 @@ fn handle_test_rule(args: &[String]) -> Result<()> {
         .run(Path::new(&fixture_path))
         .expect("Analysis failed");
 
-    if let Some(finding) = advisories.iter().find(|a| a.rule_id == expected_id) {
-        if let Some(expected_line) = expect_line {
-            if finding.line != expected_line {
-                println!(
-                    "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
-                    expected_line, finding.line
-                );
+    advisories
+        .iter()
+        .find(|a| a.rule_id == expected_id)
+        .map_or_else(
+            || {
+                println!("[FAIL: Rule not triggered] Expected to find rule {expected_id}");
                 std::process::exit(1);
-            }
-        }
-        println!("[PASS]");
-        std::process::exit(0);
-    } else {
-        println!("[FAIL: Rule not triggered] Expected to find rule {expected_id}");
-        std::process::exit(1);
-    }
+            },
+            |finding| {
+                if let Some(expected_line) = expect_line {
+                    if finding.line != expected_line {
+                        println!(
+                            "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
+                            expected_line, finding.line
+                        );
+                        std::process::exit(1);
+                    }
+                }
+                println!("[PASS]");
+                std::process::exit(0);
+            },
+        );
 }
 
 fn handle_generate_docs() -> Result<()> {
+    use std::fmt::Write;
     let engine = Engine::new();
     let _ = engine.list_rules();
     let mut doc = String::new();
@@ -157,13 +164,14 @@ fn handle_generate_docs() -> Result<()> {
     doc.push_str("| :--- | :--- | :--- | :--- |\n");
     for rule in engine.auditor().rules() {
         let meta = rule.metadata();
-        doc.push_str(&format!(
-            "| `{}` | {:?} | {} | {} |\n",
+        let _ = writeln!(
+            doc,
+            "| `{}` | {:?} | {} | {} |",
             rule.id(),
             meta.severity,
             meta.category,
             meta.impact
-        ));
+        );
     }
     std::fs::write("RULES.md", doc).expect("Failed to write RULES.md");
     println!("[SUCCESS] Generated RULES.md");
@@ -198,6 +206,7 @@ fn handle_list_rules() -> Result<()> {
     std::process::exit(0);
 }
 
+#[allow(clippy::struct_excessive_bools)]
 struct CliOptions {
     format: String,
     is_strict: bool,
@@ -385,7 +394,7 @@ fn compare_baseline(filtered_advisories: &[gensense::Advisory], path: &str) -> R
 
     let new_len: i128 = new_advisories.len() as i128;
     let resolved_len: i128 = resolved_advisories.len() as i128;
-    let net = (new_len - resolved_len) as i64;
+    let net = i64::try_from(new_len).unwrap_or(0) - i64::try_from(resolved_len).unwrap_or(0);
     println!(
         "[NET] {} ({} total findings)\n",
         if net > 0 {
@@ -430,7 +439,7 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "remediation")]
     if (options.do_fix || options.show_diff) && !filtered_advisories.is_empty() {
-        handle_remediation(&filtered_advisories, &options, &input_path)?;
+        handle_remediation(&filtered_advisories, &options, &input_path);
     }
 
     if regression_detected || (options.is_strict && !filtered_advisories.is_empty()) {
@@ -452,10 +461,7 @@ fn handle_early_args(args: &[String]) -> bool {
     }
 
     if args.len() > 1 && args[1] == "test-rule" {
-        if let Err(e) = handle_test_rule(args) {
-            eprintln!("Error: {e}");
-            std::process::exit(1);
-        }
+        handle_test_rule(args);
         return true;
     }
 
@@ -538,11 +544,7 @@ fn save_baseline(advisories: &[Advisory], path: &str) -> Result<()> {
 }
 
 #[cfg(feature = "remediation")]
-fn handle_remediation(
-    advisories: &[Advisory],
-    options: &CliOptions,
-    input_path: &Path,
-) -> Result<()> {
+fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path: &Path) {
     // Find project root (where .gensense or .git exists)
     let mut project_root = input_path.to_path_buf();
     if project_root.is_file() {
@@ -593,5 +595,4 @@ fn handle_remediation(
             "\n[DONE] {fixed_count} fixed, {skipped_count} skipped (context mismatch), 0 conflicts."
         );
     }
-    Ok(())
 }
