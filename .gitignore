@@ -55,7 +55,3 @@ scratch/
 !src/**/*.md
 !tests/**/*.md
 !AUDIT_V0.3.0_REPORT.md
-!FALSE_POSITIVES_REPORT.md
-!senior-rust-idioms.md
-!senior-typescript-idioms.md
-!Gensense_rust_audit.md
