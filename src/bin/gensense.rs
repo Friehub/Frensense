@@ -399,6 +399,7 @@ fn compare_baseline(filtered_advisories: &[gensense::Advisory], path: &str) -> R
 }
 
 fn main() -> Result<()> {
+    // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
     if handle_early_args(&args) {
         return Ok(());
