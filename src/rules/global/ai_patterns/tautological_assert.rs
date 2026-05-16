@@ -58,7 +58,7 @@ impl GenSenseRule for TautologicalAssert {
         let is_tautology = match macro_name {
             "assert" => {
                 // assert!(true) or assert!(false) — both are tautological
-                if let Some(arg) = args.first() {
+                args.first().is_some_and(|arg| {
                     let text = context.source_code[arg.start_byte()..arg.end_byte()].trim();
                     if text == "true" || text == "false" {
                         true
@@ -75,9 +75,7 @@ impl GenSenseRule for TautologicalAssert {
                     } else {
                         false
                     }
-                } else {
-                    false
-                }
+                })
             }
             "assert_eq" | "assert_ne" => {
                 if args.len() >= 2 {

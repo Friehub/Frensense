@@ -79,11 +79,13 @@ pub mod serde_regex_opt {
         D: Deserializer<'de>,
     {
         let s: Option<String> = Option::deserialize(deserializer)?;
-        match s {
-            Some(re_str) => Regex::new(&re_str)
-                .map(Some)
-                .map_err(serde::de::Error::custom),
-            None => Ok(None),
-        }
+        s.map_or_else(
+            || Ok(None),
+            |re_str| {
+                Regex::new(&re_str)
+                    .map(Some)
+                    .map_err(serde::de::Error::custom)
+            },
+        )
     }
 }

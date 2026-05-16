@@ -90,11 +90,9 @@ impl SymbolRegistry {
             .get(file)?
             .iter()
             .filter(|&&id| {
-                if let Some(s) = self.graph.get_symbol(id) {
+                self.graph.get_symbol(id).is_some_and(|s| {
                     s.kind == SymbolKind::Function && line >= s.line && line <= s.end_line
-                } else {
-                    false
-                }
+                })
             })
             .min_by_key(|&&id| {
                 self.graph

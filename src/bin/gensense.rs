@@ -3,7 +3,7 @@
 
 #[cfg(feature = "remediation")]
 use gensense::patcher::PatchManager;
-use gensense::{Engine, Result};
+use gensense::{Advisory, Engine, Result, Severity};
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -203,7 +203,7 @@ struct CliOptions {
     is_strict: bool,
     do_fix: bool,
     show_diff: bool,
-    severity_filter: Option<gensense::Severity>,
+    severity_filter: Option<Severity>,
     enabled_tags: Vec<String>,
     extra_rule_dirs: Vec<PathBuf>,
     no_builtin: bool,
@@ -383,7 +383,9 @@ fn compare_baseline(filtered_advisories: &[gensense::Advisory], path: &str) -> R
         );
     }
 
-    let net = (new_advisories.len() as i64) - (resolved_advisories.len() as i64);
+    let new_len: i128 = new_advisories.len() as i128;
+    let resolved_len: i128 = resolved_advisories.len() as i128;
+    let net = (new_len - resolved_len) as i64;
     println!(
         "[NET] {} ({} total findings)\n",
         if net > 0 {
@@ -397,8 +399,47 @@ fn compare_baseline(filtered_advisories: &[gensense::Advisory], path: &str) -> R
 }
 
 fn main() -> Result<()> {
-    // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
+    if handle_early_args(&args) {
+        return Ok(());
+    }
+
+    let input_path = get_input_path(&args);
+    let options = parse_options(&args);
+
+    let mut engine = Engine::new();
+    for dir in &options.extra_rule_dirs {
+        engine.add_rule_dir(dir.clone());
+    }
+    engine.set_no_builtin_rules(options.no_builtin);
+
+    let mut filtered_advisories = engine.run(&input_path)?;
+    apply_filters(&mut filtered_advisories, &options, &engine);
+
+    print_results(&filtered_advisories, &options.format, &input_path)?;
+
+    if let Some(path) = &options.emit_baseline_path {
+        save_baseline(&filtered_advisories, path)?;
+    }
+
+    let mut regression_detected = false;
+    if let Some(path) = &options.compare_baseline_path {
+        regression_detected = compare_baseline(&filtered_advisories, path)?;
+    }
+
+    #[cfg(feature = "remediation")]
+    if (options.do_fix || options.show_diff) && !filtered_advisories.is_empty() {
+        handle_remediation(&filtered_advisories, &options, &input_path)?;
+    }
+
+    if regression_detected || (options.is_strict && !filtered_advisories.is_empty()) {
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn handle_early_args(args: &[String]) -> bool {
     if args.len() < 2 || args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
         print_help();
         std::process::exit(0);
@@ -410,24 +451,43 @@ fn main() -> Result<()> {
     }
 
     if args.len() > 1 && args[1] == "test-rule" {
-        return handle_test_rule(&args);
+        if let Err(e) = handle_test_rule(args) {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+        return true;
     }
 
     if args.contains(&"--generate-docs".to_string()) {
-        return handle_generate_docs();
+        if let Err(e) = handle_generate_docs() {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+        return true;
     }
 
     if let Some(pos) = args.iter().position(|a| a == "--debug") {
         if let Some(file_path) = args.get(pos + 1) {
-            return handle_debug_ast(file_path);
+            if let Err(e) = handle_debug_ast(file_path) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+            return true;
         }
     }
 
     if args.contains(&"--list-rules".to_string()) {
-        return handle_list_rules();
+        if let Err(e) = handle_list_rules() {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+        return true;
     }
 
-    // Validate that we have a path argument before proceeding
+    false
+}
+
+fn get_input_path(args: &[String]) -> PathBuf {
     let input_path_str = match args.get(1) {
         Some(path) if !path.starts_with("--") => path.clone(),
         _ => {
@@ -440,26 +500,18 @@ fn main() -> Result<()> {
     let input_path_buf = std::env::current_dir()
         .expect("Failed to get current directory")
         .join(&input_path_str);
-    let input_path_buf = if input_path_buf.exists() {
+    if input_path_buf.exists() {
         input_path_buf.canonicalize().unwrap_or(input_path_buf)
     } else {
         input_path_buf
-    };
-    let input_path = &input_path_buf;
-
-    let options = parse_options(&args);
-
-    let mut engine = Engine::new();
-    for dir in options.extra_rule_dirs {
-        engine.add_rule_dir(dir);
     }
-    engine.set_no_builtin_rules(options.no_builtin);
+}
 
-    let mut filtered_advisories = engine.run(input_path)?;
-    filtered_advisories.retain(|a| a.confidence >= options.min_confidence);
+fn apply_filters(advisories: &mut Vec<Advisory>, options: &CliOptions, engine: &Engine) {
+    advisories.retain(|a| a.confidence >= options.min_confidence);
 
     if !options.enabled_tags.is_empty() {
-        filtered_advisories.retain(|a| {
+        advisories.retain(|a| {
             engine.auditor().rules().iter().any(|r| {
                 r.id() == a.rule_id
                     && options
@@ -471,82 +523,74 @@ fn main() -> Result<()> {
     }
 
     if let Some(filter) = options.severity_filter {
-        filtered_advisories.retain(|a| a.severity == filter);
+        advisories.retain(|a| a.severity == filter);
+    }
+}
+
+fn save_baseline(advisories: &[Advisory], path: &str) -> Result<()> {
+    let content = serde_json::to_string_pretty(advisories)
+        .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?;
+    std::fs::write(path, content)
+        .map_err(|e| gensense::GenSenseError::Config(format!("Failed to write baseline: {e}")))?;
+    println!("[SUCCESS] Captured baseline to {path}");
+    Ok(())
+}
+
+#[cfg(feature = "remediation")]
+fn handle_remediation(
+    advisories: &[Advisory],
+    options: &CliOptions,
+    input_path: &Path,
+) -> Result<()> {
+    // Find project root (where .gensense or .git exists)
+    let mut project_root = input_path.to_path_buf();
+    if project_root.is_file() {
+        project_root = project_root.parent().unwrap_or(&project_root).to_path_buf();
     }
 
-    print_results(&filtered_advisories, &options.format, input_path)?;
-
-    if let Some(path) = options.emit_baseline_path {
-        let content = serde_json::to_string_pretty(&filtered_advisories)
-            .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?;
-        std::fs::write(&path, content).map_err(|e| {
-            gensense::GenSenseError::Config(format!("Failed to write baseline: {e}"))
-        })?;
-        println!("[SUCCESS] Captured baseline to {path}");
-    }
-
-    let mut regression_detected = false;
-    if let Some(path) = &options.compare_baseline_path {
-        regression_detected = compare_baseline(&filtered_advisories, path)?;
-    }
-
-    #[cfg(feature = "remediation")]
-    if (options.do_fix || options.show_diff) && !filtered_advisories.is_empty() {
-        // Find project root (where .gensense or .git exists)
-        let mut project_root = input_path.to_path_buf();
-        if project_root.is_file() {
-            project_root = project_root.parent().unwrap_or(&project_root).to_path_buf();
+    while project_root.parent().is_some() {
+        if project_root.join(".gensense").exists() || project_root.join(".git").exists() {
+            break;
         }
+        project_root = project_root
+            .parent()
+            .expect("Failed to get parent directory")
+            .to_path_buf();
+    }
 
-        while project_root.parent().is_some() {
-            if project_root.join(".gensense").exists() || project_root.join(".git").exists() {
-                break;
-            }
-            project_root = project_root
-                .parent()
-                .expect("Failed to get parent directory")
-                .to_path_buf();
-        }
+    let patcher = PatchManager::new(&project_root);
 
-        let patcher = PatchManager::new(&project_root);
+    let mut fix_advisories = advisories.to_vec();
+    fix_advisories.retain(|a| a.proposed_replacement.is_some());
+    // Sort DESC by start_byte to avoid offset drift within a file
+    fix_advisories.sort_by_key(|a| std::cmp::Reverse(a.start_byte));
 
-        let mut fix_advisories = filtered_advisories.clone();
-        fix_advisories.retain(|a| a.proposed_replacement.is_some());
-        // Sort DESC by start_byte to avoid offset drift within a file
-        fix_advisories.sort_by_key(|a| std::cmp::Reverse(a.start_byte));
+    let mut fixed_count = 0;
+    let mut skipped_count = 0;
 
-        let mut fixed_count = 0;
-        let mut skipped_count = 0;
-
-        for adv in &fix_advisories {
-            if options.show_diff {
-                if let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path)) {
-                    println!("{diff}");
-                }
-            }
-            if options.do_fix {
-                match patcher.apply_fix(adv, Path::new(&adv.file_path)) {
-                    Ok(()) => {
-                        println!("[FIXED] {}:{} ({})", adv.file_path, adv.line, adv.rule_id);
-                        fixed_count += 1;
-                    }
-                    Err(e) => {
-                        eprintln!("[SKIP] {}: {}", adv.file_path, e);
-                        skipped_count += 1;
-                    }
-                }
+    for adv in &fix_advisories {
+        if options.show_diff {
+            if let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path)) {
+                println!("{diff}");
             }
         }
         if options.do_fix {
-            println!(
-                "\n[DONE] {fixed_count} fixed, {skipped_count} skipped (context mismatch), 0 conflicts."
-            );
+            match patcher.apply_fix(adv, Path::new(&adv.file_path)) {
+                Ok(()) => {
+                    println!("[FIXED] {}:{} ({})", adv.file_path, adv.line, adv.rule_id);
+                    fixed_count += 1;
+                }
+                Err(e) => {
+                    eprintln!("[SKIP] {}: {}", adv.file_path, e);
+                    skipped_count += 1;
+                }
+            }
         }
     }
-
-    if regression_detected || (options.is_strict && !filtered_advisories.is_empty()) {
-        std::process::exit(1);
+    if options.do_fix {
+        println!(
+            "\n[DONE] {fixed_count} fixed, {skipped_count} skipped (context mismatch), 0 conflicts."
+        );
     }
-
     Ok(())
 }

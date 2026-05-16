@@ -91,27 +91,28 @@ impl GenSenseAuditor {
                     .or_else(|| node.child_by_field_name("macro"))
                     .or_else(|| node.child(0));
 
-                if let Some(f) = fn_node {
-                    let full_name = &content[f.start_byte()..f.end_byte()];
-                    let base_name = Self::extract_base_name(f, full_name, content);
-                    let mut normalized_name = base_name;
-                    if normalized_name.ends_with('!') {
-                        normalized_name = &normalized_name[..normalized_name.len() - 1];
-                    }
+                fn_node.map_or_else(
+                    || (None, String::new()),
+                    |f| {
+                        let full_name = &content[f.start_byte()..f.end_byte()];
+                        let base_name = Self::extract_base_name(f, full_name, content);
+                        let mut normalized_name = base_name;
+                        if normalized_name.ends_with('!') {
+                            normalized_name = &normalized_name[..normalized_name.len() - 1];
+                        }
 
-                    let et = match normalized_name {
-                        "lock" | "try_lock" | "acquire" | "wait" => {
-                            crate::semantics::graph::EventType::Acquire
-                        }
-                        "unlock" | "release" | "drop" | "signal" => {
-                            crate::semantics::graph::EventType::Release
-                        }
-                        _ => crate::semantics::graph::EventType::Call,
-                    };
-                    (Some(et), normalized_name.to_string())
-                } else {
-                    (None, String::new())
-                }
+                        let et = match normalized_name {
+                            "lock" | "try_lock" | "acquire" | "wait" => {
+                                crate::semantics::graph::EventType::Acquire
+                            }
+                            "unlock" | "release" | "drop" | "signal" => {
+                                crate::semantics::graph::EventType::Release
+                            }
+                            _ => crate::semantics::graph::EventType::Call,
+                        };
+                        (Some(et), normalized_name.to_string())
+                    },
+                )
             }
             "variable_declarator" | "assignment_expression" | "let_declaration" => {
                 let name_node = node
@@ -138,17 +139,13 @@ impl GenSenseAuditor {
 
     fn extract_base_name<'a>(f: Node<'a>, full_name: &'a str, content: &'a str) -> &'a str {
         if f.kind() == "field_expression" {
-            if let Some(field) = f.child_by_field_name("field") {
+            f.child_by_field_name("field").map_or(full_name, |field| {
                 &content[field.start_byte()..field.end_byte()]
-            } else {
-                full_name
-            }
+            })
         } else if f.kind() == "scoped_identifier" {
-            if let Some(name) = f.child_by_field_name("name") {
+            f.child_by_field_name("name").map_or(full_name, |name| {
                 &content[name.start_byte()..name.end_byte()]
-            } else {
-                full_name
-            }
+            })
         } else {
             full_name
         }

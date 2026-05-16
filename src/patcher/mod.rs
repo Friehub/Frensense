@@ -36,8 +36,8 @@ impl PatchManager {
         let mut final_stmt = import_stmt.to_string();
 
         // Extract the path between quotes
-        if let Some(start_quote) = import_stmt.find('\'').or(import_stmt.find('\"')) {
-            if let Some(end_quote) = import_stmt.rfind('\'').or(import_stmt.rfind('\"')) {
+        if let Some(start_quote) = import_stmt.find('\'').or_else(|| import_stmt.find('\"')) {
+            if let Some(end_quote) = import_stmt.rfind('\'').or_else(|| import_stmt.rfind('\"')) {
                 if start_quote < end_quote {
                     let logical_path = &import_stmt[start_quote + 1..end_quote];
                     if logical_path.contains("{{root}}") {

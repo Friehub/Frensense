@@ -49,11 +49,13 @@ impl Default for GenSenseEngine {
 #[napi]
 impl GenSenseEngine {
     #[napi]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn enable_tag(&mut self, tag: String) {
         self.inner.enable_tag(&tag);
     }
 
     #[napi]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn set_environment(&mut self, env: String) {
         let env_enum = match env.as_str() {
             "production" => crate::GenSenseEnvironment::Production,
@@ -67,7 +69,12 @@ impl GenSenseEngine {
     /// AI artifacts) run in full. Cross-file project rules (MustHaveGuard,
     /// MustBeInternal, CrossFileTaintFree) are NOT run — use `audit_project` for
     /// those.
+    /// Audit code content directly.
+    ///
+    /// # Errors
+    /// Returns an error if the engine fails to parse or scan the content.
     #[napi]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn audit_content(
         &mut self,
         file_path: String,
@@ -99,7 +106,11 @@ impl GenSenseEngine {
     /// Audit an entire project directory, including cross-file project rules.
     /// Use this instead of `audit_content` when you need MustHaveGuard,
     /// MustBeInternal, or CrossFileTaintFree rules to run.
+    ///
+    /// # Errors
+    /// Returns an error if the engine fails to access the project directory or scan the project.
     #[napi]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn audit_project(&mut self, root_dir: String) -> napi::Result<Vec<JsAdvisory>> {
         match self.inner.run(Path::new(&root_dir)) {
             Ok(advisories) => Ok(advisories
@@ -124,7 +135,12 @@ impl GenSenseEngine {
         }
     }
 
+    /// Audit a specific file or directory.
+    ///
+    /// # Errors
+    /// Returns an error if the engine fails to access the path or scan the content.
     #[napi]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn audit_path(&mut self, path: String) -> napi::Result<Vec<JsAdvisory>> {
         match self.inner.run(Path::new(&path)) {
             Ok(advisories) => Ok(advisories

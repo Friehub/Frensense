@@ -34,14 +34,14 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         mut registry: TaintRegistry<'a>,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
-        let block_range = (node.start_byte(), node.end_byte());
+        let block_range = super::normalization::Range::from(node);
 
         for op in self.context.semantic_ops {
             // Only process ops within the current block's range
             match op {
                 SemanticOp::Binding { name, value_range } => {
-                    if value_range.start_byte >= block_range.0
-                        && value_range.end_byte <= block_range.1
+                    if value_range.start_byte >= block_range.start_byte
+                        && value_range.end_byte <= block_range.end_byte
                     {
                         let v_node = self.node_at(*value_range);
                         registry.register_symbol(name, v_node);
@@ -68,8 +68,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     target,
                     value_range,
                 } => {
-                    if value_range.start_byte >= block_range.0
-                        && value_range.end_byte <= block_range.1
+                    if value_range.start_byte >= block_range.start_byte
+                        && value_range.end_byte <= block_range.end_byte
                     {
                         let v_node = self.node_at(*value_range);
                         let val_code = &self.current_source[v_node.start_byte()..v_node.end_byte()];
@@ -96,7 +96,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     args,
                     range,
                 } => {
-                    if range.start_byte >= block_range.0 && range.end_byte <= block_range.1 {
+                    if range.start_byte >= block_range.start_byte
+                        && range.end_byte <= block_range.end_byte
+                    {
                         let arg_nodes: Vec<Node> = args.iter().map(|r| self.node_at(*r)).collect();
                         let call_node = self.node_at(*range);
                         advisories.extend(self.analyze_call(
@@ -111,8 +113,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     }
                 }
                 SemanticOp::EnterBlock(body_range) => {
-                    if body_range.start_byte > block_range.0
-                        && body_range.end_byte < block_range.1
+                    if body_range.start_byte > block_range.start_byte
+                        && body_range.end_byte < block_range.end_byte
                         && self.depth < self.max_depth
                     {
                         let body_node = self.node_at(*body_range);

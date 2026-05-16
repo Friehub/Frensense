@@ -153,16 +153,14 @@ impl CoreRuleIr {
                             return false;
                         }
 
-                        let import = if let Some(import_template) = &self.inject_import {
+                        let import = self.inject_import.as_ref().map(|import_template| {
                             let mut import_stmt = String::new();
                             let caps = fix_re.captures(code).expect(
                                 "Regex captures should not fail since we just checked them",
                             );
                             caps.expand(import_template, &mut import_stmt);
-                            Some(import_stmt)
-                        } else {
-                            None
-                        };
+                            import_stmt
+                        });
 
                         advisories.push(self.new_remediated_advisory(
                             &node,

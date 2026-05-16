@@ -31,7 +31,7 @@ fn bench_symbol_lookup(c: &mut Criterion) {
                 black_box("bench.rs"),
                 black_box(50001),
             )
-        })
+        });
     });
 }
 
@@ -58,7 +58,7 @@ fn bench_assembly_phase(c: &mut Criterion) {
                 registry.insert(sym.clone());
             }
             black_box(registry)
-        })
+        });
     });
 }
 
@@ -87,7 +87,7 @@ fn bench_sri_lookup(c: &mut Criterion) {
                 black_box(file_path),
                 black_box(250_000), // Middle of the file
             )
-        })
+        });
     });
 }
 
@@ -98,7 +98,7 @@ fn bench_rule_compilation(c: &mut Criterion) {
         b.iter(|| {
             let (rules, _) = GenSenseAuditor::default_rules();
             black_box(rules)
-        })
+        });
     });
 }
 
@@ -112,7 +112,7 @@ fn bench_full_scan_throughput(c: &mut Criterion) {
             let advisories =
                 engine.run_content(black_box(Path::new("src/lib.rs")), black_box(source));
             black_box(advisories)
-        })
+        });
     });
 }
 
@@ -168,7 +168,7 @@ fn bench_patcher_throughput(c: &mut Criterion) {
                 black_box(tmp.path().file_name().unwrap().as_ref()),
             );
             black_box(result)
-        })
+        });
     });
 }
 

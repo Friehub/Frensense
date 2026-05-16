@@ -87,10 +87,10 @@ fn test_e2e_severity_override() {
     let config_dir = root.join(".gensense");
     fs::create_dir_all(&config_dir).unwrap();
 
-    let config_content = r#"
+    let config_content = r"
 severity_override:
   RUST_PANIC_IN_LIB: Critical
-"#;
+";
     fs::write(config_dir.join("config.yml"), config_content).unwrap();
 
     // 2. Create violation
@@ -192,10 +192,10 @@ project_rules:
     // Disable it via config
     fs::write(
         config_dir.join("config.yml"),
-        r#"
+        r"
 disabled_rules:
   - MUST_HAVE_AUTH
-"#,
+",
     )
     .unwrap();
 
@@ -241,10 +241,10 @@ project_rules:
     .unwrap();
     fs::write(
         config_dir.join("config.yml"),
-        r#"
+        r"
 severity_override:
   MUST_HAVE_AUTH: Warning
-"#,
+",
     )
     .unwrap();
 
