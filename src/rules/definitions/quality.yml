@@ -11,6 +11,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70
 - id: RUST_NESTING_LIMIT
   target_ext: rs
   on_node: (function_item) @node
@@ -23,6 +24,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70
 - id: TS_GOD_FUNCTION
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
@@ -34,6 +36,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70
 - id: TS_NESTING_LIMIT
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
@@ -45,3 +48,4 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70

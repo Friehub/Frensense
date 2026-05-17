@@ -12,6 +12,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.95
+
 - id: RUST_HOST_INTERACTION
   target_ext: rs
   observation: We observed a direct interaction with host processes using 'std::process'.
@@ -25,6 +27,8 @@ rules:
   severity: Warning
   tags: []
   category: Isolation
+  confidence: 0.85
+
 - id: RUST_STD_OUTPUT
   target_ext: rs
   observation: We observed the use of println! or eprintln! in library code.
@@ -38,6 +42,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.90
+
 - id: RUST_ALLOCATION_IN_LOG
   target_ext: rs
   observation: We noticed 'format!' being used inside a logging macro.
@@ -51,6 +57,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.80
+
 - id: RUST_CLONE_IN_LOOP
   target_ext: rs
   observation: Just a heads-up, there's a '.clone()' call inside this loop.
@@ -63,6 +71,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.80
+
 - id: RUST_CONSTRUCTOR_BLOAT
   target_ext: rs
   observation: It looks like this constructor has quite a few arguments.
@@ -76,6 +86,8 @@ rules:
   severity: Warning
   tags: []
   category: Maintainability
+  confidence: 0.65
+
 - id: RUST_SILENT_FAILURE
   target_ext: rs
   observation: We observed a pattern of logging a failure but returning 'Ok(())'.
@@ -89,6 +101,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.70
+
 - id: RUST_VEC_FRONT_REMOVE
   target_ext: rs
   observation: We noticed '.remove(0)' being called on a Vec.
@@ -103,6 +117,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.90
+
 - id: RUST_ALGO_N2_LOOP
   target_ext: rs
   observation: We observed a search operation (.contains/.find) inside a loop over
@@ -117,6 +133,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.60
+
 - id: RUST_CHANNEL_UNBOUNDED
   target_ext: rs
   observation: We observed the creation of an unbounded channel (unbounded_channel).
@@ -130,6 +148,8 @@ rules:
   severity: Warning
   tags: []
   category: Concurrency
+  confidence: 0.90
+
 - id: RUST_OVER_GENERAL_VARIABLE
   target_ext: rs
   observation: 'Semantic Smell: Over-generic variable naming detected.'
@@ -143,6 +163,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.55
+
 - id: RUST_LOCK_IO
   target_ext: rs
   observation: I spotted a lock (Mutex/RwLock) that might be held across an I/O or
@@ -158,6 +180,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.85
+
 - id: RUST_UNCHECKED_IO
   target_ext: rs
   observation: I noticed an I/O operation followed directly by an `.unwrap()`.
@@ -171,6 +195,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.75
+
 - id: RUST_UNWRAP_SAFETY
   target_ext: rs
   observation: I noticed an '.unwrap()' call that doesn't seem to have a '// SAFETY:'
@@ -185,6 +211,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.85
+
 - id: RUST_TOKIO_SELECT_ELSE
   target_ext: rs
   observation: I noticed a 'tokio::select!' block that might be missing an 'else'
@@ -200,6 +228,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: RUST_LARGE_STACK_ALLOCATION
   target_ext: rs
   on_node: array_expression
@@ -212,6 +242,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: RUST_PANIC_IN_LIB
   target_ext: rs
   on_node: macro_invocation
@@ -226,6 +258,8 @@ rules:
   severity: Warning
   tags: []
   category: Safety
+  confidence: 0.80
+
 - id: SECRET_LEAK_DETECTION
   target_ext: rs
   observation: Potential secret or credential leakage detected in source code.
@@ -237,6 +271,8 @@ rules:
   severity: Critical
   tags: []
   category: Security
+  confidence: 0.60
+
 - id: RUST_SPAWN_WITHOUT_JOINHANDLE
   target_ext: rs
   on_node: expression_statement
@@ -248,11 +284,13 @@ rules:
   category: Concurrency
   name: Rust Spawn Without Joinhandle
   tags: []
+  confidence: 0.85
+
 - id: RUST_ARC_CLONE_AMBIGUITY
   target_ext: rs
   on_node: for_expression
   if_matches: \.clone\(\)
-  must_not_contain: tokio::spawn|thread::spawn
+  must_contain: tokio::spawn|thread::spawn
   observation: A .clone() call inside a loop that spawns tasks — prefer Arc::clone(&handle) to make intent explicit.
   impact: A .clone() call inside a loop that spawns tasks can obscure whether it's cloning the Arc or cloning the inner type.
   improvement: Replace .clone() with Arc::clone(&variable) to signal this is a reference-count increment, not a deep copy.
@@ -260,6 +298,8 @@ rules:
   category: Concurrency
   name: Rust Arc Clone Ambiguity
   tags: []
+  confidence: 0.80
+
 - id: RUST_MUTEX_POISONING_UNHANDLED
   target_ext: rs
   on_node: call_expression
@@ -271,6 +311,8 @@ rules:
   category: Concurrency
   name: Rust Mutex Poisoning Unhandled
   tags: []
+  confidence: 0.90
+
 - id: RUST_BLOCKING_IN_ASYNC
   target_ext: rs
   on_node: function_item
@@ -284,6 +326,8 @@ rules:
   category: Performance
   name: Rust Blocking In Async
   tags: []
+  confidence: 0.85
+
 - id: RUST_SERDE_MISSING_DENY_UNKNOWN
   target_ext: rs
   on_node: struct_item
@@ -296,6 +340,8 @@ rules:
   category: Security
   tags: [security, serde, api]
   name: Rust Serde Missing Deny Unknown
+  confidence: 0.90
+
 - id: RUST_MISSING_DOC_ON_PUB
   target_ext: rs
   on_node: "[ (function_item) (struct_item) (trait_item) ] @node"
@@ -308,4 +354,4 @@ rules:
   category: Quality
   name: Rust Missing Doc On Pub
   tags: []
-
+  confidence: 0.85

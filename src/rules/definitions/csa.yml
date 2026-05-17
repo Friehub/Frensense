@@ -13,6 +13,7 @@ rules:
     impact: "Validators that always succeed allow invalid data to propagate."
     improvement: "Ensure the function uses 'require' or 'revert' for invalid input."
     tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85
 
   - id: "TS_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (TS/JS)"
@@ -28,6 +29,7 @@ rules:
     impact: "Validators that always succeed allow invalid data to propagate."
     improvement: "Ensure the function returns false or throws for invalid input."
     tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85
 
   - id: "RUST_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (Rust)"
@@ -43,6 +45,7 @@ rules:
     impact: "Validators that always succeed allow invalid data to propagate."
     improvement: "Ensure the function returns false, Option::None, or Result::Err for invalid input."
     tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85
 
   # Rule 2: Sanitizers
   - id: "SOL_CSA_SANITIZE_PASSTHROUGH"
@@ -58,6 +61,7 @@ rules:
     impact: "Passthrough sanitizers leave the system vulnerable to injection attacks."
     improvement: "Implement proper input transformation logic."
     tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85
 
   - id: "TS_CSA_SANITIZE_PASSTHROUGH"
     name: "Sanitizer Returning Unmodified Input (TS/JS)"
@@ -72,6 +76,7 @@ rules:
     impact: "Passthrough sanitizers leave the system vulnerable to injection attacks."
     improvement: "Implement proper input transformation logic."
     tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85
 
   # Rule 3: Finders
   - id: "TS_CSA_FIND_NEVER_EMPTY"
@@ -103,3 +108,4 @@ rules:
     impact: "Unprotected auth functions allow unauthorized access."
     improvement: "Implement rejection logic."
     tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85

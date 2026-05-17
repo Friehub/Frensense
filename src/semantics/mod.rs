@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-pub mod consistency;
 pub mod data_flow;
 pub mod graph;
 pub mod reachability;

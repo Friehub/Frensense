@@ -12,6 +12,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.95
+
 - id: TS_DYNAMIC_EXECUTION
   target_ext: ts
   observation: We observed a pattern of dynamic code execution using 'eval()'.
@@ -25,6 +27,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.95
+
 - id: TS_ALIASED_DYNAMIC_EXECUTION
   target_ext: ts
   observation: Aliased dynamic code execution detected.
@@ -38,6 +42,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.90
+
 - id: TS_CONSOLE_USAGE
   target_ext: ts
   observation: I noticed 'console.log' being used here.
@@ -50,6 +56,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.95
+
 - id: TS_BLOCKING_IO
   target_ext: ts
   observation: We observed a synchronous I/O call within a potentially asynchronous
@@ -64,6 +72,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.85
+
 - id: TS_EMPTY_CATCH
   target_ext: ts
   observation: Hey, it looks like this catch block is empty.
@@ -77,6 +87,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: TS_NON_NULL_ASSERTION
   target_ext: ts
   observation: We noticed a non-null assertion (!) being used.
@@ -89,6 +101,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.90
+
 - id: TS_MAGIC_NUMBER
   target_ext: ts
   observation: We noticed a raw numeric literal (magic number) being used.
@@ -102,6 +116,8 @@ rules:
   severity: Warning
   tags: []
   category: Maintainability
+  confidence: 0.60
+
 - id: TS_ANY_TYPE
   target_ext: ts
   observation: I spotted an 'any' type annotation.
@@ -114,6 +130,8 @@ rules:
   severity: Info
   tags: []
   category: Quality
+  confidence: 0.90
+
 - id: TS_REACT_HOOK_DEPS
   target_ext: tsx
   observation: I noticed a 'useEffect' hook with an empty dependency array [].
@@ -127,6 +145,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.85
+
 - id: TS_BUNDLE_BLOAT
   target_ext: ts
   observation: Hey, it looks like a heavy library is being imported entirely using
@@ -141,6 +161,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.85
+
 - id: TS_ASYNC_FOR_EACH
   target_ext: ts
   observation: I noticed a '.forEach' call with an 'async' callback.
@@ -154,6 +176,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: TS_SENSITIVE_DATA_LOGGING
   target_ext: ts
   observation: I noticed a logging call that seems to include sensitive keywords (password,
@@ -168,6 +192,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.65
+
 - id: TS_DATA_LEAK_TRACKER
   target_ext: ts
   observation: Sensitive data flow into unsafe sink detected via Taint Analysis
@@ -181,6 +207,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.85
+
 - id: TS_FLOATING_PROMISE
   target_ext: ts
   observation: A promise-returning call is made without an 'await'.
@@ -193,3 +221,4 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.85
