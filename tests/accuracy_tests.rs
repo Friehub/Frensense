@@ -296,3 +296,81 @@ fn test_return_value_taint_propagation() {
         "Function return values must correctly propagate taint from internal returns to sink"
     );
 }
+
+// Test S-expression AST Query in rule compiler and engine
+#[test]
+fn test_sexpr_ast_query() {
+    use gensense::engine::project::Engine;
+
+    let yaml = r#"
+rules:
+  - id: "RUST_CSA_VALIDATE_UNCONDITIONAL_TEST"
+    name: "Validator With No Rejection Path (Rust)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "rs"
+    on_node: '(function_item name: (identifier) @name (#match? @name ".*(validate|verify|check).*")) @node'
+    body_must_contain: "return\\s+(false|None|Err)|panic!|Result::Err"
+    body_may_delegate_via: "safeParse|validate|verify|check|assert"
+    observation: "This validator function appears to have no rejection path."
+    impact: "Validators that always succeed allow invalid data to propagate."
+    improvement: "Ensure the function returns false, Option::None, or Result::Err for invalid input."
+    tags: ["csa", "ai-risk", "security"]
+    confidence: 0.85
+"#;
+
+    let mut engine = Engine::new();
+    engine.set_isolate_rules(true);
+    let rule_value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+    let rules_list = rule_value["rules"].as_sequence().unwrap();
+    let dsl_rule: gensense::rules::core::CoreRule =
+        serde_yaml::from_value(rules_list[0].clone()).unwrap();
+    let compiled_rule = gensense::rules::compiler::RuleCompiler::compile(dsl_rule).unwrap();
+    engine.set_rules(vec![Box::new(compiled_rule)]);
+
+    // Positive case: a validate function that returns nothing / has no rejection path
+    let content_pos = r#"
+        fn validate_user(user: &User) {
+            let x = 1;
+        }
+    "#;
+    let path_pos = Path::new("validate.rs");
+    let advisories_pos = engine.run_content(path_pos, content_pos).unwrap();
+    assert_eq!(
+        advisories_pos.len(),
+        1,
+        "Should detect no rejection path in validate_user"
+    );
+    assert_eq!(
+        advisories_pos[0].rule_id,
+        "RUST_CSA_VALIDATE_UNCONDITIONAL_TEST"
+    );
+
+    // Negative case: a validate function that DOES return None / Err / panic
+    let content_neg1 = r#"
+        fn validate_user(user: &User) -> Result<(), Error> {
+            if user.name.is_empty() {
+                return Err(Error::Empty);
+            }
+            Ok(())
+        }
+    "#;
+    let path_neg1 = Path::new("validate_safe.rs");
+    let advisories_neg1 = engine.run_content(path_neg1, content_neg1).unwrap();
+    assert_eq!(advisories_neg1.len(), 0, "Should pass since it returns Err");
+
+    // Negative case: a function whose name does NOT match the validator prefix (e.g. main)
+    let content_neg2 = r#"
+        fn main() {
+            let x = 1;
+        }
+    "#;
+    let path_neg2 = Path::new("main.rs");
+    let advisories_neg2 = engine.run_content(path_neg2, content_neg2).unwrap();
+    assert_eq!(
+        advisories_neg2.len(),
+        0,
+        "Should ignore main function because it's not a validator"
+    );
+}

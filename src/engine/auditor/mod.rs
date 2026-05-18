@@ -150,10 +150,21 @@ impl GenSenseAuditor {
                         continue; // Skip rule if query is invalid for this language
                     };
                     let mut cursor = QueryCursor::new();
+                    let capture_names = query.capture_names();
                     let query_matches =
                         cursor.matches(&query, opts.tree.root_node(), opts.content.as_bytes());
                     for m in query_matches {
                         for capture in m.captures {
+                            let capture_name = capture_names
+                                .get(capture.index as usize)
+                                .copied()
+                                .unwrap_or("");
+                            if capture_name != "node"
+                                && capture_name != "call"
+                                && capture_names.len() > 1
+                            {
+                                continue;
+                            }
                             if !is_suppressed(
                                 &self.suppressions,
                                 capture.node,
