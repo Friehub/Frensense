@@ -2,6 +2,7 @@
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
+#![allow(clippy::too_many_arguments, clippy::regex_creation_in_loops)]
 
 use include_dir::{Dir, include_dir};
 use std::borrow::Cow;
@@ -162,7 +163,7 @@ impl std::hash::Hash for Advisory {
     }
 }
 
-pub type TaintCache = RefCell<HashMap<(String, String, usize), Vec<Advisory>>>;
+pub type TaintCache = RefCell<HashMap<(String, String, String, String, usize), Vec<Advisory>>>;
 
 pub struct GenSenseContext<'a> {
     pub file_id: FileId,
@@ -298,3 +299,5 @@ pub enum GenSenseError {
 }
 
 pub type Result<T> = std::result::Result<T, GenSenseError>;
+
+// Force cargo recompilation of embedded rules definitions

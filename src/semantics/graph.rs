@@ -189,11 +189,11 @@ impl SemanticGraph {
                 }
             });
         }
-        let mut current = starts.first().copied();
+        let mut queue: std::collections::VecDeque<_> = starts.into_iter().collect();
         let mut visited = std::collections::HashSet::new();
-        while let Some(idx) = current {
+        while let Some(idx) = queue.pop_front() {
             if !visited.insert(idx) {
-                break;
+                continue;
             }
             if let Some(SemanticNode::Event(ev)) = self.get_node(SemanticNodeId(idx)) {
                 events.push(ev.clone());
@@ -217,19 +217,20 @@ impl SemanticGraph {
                     }
                 });
             }
-            current = next_edges.first().map(petgraph::visit::EdgeRef::target);
+            for e in next_edges {
+                queue.push_back(e.target());
+            }
         }
         events
     }
 
     #[must_use]
-    pub fn has_call_path(&self, from_name: &str, to_name: &str) -> bool {
-        let from_nodes = self.find_nodes(from_name);
-        let to_nodes: HashSet<_> = self
-            .find_nodes(to_name)
-            .into_iter()
-            .map(|id| id.0)
-            .collect();
+    pub fn has_call_path(
+        &self,
+        from_nodes: &[SemanticNodeId],
+        to_nodes: &[SemanticNodeId],
+    ) -> bool {
+        let to_nodes: HashSet<_> = to_nodes.iter().map(|id| id.0).collect();
 
         for from in from_nodes {
             let mut visited = HashSet::new();

@@ -249,15 +249,26 @@ jobs:
         with:
           path: artifacts
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Prepare NPM package
         run: |
           mkdir -p dist/binaries
-          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense ./dist/gensense
-          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node ./gensense.node
+
+          # CLI binaries (platform-named for the postinstall resolver)
+          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense    ./dist/gensense
           cp artifacts/cli-x86_64-unknown-linux-gnu/gensense    ./dist/binaries/gensense-linux-x64
           cp artifacts/cli-x86_64-apple-darwin/gensense          ./dist/binaries/gensense-macos-x64
           cp artifacts/cli-aarch64-apple-darwin/gensense          ./dist/binaries/gensense-macos-arm64
           cp artifacts/cli-x86_64-pc-windows-msvc/gensense.exe   ./dist/binaries/gensense-windows-x64.exe
+
+          # NAPI .node files — MUST use napi-rs platform naming so gensense.js
+          # can resolve the correct binary at runtime on each OS.
+          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node  ./gensense.linux-x64-gnu.node
+          cp artifacts/library-x86_64-apple-darwin/gensense.node        ./gensense.darwin-x64.node
+          cp artifacts/library-aarch64-apple-darwin/gensense.node        ./gensense.darwin-arm64.node
+          cp artifacts/library-x86_64-pc-windows-msvc/gensense.node     ./gensense.win32-x64-msvc.node
 
       - name: Generate Rule Docs
         run: |

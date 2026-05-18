@@ -53,16 +53,45 @@ impl Reporter {
     /// Generates a SARIF (Static Analysis Results Interchange Format) report for CI/CD integration.
     #[must_use]
     pub fn to_sarif(advisories: &[Advisory], _root_path: &Path) -> serde_json::Value {
+        let mut rules_map = std::collections::BTreeMap::new();
+        for adv in advisories {
+            if !rules_map.contains_key(&adv.rule_id) {
+                rules_map.insert(
+                    adv.rule_id.clone(),
+                    serde_json::json!({
+                        "id": adv.rule_id,
+                        "shortDescription": {
+                            "text": adv.observation.clone()
+                        },
+                        "fullDescription": {
+                            "text": format!("{}\n\nImpact: {}\n\nImprovement: {}", adv.observation, adv.impact, adv.improvement)
+                        },
+                        "helpUri": format!("https://friehub.github.io/gensense/rules/{}", adv.rule_id)
+                    }),
+                );
+            }
+        }
+        let rules_list: Vec<_> = rules_map.into_values().collect();
+
         let runs = serde_json::json!([{
             "tool": {
                 "driver": {
                     "name": "GenSense",
-                    "version": "1.0.0",
-                    "informationUri": "https://friehub.com/gensense"
+                    "version": crate::GENSENSE_VERSION,
+                    "informationUri": "https://friehub.com/gensense",
+                    "rules": rules_list
                 }
             },
             "results": advisories.iter().map(|adv| {
-                serde_json::json!({
+                let line_count = adv.original_content.lines().count();
+                let end_line = adv.line + u32::try_from(line_count.saturating_sub(1)).unwrap_or(0);
+                let end_column = if line_count > 1 {
+                    u32::try_from(adv.original_content.lines().last().map(|l| l.len()).unwrap_or(0) + 1).unwrap_or(1)
+                } else {
+                    adv.column + u32::try_from(adv.original_content.len()).unwrap_or(0)
+                };
+
+                let mut result = serde_json::json!({
                     "ruleId": adv.rule_id,
                     "level": match adv.severity {
                         crate::Severity::Critical => "error",
@@ -79,11 +108,40 @@ impl Reporter {
                             },
                             "region": {
                                 "startLine": adv.line,
-                                "startColumn": adv.column
+                                "startColumn": adv.column,
+                                "endLine": end_line,
+                                "endColumn": end_column
                             }
                         }
-                    }]
-                })
+                    }],
+                    "partialFingerprints": {
+                        "primaryLocationLineHash/v1": adv.fingerprint
+                    }
+                });
+
+                if let Some(replacement) = &adv.proposed_replacement {
+                    result["fixes"] = serde_json::json!([{
+                        "description": {
+                            "text": "Apply suggested auto-remediation fix"
+                        },
+                        "artifactChanges": [{
+                            "artifactLocation": {
+                                "uri": adv.file_path.clone()
+                            },
+                            "replacements": [{
+                                "deletedRegion": {
+                                    "byteOffset": adv.start_byte,
+                                    "byteLength": adv.end_byte.saturating_sub(adv.start_byte)
+                                },
+                                "insertedContent": {
+                                    "text": replacement.clone()
+                                }
+                            }]
+                        }]
+                    }]);
+                }
+
+                result
             }).collect::<Vec<_>>()
         }]);
 

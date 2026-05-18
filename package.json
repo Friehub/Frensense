@@ -19,7 +19,11 @@
     "index.js",
     "rules",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "gensense.linux-x64-gnu.node",
+    "gensense.darwin-x64.node",
+    "gensense.darwin-arm64.node",
+    "gensense.win32-x64-msvc.node"
   ],
   "napi": {
     "name": "gensense",

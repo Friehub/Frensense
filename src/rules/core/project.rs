@@ -23,6 +23,12 @@ pub struct CrossFileTaintFree {
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
+pub struct GlobalDataFlow {
+    pub source_pattern: String,
+    pub sink_pattern: String,
+}
+
+#[derive(Debug, serde::Deserialize, Clone)]
 pub struct ProjectCoreRule {
     #[serde(flatten)]
     pub metadata: RuleMetadata,
@@ -30,4 +36,5 @@ pub struct ProjectCoreRule {
     pub must_have_guard: Option<MustHaveGuard>,
     pub must_be_internal: Option<MustBeInternal>,
     pub cross_file_taint_free: Option<CrossFileTaintFree>,
+    pub global_data_flow: Option<GlobalDataFlow>,
 }

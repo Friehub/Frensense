@@ -40,10 +40,31 @@ impl RuleCompiler {
             });
         }
 
+        if let (Some(src_re), Some(sink_re)) =
+            (dsl.forbidden_source_pattern, dsl.forbidden_sink_pattern)
+        {
+            flow_constraints.push(FlowConstraint::TaintForbidden {
+                source: src_re,
+                sink: sink_re,
+            });
+        }
+
         if let Some(scope) = dsl.within_scope {
             let re = regex::Regex::new(&scope)
                 .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
-            flow_constraints.push(FlowConstraint::ScopeConstraint { pattern: re });
+            flow_constraints.push(FlowConstraint::ScopeConstraint {
+                pattern: re,
+                invert: false,
+            });
+        }
+
+        if let Some(scope) = dsl.outside_scope {
+            let re = regex::Regex::new(&scope)
+                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+            flow_constraints.push(FlowConstraint::ScopeConstraint {
+                pattern: re,
+                invert: true,
+            });
         }
 
         if let Some(temp) = dsl.temporal {
@@ -57,6 +78,18 @@ impl RuleCompiler {
 
             let behavior = match temp.behavior.as_str() {
                 "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
+                "forbidden_between" => {
+                    if sequence.len() == 2 {
+                        crate::rules::ir::TemporalBehavior::ForbiddenBetween(
+                            sequence[0].clone(),
+                            sequence[1].clone(),
+                        )
+                    } else {
+                        return Err(crate::GenSenseError::Pattern(
+                            "forbidden_between requires exactly 2 elements in sequence".to_string(),
+                        ));
+                    }
+                }
                 _ => crate::rules::ir::TemporalBehavior::MustFollow,
             };
             flow_constraints.push(FlowConstraint::Temporal { sequence, behavior });
@@ -146,6 +179,15 @@ impl ProjectRuleCompiler {
                 source_re: regex::Regex::new(&taint.source_pattern)
                     .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
                 sink_re: regex::Regex::new(&taint.sink_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+            });
+        }
+
+        if let Some(taint) = dsl.global_data_flow {
+            constraints.push(ProjectFlowConstraint::GlobalDataFlow {
+                source_pattern: regex::Regex::new(&taint.source_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                sink_pattern: regex::Regex::new(&taint.sink_pattern)
                     .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
             });
         }

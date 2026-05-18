@@ -34,6 +34,8 @@ pub struct CoreRule {
     #[serde(default)]
     pub within_scope: Option<String>,
     #[serde(default)]
+    pub outside_scope: Option<String>,
+    #[serde(default)]
     pub fix_with: Option<String>,
     #[serde(default)]
     pub fix_pattern: Option<String>,
@@ -43,6 +45,10 @@ pub struct CoreRule {
     pub source_pattern: Option<Regex>,
     #[serde(default, with = "serde_regex_opt")]
     pub sink_pattern: Option<Regex>,
+    #[serde(default, with = "serde_regex_opt")]
+    pub forbidden_source_pattern: Option<Regex>,
+    #[serde(default, with = "serde_regex_opt")]
+    pub forbidden_sink_pattern: Option<Regex>,
     #[serde(default)]
     pub temporal: Option<TemporalConfig>,
     #[serde(default, with = "serde_regex_opt")]

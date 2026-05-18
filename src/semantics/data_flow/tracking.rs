@@ -24,14 +24,13 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             .unwrap_or_else(|| self.current_tree.root_node())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn analyze_block(
         &self,
         node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        mut registry: TaintRegistry<'a>,
+        registry: &mut TaintRegistry<'a>,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let block_range = super::normalization::Range::from(node);
@@ -39,7 +38,16 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         for op in self.context.semantic_ops {
             match op {
                 SemanticOp::Binding { name, value_range } => {
-                    self.process_binding(name, *value_range, block_range, source_re, &mut registry);
+                    self.process_binding(
+                        name,
+                        *value_range,
+                        block_range,
+                        source_re,
+                        sink_re,
+                        rule,
+                        registry,
+                        &mut advisories,
+                    );
                 }
                 SemanticOp::Assignment {
                     target,
@@ -50,7 +58,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         *value_range,
                         block_range,
                         source_re,
-                        &mut registry,
+                        sink_re,
+                        rule,
+                        registry,
+                        &mut advisories,
                     );
                 }
                 SemanticOp::Call {
@@ -66,7 +77,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         source_re,
                         sink_re,
                         rule,
-                        &mut registry,
+                        registry,
                     ) {
                         advisories.extend(call_advisories);
                     }
@@ -78,7 +89,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         source_re,
                         sink_re,
                         rule,
-                        &mut registry,
+                        registry,
                     ) {
                         advisories.extend(sub_advisories);
                     }
@@ -95,7 +106,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         value_range: super::normalization::Range,
         block_range: super::normalization::Range,
         source_re: &Regex,
+        sink_re: &Regex,
+        rule: &dyn GenSenseRule,
         registry: &mut TaintRegistry<'a>,
+        advisories: &mut Vec<Advisory>,
     ) {
         if value_range.start_byte >= block_range.start_byte
             && value_range.end_byte <= block_range.end_byte
@@ -107,7 +121,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             let origin = if source_re.is_match(name) || source_re.is_match(val_code) {
                 Some(super::TaintOrigin::UserInput)
             } else {
-                self.resolve_taint(v_node, registry)
+                self.resolve_taint(v_node, source_re, sink_re, rule, registry, advisories)
             };
 
             if let Some(o) = origin {
@@ -118,7 +132,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 }
             }
 
-            self.propagate_object_taint(name, v_node, registry);
+            self.propagate_object_taint(
+                name, v_node, source_re, sink_re, rule, registry, advisories,
+            );
         }
     }
 
@@ -128,7 +144,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         value_range: super::normalization::Range,
         block_range: super::normalization::Range,
         source_re: &Regex,
+        sink_re: &Regex,
+        rule: &dyn GenSenseRule,
         registry: &mut TaintRegistry<'a>,
+        advisories: &mut Vec<Advisory>,
     ) {
         if value_range.start_byte >= block_range.start_byte
             && value_range.end_byte <= block_range.end_byte
@@ -139,7 +158,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             let origin = if source_re.is_match(target) || source_re.is_match(val_code) {
                 Some(super::TaintOrigin::UserInput)
             } else {
-                self.resolve_taint(v_node, registry)
+                self.resolve_taint(v_node, source_re, sink_re, rule, registry, advisories)
             };
 
             if let Some(o) = origin {
@@ -150,7 +169,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 }
             }
 
-            self.propagate_object_taint(target, v_node, registry);
+            self.propagate_object_taint(
+                target, v_node, source_re, sink_re, rule, registry, advisories,
+            );
         }
     }
 
@@ -210,7 +231,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 self.max_depth,
             );
             let sub_advisories =
-                sub_analyzer.analyze_block(body_node, source_re, sink_re, rule, registry.clone());
+                sub_analyzer.analyze_block(body_node, source_re, sink_re, rule, registry);
             registry.pop_scope();
             Some(sub_advisories)
         } else {
@@ -237,7 +258,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 let arg_name = &self.current_source[arg.start_byte()..arg.end_byte()];
                 registry.taint(arg_name, super::TaintOrigin::UserInput);
             }
-            if let Some(origin) = self.resolve_taint(*arg, registry) {
+            if let Some(origin) =
+                self.resolve_taint(*arg, source_re, sink_re, rule, registry, &mut advisories)
+            {
                 tainted_args.push((idx, origin.clone()));
                 if sink_re.is_match(fn_name) {
                     let arg_code = &self.current_source[arg.start_byte()..arg.end_byte()];
@@ -263,7 +286,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             if let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
                 self.find_definition(fn_name, registry)
             {
-                if let Some(next_registry) = self.map_params(def_node, def_source, &tainted_args) {
+                if let Some(mut next_registry) =
+                    self.map_params(def_node, def_source, &tainted_args)
+                {
                     if let Some(body) = def_node.child_by_field_name("body") {
                         let new_context = crate::GenSenseContext {
                             file_id: def_id,
@@ -291,7 +316,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                             source_re,
                             sink_re,
                             rule,
-                            next_registry,
+                            &mut next_registry,
                         ));
                     }
                 }
@@ -305,7 +330,11 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         &self,
         name: &'a str,
         v_node: Node<'a>,
+        source_re: &Regex,
+        sink_re: &Regex,
+        rule: &dyn GenSenseRule,
         registry: &mut TaintRegistry<'a>,
+        advisories: &mut Vec<Advisory>,
     ) {
         let v_kind = v_node.kind();
         if v_kind == "object" || v_kind == "object_expression" || v_kind == "struct_expression" {
@@ -323,7 +352,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
 
                     if let (Some(k), Some(v)) = (key, val) {
                         let key_name = &self.current_source[k.start_byte()..k.end_byte()];
-                        if let Some(prop_origin) = self.resolve_taint(v, registry) {
+                        if let Some(prop_origin) =
+                            self.resolve_taint(v, source_re, sink_re, rule, registry, advisories)
+                        {
                             registry.taint_field(name, key_name, prop_origin);
                         }
                     }
@@ -335,7 +366,11 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     fn resolve_taint(
         &self,
         node: Node<'a>,
+        source_re: &Regex,
+        sink_re: &Regex,
+        rule: &dyn GenSenseRule,
         registry: &TaintRegistry<'a>,
+        advisories: &mut Vec<Advisory>,
     ) -> Option<super::TaintOrigin> {
         let mut cursor = node.walk();
         let mut stack = vec![node];
@@ -373,6 +408,13 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         }
                     }
                 }
+                "call_expression" | "call" => {
+                    if let Some(origin) = self
+                        .resolve_call_taint(current, source_re, sink_re, rule, registry, advisories)
+                    {
+                        return Some(origin);
+                    }
+                }
                 _ => {
                     cursor.reset(current);
                     if cursor.goto_first_child() {
@@ -388,4 +430,197 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         }
         None
     }
+
+    fn resolve_call_taint(
+        &self,
+        call_node: Node<'a>,
+        source_re: &Regex,
+        sink_re: &Regex,
+        rule: &dyn GenSenseRule,
+        registry: &TaintRegistry<'a>,
+        advisories: &mut Vec<Advisory>,
+    ) -> Option<super::TaintOrigin> {
+        // Method chain receiver check
+        if let Some(callee_node) = call_node
+            .child_by_field_name("function")
+            .or_else(|| call_node.child_by_field_name("callee"))
+            .or_else(|| call_node.child(0))
+        {
+            if callee_node.kind() == "member_expression" || callee_node.kind() == "field_expression"
+            {
+                if let Some(receiver) = callee_node
+                    .child_by_field_name("object")
+                    .or_else(|| callee_node.child(0))
+                {
+                    if let Some(receiver_origin) =
+                        self.resolve_taint(receiver, source_re, sink_re, rule, registry, advisories)
+                    {
+                        return Some(receiver_origin);
+                    }
+                }
+            }
+        }
+
+        // Get function name
+        let callee = call_node
+            .child_by_field_name("function")
+            .or_else(|| call_node.child_by_field_name("callee"))
+            .or_else(|| call_node.child(0))?;
+        let fn_name = &self.current_source[callee.start_byte()..callee.end_byte()];
+
+        if source_re.is_match(fn_name) {
+            return Some(super::TaintOrigin::UserInput);
+        }
+
+        // Extract argument nodes
+        let mut args = Vec::new();
+        if let Some(args_list) = call_node.child_by_field_name("arguments") {
+            let mut cursor = args_list.walk();
+            for child in args_list.children(&mut cursor) {
+                if !matches!(child.kind(), "(" | ")" | ",") {
+                    args.push(child);
+                }
+            }
+        } else {
+            // Fallback: look for a child with kind containing "arguments" or walk siblings
+            let mut cursor = call_node.walk();
+            for child in call_node.children(&mut cursor) {
+                if child.kind().contains("arguments") {
+                    let mut c2 = child.walk();
+                    for grandchild in child.children(&mut c2) {
+                        if !matches!(grandchild.kind(), "(" | ")" | ",") {
+                            args.push(grandchild);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Resolve argument taints
+        let mut tainted_args = Vec::new();
+        for (idx, arg) in args.iter().enumerate() {
+            if let Some(origin) =
+                self.resolve_taint(*arg, source_re, sink_re, rule, registry, advisories)
+            {
+                tainted_args.push((idx, origin));
+            }
+        }
+
+        // Check if there is a definition
+        if self.depth < self.max_depth {
+            if let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
+                self.find_definition(fn_name, registry)
+            {
+                if let Some(mut next_registry) =
+                    self.map_params(def_node, def_source, &tainted_args)
+                {
+                    if let Some(body) = def_node.child_by_field_name("body") {
+                        let new_context = crate::GenSenseContext {
+                            file_id: def_id,
+                            file_path: def_path,
+                            source_code: def_source,
+                            tree: def_tree,
+                            symbols: self.context.symbols,
+                            semantic_ops: def_ops,
+                            taint_cache: self.context.taint_cache,
+                            file_trees: self.context.file_trees,
+                        };
+
+                        let sub_analyzer = DataFlowAnalyzer::with_depth(
+                            &new_context,
+                            def_source,
+                            def_tree,
+                            def_path,
+                            def_id,
+                            body,
+                            self.depth + 1,
+                            self.max_depth,
+                        );
+
+                        sub_analyzer.discover_symbols(&mut next_registry);
+
+                        let sub_advisories = sub_analyzer.analyze_block(
+                            body,
+                            source_re,
+                            sink_re,
+                            rule,
+                            &mut next_registry,
+                        );
+                        advisories.extend(sub_advisories);
+
+                        let return_nodes = get_callee_returns(body);
+                        for ret_node in return_nodes {
+                            if let Some(ret_origin) = sub_analyzer.resolve_taint(
+                                ret_node,
+                                source_re,
+                                sink_re,
+                                rule,
+                                &next_registry,
+                                advisories,
+                            ) {
+                                return Some(ret_origin);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+fn find_returns<'a>(node: Node<'a>, returns: &mut Vec<Node<'a>>) {
+    match node.kind() {
+        "return_statement" | "return_expression" => {
+            let val_node = node.child_by_field_name("value").or_else(|| {
+                if node.child_count() > 1 {
+                    let mut last_idx = node.child_count() - 1;
+                    if node.child(last_idx).is_some_and(|c| c.kind() == ";") {
+                        last_idx = last_idx.saturating_sub(1);
+                    }
+                    node.child(last_idx)
+                } else {
+                    None
+                }
+            });
+            if let Some(v) = val_node {
+                returns.push(v);
+            }
+        }
+        "block" | "block_expression" | "compound_statement" | "statement_block" => {
+            if node.kind() == "block" || node.kind() == "block_expression" {
+                if let Some(last_child) = node.child(node.child_count().saturating_sub(2)) {
+                    let kind = last_child.kind();
+                    if kind != ";" && !kind.contains("statement") && kind != "}" && kind != "{" {
+                        returns.push(last_child);
+                    }
+                }
+            }
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                find_returns(child, returns);
+            }
+        }
+        "function_declaration" | "function_item" | "arrow_function" | "method_definition" => {}
+        _ => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                find_returns(child, returns);
+            }
+        }
+    }
+}
+
+fn get_callee_returns<'a>(body: Node<'a>) -> Vec<Node<'a>> {
+    let mut returns = Vec::new();
+    if body.kind() != "block"
+        && body.kind() != "block_expression"
+        && body.kind() != "statement_block"
+    {
+        returns.push(body);
+    } else {
+        find_returns(body, &mut returns);
+    }
+    returns
 }

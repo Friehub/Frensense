@@ -447,3 +447,87 @@ project_rules:
         "BFS should have visited both 'new' functions and found the guard"
     );
 }
+
+#[test]
+fn test_project_rule_global_data_flow() {
+    use gensense::ProjectRule;
+    use gensense::SourceRegistry;
+    use gensense::rules::compiler::ProjectRuleCompiler;
+    use gensense::rules::core::project::ProjectCoreRule;
+    use gensense::semantics::symbols::{Symbol, SymbolKind};
+
+    let yaml = r#"
+project_rules:
+  - id: GLOBAL_FLOW_CHECK
+    name: "Global Flow Check"
+    severity: Critical
+    observation: "Sensitive data leak"
+    category: Security
+    impact: "Impact"
+    improvement: "Improve"
+    tags: ["security"]
+    target_ext: "rs"
+    global_data_flow:
+      source_pattern: "source_.*"
+      sink_pattern: "sink_.*"
+"#;
+
+    let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+    let p_rule_val = &wrapper["project_rules"][0];
+    let p_rule_dsl: ProjectCoreRule = serde_yaml::from_value(p_rule_val.clone()).unwrap();
+    let p_rule = ProjectRuleCompiler::compile(p_rule_dsl).expect("Failed to compile project rule");
+
+    let mut symbols = SymbolRegistry::new();
+    let mut sources = SourceRegistry::new();
+
+    let source = Symbol {
+        name: "source_user_input".to_string(),
+        kind: SymbolKind::Function,
+        start_byte: 0,
+        end_byte: 10,
+        file_path: "src/api.rs".to_string(),
+        file_id: FileId(1),
+        line: 1,
+        column: 1,
+        end_line: 5,
+    };
+    sources.register(
+        Path::new("src/api.rs"),
+        "fn source_user_input() {}".to_string(),
+    );
+    let s_idx = symbols.insert(source);
+
+    let sink = Symbol {
+        name: "sink_execute".to_string(),
+        kind: SymbolKind::Function,
+        start_byte: 0,
+        end_byte: 10,
+        file_path: "src/postgres.rs".to_string(),
+        file_id: FileId(1),
+        line: 1,
+        column: 1,
+        end_line: 5,
+    };
+    sources.register(
+        Path::new("src/postgres.rs"),
+        "fn sink_execute() {}".to_string(),
+    );
+    let snk_idx = symbols.insert(sink);
+
+    // No path yet.
+    let advisories = p_rule.check_project(&symbols, &sources);
+    assert_eq!(advisories.len(), 0);
+
+    // Add path
+    symbols
+        .graph_mut()
+        .add_edge(s_idx, snk_idx, gensense::semantics::graph::EdgeKind::Calls);
+
+    let advisories = p_rule.check_project(&symbols, &sources);
+    assert_eq!(advisories.len(), 1);
+    assert!(
+        advisories[0]
+            .observation
+            .contains("global reachability: source reached sensitive sink")
+    );
+}

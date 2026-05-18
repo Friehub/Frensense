@@ -109,87 +109,92 @@ impl PatchManager {
         Ok(diff_output)
     }
 
-    /// Applies the fix atomically using Shadow Writing.
-    /// Applies the fix atomically using Shadow Writing.
+    /// Applies all advisories to a file atomically using Shadow Writing.
     ///
     /// # Errors
     /// Returns an error if file reading, patching, or renaming fails.
-    pub fn apply_fix(&self, advisory: &Advisory, file_path: &Path) -> Result<()> {
-        let Some(proposed) = &advisory.proposed_replacement else {
+    pub fn apply_fixes(&self, advisories: &[&Advisory], file_path: &Path) -> Result<()> {
+        if advisories.is_empty() {
             return Ok(());
-        };
+        }
 
         let absolute_path = self.root_dir.join(file_path);
         let content = fs::read_to_string(&absolute_path)
             .map_err(|e| GenSenseError::Config(format!("Failed to read file for patching: {e}")))?;
 
-        // Range-Based Verification: Ensure the content at the specific offset matches.
-        let start = advisory.start_byte as usize;
-        let end = advisory.end_byte as usize;
+        // Sort advisories back-to-front by start_byte to ensure offset stability
+        let mut sorted_advisories = advisories.to_vec();
+        sorted_advisories.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
 
-        if start > content.len()
-            || end > content.len()
-            || content[start..end] != advisory.original_content
-        {
-            return Err(GenSenseError::Config(format!(
-                "Patch failed for {}: Context mismatch at byte {}. Expected '{}', found '{}'",
-                file_path.display(),
-                start,
-                advisory.original_content,
-                if start < content.len() {
-                    &content[start..std::cmp::min(end, content.len())]
-                } else {
-                    "EOF"
-                }
-            )));
-        }
+        let mut updated_content = content.clone();
 
-        // 1. Create updated content in memory using precise range replacement.
-        let mut updated_content = String::with_capacity(content.len() + proposed.len());
-        updated_content.push_str(&content[..start]);
-        updated_content.push_str(proposed);
-        updated_content.push_str(&content[end..]);
+        for advisory in sorted_advisories {
+            let Some(proposed) = &advisory.proposed_replacement else {
+                continue;
+            };
 
-        // 2. Import Injection
-        if let Some(import_template) = &advisory.proposed_import {
-            let import_stmt = self.resolve_import_path(file_path, import_template);
-            if !updated_content.contains(&import_stmt) {
-                // Find insertion point: after the last import statement or at the top
-                let mut insertion_offset = 0;
+            let start = advisory.start_byte as usize;
+            let end = advisory.end_byte as usize;
 
-                // Simple heuristic to find the end of the import block
-                let mut last_pos = 0;
-                while let Some(pos) = updated_content[last_pos..].find("import ") {
-                    let absolute_pos = last_pos + pos;
-                    if let Some(line_end) = updated_content[absolute_pos..].find('\n') {
-                        insertion_offset = absolute_pos + line_end + 1;
-                        last_pos = insertion_offset;
+            if start > updated_content.len()
+                || end > updated_content.len()
+                || updated_content[start..end] != advisory.original_content
+            {
+                return Err(GenSenseError::Config(format!(
+                    "Patch failed for {}: Context mismatch at byte {}. Expected '{}', found '{}'",
+                    file_path.display(),
+                    start,
+                    advisory.original_content,
+                    if start < updated_content.len() {
+                        &updated_content[start..std::cmp::min(end, updated_content.len())]
                     } else {
-                        insertion_offset = updated_content.len();
-                        break;
+                        "EOF"
                     }
-                }
+                )));
+            }
 
-                let mut final_content =
-                    String::with_capacity(updated_content.len() + import_stmt.len() + 2);
-                final_content.push_str(&updated_content[..insertion_offset]);
-                final_content.push_str(&import_stmt);
-                final_content.push('\n');
+            // 1. Create updated content in memory using precise range replacement.
+            let mut new_content = String::with_capacity(updated_content.len() + proposed.len());
+            new_content.push_str(&updated_content[..start]);
+            new_content.push_str(proposed);
+            new_content.push_str(&updated_content[end..]);
 
-                // Add a blank line if we are prepending at the very top and it's not currently blank
-                if insertion_offset == 0
-                    && !updated_content.is_empty()
-                    && !updated_content.starts_with('\n')
-                {
+            updated_content = new_content;
+
+            // 2. Import Injection
+            if let Some(import_template) = &advisory.proposed_import {
+                let import_stmt = self.resolve_import_path(file_path, import_template);
+                if !updated_content.contains(&import_stmt) {
+                    let mut insertion_offset = 0;
+                    if let Ok(re) = regex::Regex::new(r"(?m)^import\s+.*") {
+                        if let Some(last_match) = re.find_iter(&updated_content).last() {
+                            if let Some(line_end) = updated_content[last_match.end()..].find('\n') {
+                                insertion_offset = last_match.end() + line_end + 1;
+                            } else {
+                                insertion_offset = updated_content.len();
+                            }
+                        }
+                    }
+
+                    let mut final_content =
+                        String::with_capacity(updated_content.len() + import_stmt.len() + 2);
+                    final_content.push_str(&updated_content[..insertion_offset]);
+                    final_content.push_str(&import_stmt);
                     final_content.push('\n');
-                }
 
-                final_content.push_str(&updated_content[insertion_offset..]);
-                updated_content = final_content;
+                    if insertion_offset == 0
+                        && !updated_content.is_empty()
+                        && !updated_content.starts_with('\n')
+                    {
+                        final_content.push('\n');
+                    }
+
+                    final_content.push_str(&updated_content[insertion_offset..]);
+                    updated_content = final_content;
+                }
             }
         }
 
-        // 3. Write to a temporary file.
         let tmp_path = absolute_path.with_extension("patch_tmp");
         fs::write(&tmp_path, updated_content).map_err(|e| {
             GenSenseError::Config(format!("Failed to write temporary patch file: {e}"))
@@ -200,5 +205,9 @@ impl PatchManager {
             .map_err(|e| GenSenseError::Config(format!("Failed to apply patch atomically: {e}")))?;
 
         Ok(())
+    }
+
+    pub fn apply_fix(&self, advisory: &Advisory, file_path: &Path) -> Result<()> {
+        self.apply_fixes(&[advisory], file_path)
     }
 }

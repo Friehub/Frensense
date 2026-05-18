@@ -27,7 +27,7 @@ pub enum FlowConstraint {
         behavior: TemporalBehavior,
     },
     /// Asserts scope-level invariants (e.g. within transaction).
-    ScopeConstraint { pattern: Regex },
+    ScopeConstraint { pattern: Regex, invert: bool },
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +67,7 @@ impl GenSenseRule for CoreRuleIr {
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        self.target_ext == ext || self.target_ext == "*"
+        self.target_ext == "*" || self.target_ext.split('|').any(|e| e.trim() == ext)
     }
 
     fn query(&self) -> Option<&str> {
@@ -93,31 +93,6 @@ impl GenSenseRule for CoreRuleIr {
             }
         }
 
-        // Taint Cache Check
-        let file_path = context.file_path.to_string_lossy().to_string();
-        let function_line = context
-            .symbols
-            .find_function_at(&file_path, node.start_position().row + 1)
-            .and_then(|idx| context.symbols.graph().get_symbol(idx))
-            .map_or(0, |s| s.line);
-
-        let cache_key = (
-            self.id().to_string(),
-            file_path,
-            if function_line == 0 {
-                node.start_position().row
-            } else {
-                function_line
-            },
-        );
-
-        {
-            let cache = context.taint_cache.borrow();
-            if cache.contains_key(&cache_key) {
-                return Vec::new();
-            }
-        }
-
         if !self.check_regex_matching(node, context, &mut advisories) {
             return advisories;
         }
@@ -128,7 +103,7 @@ impl GenSenseRule for CoreRuleIr {
 
         self.check_content_constraints(node, context, &mut advisories);
         self.check_metric_constraints(node, context, &mut advisories);
-        self.check_flow_constraints(node, context, top, &cache_key, &mut advisories);
+        self.check_flow_constraints(node, context, top, &mut advisories);
 
         advisories
     }
@@ -170,7 +145,7 @@ impl CoreRuleIr {
                         replacement,
                         import,
                     ));
-                    return false;
+                    // Removed early return to allow flow constraints to run
                 }
             }
 
@@ -344,7 +319,28 @@ impl CoreRuleIr {
             let mut depth = 0;
             let mut curr = node;
             while let Some(parent) = curr.parent() {
-                depth += 1;
+                let kind = parent.kind();
+                let is_control_flow = matches!(
+                    kind,
+                    "if_expression"
+                        | "for_expression"
+                        | "while_expression"
+                        | "loop_expression"
+                        | "match_expression"
+                        | "match_arm"
+                        | "if_statement"
+                        | "for_statement"
+                        | "for_in_statement"
+                        | "while_statement"
+                        | "do_statement"
+                        | "switch_statement"
+                        | "catch_clause"
+                        | "block"
+                        | "compound_statement"
+                );
+                if is_control_flow {
+                    depth += 1;
+                }
                 curr = parent;
             }
             if depth > max {
@@ -362,25 +358,118 @@ impl CoreRuleIr {
         node: Node<'a>,
         context: &GenSenseContext<'a>,
         top: Node<'a>,
-        cache_key: &(String, String, usize),
         advisories: &mut Vec<Advisory>,
     ) {
+        let file_path = context.file_path.to_string_lossy().to_string();
+        let function_line = context
+            .symbols
+            .find_function_at(&file_path, node.start_position().row + 1)
+            .and_then(|idx| context.symbols.graph().get_symbol(idx))
+            .map_or(0, |s| s.line);
+
+        let func_or_node_line = if function_line == 0 {
+            node.start_position().row
+        } else {
+            function_line
+        };
+
         for constraint in &self.flow_constraints {
             match constraint {
                 FlowConstraint::TaintReached { source, sink } => {
-                    let analyzer = DataFlowAnalyzer::new(context, top);
-                    let mut registry = TaintRegistry::default();
-                    analyzer.discover_symbols(&mut registry);
-                    let target_node = node.child_by_field_name("body").unwrap_or(node);
-                    let findings =
-                        analyzer.analyze_block(target_node, source, sink, self, registry);
-                    if !findings.is_empty() {
+                    let constraint_cache_key = (
+                        "reached".to_string(),
+                        source.as_str().to_string(),
+                        sink.as_str().to_string(),
+                        file_path.clone(),
+                        func_or_node_line,
+                    );
+
+                    let cached_findings = {
+                        let cache = context.taint_cache.borrow();
+                        cache.get(&constraint_cache_key).cloned()
+                    };
+
+                    if let Some(mut findings) = cached_findings {
+                        for a in &mut findings {
+                            a.rule_id = self.metadata.id.clone().into_owned();
+                            a.severity = self.metadata.severity;
+                            a.observation = self.metadata.observation.to_string();
+                            a.impact = self.metadata.impact.to_string();
+                            a.improvement = self.metadata.improvement.to_string();
+                            a.confidence = self.metadata.confidence;
+                        }
+                        advisories.extend(findings);
+                    } else {
+                        let analyzer = DataFlowAnalyzer::new(context, top);
+                        let mut registry = TaintRegistry::default();
+                        analyzer.discover_symbols(&mut registry);
+                        let target_node = node.child_by_field_name("body").unwrap_or(node);
+                        let findings =
+                            analyzer.analyze_block(target_node, source, sink, self, &mut registry);
+
+                        let mut cache = context.taint_cache.borrow_mut();
+                        cache.insert(constraint_cache_key, findings.clone());
+
                         advisories.extend(findings);
                     }
-                    let mut cache = context.taint_cache.borrow_mut();
-                    cache.insert(cache_key.clone(), advisories.clone());
                 }
-                FlowConstraint::TaintForbidden { .. } | FlowConstraint::ScopeConstraint { .. } => {}
+                FlowConstraint::TaintForbidden { source, sink } => {
+                    let constraint_cache_key = (
+                        "forbidden".to_string(),
+                        source.as_str().to_string(),
+                        sink.as_str().to_string(),
+                        file_path.clone(),
+                        func_or_node_line,
+                    );
+
+                    let cached_findings = {
+                        let cache = context.taint_cache.borrow();
+                        cache.get(&constraint_cache_key).cloned()
+                    };
+
+                    if let Some(mut findings) = cached_findings {
+                        for a in &mut findings {
+                            a.rule_id = self.metadata.id.clone().into_owned();
+                            a.severity = self.metadata.severity;
+                            a.observation = self.metadata.observation.to_string();
+                            a.impact = self.metadata.impact.to_string();
+                            a.improvement = self.metadata.improvement.to_string();
+                            a.confidence = self.metadata.confidence;
+                        }
+                        advisories.extend(findings);
+                    } else {
+                        let analyzer = DataFlowAnalyzer::new(context, top);
+                        let mut registry = TaintRegistry::default();
+                        analyzer.discover_symbols(&mut registry);
+                        let target_node = node.child_by_field_name("body").unwrap_or(node);
+                        let findings =
+                            analyzer.analyze_block(target_node, source, sink, self, &mut registry);
+
+                        let mut cache = context.taint_cache.borrow_mut();
+                        cache.insert(constraint_cache_key, findings.clone());
+
+                        advisories.extend(findings);
+                    }
+                }
+                FlowConstraint::ScopeConstraint { pattern, invert } => {
+                    let mut current = node.parent();
+                    let mut matched = false;
+                    while let Some(p) = current {
+                        if pattern.is_match(p.kind()) {
+                            matched = true;
+                            break;
+                        }
+                        current = p.parent();
+                    }
+                    let should_fire = if *invert { !matched } else { matched };
+                    if should_fire {
+                        advisories.push(self.new_advisory(
+                            &node,
+                            context,
+                            self.metadata.observation.to_string(),
+                        ));
+                    }
+                }
                 FlowConstraint::Temporal { sequence, behavior } => {
                     let analyzer = crate::semantics::temporal::TemporalAnalyzer::new(context);
                     advisories.extend(analyzer.check_temporal(node, sequence, behavior, self));
@@ -395,10 +484,38 @@ impl CoreRuleIr {
         context: &GenSenseContext<'a>,
         observation: String,
     ) -> Advisory {
+        let rule_id = self.metadata.id.clone().into_owned();
+        let file_path = context.file_path.to_string_lossy().to_string();
+        let enclosing_symbol = context
+            .symbols
+            .find_function_at(
+                context.file_path.to_str().unwrap_or(""),
+                node.start_position().row + 1,
+            )
+            .and_then(|id| context.symbols.get_symbol(id))
+            .map(|s| s.name.clone());
+        let original_content = context.source_code[node.start_byte()..node.end_byte()].to_string();
+
+        let fingerprint = {
+            let mut hash: u64 = 0xcbf29ce484222325;
+            let input = format!(
+                "{}:{}:{}:{}",
+                rule_id,
+                file_path,
+                enclosing_symbol.as_deref().unwrap_or(""),
+                original_content
+            );
+            for byte in input.bytes() {
+                hash ^= byte as u64;
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+            format!("{hash:016x}")
+        };
+
         Advisory {
-            rule_id: self.metadata.id.clone().into_owned(),
+            rule_id,
             file_id: context.file_id,
-            file_path: context.file_path.to_string_lossy().to_string(),
+            file_path,
             severity: self.metadata.severity,
             observation,
             impact: self.metadata.impact.to_string(),
@@ -407,19 +524,12 @@ impl CoreRuleIr {
             column: u32::try_from(node.start_position().column + 1).unwrap_or(u32::MAX),
             start_byte: u32::try_from(node.start_byte()).unwrap_or(u32::MAX),
             end_byte: u32::try_from(node.end_byte()).unwrap_or(u32::MAX),
-            original_content: context.source_code[node.start_byte()..node.end_byte()].to_string(),
+            original_content,
             proposed_replacement: None,
             proposed_import: None,
-            enclosing_symbol: context
-                .symbols
-                .find_function_at(
-                    context.file_path.to_str().unwrap_or(""),
-                    node.start_position().row + 1,
-                )
-                .and_then(|id| context.symbols.get_symbol(id))
-                .map(|s| s.name.clone()),
+            enclosing_symbol,
             confidence: self.metadata.confidence,
-            fingerprint: String::new(),
+            fingerprint,
         }
     }
 
@@ -507,7 +617,16 @@ impl crate::ProjectRule for ProjectRuleIr {
                     advisories
                         .extend(self.check_cross_file_taint_free(symbols, source_re, sink_re));
                 }
-                ProjectFlowConstraint::GlobalDataFlow { .. } => {}
+                ProjectFlowConstraint::GlobalDataFlow {
+                    source_pattern,
+                    sink_pattern,
+                } => {
+                    advisories.extend(self.check_global_data_flow(
+                        symbols,
+                        source_pattern,
+                        sink_pattern,
+                    ));
+                }
             }
         }
 
@@ -516,6 +635,57 @@ impl crate::ProjectRule for ProjectRuleIr {
 }
 
 impl ProjectRuleIr {
+    #[allow(clippy::too_many_arguments)]
+    fn new_advisory(
+        &self,
+        file_id: crate::FileId,
+        file_path: String,
+        line: u32,
+        column: u32,
+        observation: String,
+        original_content: String,
+        enclosing_symbol: Option<String>,
+        start_byte: u32,
+        end_byte: u32,
+    ) -> Advisory {
+        let rule_id = self.metadata.id.to_string();
+        let fingerprint = {
+            let mut hash: u64 = 0xcbf29ce484222325;
+            let input = format!(
+                "{}:{}:{}:{}",
+                rule_id,
+                file_path,
+                enclosing_symbol.as_deref().unwrap_or(""),
+                original_content
+            );
+            for byte in input.bytes() {
+                hash ^= byte as u64;
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+            format!("{hash:016x}")
+        };
+
+        Advisory {
+            rule_id,
+            file_id,
+            file_path,
+            line,
+            column,
+            severity: self.metadata.severity,
+            observation,
+            impact: self.metadata.impact.to_string(),
+            improvement: self.metadata.improvement.to_string(),
+            original_content,
+            proposed_replacement: None,
+            proposed_import: None,
+            enclosing_symbol,
+            confidence: self.metadata.confidence,
+            fingerprint,
+            start_byte,
+            end_byte,
+        }
+    }
+
     fn check_must_have_guard(
         &self,
         symbols: &crate::semantics::symbols::SymbolRegistry,
@@ -539,36 +709,30 @@ impl ProjectRuleIr {
 
         for source in sources {
             let mut covered = false;
+            let source_nodes = symbols.graph().find_nodes(&source.name);
             for guard in &guards {
-                if symbols.graph().has_call_path(&source.name, &guard.name) {
+                let guard_nodes = symbols.graph().find_nodes(&guard.name);
+                if symbols.graph().has_call_path(&source_nodes, &guard_nodes) {
                     covered = true;
                     break;
                 }
             }
 
             if !covered {
-                advisories.push(Advisory {
-                    rule_id: self.metadata.id.to_string(),
-                    file_id: source.file_id,
-                    file_path: source.file_path.clone(),
-                    line: u32::try_from(source.line).unwrap_or(0),
-                    column: u32::try_from(source.column).unwrap_or(0),
-                    severity: self.metadata.severity,
-                    observation: format!(
+                advisories.push(self.new_advisory(
+                    source.file_id,
+                    source.file_path.clone(),
+                    u32::try_from(source.line).unwrap_or(0),
+                    u32::try_from(source.column).unwrap_or(0),
+                    format!(
                         "{}: missing a reachable security guard",
                         self.metadata.observation
                     ),
-                    impact: self.metadata.impact.to_string(),
-                    improvement: self.metadata.improvement.to_string(),
-                    original_content: source.name.clone(),
-                    proposed_replacement: None,
-                    proposed_import: None,
-                    enclosing_symbol: Some(source.name.clone()),
-                    confidence: self.metadata.confidence,
-                    fingerprint: String::new(),
-                    start_byte: u32::try_from(source.start_byte).unwrap_or(0),
-                    end_byte: u32::try_from(source.end_byte).unwrap_or(0),
-                });
+                    source.name.clone(),
+                    Some(source.name.clone()),
+                    u32::try_from(source.start_byte).unwrap_or(0),
+                    u32::try_from(source.end_byte).unwrap_or(0),
+                ));
             }
         }
         advisories
@@ -599,28 +763,20 @@ impl ProjectRuleIr {
                 if caller.file_path != target.file_path
                     && !glob.matches_with(&caller.file_path, options)
                 {
-                    advisories.push(Advisory {
-                        rule_id: self.metadata.id.to_string(),
-                        file_id: caller.file_id,
-                        file_path: caller.file_path.clone(),
-                        line: u32::try_from(caller.line).unwrap_or(0),
-                        column: u32::try_from(caller.column).unwrap_or(0),
-                        severity: self.metadata.severity,
-                        observation: format!(
+                    advisories.push(self.new_advisory(
+                        caller.file_id,
+                        caller.file_path.clone(),
+                        u32::try_from(caller.line).unwrap_or(0),
+                        u32::try_from(caller.column).unwrap_or(0),
+                        format!(
                             "{}: called from outside its file ({})",
                             self.metadata.observation, caller.file_path
                         ),
-                        impact: self.metadata.impact.to_string(),
-                        improvement: self.metadata.improvement.to_string(),
-                        original_content: target.name.clone(),
-                        proposed_replacement: None,
-                        proposed_import: None,
-                        enclosing_symbol: Some(caller.name.clone()),
-                        confidence: self.metadata.confidence,
-                        fingerprint: String::new(),
-                        start_byte: u32::try_from(caller.start_byte).unwrap_or(0),
-                        end_byte: u32::try_from(caller.end_byte).unwrap_or(0),
-                    });
+                        target.name.clone(),
+                        Some(caller.name.clone()),
+                        u32::try_from(caller.start_byte).unwrap_or(0),
+                        u32::try_from(caller.end_byte).unwrap_or(0),
+                    ));
                 }
             }
         }
@@ -646,32 +802,66 @@ impl ProjectRuleIr {
             .collect();
 
         for source in sources {
+            let source_nodes = symbols.graph().find_nodes(&source.name);
             for sink in &sinks {
+                let sink_nodes = symbols.graph().find_nodes(&sink.name);
                 if source.file_path != sink.file_path
-                    && symbols.graph().has_call_path(&source.name, &sink.name)
+                    && symbols.graph().has_call_path(&source_nodes, &sink_nodes)
                 {
-                    advisories.push(Advisory {
-                        rule_id: self.metadata.id.to_string(),
-                        file_id: source.file_id,
-                        file_path: source.file_path.clone(),
-                        line: u32::try_from(source.line).unwrap_or(0),
-                        column: u32::try_from(source.column).unwrap_or(0),
-                        severity: self.metadata.severity,
-                        observation: format!(
-                            "{}: can reach sensitive sink",
+                    advisories.push(self.new_advisory(
+                        source.file_id,
+                        source.file_path.clone(),
+                        u32::try_from(source.line).unwrap_or(0),
+                        u32::try_from(source.column).unwrap_or(0),
+                        format!("{}: can reach sensitive sink", self.metadata.observation),
+                        source.name.clone(),
+                        Some(source.name.clone()),
+                        u32::try_from(source.start_byte).unwrap_or(0),
+                        u32::try_from(source.end_byte).unwrap_or(0),
+                    ));
+                }
+            }
+        }
+        advisories
+    }
+
+    fn check_global_data_flow(
+        &self,
+        symbols: &crate::semantics::symbols::SymbolRegistry,
+        source_re: &Regex,
+        sink_re: &Regex,
+    ) -> Vec<Advisory> {
+        let mut advisories = Vec::new();
+        let all_symbols = symbols.query_all();
+
+        let sources: Vec<_> = all_symbols
+            .iter()
+            .filter(|s| source_re.is_match(&s.name))
+            .collect();
+        let sinks: Vec<_> = all_symbols
+            .iter()
+            .filter(|s| sink_re.is_match(&s.name))
+            .collect();
+
+        for source in sources {
+            let source_nodes = symbols.graph().find_nodes(&source.name);
+            for sink in &sinks {
+                let sink_nodes = symbols.graph().find_nodes(&sink.name);
+                if symbols.graph().has_call_path(&source_nodes, &sink_nodes) {
+                    advisories.push(self.new_advisory(
+                        source.file_id,
+                        source.file_path.clone(),
+                        u32::try_from(source.line).unwrap_or(0),
+                        u32::try_from(source.column).unwrap_or(0),
+                        format!(
+                            "{}: global reachability: source reached sensitive sink",
                             self.metadata.observation
                         ),
-                        impact: self.metadata.impact.to_string(),
-                        improvement: self.metadata.improvement.to_string(),
-                        original_content: source.name.clone(),
-                        proposed_replacement: None,
-                        proposed_import: None,
-                        enclosing_symbol: Some(source.name.clone()),
-                        confidence: self.metadata.confidence,
-                        fingerprint: String::new(),
-                        start_byte: u32::try_from(source.start_byte).unwrap_or(0),
-                        end_byte: u32::try_from(source.end_byte).unwrap_or(0),
-                    });
+                        source.name.clone(),
+                        Some(source.name.clone()),
+                        u32::try_from(source.start_byte).unwrap_or(0),
+                        u32::try_from(source.end_byte).unwrap_or(0),
+                    ));
                 }
             }
         }

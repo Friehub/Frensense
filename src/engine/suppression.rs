@@ -41,7 +41,7 @@ pub fn is_suppressed(
     for line in source.lines() {
         if current_row >= search_start
             && current_row <= start_row
-            && line.contains("//")
+            && (line.contains("//") || line.contains("/*") || line.contains('#'))
             && (line.contains(&target) || line.contains(target_all))
         {
             return true;

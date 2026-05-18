@@ -108,8 +108,13 @@ fn test_taint_through_destructuring() {
         },
     };
 
-    let advisories =
-        analyzer.analyze_block(tree.root_node(), &source_re, &sink_re, &rule, taint_reg);
+    let advisories = analyzer.analyze_block(
+        tree.root_node(),
+        &source_re,
+        &sink_re,
+        &rule,
+        &mut taint_reg,
+    );
     assert!(
         !advisories.is_empty(),
         "Taint should flow through destructuring to sink(a)"

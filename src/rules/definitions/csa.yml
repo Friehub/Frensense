@@ -38,7 +38,7 @@ rules:
     severity: Critical
     target_ext: "rs"
     on_node: "function_item"
-    if_name_matches: "(validate|verify|check)"
+    if_name_matches: "\\b(validate|verify|check)\\b"
     body_must_contain: "return\\s+(false|None|Err)|panic!|Result::Err"
     body_may_delegate_via: "safeParse|validate|verify|check|assert"
     observation: "This validator function appears to have no rejection path."

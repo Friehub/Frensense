@@ -132,7 +132,7 @@ impl Engine {
     /// # Errors
     /// Returns an error if parsing or auditing fails.
     pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        self.initialize_auditor_and_config(Path::new(".")); // Dummy config load
+        let config = self.initialize_auditor_and_config(Path::new(".")); // Dummy config load
         let id = self.source_registry.register(path, content.to_string());
         let (language, tree) = self.auditor.parse_source(path, content)?;
         let symbols = self
@@ -165,7 +165,26 @@ impl Engine {
         };
 
         let result = self.auditor.audit(&opts)?;
-        Ok(result.advisories)
+        let mut advisories = result.advisories;
+
+        for rule in &self.project_rules {
+            let project_advisories = rule.check_project(&registry, &self.source_registry);
+            for a in project_advisories {
+                if a.confidence >= self.min_confidence {
+                    advisories.push(a);
+                }
+            }
+        }
+
+        if let Some(overrides) = &config.severity_override {
+            for adv in &mut advisories {
+                if let Some(sev) = overrides.get(&adv.rule_id) {
+                    adv.severity = *sev;
+                }
+            }
+        }
+
+        Ok(advisories)
     }
 
     /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
@@ -278,17 +297,15 @@ impl Engine {
             file_info.push((id, p, content));
         }
 
+        let auditor = &self.auditor;
+
         file_info
             .into_par_iter()
             .map(|(id, p, content)| {
-                let (language, tree) = self.auditor.parse_source(&p, &content)?;
-                let symbols = self
-                    .auditor
-                    .discover_symbols(&p, id, &content, &language, &tree)?;
-                let edges = self
-                    .auditor
-                    .scan_for_edges(&p, &content, &language, &tree)?;
-                let semantic_ops = self.auditor.extract_semantic_ops(&p, &content, &tree);
+                let (language, tree) = auditor.parse_source(&p, &content)?;
+                let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree)?;
+                let edges = auditor.scan_for_edges(&p, &content, &language, &tree)?;
+                let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
                 Ok(FileSnapshot {
                     id,
                     path: p,
@@ -384,6 +401,12 @@ impl Engine {
             .collect()
     }
 }
+
+// Compile-time assertion: GenSenseAuditor must be Sync — it is shared across rayon threads.
+#[allow(dead_code)]
+struct _AssertAuditorSync
+where
+    crate::GenSenseAuditor: Sync;
 
 pub struct ProjectAuditor {
     rules: Vec<Box<dyn ProjectRule>>,

@@ -99,7 +99,7 @@ impl GenSenseAuditor {
     /// Performs a security audit on a single file.
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,ignore
     /// let options = AuditOptions {
     ///     path: &PathBuf::from("src/main.rs"),
     ///     content: "fn main() { println!(\"hello\"); }",

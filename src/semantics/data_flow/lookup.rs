@@ -4,6 +4,8 @@ use super::DataFlowAnalyzer;
 use std::path::Path;
 use tree_sitter::Node;
 
+// intern_path has been removed as we can safely borrow paths from GenSenseContext.
+
 impl<'a> DataFlowAnalyzer<'a, '_> {
     #[allow(clippy::type_complexity)]
     #[must_use]
@@ -84,13 +86,14 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             if sym.file_path == file_path.as_ref() {
                 continue;
             }
-            if let Some((tree, src, ops)) = self.context.file_trees.get(&sym.file_path) {
+            if let Some((path_str, (tree, src, ops))) =
+                self.context.file_trees.get_key_value(&sym.file_path)
+            {
                 if let Some(node) = tree
                     .root_node()
                     .descendant_for_byte_range(sym.start_byte, sym.end_byte)
                 {
-                    let path =
-                        Box::leak(std::path::PathBuf::from(&sym.file_path).into_boxed_path());
+                    let path = Path::new(path_str);
                     return Some((node, src, tree, sym.file_id, path, ops));
                 }
             }
@@ -118,11 +121,72 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             if let Some((_, origin)) = tainted_args.iter().find(|(idx, _)| *idx == p_idx) {
                 // In Rust, parameter is often (parameter pattern: (identifier) type: (type_identifier))
                 let p_node = param.child_by_field_name("pattern").unwrap_or(param);
-                let p_name = &def_source[p_node.start_byte()..p_node.end_byte()];
-                registry.taint(p_name, origin.clone());
+                let mut bindings = Vec::new();
+                extract_parameter_bindings(p_node, def_source, &mut bindings);
+                for name in bindings {
+                    registry.taint(name, origin.clone());
+                }
             }
             p_idx += 1;
         }
         Some(registry)
+    }
+}
+
+fn extract_parameter_bindings<'a>(node: Node<'a>, source: &'a str, bindings: &mut Vec<&'a str>) {
+    match node.kind() {
+        "identifier"
+        | "shorthand_field_identifier"
+        | "shorthand_property_identifier"
+        | "shorthand_property_identifier_pattern"
+        | "variable_declarator" => {
+            let name = &source[node.start_byte()..node.end_byte()];
+            bindings.push(name);
+        }
+        "tuple_pattern"
+        | "array_pattern"
+        | "object_pattern"
+        | "struct_pattern"
+        | "tuple_struct_pattern"
+        | "pair"
+        | "property" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "pair" || child.kind() == "property" {
+                    if let Some(val_node) = child.child_by_field_name("value") {
+                        extract_parameter_bindings(val_node, source, bindings);
+                    }
+                } else if child.kind() != ":"
+                    && child.kind() != ","
+                    && child.kind() != "{"
+                    && child.kind() != "}"
+                {
+                    extract_parameter_bindings(child, source, bindings);
+                }
+            }
+        }
+        _ => {
+            if node.child_count() == 0
+                && (node.kind().contains("identifier")
+                    || node.kind().contains("pattern")
+                    || node.kind() == "variable_declarator")
+                && node.kind() != "type_identifier"
+            {
+                let name = &source[node.start_byte()..node.end_byte()];
+                bindings.push(name);
+            } else {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() != "("
+                        && child.kind() != ")"
+                        && child.kind() != ","
+                        && child.kind() != ":"
+                        && child.kind() != "type_identifier"
+                    {
+                        extract_parameter_bindings(child, source, bindings);
+                    }
+                }
+            }
+        }
     }
 }
