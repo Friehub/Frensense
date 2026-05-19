@@ -87,9 +87,9 @@ rules:
     target_ext: "ts|js|tsx|jsx"
     on_node: "function_declaration|method_definition"
     if_name_matches: "^(find|get|fetch)_"
-    body_must_contain: "return\\s+(null|undefined)|throw|Error"
+    body_must_contain: "return\\s+(null|undefined|\\[\\s*\\]|\"\")|throw|Error"
     observation: "This lookup function appears to have no 'not found' path."
-    impact: "Finders that never return null/undefined can cause crashes."
+    impact: "Finders that never return null/undefined/empty can cause crashes."
     improvement: "Ensure the function handles missing data."
     tags: ["csa", "ai-risk", "reliability"]
     confidence: 0.85

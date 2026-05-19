@@ -10,18 +10,17 @@ fn test_sri_line_drift_resilience() {
 
     // 1. Create a file with a violation
     let ts_file = root.join("test.ts");
-    let initial_content = "function test_any() {\n    let x: any = 1;\n}\n";
+    let initial_content = "function test_any() {\n    eval(\"1\");\n}\n";
     fs::write(&ts_file, initial_content).unwrap();
 
     // 2. Generate initial baseline
-    // We'll simulate what the CLI does by creating an Advisory manually or running the engine
     let mut engine = gensense::engine::project::Engine::new();
     let advisories = engine.run(root).unwrap();
 
     println!("DEBUG: Advisories len={}", advisories.len());
     assert!(
         !advisories.is_empty(),
-        "Should have found an 'any' violation"
+        "Should have found an 'eval' violation"
     );
     for a in &advisories {
         println!(
@@ -39,7 +38,7 @@ fn test_sri_line_drift_resilience() {
     let baseline_fuzzy = baseline_advisory.fuzzy_identity();
 
     // 3. Shift the code down with comments
-    let drifted_content = "// Comment\n// Comment\nfunction test_any() {\n    let x: any = 1;\n}\n";
+    let drifted_content = "// Comment\n// Comment\nfunction test_any() {\n    eval(\"1\");\n}\n";
     fs::write(&ts_file, drifted_content).unwrap();
 
     // 4. Run engine again
@@ -65,28 +64,20 @@ fn test_sri_content_change_detection() {
     let root = dir.path();
 
     let ts_file = root.join("test.ts");
-    fs::write(&ts_file, "function test() { let x: any = 1; }").unwrap();
+    fs::write(&ts_file, "function test() { eval(\"1\"); }").unwrap();
 
     let mut engine = gensense::engine::project::Engine::new();
     let initial_advisories = engine.run(root).unwrap();
     let initial_fuzzy = initial_advisories[0].fuzzy_identity();
 
-    // Change the content of the violation (e.g. from 'any' to 'any | null' if that still triggers or similar)
-    // Actually, just changing the variable name in the same line/symbol
-    fs::write(&ts_file, "function test() { let y: any = 1; }").unwrap();
+    // Change surrounding code (e.g. adding a variable) but keep evaluation of "1" the same
+    fs::write(&ts_file, "function test() { let y = 1; eval(\"1\"); }").unwrap();
 
     let new_advisories = engine.run(root).unwrap();
     let new_fuzzy = new_advisories[0].fuzzy_identity();
 
-    // The 'original_content' in the advisory is just 'any', so it might still match if it's the exact same node.
-    // Let's check what 'original_content' captures. In TS_ANY_TYPE it captures the 'any' node.
-    // So 'let x: any' and 'let y: any' both have 'any' as original_content.
-
     assert_eq!(
         initial_fuzzy, new_fuzzy,
-        "Fuzzy identity should match if the flagged node content ('any') is the same"
+        "Fuzzy identity should match if the flagged node content ('eval(\"1\")') is the same"
     );
-
-    // Now change the flagged node content (not possible for 'any' rule, but let's try a different rule or generic one)
-    // If we have a rule that flags 'todo!("old")' and we change it to 'todo!("new")'
 }

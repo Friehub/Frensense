@@ -44,20 +44,6 @@ rules:
   category: Security
   confidence: 0.90
 
-- id: TS_CONSOLE_USAGE
-  target_ext: ts
-  observation: I noticed 'console.log' being used here.
-  impact: Direct console outputs can be tricky to filter in production logs.
-  improvement: Consider using the standard logger (e.g. Pino, Winston) for better
-    observability.
-  on_node: call_expression
-  if_matches: console\.log
-  name: Ts Console Usage
-  severity: Warning
-  tags: []
-  category: Quality
-  confidence: 0.95
-
 - id: TS_BLOCKING_IO
   target_ext: ts
   observation: We observed a synchronous I/O call within a potentially asynchronous
@@ -99,35 +85,6 @@ rules:
   on_node: (non_null_expression) @node
   name: Ts Non Null Assertion
   severity: Warning
-  tags: []
-  category: Quality
-  confidence: 0.90
-
-- id: TS_MAGIC_NUMBER
-  target_ext: ts
-  observation: We noticed a raw numeric literal (magic number) being used.
-  impact: Magic numbers make code harder to read and maintain as their intent is not
-    immediately clear.
-  improvement: We recommend defining a named constant (e.g., const MAX_RETRIES = 3;)
-    for better clarity.
-  on_node: (number) @node
-  if_matches: ^[0-9]{4,}$
-  name: Ts Magic Number
-  severity: Warning
-  tags: []
-  category: Maintainability
-  confidence: 0.60
-
-- id: TS_ANY_TYPE
-  target_ext: ts
-  observation: I spotted an 'any' type annotation.
-  impact: Using 'any' completely disables TypeScript's safety checks for that variable.
-  improvement: Consider using 'unknown' and narrowing the type, or defining a strict
-    interface.
-  on_node: '[ (type_identifier) (predefined_type) ] @node'
-  if_matches: any
-  name: Ts Any Type
-  severity: Info
   tags: []
   category: Quality
   confidence: 0.90

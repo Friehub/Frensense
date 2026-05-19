@@ -1,19 +1,4 @@
 rules:
-- id: SOL_STATE_MUTATION_CHECK
-  target_ext: sol
-  observation: Hey, I noticed a state mutation that looks like it might be inside
-    a view or pure context.
-  impact: State mutations in read-only functions can sometimes cause transaction reverts
-    or unexpected gas costs.
-  improvement: It's a good idea to verify if this mutation is essential, or consider
-    emitting an event instead if you only need tracking.
-  on_node: (assignment_expression) @node
-  if_matches: '='
-  within_scope: function_definition
-  name: Sol State Mutation Check
-  severity: Warning
-  tags: []
-  category: Gas_Optimization
 - id: SOL_SELFDESTRUCT_ADVISORY
   target_ext: sol
   observation: 'Just a quick note: ''selfdestruct'' is being used here.'
