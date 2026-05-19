@@ -87,10 +87,6 @@ impl GenSenseAuditor {
             rules.push(Box::new(
                 crate::rules::global::ai_patterns::placeholder_panic::PlaceholderPanic,
             ));
-
-            project_rules.push(Box::new(
-                crate::rules::global::allocator_check::GlobalAllocatorCheck,
-            ));
         }
 
         let yaml_rules_loaded = Self::load_yaml_rules_from_disk(&mut rules, &mut project_rules);

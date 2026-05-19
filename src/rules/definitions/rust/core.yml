@@ -165,22 +165,6 @@ rules:
   category: Quality
   confidence: 0.55
 
-- id: RUST_LOCK_IO
-  target_ext: rs
-  observation: I spotted a lock (Mutex/RwLock) that might be held across an I/O or
-    await point.
-  impact: Holding locks during async I/O can cause lock contention and stall other
-    tasks waiting for the same lock.
-  improvement: Try to drop the lock before the `.await` point to keep the critical
-    section as small as possible.
-  on_node: function_item
-  if_matches: (lock|write|read)\(.*\)
-  must_contain: \.await
-  name: Rust Lock Io
-  severity: Warning
-  tags: []
-  category: Performance
-  confidence: 0.85
 
 - id: RUST_UNCHECKED_IO
   target_ext: rs
@@ -286,19 +270,6 @@ rules:
   tags: []
   confidence: 0.85
 
-- id: RUST_ARC_CLONE_AMBIGUITY
-  target_ext: rs
-  on_node: for_expression
-  if_matches: \.clone\(\)
-  must_contain: tokio::spawn|thread::spawn
-  observation: A .clone() call inside a loop that spawns tasks — prefer Arc::clone(&handle) to make intent explicit.
-  impact: A .clone() call inside a loop that spawns tasks can obscure whether it's cloning the Arc or cloning the inner type.
-  improvement: Replace .clone() with Arc::clone(&variable) to signal this is a reference-count increment, not a deep copy.
-  severity: Info
-  category: Concurrency
-  name: Rust Arc Clone Ambiguity
-  tags: []
-  confidence: 0.80
 
 - id: RUST_MUTEX_POISONING_UNHANDLED
   target_ext: rs
@@ -342,16 +313,3 @@ rules:
   name: Rust Serde Missing Deny Unknown
   confidence: 0.90
 
-- id: RUST_MISSING_DOC_ON_PUB
-  target_ext: rs
-  on_node: "[ (function_item) (struct_item) (trait_item) ] @node"
-  if_matches: "^pub "
-  must_be_preceded_by: doc_comment
-  observation: Public item has no doc comment.
-  impact: Undocumented public APIs make the codebase harder to maintain and onboard into.
-  improvement: Add a /// doc comment explaining what this item does and any non-obvious invariants.
-  severity: Info
-  category: Quality
-  name: Rust Missing Doc On Pub
-  tags: []
-  confidence: 0.85
