@@ -801,6 +801,7 @@ impl ProjectRuleIr {
             .filter(|s| sink_re.is_match(&s.name))
             .collect();
 
+        let mut violations = Vec::new();
         for source in sources {
             let source_nodes = symbols.graph().find_nodes(&source.name);
             for sink in &sinks {
@@ -808,19 +809,23 @@ impl ProjectRuleIr {
                 if source.file_path != sink.file_path
                     && symbols.graph().has_call_path(&source_nodes, &sink_nodes)
                 {
-                    advisories.push(self.new_advisory(
-                        source.file_id,
-                        source.file_path.clone(),
-                        u32::try_from(source.line).unwrap_or(0),
-                        u32::try_from(source.column).unwrap_or(0),
-                        format!("{}: can reach sensitive sink", self.metadata.observation),
-                        source.name.clone(),
-                        Some(source.name.clone()),
-                        u32::try_from(source.start_byte).unwrap_or(0),
-                        u32::try_from(source.end_byte).unwrap_or(0),
-                    ));
+                    violations.push(source);
                 }
             }
+        }
+
+        for source in violations {
+            advisories.push(self.new_advisory(
+                source.file_id,
+                source.file_path.clone(),
+                u32::try_from(source.line).unwrap_or(0),
+                u32::try_from(source.column).unwrap_or(0),
+                format!("{}: can reach sensitive sink", self.metadata.observation),
+                source.name.clone(),
+                Some(source.name.clone()),
+                u32::try_from(source.start_byte).unwrap_or(0),
+                u32::try_from(source.end_byte).unwrap_or(0),
+            ));
         }
         advisories
     }
@@ -843,27 +848,32 @@ impl ProjectRuleIr {
             .filter(|s| sink_re.is_match(&s.name))
             .collect();
 
+        let mut violations = Vec::new();
         for source in sources {
             let source_nodes = symbols.graph().find_nodes(&source.name);
             for sink in &sinks {
                 let sink_nodes = symbols.graph().find_nodes(&sink.name);
                 if symbols.graph().has_call_path(&source_nodes, &sink_nodes) {
-                    advisories.push(self.new_advisory(
-                        source.file_id,
-                        source.file_path.clone(),
-                        u32::try_from(source.line).unwrap_or(0),
-                        u32::try_from(source.column).unwrap_or(0),
-                        format!(
-                            "{}: global reachability: source reached sensitive sink",
-                            self.metadata.observation
-                        ),
-                        source.name.clone(),
-                        Some(source.name.clone()),
-                        u32::try_from(source.start_byte).unwrap_or(0),
-                        u32::try_from(source.end_byte).unwrap_or(0),
-                    ));
+                    violations.push(source);
                 }
             }
+        }
+
+        for source in violations {
+            advisories.push(self.new_advisory(
+                source.file_id,
+                source.file_path.clone(),
+                u32::try_from(source.line).unwrap_or(0),
+                u32::try_from(source.column).unwrap_or(0),
+                format!(
+                    "{}: global reachability: source reached sensitive sink",
+                    self.metadata.observation
+                ),
+                source.name.clone(),
+                Some(source.name.clone()),
+                u32::try_from(source.start_byte).unwrap_or(0),
+                u32::try_from(source.end_byte).unwrap_or(0),
+            ));
         }
         advisories
     }
