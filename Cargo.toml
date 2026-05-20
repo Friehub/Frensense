@@ -42,7 +42,7 @@ include_dir = { version = "0.7", features = ["glob"] }
 glob = "0.3"
 napi = { version = "2.12", default-features = false, features = ["napi4"], optional = true }
 napi-derive = { version = "2.12", optional = true }
-petgraph = "0.6"
+petgraph = "0.8"
 dirs = "5.0"
 
 [features]
