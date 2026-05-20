@@ -86,3 +86,50 @@ fn test_ts_god_function() {
     // Negative (10 lines)
     run_test(rule_id, "function small() { console.log(1); }", 0, "ts");
 }
+
+#[test]
+fn test_ts_ssrf_vulnerability() {
+    let rule_id = "TS_SSRF_VULNERABILITY";
+
+    let bad_code = r#"
+        async function handleRequest(req, res) {
+            let url = req.query.url;
+            // Unsafe flow to fetch
+            let response = await fetch(url);
+            res.send(await response.text());
+        }
+    "#;
+    run_test(rule_id, bad_code, 1, "ts");
+
+    let good_code = r#"
+        async function handleRequest(req, res) {
+            let url = req.query.url;
+            let safeUrl = sanitizeUrl(url);
+            // Safe flow to fetch
+            let response = await fetch(safeUrl);
+            res.send(await response.text());
+        }
+    "#;
+    // We expect 0 here because our data leak tracker (the taint engine)
+    // will see that `sanitizeUrl` interrupts the flow from `req.query.url` to `fetch`.
+    run_test(rule_id, good_code, 0, "ts");
+}
+
+#[test]
+fn test_ts_unawaited_test_assertion() {
+    let rule_id = "TS_UNAWAITED_TEST_ASSERTION";
+
+    let bad_code = r#"
+        it('should fail if unawaited', () => {
+            expect(Promise.resolve(1)).resolves.toBe(1);
+        });
+    "#;
+    run_test(rule_id, bad_code, 1, "ts");
+
+    let good_code = r#"
+        it('should pass if awaited', async () => {
+            await expect(Promise.resolve(1)).resolves.toBe(1);
+        });
+    "#;
+    run_test(rule_id, good_code, 0, "ts");
+}

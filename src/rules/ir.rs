@@ -353,6 +353,56 @@ impl CoreRuleIr {
         }
     }
 
+    // gensense-ignore RUST_LOCK_IO
+    fn evaluate_taint_constraint<'a>(
+        &self,
+        node: Node<'a>,
+        context: &GenSenseContext<'a>,
+        top: Node<'a>,
+        source: &regex::Regex,
+        sink: &regex::Regex,
+        constraint_type: &str,
+        file_path: &str,
+        func_or_node_line: usize,
+        advisories: &mut Vec<Advisory>,
+    ) {
+        let constraint_cache_key = (
+            constraint_type.to_string(),
+            source.as_str().to_string(),
+            sink.as_str().to_string(),
+            file_path.to_string(),
+            func_or_node_line,
+        );
+
+        let cached_findings = {
+            let cache = context.taint_cache.borrow();
+            cache.get(&constraint_cache_key).cloned()
+        };
+
+        if let Some(mut findings) = cached_findings {
+            findings.iter_mut().for_each(|a| {
+                a.rule_id = self.metadata.id.to_string();
+                a.severity = self.metadata.severity;
+                a.observation = self.metadata.observation.to_string();
+                a.impact = self.metadata.impact.to_string();
+                a.improvement = self.metadata.improvement.to_string();
+                a.confidence = self.metadata.confidence;
+            });
+            advisories.extend(findings);
+        } else {
+            let analyzer = DataFlowAnalyzer::new(context, top);
+            let mut registry = TaintRegistry::default();
+            analyzer.discover_symbols(&mut registry);
+            let target_node = node.child_by_field_name("body").unwrap_or(node);
+            let findings = analyzer.analyze_block(target_node, source, sink, self, &mut registry);
+
+            let mut cache = context.taint_cache.borrow_mut();
+            cache.insert(constraint_cache_key, findings.clone());
+
+            advisories.extend(findings);
+        }
+    }
+
     fn check_flow_constraints<'a>(
         &self,
         node: Node<'a>,
@@ -376,80 +426,30 @@ impl CoreRuleIr {
         for constraint in &self.flow_constraints {
             match constraint {
                 FlowConstraint::TaintReached { source, sink } => {
-                    let constraint_cache_key = (
-                        "reached".to_string(),
-                        source.as_str().to_string(),
-                        sink.as_str().to_string(),
-                        file_path.clone(),
+                    self.evaluate_taint_constraint(
+                        node,
+                        context,
+                        top,
+                        source,
+                        sink,
+                        "reached",
+                        &file_path,
                         func_or_node_line,
+                        advisories,
                     );
-
-                    let cached_findings = {
-                        let cache = context.taint_cache.borrow();
-                        cache.get(&constraint_cache_key).cloned()
-                    };
-
-                    if let Some(mut findings) = cached_findings {
-                        for a in &mut findings {
-                            a.rule_id = self.metadata.id.clone().into_owned();
-                            a.severity = self.metadata.severity;
-                            a.observation = self.metadata.observation.to_string();
-                            a.impact = self.metadata.impact.to_string();
-                            a.improvement = self.metadata.improvement.to_string();
-                            a.confidence = self.metadata.confidence;
-                        }
-                        advisories.extend(findings);
-                    } else {
-                        let analyzer = DataFlowAnalyzer::new(context, top);
-                        let mut registry = TaintRegistry::default();
-                        analyzer.discover_symbols(&mut registry);
-                        let target_node = node.child_by_field_name("body").unwrap_or(node);
-                        let findings =
-                            analyzer.analyze_block(target_node, source, sink, self, &mut registry);
-
-                        let mut cache = context.taint_cache.borrow_mut();
-                        cache.insert(constraint_cache_key, findings.clone());
-
-                        advisories.extend(findings);
-                    }
                 }
                 FlowConstraint::TaintForbidden { source, sink } => {
-                    let constraint_cache_key = (
-                        "forbidden".to_string(),
-                        source.as_str().to_string(),
-                        sink.as_str().to_string(),
-                        file_path.clone(),
+                    self.evaluate_taint_constraint(
+                        node,
+                        context,
+                        top,
+                        source,
+                        sink,
+                        "forbidden",
+                        &file_path,
                         func_or_node_line,
+                        advisories,
                     );
-
-                    let cached_findings = {
-                        let cache = context.taint_cache.borrow();
-                        cache.get(&constraint_cache_key).cloned()
-                    };
-
-                    if let Some(mut findings) = cached_findings {
-                        for a in &mut findings {
-                            a.rule_id = self.metadata.id.clone().into_owned();
-                            a.severity = self.metadata.severity;
-                            a.observation = self.metadata.observation.to_string();
-                            a.impact = self.metadata.impact.to_string();
-                            a.improvement = self.metadata.improvement.to_string();
-                            a.confidence = self.metadata.confidence;
-                        }
-                        advisories.extend(findings);
-                    } else {
-                        let analyzer = DataFlowAnalyzer::new(context, top);
-                        let mut registry = TaintRegistry::default();
-                        analyzer.discover_symbols(&mut registry);
-                        let target_node = node.child_by_field_name("body").unwrap_or(node);
-                        let findings =
-                            analyzer.analyze_block(target_node, source, sink, self, &mut registry);
-
-                        let mut cache = context.taint_cache.borrow_mut();
-                        cache.insert(constraint_cache_key, findings.clone());
-
-                        advisories.extend(findings);
-                    }
                 }
                 FlowConstraint::ScopeConstraint { pattern, invert } => {
                     let mut current = node.parent();
@@ -707,7 +707,7 @@ impl ProjectRuleIr {
             .filter(|s| guard_re.is_match(&s.name) && guard_glob.matches(&s.file_path))
             .collect();
 
-        for source in sources {
+        let new_advisories = sources.into_iter().filter_map(|source| {
             let mut covered = false;
             let source_nodes = symbols.graph().find_nodes(&source.name);
             for guard in &guards {
@@ -719,7 +719,7 @@ impl ProjectRuleIr {
             }
 
             if !covered {
-                advisories.push(self.new_advisory(
+                Some(self.new_advisory(
                     source.file_id,
                     source.file_path.clone(),
                     u32::try_from(source.line).unwrap_or(0),
@@ -732,9 +732,12 @@ impl ProjectRuleIr {
                     Some(source.name.clone()),
                     u32::try_from(source.start_byte).unwrap_or(0),
                     u32::try_from(source.end_byte).unwrap_or(0),
-                ));
+                ))
+            } else {
+                None
             }
-        }
+        });
+        advisories.extend(new_advisories);
         advisories
     }
 
@@ -757,29 +760,34 @@ impl ProjectRuleIr {
             .filter(|s| re.is_match(&s.name))
             .collect();
 
-        for target in targets {
-            let callers = symbols.find_callers(&target.name);
-            for caller in callers {
-                if caller.file_path != target.file_path
-                    && !glob.matches_with(&caller.file_path, options)
-                {
-                    advisories.push(self.new_advisory(
-                        caller.file_id,
-                        caller.file_path.clone(),
-                        u32::try_from(caller.line).unwrap_or(0),
-                        u32::try_from(caller.column).unwrap_or(0),
-                        format!(
-                            "{}: called from outside its file ({})",
-                            self.metadata.observation, caller.file_path
-                        ),
-                        target.name.clone(),
-                        Some(caller.name.clone()),
-                        u32::try_from(caller.start_byte).unwrap_or(0),
-                        u32::try_from(caller.end_byte).unwrap_or(0),
-                    ));
-                }
-            }
-        }
+        let new_advisories = targets.iter().flat_map(|target| {
+            symbols
+                .find_callers(&target.name)
+                .into_iter()
+                .filter_map(move |caller| {
+                    if caller.file_path != target.file_path
+                        && !glob.matches_with(&caller.file_path, options)
+                    {
+                        Some(self.new_advisory(
+                            caller.file_id,
+                            caller.file_path.clone(),
+                            u32::try_from(caller.line).unwrap_or(0),
+                            u32::try_from(caller.column).unwrap_or(0),
+                            format!(
+                                "{}: called from outside its file ({})",
+                                self.metadata.observation, caller.file_path
+                            ),
+                            target.name.clone(),
+                            Some(caller.name.clone()),
+                            u32::try_from(caller.start_byte).unwrap_or(0),
+                            u32::try_from(caller.end_byte).unwrap_or(0),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+        });
+        advisories.extend(new_advisories);
         advisories
     }
 
@@ -814,8 +822,8 @@ impl ProjectRuleIr {
             }
         }
 
-        for source in violations {
-            advisories.push(self.new_advisory(
+        advisories.extend(violations.iter().map(|source| {
+            self.new_advisory(
                 source.file_id,
                 source.file_path.clone(),
                 u32::try_from(source.line).unwrap_or(0),
@@ -825,8 +833,8 @@ impl ProjectRuleIr {
                 Some(source.name.clone()),
                 u32::try_from(source.start_byte).unwrap_or(0),
                 u32::try_from(source.end_byte).unwrap_or(0),
-            ));
-        }
+            )
+        }));
         advisories
     }
 
@@ -859,8 +867,8 @@ impl ProjectRuleIr {
             }
         }
 
-        for source in violations {
-            advisories.push(self.new_advisory(
+        advisories.extend(violations.iter().map(|source| {
+            self.new_advisory(
                 source.file_id,
                 source.file_path.clone(),
                 u32::try_from(source.line).unwrap_or(0),
@@ -873,8 +881,8 @@ impl ProjectRuleIr {
                 Some(source.name.clone()),
                 u32::try_from(source.start_byte).unwrap_or(0),
                 u32::try_from(source.end_byte).unwrap_or(0),
-            ));
-        }
+            )
+        }));
         advisories
     }
 }
