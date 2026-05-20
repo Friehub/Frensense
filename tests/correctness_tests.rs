@@ -143,3 +143,37 @@ fn test_snapshot_determinism() {
 
     assert_eq!(advisories1.len(), advisories2.len());
 }
+
+/// TASK-01 acceptance: project-rule advisories must carry a non-empty original_content
+/// so that --fix mode is never silently skipped.
+#[test]
+fn test_project_rule_advisory_has_non_empty_original_content() {
+    use gensense::ProjectRule;
+    use gensense::engine::source::SourceRegistry;
+    use gensense::rules::global::allocator_check::GlobalAllocatorCheck;
+    use gensense::semantics::SymbolRegistry;
+
+    let rust_source = "// no allocator here\nfn main() {}\n";
+    let path = Path::new("main.rs");
+
+    let mut sources = SourceRegistry::new();
+    sources.register(path, rust_source.to_string());
+
+    let symbols = SymbolRegistry::new();
+    let rule = GlobalAllocatorCheck;
+    let advisories = rule.check_project(&symbols, &sources);
+
+    assert!(
+        !advisories.is_empty(),
+        "GlobalAllocatorCheck should fire when #[global_allocator] is absent"
+    );
+
+    for advisory in &advisories {
+        assert!(
+            !advisory.original_content.is_empty(),
+            "advisory.original_content must be non-empty for project rule '{}' (file: '{}')",
+            advisory.rule_id,
+            advisory.file_path,
+        );
+    }
+}

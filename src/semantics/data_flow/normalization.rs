@@ -102,6 +102,7 @@ impl SemanticExtractor {
                         let value_node = child.child_by_field_name("value");
                         if let (Some(n), Some(v)) = (name_node, value_node) {
                             Self::extract_bindings(n, source, v, ops);
+                            Self::extract_typescript(v, source, ops);
                         }
                     }
                 }
@@ -114,6 +115,7 @@ impl SemanticExtractor {
                         target: source[l.start_byte()..l.end_byte()].to_string(),
                         value_range: r.into(),
                     });
+                    Self::extract_typescript(r, source, ops);
                 }
             }
             "expression_statement" => {
@@ -182,6 +184,7 @@ impl SemanticExtractor {
                 let value_node = node.child_by_field_name("value");
                 if let (Some(n), Some(v)) = (name_node, value_node) {
                     Self::extract_bindings(n, source, v, ops);
+                    Self::extract_rust(v, source, ops);
                 }
             }
             "assignment_expression" => {
@@ -192,6 +195,7 @@ impl SemanticExtractor {
                         target: source[l.start_byte()..l.end_byte()].to_string(),
                         value_range: r.into(),
                     });
+                    Self::extract_rust(r, source, ops);
                 }
             }
             "expression_statement" => {

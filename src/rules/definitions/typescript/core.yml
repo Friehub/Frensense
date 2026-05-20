@@ -187,7 +187,7 @@ rules:
   improvement: Sanitize the input or use an allowlist.
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
   source_pattern: (req|request)\.(query|body|params)
-  sink_pattern: fetch\(|axios\.
+  sink_pattern: ^(fetch|axios)$
   name: TS SSRF Vulnerability
   severity: Critical
   tags: [security]
@@ -200,9 +200,8 @@ rules:
   impact: The test will silently pass even if the assertion fails.
   improvement: Add `await` before the assertion.
   on_node: expression_statement
-  if_matches: expect\(
-  must_contain: \.resolves|\.rejects
-  must_not_contain: await
+  if_matches: expect\(.*(\.resolves|\.rejects)
+  must_contain: await
   name: TS Unawaited Test Assertion
   severity: Critical
   tags: [reliability]
