@@ -306,7 +306,7 @@ jobs:
             cp "${dir}gensense${ext}" "release-binaries/gensense-${target}${ext}"
           done
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag_name }}
           files: release-binaries/*
