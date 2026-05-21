@@ -94,6 +94,7 @@ impl SolidityReentrancyGuard {
                             fingerprint: String::new(),
                             auto_fixable: false,
                             requires_human: true,
+                            tags: vec![],
                         });
                     }
                 }

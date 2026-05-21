@@ -11,7 +11,7 @@ use walkdir::WalkDir;
 struct RulesWrapper {
     #[serde(default)]
     rules: Vec<crate::rules::core::CoreRule>,
-    #[serde(default)]
+    #[serde(default, alias = "schema_contracts")]
     project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
 }
 

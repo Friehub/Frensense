@@ -307,9 +307,28 @@ fn print_results(
 ) -> Result<()> {
     match format {
         "json" => {
+            let clean = filtered_advisories.is_empty();
+            let advisory_count = filtered_advisories.len();
+            let requires_human_count = filtered_advisories
+                .iter()
+                .filter(|a| a.requires_human)
+                .count();
+            let auto_fixable_count = filtered_advisories
+                .iter()
+                .filter(|a| a.auto_fixable)
+                .count();
+
+            let wrapper = serde_json::json!({
+                "clean": clean,
+                "advisory_count": advisory_count,
+                "requires_human_count": requires_human_count,
+                "auto_fixable_count": auto_fixable_count,
+                "advisories": filtered_advisories,
+            });
+
             println!(
                 "{}",
-                serde_json::to_string_pretty(&filtered_advisories)
+                serde_json::to_string_pretty(&wrapper)
                     .map_err(|e| gensense::GenSenseError::Config(format!("JSON error: {e}")))?
             );
         }

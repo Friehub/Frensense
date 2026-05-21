@@ -101,6 +101,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                         fingerprint: String::new(),
                         auto_fixable: false,
                         requires_human: true,
+                        tags: meta.tags.iter().map(|t| t.to_string()).collect(),
                     });
                 }
             }
@@ -199,6 +200,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                             fingerprint: String::new(),
                             auto_fixable: false,
                             requires_human: true,
+                            tags: meta.tags.iter().map(|t| t.to_string()).collect(),
                         });
                     }
                 }

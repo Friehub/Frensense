@@ -32,9 +32,22 @@ pub struct GlobalDataFlow {
 pub struct ProjectCoreRule {
     #[serde(flatten)]
     pub metadata: RuleMetadata,
+    #[serde(default)]
     pub target_ext: String,
     pub must_have_guard: Option<MustHaveGuard>,
     pub must_be_internal: Option<MustBeInternal>,
     pub cross_file_taint_free: Option<CrossFileTaintFree>,
     pub global_data_flow: Option<GlobalDataFlow>,
+    #[serde(default)]
+    pub source_ext: Option<String>,
+    #[serde(default)]
+    pub source_pattern: Option<String>,
+    #[serde(default)]
+    pub source_file_glob: Option<String>,
+    #[serde(default)]
+    pub schema_type: Option<crate::rules::ir::SchemaType>,
+    #[serde(default)]
+    pub schema_glob: Option<String>,
+    #[serde(default)]
+    pub schema_extract: Option<crate::rules::ir::SchemaExtract>,
 }

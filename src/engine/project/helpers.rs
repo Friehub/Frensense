@@ -33,6 +33,7 @@ impl Engine {
                 fingerprint: String::new(),
                 auto_fixable: false,
                 requires_human: true,
+                tags: vec![],
             });
         }
         advisories
@@ -113,6 +114,7 @@ impl Engine {
                         fingerprint: String::new(),
                         auto_fixable: false,
                         requires_human: true,
+                        tags: vec![],
                     });
                 }
             }

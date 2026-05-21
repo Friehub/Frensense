@@ -177,3 +177,68 @@ fn test_project_rule_advisory_has_non_empty_original_content() {
         );
     }
 }
+
+#[test]
+fn test_sarif_output_properties() {
+    use gensense::Advisory;
+    use gensense::FileId;
+    use gensense::reporter::Reporter;
+
+    let adv = Advisory {
+        rule_id: "TEST_RULE".into(),
+        file_id: FileId(1),
+        file_path: "src/main.rs".into(),
+        severity: gensense::Severity::Warning,
+        confidence: 0.85,
+        observation: "observation".into(),
+        impact: "impact".into(),
+        improvement: "improvement".into(),
+        line: 10,
+        column: 5,
+        start_byte: 100,
+        end_byte: 120,
+        original_content: "foo()".into(),
+        proposed_replacement: None,
+        proposed_import: None,
+        enclosing_symbol: None,
+        fingerprint: "hash".into(),
+        auto_fixable: true,
+        requires_human: false,
+        tags: vec!["security".into(), "rust".into()],
+    };
+
+    let sarif = Reporter::to_sarif(&[adv], Path::new("."));
+    let results = sarif
+        .get("runs")
+        .and_then(|r| r.as_array())
+        .and_then(|r| r.first())
+        .and_then(|run| run.get("results"))
+        .and_then(|res| res.as_array())
+        .expect("SARIF structure");
+
+    assert_eq!(results.len(), 1);
+    let result = &results[0];
+    let properties = result.get("properties").expect("properties bag");
+
+    let conf = properties
+        .get("confidence")
+        .and_then(|v| v.as_f64())
+        .expect("confidence");
+    assert!((conf - 0.85).abs() < 1e-5);
+    assert_eq!(
+        properties.get("auto_fixable").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+    assert_eq!(
+        properties.get("requires_human").and_then(|v| v.as_bool()),
+        Some(false)
+    );
+
+    let tags = properties
+        .get("tags")
+        .and_then(|t| t.as_array())
+        .expect("tags array");
+    assert_eq!(tags.len(), 2);
+    assert_eq!(tags[0].as_str(), Some("security"));
+    assert_eq!(tags[1].as_str(), Some("rust"));
+}

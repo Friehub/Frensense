@@ -92,6 +92,7 @@ pub struct Advisory {
     pub fingerprint: String,
     pub auto_fixable: bool,
     pub requires_human: bool,
+    pub tags: Vec<String>,
 }
 
 impl Advisory {
@@ -239,6 +240,7 @@ pub trait GenSenseRule: Send + Sync {
             fingerprint: String::new(),
             auto_fixable: false,
             requires_human: false,
+            tags: meta.tags.iter().map(|t| t.to_string()).collect(),
         }
     }
 

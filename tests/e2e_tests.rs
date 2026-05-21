@@ -262,3 +262,47 @@ severity_override:
         "Severity should be overridden to Warning"
     );
 }
+
+#[test]
+fn test_cli_json_output() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    // Write a simple rust file to trigger some advisory
+    fs::write(root.join("main.rs"), "fn main() { panic!(\"test\"); }").unwrap();
+
+    let output = std::process::Command::new("cargo")
+        .args([
+            "run",
+            "--bin",
+            "gensense",
+            "--features",
+            "cli",
+            "--",
+            root.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .expect("failed to execute gensense");
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    println!("STDOUT: {stdout}");
+    println!("STDERR: {stderr}");
+
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON output");
+    assert_eq!(parsed.get("clean").and_then(|v| v.as_bool()), Some(false));
+    assert!(
+        parsed
+            .get("advisory_count")
+            .and_then(|v| v.as_u64())
+            .unwrap()
+            >= 1
+    );
+
+    let advisories = parsed
+        .get("advisories")
+        .and_then(|v| v.as_array())
+        .expect("advisories list");
+    assert!(!advisories.is_empty());
+}

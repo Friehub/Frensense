@@ -75,6 +75,7 @@ impl ProjectRule for GlobalAllocatorCheck {
                 fingerprint: String::new(),
                 auto_fixable: false,
                 requires_human: true,
+                tags: vec![],
             }]
         } else {
             vec![]

@@ -534,6 +534,7 @@ impl CoreRuleIr {
             fingerprint,
             auto_fixable: self.auto_fixable.unwrap_or(false),
             requires_human: self.requires_human.unwrap_or(false),
+            tags: self.metadata.tags.iter().map(|t| t.to_string()).collect(),
         }
     }
 
@@ -559,6 +560,21 @@ impl CoreRuleIr {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SchemaType {
+    Prisma,
+    OpenApi,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SchemaExtract {
+    ModelNames,
+    FieldNames,
+    EnumValues,
+}
+
 /// Project-wide flow constraint.
 #[derive(Debug, Clone)]
 pub enum ProjectFlowConstraint {
@@ -580,6 +596,13 @@ pub enum ProjectFlowConstraint {
         source_pattern: Regex,
         sink_pattern: Regex,
     },
+    SchemaContract {
+        source_capture_re: Regex,
+        source_file_glob: glob::Pattern,
+        schema_type: SchemaType,
+        schema_file_glob: glob::Pattern,
+        schema_extract: SchemaExtract,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -596,7 +619,7 @@ impl crate::ProjectRule for ProjectRuleIr {
     fn check_project(
         &self,
         symbols: &crate::semantics::symbols::SymbolRegistry,
-        _sources: &crate::SourceRegistry,
+        sources: &crate::SourceRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
@@ -631,6 +654,22 @@ impl crate::ProjectRule for ProjectRuleIr {
                         symbols,
                         source_pattern,
                         sink_pattern,
+                    ));
+                }
+                ProjectFlowConstraint::SchemaContract {
+                    source_capture_re,
+                    source_file_glob,
+                    schema_type,
+                    schema_file_glob,
+                    schema_extract,
+                } => {
+                    advisories.extend(self.check_schema_contract(
+                        sources,
+                        source_capture_re,
+                        source_file_glob,
+                        *schema_type,
+                        schema_file_glob,
+                        *schema_extract,
                     ));
                 }
             }
@@ -691,6 +730,7 @@ impl ProjectRuleIr {
             end_byte,
             auto_fixable: false,
             requires_human: true,
+            tags: self.metadata.tags.iter().map(|t| t.to_string()).collect(),
         }
     }
 
@@ -893,4 +933,130 @@ impl ProjectRuleIr {
         }));
         advisories
     }
+
+    fn check_schema_contract(
+        &self,
+        sources: &crate::SourceRegistry,
+        source_capture_re: &Regex,
+        source_file_glob: &glob::Pattern,
+        schema_type: SchemaType,
+        schema_file_glob: &glob::Pattern,
+        schema_extract: SchemaExtract,
+    ) -> Vec<Advisory> {
+        let mut advisories = Vec::new();
+        let root = find_project_root(sources);
+
+        let valid_names = match (schema_type, schema_extract) {
+            (SchemaType::Prisma, SchemaExtract::ModelNames) => {
+                crate::rules::schema_contract::prisma_extractor::PrismaExtractor::extract_model_names(
+                    schema_file_glob,
+                    &root,
+                )
+            }
+            (SchemaType::Prisma, SchemaExtract::FieldNames) => {
+                crate::rules::schema_contract::prisma_extractor::PrismaExtractor::extract_field_names(
+                    schema_file_glob,
+                    &root,
+                )
+            }
+            (SchemaType::Prisma, SchemaExtract::EnumValues) => {
+                crate::rules::schema_contract::prisma_extractor::PrismaExtractor::extract_enum_values(
+                    schema_file_glob,
+                    &root,
+                )
+            }
+            _ => std::collections::HashSet::new(),
+        };
+
+        let options = glob::MatchOptions {
+            case_sensitive: true,
+            require_literal_separator: true,
+            require_literal_leading_dot: false,
+        };
+
+        for file in sources.all_files() {
+            let rel_path = file.path.strip_prefix(&root).unwrap_or(&file.path);
+            if !source_file_glob.matches_with(rel_path.to_str().unwrap_or(""), options) {
+                continue;
+            }
+
+            for cap in source_capture_re.captures_iter(&file.content) {
+                if let Some(matched_group) = cap.get(1) {
+                    let matched_str = matched_group.as_str();
+                    if !valid_names.contains(matched_str) {
+                        let start_byte = matched_group.start();
+                        let end_byte = matched_group.end();
+
+                        let mut line = 1;
+                        let mut column = 1;
+                        for ch in file.content[..start_byte].chars() {
+                            if ch == '\n' {
+                                line += 1;
+                                column = 1;
+                            } else {
+                                column += 1;
+                            }
+                        }
+
+                        let advisory = self.new_advisory(
+                            file.id,
+                            file.path.to_string_lossy().to_string(),
+                            line,
+                            column,
+                            format!(
+                                "{}: '{}' not found in schema",
+                                self.metadata.observation, matched_str
+                            ),
+                            matched_group.as_str().to_string(),
+                            None,
+                            start_byte as u32,
+                            end_byte as u32,
+                        );
+                        advisories.push(advisory);
+                    }
+                }
+            }
+        }
+
+        advisories
+    }
+}
+
+fn find_project_root(sources: &crate::SourceRegistry) -> std::path::PathBuf {
+    if let Ok(cwd) = std::env::current_dir() {
+        return cwd;
+    }
+
+    // Fallback (cwd unavailable — rare): compute the longest common prefix
+    // of all registered source files.
+    let mut files = sources.all_files().peekable();
+    if files.peek().is_none() {
+        return std::path::PathBuf::from(".");
+    }
+
+    let mut common_path: Option<std::path::PathBuf> = None;
+    for file in files {
+        if let Some(ref current) = common_path {
+            let mut common = std::path::PathBuf::new();
+            let current_comps: Vec<_> = current.components().collect();
+            let file_comps: Vec<_> = file.path.components().collect();
+            for (c1, c2) in current_comps.into_iter().zip(file_comps) {
+                if c1 == c2 {
+                    common.push(c1);
+                } else {
+                    break;
+                }
+            }
+            common_path = Some(common);
+        } else {
+            common_path = Some(
+                file.path
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| std::path::PathBuf::from(".")),
+            );
+        }
+    }
+
+    common_path.unwrap_or_else(|| std::path::PathBuf::from("."))
 }

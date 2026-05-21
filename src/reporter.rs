@@ -118,8 +118,10 @@ impl Reporter {
                         "primaryLocationLineHash/v1": adv.fingerprint
                     },
                     "properties": {
+                        "confidence": adv.confidence,
                         "auto_fixable": adv.auto_fixable,
-                        "requires_human": adv.requires_human
+                        "requires_human": adv.requires_human,
+                        "tags": adv.tags
                     }
                 });
 

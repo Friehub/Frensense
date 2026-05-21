@@ -22,6 +22,10 @@ name = "gensense"
 path = "src/bin/gensense.rs"
 required-features = ["cli"]
 
+[[bin]]
+name = "gensense-mcp"
+path = "src/bin/gensense-mcp.rs"
+
 [dependencies]
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }

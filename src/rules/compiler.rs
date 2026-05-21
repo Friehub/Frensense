@@ -194,6 +194,60 @@ impl ProjectRuleCompiler {
             });
         }
 
+        let schema_contract_present = dsl.source_pattern.is_some()
+            || dsl.source_ext.is_some()
+            || dsl.source_file_glob.is_some()
+            || dsl.schema_type.is_some()
+            || dsl.schema_glob.is_some()
+            || dsl.schema_extract.is_some();
+
+        if schema_contract_present {
+            let source_pattern = dsl.source_pattern.as_ref().ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require source_pattern".to_string(),
+                )
+            })?;
+            let schema_type = dsl.schema_type.ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require schema_type".to_string(),
+                )
+            })?;
+            let schema_glob = dsl.schema_glob.as_ref().ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require schema_glob".to_string(),
+                )
+            })?;
+            let schema_extract = dsl.schema_extract.ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require schema_extract".to_string(),
+                )
+            })?;
+
+            let source_file_glob = if let Some(glob) = dsl.source_file_glob.as_ref() {
+                glob::Pattern::new(glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?
+            } else if let Some(source_ext) = dsl.source_ext.as_ref() {
+                let ext = source_ext.trim().trim_start_matches('.');
+                glob::Pattern::new(&format!("**/*.{ext}"))
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?
+            } else {
+                return Err(crate::GenSenseError::Config(
+                    "schema contract rules require either source_file_glob or source_ext"
+                        .to_string(),
+                ));
+            };
+
+            constraints.push(ProjectFlowConstraint::SchemaContract {
+                source_capture_re: regex::Regex::new(source_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                source_file_glob,
+                schema_type,
+                schema_file_glob: glob::Pattern::new(schema_glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                schema_extract,
+            });
+        }
+
         Ok(ProjectRuleIr {
             metadata: dsl.metadata,
             constraints,
