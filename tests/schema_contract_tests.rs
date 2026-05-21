@@ -90,12 +90,12 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
 
     fs::write(
         root.join("column.rs"),
-        r#"
+        r##"
         fn column_query() {
-            let sql = "SELECT bad_column FROM User";
+            let sql = r#"SELECT * FROM "User" WHERE "badColumn" = $1"#;
             let _ = sql;
         }
-        "#,
+        "##,
     )
     .unwrap();
 
@@ -112,7 +112,7 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
             improvement: Rename the query table or update the Prisma model to match.
             tags: [database, prisma]
             source_ext: rs
-            source_pattern: '(?:FROM|JOIN|INTO|UPDATE)\s+([A-Za-z_][A-Za-z0-9_]*)'
+            source_pattern: '(?:FROM|JOIN|INTO|UPDATE)\s+"?([A-Z][a-zA-Z0-9]+)"?'
             source_file_glob: '**/*.rs'
             schema_type: prisma
             schema_glob: '**/*.prisma'
@@ -127,7 +127,7 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
             improvement: Rename the column reference or update the Prisma field to match.
             tags: [database, prisma]
             source_ext: rs
-            source_pattern: 'SELECT\s+([A-Za-z_][A-Za-z0-9_]*)'
+            source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:[=<>!]|IS\s|IN\s)'
             source_file_glob: '**/*.rs'
             schema_type: prisma
             schema_glob: '**/*.prisma'
