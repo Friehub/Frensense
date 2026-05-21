@@ -156,6 +156,8 @@ fn bench_patcher_throughput(c: &mut Criterion) {
         enclosing_symbol: None,
         confidence: 1.0,
         fingerprint: "bench".into(),
+        auto_fixable: true,
+        requires_human: false,
     };
 
     let manager = PatchManager::new(root);

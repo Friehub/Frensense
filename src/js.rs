@@ -16,6 +16,8 @@ pub struct JsAdvisory {
     pub enclosing_symbol: Option<String>,
     pub confidence: f64,
     pub fingerprint: String,
+    pub auto_fixable: bool,
+    pub requires_human: bool,
 }
 
 #[napi]
@@ -95,6 +97,8 @@ impl GenSenseEngine {
                     enclosing_symbol: a.enclosing_symbol,
                     confidence: f64::from(a.confidence),
                     fingerprint: a.fingerprint,
+                    auto_fixable: a.auto_fixable,
+                    requires_human: a.requires_human,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
@@ -127,6 +131,8 @@ impl GenSenseEngine {
                     enclosing_symbol: a.enclosing_symbol,
                     confidence: f64::from(a.confidence),
                     fingerprint: a.fingerprint,
+                    auto_fixable: a.auto_fixable,
+                    requires_human: a.requires_human,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(
@@ -157,6 +163,8 @@ impl GenSenseEngine {
                     enclosing_symbol: a.enclosing_symbol,
                     confidence: f64::from(a.confidence),
                     fingerprint: a.fingerprint,
+                    auto_fixable: a.auto_fixable,
+                    requires_human: a.requires_human,
                 })
                 .collect()),
             Err(e) => Err(napi::Error::from_reason(format!(

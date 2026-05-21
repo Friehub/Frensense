@@ -116,6 +116,10 @@ impl Reporter {
                     }],
                     "partialFingerprints": {
                         "primaryLocationLineHash/v1": adv.fingerprint
+                    },
+                    "properties": {
+                        "auto_fixable": adv.auto_fixable,
+                        "requires_human": adv.requires_human
                     }
                 });
 

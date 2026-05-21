@@ -99,6 +99,8 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                         proposed_import: None,
                         enclosing_symbol,
                         fingerprint: String::new(),
+                        auto_fixable: false,
+                        requires_human: true,
                     });
                 }
             }
@@ -125,7 +127,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
         }
 
         if current_step < sequence.len() {
-            vec![rule.new_advisory(
+            let mut adv = rule.new_advisory(
                 scope,
                 self.context,
                 format!(
@@ -136,7 +138,10 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
-            )]
+            );
+            adv.auto_fixable = false;
+            adv.requires_human = true;
+            vec![adv]
         } else {
             Vec::new()
         }
@@ -192,6 +197,8 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                             proposed_import: None,
                             enclosing_symbol,
                             fingerprint: String::new(),
+                            auto_fixable: false,
+                            requires_human: true,
                         });
                     }
                 }

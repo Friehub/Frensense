@@ -88,9 +88,10 @@ pub struct Advisory {
     pub proposed_replacement: Option<String>,
     /// The suggested import statement to inject, if any.
     pub proposed_import: Option<String>,
-    /// The name of the symbol (function/class) enclosing this finding.
     pub enclosing_symbol: Option<String>,
     pub fingerprint: String,
+    pub auto_fixable: bool,
+    pub requires_human: bool,
 }
 
 impl Advisory {
@@ -236,6 +237,8 @@ pub trait GenSenseRule: Send + Sync {
             proposed_import: None,
             enclosing_symbol,
             fingerprint: String::new(),
+            auto_fixable: false,
+            requires_human: false,
         }
     }
 

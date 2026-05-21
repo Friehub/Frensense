@@ -63,6 +63,10 @@ pub struct CoreRule {
     pub must_be_preceded_by: Option<String>,
     #[serde(default)]
     pub use_query: Option<bool>,
+    #[serde(default)]
+    pub auto_fixable: Option<bool>,
+    #[serde(default)]
+    pub requires_human: Option<bool>,
 }
 
 impl GenSenseRule for CoreRule {

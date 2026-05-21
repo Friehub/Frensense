@@ -3,7 +3,7 @@
 #[cfg(feature = "fingerprinting")]
 use super::super::fingerprint::FunctionFingerprint;
 use super::Engine;
-use crate::{Advisory, FileId};
+use crate::{Advisory, FileId, SourceRegistry};
 use std::path::Path;
 
 impl Engine {
@@ -25,12 +25,14 @@ impl Engine {
                 column: 0,
                 start_byte: 0,
                 end_byte: 0,
-                original_content: String::new(),
+                original_content: "sbom.txt / bom.json".to_string(),
                 proposed_replacement: None,
                 proposed_import: None,
                 enclosing_symbol: None,
                 confidence: 1.0,
                 fingerprint: String::new(),
+                auto_fixable: false,
+                requires_human: true,
             });
         }
         advisories
@@ -38,7 +40,11 @@ impl Engine {
 
     #[cfg(feature = "fingerprinting")]
     #[must_use]
-    pub fn post_process_ngrams(&self, fingerprints: &[FunctionFingerprint]) -> Vec<Advisory> {
+    pub fn post_process_ngrams(
+        &self,
+        fingerprints: &[FunctionFingerprint],
+        sources: &SourceRegistry,
+    ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let mut similarity_map: std::collections::HashMap<u64, Vec<usize>> =
             std::collections::HashMap::new();
@@ -89,13 +95,24 @@ impl Engine {
                         column: 0,
                         start_byte: 0,
                         end_byte: 0,
-                        original_content: String::new(),
+                        original_content: sources
+                            .get_by_path(std::path::Path::new(&f1.file_path))
+                            .and_then(|src| {
+                                src.content
+                                    .lines()
+                                    .nth(f1.line.saturating_sub(1))
+                                    .map(str::trim)
+                                    .map(std::string::String::from)
+                            })
+                            .unwrap_or_else(|| f1.function_name.clone()),
                         proposed_replacement: None,
                         proposed_import: None,
                         enclosing_symbol: Some(f1.function_name.clone()),
                         #[allow(clippy::cast_possible_truncation)]
                         confidence: similarity as f32,
                         fingerprint: String::new(),
+                        auto_fixable: false,
+                        requires_human: true,
                     });
                 }
             }

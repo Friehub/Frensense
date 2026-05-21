@@ -59,6 +59,8 @@ pub struct CoreRuleIr {
     pub body_may_delegate_via: Option<Regex>,
     pub body_must_contain_any_of: Option<Regex>,
     pub must_be_preceded_by: Option<String>,
+    pub auto_fixable: Option<bool>,
+    pub requires_human: Option<bool>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -530,6 +532,8 @@ impl CoreRuleIr {
             enclosing_symbol,
             confidence: self.metadata.confidence,
             fingerprint,
+            auto_fixable: self.auto_fixable.unwrap_or(false),
+            requires_human: self.requires_human.unwrap_or(false),
         }
     }
 
@@ -544,6 +548,8 @@ impl CoreRuleIr {
         let mut adv = self.new_advisory(node, context, observation);
         adv.proposed_replacement = Some(replacement);
         adv.proposed_import = import;
+        adv.auto_fixable = self.auto_fixable.unwrap_or(true);
+        adv.requires_human = self.requires_human.unwrap_or(false);
         adv
     }
 
@@ -683,6 +689,8 @@ impl ProjectRuleIr {
             fingerprint,
             start_byte,
             end_byte,
+            auto_fixable: false,
+            requires_human: true,
         }
     }
 

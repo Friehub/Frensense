@@ -59,11 +59,22 @@ impl ProjectRule for GlobalAllocatorCheck {
                 column: 1,
                 start_byte: 0,
                 end_byte: 0,
-                original_content: String::new(),
+                original_content: sources
+                    .get(file_id)
+                    .and_then(|src| {
+                        src.content
+                            .lines()
+                            .next()
+                            .map(str::trim)
+                            .map(std::string::String::from)
+                    })
+                    .unwrap_or_default(),
                 proposed_replacement: None,
                 proposed_import: None,
                 enclosing_symbol: None,
                 fingerprint: String::new(),
+                auto_fixable: false,
+                requires_human: true,
             }]
         } else {
             vec![]

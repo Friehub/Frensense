@@ -135,6 +135,8 @@ impl RuleCompiler {
             body_may_delegate_via: dsl.body_may_delegate_via,
             body_must_contain_any_of: dsl.body_must_contain_any_of,
             must_be_preceded_by: dsl.must_be_preceded_by,
+            auto_fixable: dsl.auto_fixable,
+            requires_human: dsl.requires_human,
         })
     }
 }

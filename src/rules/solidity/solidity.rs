@@ -82,12 +82,18 @@ impl SolidityReentrancyGuard {
                             improvement: "Follow the Checks-Effects-Interactions pattern: update state before making external calls.".to_string(),
                             line: r as u32,
                             column: c as u32,
-                            start_byte: 0,
-                            end_byte: 0,
-                            original_content: String::new(),
+                            start_byte: node.start_byte() as u32,
+                            end_byte: node.end_byte() as u32,
+                            original_content: context.source_code
+                                [node.start_byte()..node.end_byte()]
+                                .to_string(),
                             proposed_replacement: None,
                             proposed_import: None,
                             enclosing_symbol,
+                            confidence: 0.9,
+                            fingerprint: String::new(),
+                            auto_fixable: false,
+                            requires_human: true,
                         });
                     }
                 }
