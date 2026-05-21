@@ -13,7 +13,6 @@ yarn-error.log*
 *.node
 gensense
 gensense.exe
-gensense.js
 gensense.d.ts
 .env
 index.js

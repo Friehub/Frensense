@@ -116,7 +116,13 @@ impl GenSenseEngine {
     #[napi]
     #[allow(clippy::needless_pass_by_value)]
     pub fn audit_project(&mut self, root_dir: String) -> napi::Result<Vec<JsAdvisory>> {
-        match self.inner.run(Path::new(&root_dir)) {
+        let root = Path::new(&root_dir);
+        if !root.exists() {
+            return Err(napi::Error::from_reason(format!(
+                "Path does not exist: {root_dir}"
+            )));
+        }
+        match self.inner.run(root) {
             Ok(advisories) => Ok(advisories
                 .into_iter()
                 .map(|a| JsAdvisory {

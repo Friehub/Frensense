@@ -173,7 +173,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        features: [cli, "full", "rust,typescript,solidity"]
+        features: [cli, "full", "rust,typescript,solidity,mcp"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@v2
