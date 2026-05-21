@@ -94,6 +94,19 @@ impl<'a> TaintRegistry<'a> {
         None
     }
 
+    /// Returns the taint origin for any field of `var`, if at least one field is tainted.
+    #[must_use]
+    pub fn get_any_field_origin(&self, var: &str) -> Option<TaintOrigin> {
+        for scope in self.field_taint.iter().rev() {
+            for ((v, _), origin) in scope.iter() {
+                if *v == var {
+                    return Some(origin.clone());
+                }
+            }
+        }
+        None
+    }
+
     pub fn taint(&mut self, var: &'a str, origin: TaintOrigin) {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(var, origin);
@@ -128,7 +141,7 @@ impl<'a> TaintRegistry<'a> {
 
     #[must_use]
     pub fn is_tainted(&self, var: &str) -> bool {
-        self.get_origin(var).is_some()
+        self.get_origin(var).is_some() || self.get_any_field_origin(var).is_some()
     }
 }
 

@@ -374,3 +374,91 @@ rules:
         "Should ignore main function because it's not a validator"
     );
 }
+
+#[test]
+fn test_object_aliasing_field_taint_propagation() {
+    let content = r"
+        const pwd = input();
+        const payload = { data: pwd };
+        console.log(payload);
+    ";
+    let path = Path::new("test.ts");
+    let auditor = GenSenseAuditor::default_auditor();
+    let (lang, tree) = auditor.parse_source(path, content).unwrap();
+    let symbols = auditor
+        .discover_symbols(path, FileId(1), content, &lang, &tree)
+        .unwrap();
+    let mut registry = SymbolRegistry::new();
+    for sym in symbols {
+        registry.insert(sym);
+    }
+    let ops = auditor.extract_semantic_ops(path, content, &tree);
+    let taint_cache = TaintCache::default();
+
+    let context = GenSenseContext {
+        file_id: FileId(1),
+        file_path: path,
+        source_code: content,
+        tree: &tree,
+        symbols: &registry,
+        semantic_ops: &ops,
+        taint_cache: &taint_cache,
+        file_trees: &HashMap::new(),
+    };
+
+    let analyzer =
+        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let mut taint_reg = TaintRegistry::default();
+
+    // Simulate: pwd is tainted by source_pattern, then payload = { data: pwd }
+    // creates field-level taint payload.data, but payload itself is not directly tainted.
+    taint_reg.taint("pwd", TaintOrigin::UserInput);
+    taint_reg.taint_field("payload", "data", TaintOrigin::UserInput);
+
+    let source_re = regex::Regex::new("input").unwrap();
+    let sink_re = regex::Regex::new("console\\.log").unwrap();
+
+    struct DummyRule {
+        metadata: gensense::RuleMetadata,
+    }
+    impl gensense::GenSenseRule for DummyRule {
+        fn metadata(&self) -> &gensense::RuleMetadata {
+            &self.metadata
+        }
+        fn check<'a>(
+            &self,
+            _n: tree_sitter::Node<'a>,
+            _c: &GenSenseContext<'a>,
+        ) -> Vec<gensense::Advisory> {
+            vec![]
+        }
+        fn applies_to(&self, _ext: &str) -> bool {
+            true
+        }
+    }
+    let rule = DummyRule {
+        metadata: gensense::RuleMetadata {
+            id: "TS_DATA_LEAK_TRACKER".into(),
+            name: "Dummy".into(),
+            severity: gensense::Severity::Warning,
+            observation: "Dummy".into(),
+            impact: "None".into(),
+            improvement: "None".into(),
+            tags: vec![],
+            category: "Test".into(),
+            confidence: 0.85,
+        },
+    };
+
+    let advisories = analyzer.analyze_block(
+        tree.root_node(),
+        &source_re,
+        &sink_re,
+        &rule,
+        &mut taint_reg,
+    );
+    assert!(
+        !advisories.is_empty(),
+        "Field-tainted object passed to sink must trigger advisory (payload.data -> payload -> console.log)"
+    );
+}

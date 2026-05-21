@@ -244,7 +244,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         &self,
         fn_name: &'a str,
         args: &[Node<'a>],
-        _call_node: Node<'a>,
+        call_node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
@@ -253,8 +253,11 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         let mut advisories = Vec::new();
         let mut tainted_args = Vec::new();
 
+        // Full call expression text (e.g., "console.log(payload)") for sink matching
+        let call_text = &self.current_source[call_node.start_byte()..call_node.end_byte()];
+
         for (idx, arg) in args.iter().enumerate() {
-            if source_re.is_match(fn_name) {
+            if source_re.is_match(fn_name) || source_re.is_match(call_text) {
                 let arg_name = &self.current_source[arg.start_byte()..arg.end_byte()];
                 registry.taint(arg_name, super::TaintOrigin::UserInput);
             }
@@ -262,7 +265,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 self.resolve_taint(*arg, source_re, sink_re, rule, registry, &mut advisories)
             {
                 tainted_args.push((idx, origin.clone()));
-                if sink_re.is_match(fn_name) {
+                if sink_re.is_match(fn_name) || sink_re.is_match(call_text) {
                     let arg_code = &self.current_source[arg.start_byte()..arg.end_byte()];
                     // Custom new_advisory that uses current file info
                     let mut advisory = rule.new_advisory(
@@ -380,6 +383,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 "identifier" => {
                     let name = &self.current_source[current.start_byte()..current.end_byte()];
                     if let Some(origin) = registry.get_origin(name) {
+                        return Some(origin);
+                    }
+                    if let Some(origin) = registry.get_any_field_origin(name) {
                         return Some(origin);
                     }
                 }
