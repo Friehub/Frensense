@@ -56,8 +56,8 @@ jobs:
 
       - name: Install Linting Tools
         run: |
-          cargo install cargo-hack --locked
-          cargo install cargo-machete --locked
+          cargo install cargo-hack --locked --force
+          cargo install cargo-machete --locked --force
 
 
       - name: Lint (Clippy)
