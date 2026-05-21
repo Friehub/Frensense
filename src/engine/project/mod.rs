@@ -1,231 +1,245 @@
 // SPDX-License-Identifier: MIT
 
 pub mod config;
-pub mod consistency;
 pub mod helpers;
 
-use rayon::prelude::*;
-use std::collections::HashSet;
+use crate::engine::auditor::{AuditOptions, GenSenseAuditor, ScanResult};
+use crate::engine::suppression::SuppressConfig;
+use crate::semantics::symbols::SymbolRegistry;
+use crate::{Advisory, FileId, GenSenseEnvironment, ProjectRule, Result, SourceRegistry};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use super::auditor::{GenSenseAuditor, ProjectAuditor, ScanResult};
-use super::source::SourceRegistry;
-use super::suppression::SuppressConfig;
-use crate::{parser::ParserRegistry, semantics::SymbolRegistry, Advisory, ProjectRule, Result};
+/// Detailed internal snapshot of a file's analysis artifacts.
+pub struct FileSnapshot {
+    pub id: FileId,
+    pub path: PathBuf,
+    pub content: String,
+    pub tree: tree_sitter::Tree,
+    pub symbols: Vec<crate::semantics::symbols::Symbol>,
+    pub edges: Vec<(String, String)>,
+    pub semantic_ops: Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+}
 
 pub struct Engine {
-    pub auditor: GenSenseAuditor,
-    pub project_rules: Vec<Box<dyn ProjectRule>>,
-    pub source_registry: SourceRegistry,
-    pub enabled_categories: HashSet<String>,
-    pub enabled_tags: HashSet<String>,
-    pub environment: crate::GenSenseEnvironment,
-    pub verify_consistency: bool,
-    pub extra_rule_dirs: Vec<PathBuf>,
-    pub no_builtin_rules: bool,
-    pub isolate_rules: bool,
+    auditor: GenSenseAuditor,
+    project_rules: Vec<Box<dyn ProjectRule>>,
+    source_registry: SourceRegistry,
+    min_confidence: f32,
+    environment: GenSenseEnvironment,
+    enabled_categories: HashSet<String>,
+    enabled_tags: HashSet<String>,
+    extra_rule_dirs: Vec<PathBuf>,
+    no_builtin_rules: bool,
+    isolate_rules: bool,
 }
 
 impl Engine {
-    pub fn new(auditor: GenSenseAuditor) -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
-            auditor,
+            auditor: GenSenseAuditor::new(Vec::new()),
             project_rules: Vec::new(),
             source_registry: SourceRegistry::new(),
+            min_confidence: 0.1,
+            environment: GenSenseEnvironment::Development,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
-            environment: crate::GenSenseEnvironment::Development,
-            verify_consistency: false,
             extra_rule_dirs: Vec::new(),
             no_builtin_rules: false,
             isolate_rules: false,
         }
     }
 
-    pub fn set_consistency_verification(&mut self, enabled: bool) {
-        self.verify_consistency = enabled;
+    pub const fn set_min_confidence(&mut self, val: f32) {
+        self.min_confidence = val;
     }
 
-    pub fn set_environment(&mut self, env: crate::GenSenseEnvironment) {
+    pub const fn set_environment(&mut self, env: GenSenseEnvironment) {
         self.environment = env;
     }
 
-    pub fn enable_category(&mut self, cat: &str) {
-        self.enabled_categories.insert(cat.to_string());
+    pub fn set_rules(&mut self, rules: Vec<Box<dyn crate::GenSenseRule>>) {
+        self.auditor.set_rules(rules);
+    }
+
+    #[must_use]
+    pub const fn auditor(&self) -> &crate::GenSenseAuditor {
+        &self.auditor
+    }
+
+    #[must_use]
+    pub fn project_rules(&self) -> &[Box<dyn crate::ProjectRule>] {
+        &self.project_rules
+    }
+
+    #[must_use]
+    pub fn list_rules(&self) -> Vec<(String, String, String)> {
+        let mut rules = Vec::new();
+        for r in self.auditor.rules() {
+            let meta = r.metadata();
+            rules.push((
+                meta.id.to_string(),
+                meta.name.to_string(),
+                format!("{:?}", meta.severity),
+            ));
+        }
+        for r in &self.project_rules {
+            let meta = r.metadata();
+            rules.push((
+                meta.id.to_string(),
+                meta.name.to_string(),
+                format!("{:?}", meta.severity),
+            ));
+        }
+        rules
     }
 
     pub fn enable_tag(&mut self, tag: &str) {
         self.enabled_tags.insert(tag.to_string());
     }
 
-    pub fn list_rules(&self) -> Vec<(String, String, crate::Severity)> {
-        self.auditor
-            .rules()
-            .iter()
-            .map(|r| {
-                let meta = r.metadata();
-                (meta.id.to_string(), meta.impact.to_string(), meta.severity)
-            })
-            .collect()
+    pub fn enable_category(&mut self, category: &str) {
+        self.enabled_categories.insert(category.to_string());
     }
 
+    pub fn add_rule_dir<P: Into<PathBuf>>(&mut self, path: P) {
+        self.extra_rule_dirs.push(path.into());
+    }
+
+    pub const fn set_no_builtin_rules(&mut self, val: bool) {
+        self.no_builtin_rules = val;
+    }
+
+    pub const fn set_isolate_rules(&mut self, val: bool) {
+        self.isolate_rules = val;
+    }
+
+    /// Runs the project auditor on the given root directory.
+    ///
+    /// # Errors
+    /// Returns an error if the directory cannot be read, if configuration fails to load,
+    /// or if rule execution encounters a fatal error.
     pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
-        if !root.exists() {
-            return Err(crate::GenSenseError::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Path not found: {}", root.display()),
-            )));
-        }
         let (advisories, _) = self.run_detailed(root)?;
         Ok(advisories)
     }
 
-    pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
-        let config = config::load_config(root);
+    /// Runs the audit on a single virtual file with the given content.
+    ///
+    /// # Errors
+    /// Returns an error if parsing or auditing fails.
+    pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
+        let config = if self.auditor.rules().is_empty() && !self.isolate_rules {
+            self.initialize_auditor_and_config(Path::new("."))
+        } else {
+            config::load_config(Path::new("."))
+        };
+        let id = self.source_registry.register(path, content.to_string());
+        let (language, tree) = self.auditor.parse_source(path, content)?;
+        let symbols = self
+            .auditor
+            .discover_symbols(path, id, content, &language, &tree)?;
+        let semantic_ops = self.auditor.extract_semantic_ops(path, content, &tree);
 
-        if !self.isolate_rules {
-            let mut dirs = self.extra_rule_dirs.clone();
-            if let Some(config_rules_dir) = &config.rules_dir {
-                dirs.push(PathBuf::from(config_rules_dir));
-            }
-            let (rules, project_rules) =
-                GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
-            self.auditor.rules = rules;
-            self.project_rules = project_rules;
+        let mut file_trees = HashMap::new();
+        file_trees.insert(
+            path.to_string_lossy().to_string(),
+            (tree.clone(), content.to_string(), semantic_ops.clone()),
+        );
 
-            if let Some(disabled) = &config.disabled_rules {
-                let disabled_set: HashSet<&str> = disabled.iter().map(|s| s.as_str()).collect();
-                self.auditor
-                    .rules
-                    .retain(|r| !disabled_set.contains(r.id()));
-                self.project_rules
-                    .retain(|r| !disabled_set.contains(r.id()));
-            }
-        } else if !self.extra_rule_dirs.is_empty() {
-            // Still apply any extra rule dirs even in isolated mode
-            let (user_rules, user_project_rules) =
-                crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
-            self.auditor.rules.extend(user_rules);
-            self.project_rules.extend(user_project_rules);
+        let mut registry = SymbolRegistry::new();
+        for sym in symbols {
+            registry.insert(sym);
         }
 
-        let suppress_file = root.join(".gensense-suppress.yml");
-        if suppress_file.exists() {
-            if let Ok(content) = std::fs::read_to_string(suppress_file) {
-                if let Ok(config) = serde_yaml::from_str::<SuppressConfig>(&content) {
-                    self.auditor.set_suppressions(config);
+        let opts = AuditOptions {
+            file_id: id,
+            path,
+            content,
+            tree: &tree,
+            semantic_ops: &semantic_ops,
+            symbols: &registry,
+            file_trees: &file_trees,
+            category_filter: &self.enabled_categories,
+            tag_filter: &self.enabled_tags,
+            env: self.environment,
+        };
+
+        let result = self.auditor.audit(&opts)?;
+        let mut advisories = result.advisories;
+
+        for rule in &self.project_rules {
+            let project_advisories = rule.check_project(&registry, &self.source_registry);
+            for a in project_advisories {
+                if a.confidence >= self.min_confidence {
+                    advisories.push(a);
                 }
             }
         }
 
-        let files = self.collect_files(root)?;
-
-        // Pass 1: Parallel Mapping (Immutable Snapshots)
-        // Each file is processed in isolation, producing its local semantic snapshots.
-        #[derive(Debug)]
-        struct FileSnapshot {
-            path: PathBuf,
-            content: String,
-            tree: tree_sitter::Tree,
-            symbols: Vec<crate::semantics::Symbol>,
-            edges: Vec<(String, String)>,
-            semantic_ops: Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+        if let Some(overrides) = &config.severity_override {
+            for adv in &mut advisories {
+                if let Some(sev) = overrides.get(&adv.rule_id) {
+                    adv.severity = *sev;
+                }
+            }
         }
 
-        let snapshots: Result<Vec<FileSnapshot>> = files
-            .into_par_iter()
-            .map(|p| {
-                let content = std::fs::read_to_string(&p)?;
-                let (language, tree) = self.auditor.parse_source(&p, &content)?;
-                let symbols = self
-                    .auditor
-                    .discover_symbols(&p, &content, &language, &tree)?;
-                let edges = self
-                    .auditor
-                    .scan_for_edges(&p, &content, &language, &tree)?;
-                let semantic_ops = self.auditor.extract_semantic_ops(&p, &content, &tree);
-                Ok(FileSnapshot {
-                    path: p,
-                    content,
-                    tree,
-                    symbols,
-                    edges,
-                    semantic_ops,
-                })
-            })
-            .collect();
+        Ok(advisories)
+    }
 
-        // Pass 2: Sequential Assembly (Converging snapshots into the dependency graph)
+    /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
+    ///
+    /// # Errors
+    /// Returns an error if file reading or parsing fails.
+    pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
+        let config = self.initialize_auditor_and_config(root);
+        let snapshots = self.collect_and_snapshot_files(root)?;
+
         let mut symbols = SymbolRegistry::new();
         let mut file_ids = Vec::new();
-
-        let snapshots = snapshots?;
-        let mut snapshot_map = std::collections::HashMap::new();
+        let mut snapshot_map = HashMap::new();
 
         for snap in &snapshots {
-            let id = self
-                .source_registry
-                .register(&snap.path, snap.content.clone());
-            file_ids.push((id, snap.path.clone()));
-            snapshot_map.insert(id, snap);
+            file_ids.push((snap.id, snap.path.clone()));
+            snapshot_map.insert(snap.id, snap);
             for sym in snap.symbols.clone() {
                 symbols.insert(sym);
             }
         }
 
-        // Pass 3: Dependency Connection (Connecting the snapshots)
         for snap in &snapshots {
             for (caller, callee) in &snap.edges {
                 symbols.add_call_edge(&snap.path, caller, callee);
             }
         }
 
-        // Pass 4: Parallel Audit (Read-only access to the assembled graph)
-        let results: Result<Vec<ScanResult>> = file_ids
-            .into_par_iter()
-            .map(|(id, p)| {
-                let snap = snapshot_map.get(&id).ok_or_else(|| {
-                    crate::GenSenseError::Engine(format!(
-                        "Missing snapshot for file ID {} at path {:?}",
-                        id.0, p
-                    ))
-                })?;
-                let (mut advisories, fingerprints) = self.auditor.audit(
-                    id,
-                    &p,
-                    &snap.content,
-                    &snap.tree,
-                    &snap.semantic_ops,
-                    &symbols,
-                    &self.enabled_categories,
-                    &self.enabled_tags,
-                    self.environment,
-                )?;
-
-                if self.verify_consistency {
-                    advisories.extend(self.run_consistency_analysis(
-                        id,
-                        &p,
-                        &snap.content,
-                        &symbols,
-                    ));
-                }
-
-                Ok((advisories, fingerprints))
-            })
-            .collect();
-
-        let mut all_advisories = Vec::new();
-        for (adv, _) in results? {
-            all_advisories.extend(adv);
+        let mut file_trees = HashMap::new();
+        for snap in &snapshots {
+            let path_str = snap.path.to_string_lossy().to_string();
+            file_trees.insert(
+                path_str,
+                (
+                    snap.tree.clone(),
+                    snap.content.clone(),
+                    snap.semantic_ops.clone(),
+                ),
+            );
         }
 
-        // Pass 5: Project Audit (Cross-file rules)
-        let project_auditor = ProjectAuditor::new(std::mem::take(&mut self.project_rules));
-        let project_advisories =
-            project_auditor.run(&symbols, &self.source_registry, self.environment);
-        all_advisories.extend(project_advisories);
+        let mut all_advisories =
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+
+        for rule in &self.project_rules {
+            let project_advisories = rule.check_project(&symbols, &self.source_registry);
+            for a in project_advisories {
+                if a.confidence >= self.min_confidence {
+                    all_advisories.push(a);
+                }
+            }
+        }
 
         if let Some(overrides) = &config.severity_override {
             for adv in &mut all_advisories {
@@ -238,11 +252,139 @@ impl Engine {
         Ok((all_advisories, symbols))
     }
 
-    fn collect_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
-        if root.is_file() {
-            return Ok(vec![root.to_path_buf()]);
+    fn initialize_auditor_and_config(&mut self, root: &Path) -> config::GenSenseConfig {
+        let config = config::load_config(root);
+
+        if !self.isolate_rules {
+            let mut dirs = self.extra_rule_dirs.clone();
+            if let Some(config_rules_dir) = &config.rules_dir {
+                dirs.push(PathBuf::from(config_rules_dir));
+            }
+            let (rules, project_rules) =
+                GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
+            self.auditor.set_rules(rules);
+            self.project_rules = project_rules;
+
+            if let Some(disabled) = &config.disabled_rules {
+                let disabled_set: HashSet<&str> =
+                    disabled.iter().map(std::string::String::as_str).collect();
+                self.auditor
+                    .retain_rules(|r| !disabled_set.contains(r.id()));
+                self.project_rules
+                    .retain(|r| !disabled_set.contains(r.metadata().id.as_ref()));
+            }
+        } else if !self.extra_rule_dirs.is_empty() {
+            let (user_rules, user_project_rules) =
+                crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
+            self.auditor.add_rules(user_rules);
+            self.project_rules.extend(user_project_rules);
         }
-        Ok(WalkDir::new(root)
+
+        let suppress_file = root.join(".gensense-suppress.yml");
+        if suppress_file.exists()
+            && let Ok(content) = std::fs::read_to_string(suppress_file)
+            && let Ok(supp_config) = serde_yaml::from_str::<SuppressConfig>(&content)
+        {
+            self.auditor.set_suppressions(supp_config);
+        }
+        config
+    }
+
+    fn collect_and_snapshot_files(&mut self, root: &Path) -> Result<Vec<FileSnapshot>> {
+        let files = Self::collect_files(root);
+        let mut file_info = Vec::new();
+        for p in files {
+            let content = std::fs::read_to_string(&p)?;
+            let id = self.source_registry.register(&p, content.clone());
+            file_info.push((id, p, content));
+        }
+
+        let auditor = &self.auditor;
+
+        file_info
+            .into_iter()
+            .map(|(id, p, content)| {
+                let (language, tree) = auditor.parse_source(&p, &content)?;
+                let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree)?;
+                let edges = auditor.scan_for_edges(&p, &content, &language, &tree)?;
+                let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
+                Ok(FileSnapshot {
+                    id,
+                    path: p,
+                    content,
+                    tree,
+                    symbols,
+                    edges,
+                    semantic_ops,
+                })
+            })
+            .collect()
+    }
+
+    fn perform_parallel_audit(
+        &self,
+        file_ids: &[(FileId, PathBuf)],
+        snapshot_map: &HashMap<FileId, &FileSnapshot>,
+        symbols: &SymbolRegistry,
+        file_trees: &HashMap<
+            String,
+            (
+                tree_sitter::Tree,
+                String,
+                Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+            ),
+        >,
+    ) -> Result<Vec<Advisory>> {
+        let results: Result<Vec<ScanResult>> = file_ids
+            .iter()
+            .map(|(id, p)| {
+                let snap = snapshot_map.get(id).ok_or_else(|| {
+                    crate::GenSenseError::Engine(format!(
+                        "Missing snapshot for file ID {} at path {}",
+                        id.0,
+                        p.display()
+                    ))
+                })?;
+                let opts = AuditOptions {
+                    file_id: *id,
+                    path: p,
+                    content: &snap.content,
+                    tree: &snap.tree,
+                    semantic_ops: &snap.semantic_ops,
+                    symbols,
+                    file_trees,
+                    category_filter: &self.enabled_categories,
+                    tag_filter: &self.enabled_tags,
+                    env: self.environment,
+                };
+                let result = self.auditor.audit(&opts)?;
+
+                let advisories = result.advisories;
+
+                Ok(ScanResult {
+                    advisories,
+                    #[cfg(feature = "fingerprinting")]
+                    fingerprints: result.fingerprints,
+                })
+            })
+            .collect();
+
+        let mut all_advisories = Vec::new();
+        for result in results? {
+            for a in result.advisories {
+                if a.confidence >= self.min_confidence {
+                    all_advisories.push(a);
+                }
+            }
+        }
+        Ok(all_advisories)
+    }
+
+    fn collect_files(root: &Path) -> Vec<PathBuf> {
+        if root.is_file() {
+            return vec![root.to_path_buf()];
+        }
+        WalkDir::new(root)
             .into_iter()
             .filter_entry(|e| {
                 if e.file_type().is_dir() {
@@ -255,45 +397,40 @@ impl Engine {
                 }
                 true
             })
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| {
-                if let Ok(meta) = e.metadata() {
-                    if meta.len() > 1024 * 1024 {
-                        return false;
-                    }
-                }
-                ParserRegistry::is_supported(e.path())
-            })
             .map(|e| e.path().to_path_buf())
-            .collect())
+            .collect()
+    }
+}
+
+pub struct ProjectAuditor {
+    rules: Vec<Box<dyn ProjectRule>>,
+}
+
+impl ProjectAuditor {
+    #[must_use]
+    pub fn new(rules: Vec<Box<dyn ProjectRule>>) -> Self {
+        Self { rules }
     }
 
-    pub fn run_content(&self, file_path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        let mut registry = SourceRegistry::new();
-        let id = registry.register(file_path, content.to_string());
-        let mut symbols = SymbolRegistry::new();
-
-        let (language, tree) = self.auditor.parse_source(file_path, content)?;
-        let discovered = self
-            .auditor
-            .discover_symbols(file_path, content, &language, &tree)?;
-        for sym in discovered {
-            symbols.insert(sym);
+    #[must_use]
+    pub fn run(
+        &self,
+        symbols: &SymbolRegistry,
+        sources: &SourceRegistry,
+        _env: GenSenseEnvironment,
+    ) -> Vec<Advisory> {
+        let mut advisories = Vec::new();
+        for rule in &self.rules {
+            advisories.extend(rule.check_project(symbols, sources));
         }
-        let semantic_ops = self.auditor.extract_semantic_ops(file_path, content, &tree);
+        advisories
+    }
+}
 
-        let (advisories, _) = self.auditor.audit(
-            id,
-            file_path,
-            content,
-            &tree,
-            &semantic_ops,
-            &symbols,
-            &self.enabled_categories,
-            &self.enabled_tags,
-            self.environment,
-        )?;
-        Ok(advisories)
+impl Default for Engine {
+    fn default() -> Self {
+        Self::new()
     }
 }

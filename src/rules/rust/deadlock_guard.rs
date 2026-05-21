@@ -20,6 +20,7 @@ impl GenSenseRule for DeadlockGuard {
             improvement: Cow::Borrowed("Use tokio::sync::Mutex or ensure the guard is dropped before the await."),
             tags: vec![Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Reliability"),
+            confidence: 0.85,
         })
     }
 
@@ -34,8 +35,8 @@ impl GenSenseRule for DeadlockGuard {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if let Some(parent_fn) = self.find_parent_function(node) {
-            if self.has_mutex_lock(parent_fn, node, context.source_code) {
+        if let Some(parent_fn) = Self::find_parent_function(node) {
+            if Self::has_mutex_lock(parent_fn, node, context.source_code) {
                 advisories.push(
                     self.new_advisory(
                         &node,
@@ -52,7 +53,7 @@ impl GenSenseRule for DeadlockGuard {
 }
 
 impl DeadlockGuard {
-    fn find_parent_function<'a>(&self, node: Node<'a>) -> Option<Node<'a>> {
+    fn find_parent_function(node: Node<'_>) -> Option<Node<'_>> {
         let mut current = node;
         while let Some(parent) = current.parent() {
             match parent.kind() {
@@ -63,7 +64,7 @@ impl DeadlockGuard {
         None
     }
 
-    fn has_mutex_lock(&self, scope: Node, await_node: Node, source: &str) -> bool {
+    fn has_mutex_lock(scope: Node, await_node: Node, source: &str) -> bool {
         let await_start = await_node.start_byte();
         scan_for_lock(scope, await_start, source)
     }

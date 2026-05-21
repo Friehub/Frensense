@@ -1,0 +1,15 @@
+project_rules:
+  - id: "JUMIA_AUTH_LEAK"
+    target_ext: "ts"
+    name: "Unauthenticated Sensitive Route"
+    domain: "security"
+    severity: Critical
+    observation: "A sensitive 'delete' operation was found without a reachable 'validate_session' guard."
+    impact: "Unauthenticated users could delete resources without a valid session."
+    improvement: "Ensure the function calls 'validateSession' before proceeding."
+    tags: ["security", "governance"]
+    must_have_guard:
+      source_pattern: "delete_user|delete_product"
+      guard_pattern: "validateSession"
+      source_file_glob: "**/demo/*.ts"
+      guard_file_glob: "**/demo/*.ts"

@@ -12,6 +12,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.95
+
 - id: RUST_HOST_INTERACTION
   target_ext: rs
   observation: We observed a direct interaction with host processes using 'std::process'.
@@ -25,6 +27,8 @@ rules:
   severity: Warning
   tags: []
   category: Isolation
+  confidence: 0.85
+
 - id: RUST_STD_OUTPUT
   target_ext: rs
   observation: We observed the use of println! or eprintln! in library code.
@@ -38,6 +42,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.90
+
 - id: RUST_ALLOCATION_IN_LOG
   target_ext: rs
   observation: We noticed 'format!' being used inside a logging macro.
@@ -51,6 +57,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.80
+
 - id: RUST_CLONE_IN_LOOP
   target_ext: rs
   observation: Just a heads-up, there's a '.clone()' call inside this loop.
@@ -63,6 +71,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.80
+
 - id: RUST_CONSTRUCTOR_BLOAT
   target_ext: rs
   observation: It looks like this constructor has quite a few arguments.
@@ -76,6 +86,8 @@ rules:
   severity: Warning
   tags: []
   category: Maintainability
+  confidence: 0.65
+
 - id: RUST_SILENT_FAILURE
   target_ext: rs
   observation: We observed a pattern of logging a failure but returning 'Ok(())'.
@@ -89,6 +101,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.70
+
 - id: RUST_VEC_FRONT_REMOVE
   target_ext: rs
   observation: We noticed '.remove(0)' being called on a Vec.
@@ -103,6 +117,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.90
+
 - id: RUST_ALGO_N2_LOOP
   target_ext: rs
   observation: We observed a search operation (.contains/.find) inside a loop over
@@ -117,6 +133,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.60
+
 - id: RUST_CHANNEL_UNBOUNDED
   target_ext: rs
   observation: We observed the creation of an unbounded channel (unbounded_channel).
@@ -130,6 +148,8 @@ rules:
   severity: Warning
   tags: []
   category: Concurrency
+  confidence: 0.90
+
 - id: RUST_OVER_GENERAL_VARIABLE
   target_ext: rs
   observation: 'Semantic Smell: Over-generic variable naming detected.'
@@ -143,21 +163,9 @@ rules:
   severity: Warning
   tags: []
   category: Quality
-- id: RUST_LOCK_IO
-  target_ext: rs
-  observation: I spotted a lock (Mutex/RwLock) that might be held across an I/O or
-    await point.
-  impact: Holding locks during async I/O can cause lock contention and stall other
-    tasks waiting for the same lock.
-  improvement: Try to drop the lock before the `.await` point to keep the critical
-    section as small as possible.
-  on_node: function_item
-  if_matches: (lock|write|read)\(.*\)
-  must_not_contain: \.await
-  name: Rust Lock Io
-  severity: Warning
-  tags: []
-  category: Performance
+  confidence: 0.55
+
+
 - id: RUST_UNCHECKED_IO
   target_ext: rs
   observation: I noticed an I/O operation followed directly by an `.unwrap()`.
@@ -171,6 +179,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.75
+
 - id: RUST_UNWRAP_SAFETY
   target_ext: rs
   observation: I noticed an '.unwrap()' call that doesn't seem to have a '// SAFETY:'
@@ -179,13 +189,14 @@ rules:
     assumption is wrong, the service will panic.
   improvement: Please add a '// SAFETY:' comment above this line explaining why this
     unwrap is guaranteed to succeed.
-  on_node: call_expression
-  if_matches: \.unwrap\(\)
+  on_node: "(call_expression function: (field_expression field: (field_identifier) @fn_name (#eq? @fn_name \"unwrap\"))) @node"
   must_contain: '// SAFETY:'
   name: Rust Unwrap Safety
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.85
+
 - id: RUST_TOKIO_SELECT_ELSE
   target_ext: rs
   observation: I noticed a 'tokio::select!' block that might be missing an 'else'
@@ -201,6 +212,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: RUST_LARGE_STACK_ALLOCATION
   target_ext: rs
   on_node: array_expression
@@ -213,6 +226,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: RUST_PANIC_IN_LIB
   target_ext: rs
   on_node: macro_invocation
@@ -227,6 +242,8 @@ rules:
   severity: Warning
   tags: []
   category: Safety
+  confidence: 0.80
+
 - id: SECRET_LEAK_DETECTION
   target_ext: rs
   observation: Potential secret or credential leakage detected in source code.
@@ -238,3 +255,61 @@ rules:
   severity: Critical
   tags: []
   category: Security
+  confidence: 0.60
+
+- id: RUST_SPAWN_WITHOUT_JOINHANDLE
+  target_ext: rs
+  on_node: expression_statement
+  if_matches: tokio::spawn\(|thread::spawn\(
+  observation: Spawned task handle is immediately dropped — panics will be silently swallowed.
+  impact: A panic inside a detached task does not propagate to the spawner. The failure is lost.
+  improvement: Assign the JoinHandle and await it, or use a task supervisor like tokio::task::JoinSet.
+  severity: Warning
+  category: Concurrency
+  name: Rust Spawn Without Joinhandle
+  tags: []
+  confidence: 0.85
+
+
+- id: RUST_MUTEX_POISONING_UNHANDLED
+  target_ext: rs
+  on_node: call_expression
+  if_matches: \.lock\(\)\s*\.(unwrap|expect)\(
+  observation: Mutex::lock().unwrap() propagates poisoned mutex state silently.
+  impact: If another thread panicked while holding this lock, this code will also panic with a confusing error.
+  improvement: Use .unwrap_or_else(|p| p.into_inner()) to recover from poisoning, or use parking_lot::Mutex which doesn't poison.
+  severity: Warning
+  category: Concurrency
+  name: Rust Mutex Poisoning Unhandled
+  tags: []
+  confidence: 0.90
+
+- id: RUST_BLOCKING_IN_ASYNC
+  target_ext: rs
+  on_node: function_item
+  if_matches: async fn
+  must_not_contain: tokio::task::spawn_blocking
+  body_must_contain_any_of: std::fs::|std::net::TcpStream::connect|thread::sleep
+  observation: Blocking stdlib call detected inside an async function.
+  impact: Blocking calls on async executor threads stall all tasks scheduled on that thread.
+  improvement: Use the tokio::fs, tokio::net, or tokio::time equivalents, or wrap in tokio::task::spawn_blocking.
+  severity: Critical
+  category: Performance
+  name: Rust Blocking In Async
+  tags: []
+  confidence: 0.85
+
+- id: RUST_SERDE_MISSING_DENY_UNKNOWN
+  target_ext: rs
+  on_node: struct_item
+  if_matches: '#\[derive[^\]]*Deserialize'
+  must_contain: deny_unknown_fields
+  observation: Struct derives Deserialize but does not use #[serde(deny_unknown_fields)].
+  impact: Unknown fields in the payload are silently ignored. Mass-assignment vulnerabilities can arise when the same struct is used across different layers.
+  improvement: Add #[serde(deny_unknown_fields)] to structs that represent API input or sensitive domain objects.
+  severity: Warning
+  category: Security
+  tags: [security, serde, api]
+  name: Rust Serde Missing Deny Unknown
+  confidence: 0.90
+

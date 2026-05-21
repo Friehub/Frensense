@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 
 use crate::Advisory;
+use std::fmt::Write;
 use std::path::Path;
 
 pub struct Reporter;
 
 impl Reporter {
     /// Generates a professional Markdown report grouped by severity.
+    #[must_use]
     pub fn to_markdown(advisories: &[Advisory], path: &str) -> String {
         let mut md = format!("# GenSense: Semantic Analysis Report for {path}\n\n");
         md.push_str("> [!IMPORTANT]\n> This report contains automated structural observations. High-severity items should be prioritized for protocol stability.\n\n");
@@ -33,14 +35,14 @@ impl Reporter {
                 crate::Severity::Warning => "## Technical Debt & Quality Warnings",
                 crate::Severity::Info => "## Standardized & Style Suggestions",
             };
-            md.push_str(&format!("{title}\n\n"));
+            let _ = writeln!(md, "{title}\n");
 
             for adv in filtered {
-                md.push_str(&format!("### {}\n", adv.rule_id));
-                md.push_str(&format!("- **Location**: `line {}`  \n", adv.line));
-                md.push_str(&format!("- **Observation**: {}  \n", adv.observation));
-                md.push_str(&format!("- **Impact**: {}  \n", adv.impact));
-                md.push_str(&format!("- **Improvement**: {}  \n\n", adv.improvement));
+                let _ = writeln!(md, "### {}", adv.rule_id);
+                let _ = writeln!(md, "- **Location**: `line {}`  ", adv.line);
+                let _ = writeln!(md, "- **Observation**: {}  ", adv.observation);
+                let _ = writeln!(md, "- **Impact**: {}  ", adv.impact);
+                let _ = writeln!(md, "- **Improvement**: {}  \n", adv.improvement);
             }
         }
 
@@ -49,17 +51,47 @@ impl Reporter {
     }
 
     /// Generates a SARIF (Static Analysis Results Interchange Format) report for CI/CD integration.
+    #[must_use]
     pub fn to_sarif(advisories: &[Advisory], _root_path: &Path) -> serde_json::Value {
+        let mut rules_map = std::collections::BTreeMap::new();
+        for adv in advisories {
+            if !rules_map.contains_key(&adv.rule_id) {
+                rules_map.insert(
+                    adv.rule_id.clone(),
+                    serde_json::json!({
+                        "id": adv.rule_id,
+                        "shortDescription": {
+                            "text": adv.observation.clone()
+                        },
+                        "fullDescription": {
+                            "text": format!("{}\n\nImpact: {}\n\nImprovement: {}", adv.observation, adv.impact, adv.improvement)
+                        },
+                        "helpUri": format!("https://friehub.github.io/gensense/rules/{}", adv.rule_id)
+                    }),
+                );
+            }
+        }
+        let rules_list: Vec<_> = rules_map.into_values().collect();
+
         let runs = serde_json::json!([{
             "tool": {
                 "driver": {
                     "name": "GenSense",
-                    "version": "1.0.0",
-                    "informationUri": "https://friehub.com/gensense"
+                    "version": crate::GENSENSE_VERSION,
+                    "informationUri": "https://friehub.com/gensense",
+                    "rules": rules_list
                 }
             },
             "results": advisories.iter().map(|adv| {
-                serde_json::json!({
+                let line_count = adv.original_content.lines().count();
+                let end_line = adv.line + u32::try_from(line_count.saturating_sub(1)).unwrap_or(0);
+                let end_column = if line_count > 1 {
+                    u32::try_from(adv.original_content.lines().last().map_or(0, str::len) + 1).unwrap_or(1)
+                } else {
+                    adv.column + u32::try_from(adv.original_content.len()).unwrap_or(0)
+                };
+
+                let mut result = serde_json::json!({
                     "ruleId": adv.rule_id,
                     "level": match adv.severity {
                         crate::Severity::Critical => "error",
@@ -76,11 +108,46 @@ impl Reporter {
                             },
                             "region": {
                                 "startLine": adv.line,
-                                "startColumn": adv.column
+                                "startColumn": adv.column,
+                                "endLine": end_line,
+                                "endColumn": end_column
                             }
                         }
-                    }]
-                })
+                    }],
+                    "partialFingerprints": {
+                        "primaryLocationLineHash/v1": adv.fingerprint
+                    },
+                    "properties": {
+                        "confidence": adv.confidence,
+                        "auto_fixable": adv.auto_fixable,
+                        "requires_human": adv.requires_human,
+                        "tags": adv.tags
+                    }
+                });
+
+                if let Some(replacement) = &adv.proposed_replacement {
+                    result["fixes"] = serde_json::json!([{
+                        "description": {
+                            "text": "Apply suggested auto-remediation fix"
+                        },
+                        "artifactChanges": [{
+                            "artifactLocation": {
+                                "uri": adv.file_path.clone()
+                            },
+                            "replacements": [{
+                                "deletedRegion": {
+                                    "byteOffset": adv.start_byte,
+                                    "byteLength": adv.end_byte.saturating_sub(adv.start_byte)
+                                },
+                                "insertedContent": {
+                                    "text": replacement.clone()
+                                }
+                            }]
+                        }]
+                    }]);
+                }
+
+                result
             }).collect::<Vec<_>>()
         }]);
 

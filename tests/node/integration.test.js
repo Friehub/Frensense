@@ -62,8 +62,10 @@ async function runTest() {
     // 7. Version check
     console.log('\n--- Testing Version API ---');
     console.log(`Engine Version: ${engine.version}`);
-    if (!engine.version.startsWith('0.2')) {
-      throw new Error(`Invalid version reported: ${engine.version}`);
+    // Support v0.3.x and ensure it follows semantic versioning format
+    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
+    if (!semverRegex.test(engine.version) || !engine.version.startsWith('0.3')) {
+      throw new Error(`Invalid or unexpected version reported: ${engine.version}`);
     }
 
     // 8. Test auditProject (Cross-file rules)

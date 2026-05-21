@@ -10,6 +10,8 @@ rules:
     fields.
   observation: I noticed a Prisma query that fetches all fields. This is inefficient
     for production workloads.
+  fix_pattern: '\.(findMany|findUnique|findFirst)\(\s*\)'
+  fix_with: '.$1({ select: { id: true /* TODO: Select fields to reduce bloat */ } })'
   name: Ts Prisma Select Star
   severity: Warning
   tags: []
