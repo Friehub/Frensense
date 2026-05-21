@@ -237,6 +237,7 @@ jobs:
     name: Performance Regression
     runs-on: ubuntu-latest
     needs: [test-rust]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: write
       pull-requests: write
