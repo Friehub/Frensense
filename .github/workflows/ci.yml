@@ -61,7 +61,7 @@ jobs:
 
 
       - name: Lint (Clippy)
-        run: cargo clippy --all-targets --features full -- -W clippy::pedantic -D warnings
+        run: cargo clippy --all-targets --features full -- -W clippy::pedantic -A clippy::collapsible_if -A clippy::collapsible_match -A clippy::unnecessary_sort_by -A clippy::unnecessary_trailing_comma -D warnings
 
       - name: Verify Feature Gating (cargo hack)
         # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).

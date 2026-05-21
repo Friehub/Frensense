@@ -51,16 +51,16 @@ impl GenSenseRule for AsyncPanicSafety {
                         );
                     }
                 }
-            } else if kind == "macro_invocation" {
-                if let Some(macro_name) = node.child(0) {
-                    let code = &context.source_code[macro_name.start_byte()..macro_name.end_byte()];
-                    if code == "panic" {
-                        advisories.push(self.new_advisory(
-                            &node,
-                            context,
-                            "Unsafe macro (panic!) used in async scope.".to_string(),
-                        ));
-                    }
+            } else if kind == "macro_invocation"
+                && let Some(macro_name) = node.child(0)
+            {
+                let code = &context.source_code[macro_name.start_byte()..macro_name.end_byte()];
+                if code == "panic" {
+                    advisories.push(self.new_advisory(
+                        &node,
+                        context,
+                        "Unsafe macro (panic!) used in async scope.".to_string(),
+                    ));
                 }
             }
         }

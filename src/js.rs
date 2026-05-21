@@ -68,8 +68,8 @@ impl GenSenseEngine {
     }
 
     /// Analyse a single file in isolation. Per-file rules (style, security patterns,
-    /// AI artifacts) run in full. Cross-file project rules (MustHaveGuard,
-    /// MustBeInternal, CrossFileTaintFree) are NOT run — use `audit_project` for
+    /// AI artifacts) run in full. Cross-file project rules (`MustHaveGuard`,
+    /// `MustBeInternal`, `CrossFileTaintFree`) are NOT run — use `audit_project` for
     /// those.
     /// Audit code content directly.
     ///
@@ -108,8 +108,8 @@ impl GenSenseEngine {
     }
 
     /// Audit an entire project directory, including cross-file project rules.
-    /// Use this instead of `audit_content` when you need MustHaveGuard,
-    /// MustBeInternal, or CrossFileTaintFree rules to run.
+    /// Use this instead of `audit_content` when you need `MustHaveGuard`,
+    /// `MustBeInternal`, or `CrossFileTaintFree` rules to run.
     ///
     /// # Errors
     /// Returns an error if the engine fails to access the project directory or scan the project.

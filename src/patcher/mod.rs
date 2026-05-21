@@ -36,36 +36,35 @@ impl PatchManager {
         let mut final_stmt = import_stmt.to_string();
 
         // Extract the path between quotes
-        if let Some(start_quote) = import_stmt.find('\'').or_else(|| import_stmt.find('\"')) {
-            if let Some(end_quote) = import_stmt.rfind('\'').or_else(|| import_stmt.rfind('\"'))
-                && start_quote < end_quote
-            {
-                let logical_path = &import_stmt[start_quote + 1..end_quote];
-                if logical_path.contains("{{root}}") {
-                    let resolved_root =
-                        logical_path.replace("{{root}}", self.root_dir.to_str().unwrap_or(""));
-                    let target = PathBuf::from(&resolved_root);
+        if let Some(start_quote) = import_stmt.find('\'').or_else(|| import_stmt.find('\"'))
+            && let Some(end_quote) = import_stmt.rfind('\'').or_else(|| import_stmt.rfind('\"'))
+            && start_quote < end_quote
+        {
+            let logical_path = &import_stmt[start_quote + 1..end_quote];
+            if logical_path.contains("{{root}}") {
+                let resolved_root =
+                    logical_path.replace("{{root}}", self.root_dir.to_str().unwrap_or(""));
+                let target = PathBuf::from(&resolved_root);
 
-                    let absolute_from = if from_file.is_absolute() {
-                        from_file.to_path_buf()
-                    } else {
-                        self.root_dir.join(from_file)
-                    };
+                let absolute_from = if from_file.is_absolute() {
+                    from_file.to_path_buf()
+                } else {
+                    self.root_dir.join(from_file)
+                };
 
-                    let from_dir = absolute_from.parent().unwrap_or(&absolute_from);
+                let from_dir = absolute_from.parent().unwrap_or(&absolute_from);
 
-                    if let Some(rel_path) = pathdiff::diff_paths(&target, from_dir) {
-                        let mut s = rel_path.to_string_lossy().to_string();
-                        if !s.starts_with('.') {
-                            s = format!("./{s}");
-                        }
-                        final_stmt = format!(
-                            "{}{}{}",
-                            &import_stmt[..=start_quote],
-                            s,
-                            &import_stmt[end_quote..]
-                        );
+                if let Some(rel_path) = pathdiff::diff_paths(&target, from_dir) {
+                    let mut s = rel_path.to_string_lossy().to_string();
+                    if !s.starts_with('.') {
+                        s = format!("./{s}");
                     }
+                    final_stmt = format!(
+                        "{}{}{}",
+                        &import_stmt[..=start_quote],
+                        s,
+                        &import_stmt[end_quote..]
+                    );
                 }
             }
         }
@@ -124,7 +123,7 @@ impl PatchManager {
 
         // Sort advisories back-to-front by start_byte to ensure offset stability
         let mut sorted_advisories = advisories.to_vec();
-        sorted_advisories.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
+        sorted_advisories.sort_by_key(|b| std::cmp::Reverse(b.start_byte));
 
         let mut updated_content = content.clone();
 
@@ -166,14 +165,11 @@ impl PatchManager {
                 let import_stmt = self.resolve_import_path(file_path, import_template);
                 if !updated_content.contains(&import_stmt) {
                     let mut insertion_offset = 0;
-                    if let Ok(re) = regex::Regex::new(r"(?m)^import\s+.*") {
-                        if let Some(last_match) = re.find_iter(&updated_content).last() {
-                            if let Some(line_end) = updated_content[last_match.end()..].find('\n') {
-                                insertion_offset = last_match.end() + line_end + 1;
-                            } else {
-                                insertion_offset = updated_content.len();
-                            }
-                        }
+                    if let Ok(re) = regex::Regex::new(r"(?m)^import\s+.*")
+                        && let Some(last_match) = re.find_iter(&updated_content).last()
+                        && let Some(line_end) = updated_content[last_match.end()..].find('\n')
+                    {
+                        insertion_offset = last_match.end() + line_end + 1;
                     }
 
                     let mut final_content =
