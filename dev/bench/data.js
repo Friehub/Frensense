@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779399575537,
+  "lastUpdate": 1779406749240,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -853,6 +853,180 @@ window.BENCHMARK_DATA = {
             "name": "fingerprinting/advisory_fuzzy_identity",
             "value": 69.95444618725868,
             "range": "0.08432343865486956",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f16652f8d81d8915f910bdc5f138b7727fdbc7e2",
+          "message": "docs: add MCP server docs, changelog page, and benchmark CI fix (#29)\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-05-21T23:26:48Z",
+          "tree_id": "4ac27087f6b75ea70663329907a15fde1bd4deb5",
+          "url": "https://github.com/Friehub/gensense/commit/f16652f8d81d8915f910bdc5f138b7727fdbc7e2"
+        },
+        "date": 1779406748845,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 15928194.375,
+            "range": "48195.43331936002",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 15971393.625,
+            "range": "55465.36229029298",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 15988237.25,
+            "range": "38079.283048957586",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 16414748.875,
+            "range": "38756.27526193857",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 17337657,
+            "range": "36889.49657008052",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 131353705.5,
+            "range": "1251900.004774332",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 555855060.5,
+            "range": "838780.1938086748",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1092315687.5,
+            "range": "1227412.6423090696",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2160955818,
+            "range": "2483705.5908054113",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 16045928.875,
+            "range": "57979.481195658445",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 16504483.5,
+            "range": "52673.255889862776",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 16881855,
+            "range": "48312.0027422905",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 17579163.125,
+            "range": "53908.07634294033",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 48063.94111394558,
+            "range": "76.54826138653385",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 54794.131345177666,
+            "range": "77.2399996146569",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 5822132.444444444,
+            "range": "18662.14480201342",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 96.13413979266195,
+            "range": "0.1533409044121352",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 47.875170377149864,
+            "range": "0.22730275780952694",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 48.787819185750614,
+            "range": "0.05717807014162244",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 48.190089072767094,
+            "range": "0.10670957121422003",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 50.807449651804916,
+            "range": "0.09931978277405032",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 48.11000969402316,
+            "range": "0.08281393447915152",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 51.0779261947409,
+            "range": "0.11516748775020369",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 53.34336672903205,
+            "range": "0.08880885888902858",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 68.92575388648396,
+            "range": "0.15344745614485875",
             "unit": "ns"
           }
         ]
