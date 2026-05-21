@@ -10,7 +10,8 @@ schema_contracts:
     improvement: Rename the query table or update the Prisma model to match.
     tags: [database, prisma]
     source_ext: rs
-    source_pattern: '(?:FROM|JOIN|INTO|UPDATE)\s+([A-Za-z_][A-Za-z0-9_]*)'
+    # Require PascalCase or quoted name — Prisma tables are always PascalCase
+    source_pattern: '(?:FROM|JOIN|INTO|UPDATE)\s+"?([A-Z][a-zA-Z0-9]+)"?'
     source_file_glob: '**/*.rs'
     schema_type: prisma
     schema_glob: '**/*.prisma'
@@ -25,7 +26,9 @@ schema_contracts:
     improvement: Rename the column reference or update the Prisma field to match.
     tags: [database, prisma]
     source_ext: rs
-    source_pattern: '(?:SELECT|WHERE|ORDER BY|GROUP BY)\s+.*?([A-Za-z_][A-Za-z0-9_]*)'
+    # Only match double-quoted camelCase identifiers in comparisons — the exact
+    # pattern Prisma produces for column references in raw SQL.
+    source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:[=<>!]|IS\s|IN\s|LIKE\s|BETWEEN\s)'
     source_file_glob: '**/*.rs'
     schema_type: prisma
     schema_glob: '**/*.prisma'
