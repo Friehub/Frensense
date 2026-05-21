@@ -11,7 +11,9 @@ export default defineConfig({
       { text: 'Guide', link: '/guide' },
       { text: 'API', link: '/api' },
       { text: 'Rules', link: '/rules' },
+      { text: 'MCP', link: '/mcp' },
       { text: 'Editor', link: '/editor' },
+      { text: 'Changelog', link: '/changelog' },
     ],
     sidebar: [
       {
@@ -34,6 +36,13 @@ export default defineConfig({
         items: [
           { text: 'Editor Integration', link: '/editor' },
           { text: 'Extending GenSense', link: '/extending' },
+          { text: 'MCP Server', link: '/mcp' },
+        ]
+      },
+      {
+        text: 'Releases',
+        items: [
+          { text: 'Changelog', link: '/changelog' },
         ]
       }
     ],
