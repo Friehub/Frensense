@@ -133,7 +133,16 @@ jobs:
         run: npm ci
 
       - name: Build NAPI Library
-        run: npm run build -- --target ${{ matrix.settings.target }}
+        run: npm run build
+
+      - name: Smoke test NAPI library
+        run: |
+          node -e "
+            const m = require('./gensense.node');
+            const api = new m.GenSenseEngine();
+            const r = api.auditContent('test.rs', 'fn main() { let x = 1; }');
+            console.log('NAPI OK -', r.length, 'findings');
+          "
 
       - name: Smoke test NAPI library
         run: |
