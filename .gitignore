@@ -13,9 +13,12 @@ yarn-error.log*
 *.node
 gensense
 gensense.exe
+gensense.js
+gensense.d.ts
 .env
 index.js
 index.d.ts
+bin/gensense.js
 
 # Diagnostics & Logs
 *.log
@@ -44,8 +47,17 @@ scripts/__pycache__/
 perf.data
 perf.data.old
 
-# Temporary / Local Artifacts
+# Documentation build
+docs/.vitepress/dist/
+
+# VSCode extension build
+editors/vscode/out/
+
+# Development scratch files
 scratch/
+tests/fixtures/scratch/
+
+# Temporary / Local Artifacts
 *.json
 *.txt
 *.md
