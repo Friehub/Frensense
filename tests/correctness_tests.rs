@@ -265,21 +265,33 @@ fn test_non_remediated_advisory_is_not_auto_fixable() {
 
 #[test]
 fn test_requires_human_is_true_for_project_rule_advisories() {
-    // MISSING_SBOM is a governance check that fires when sbom.txt/bom.json is absent
-    let dir = tempfile::tempdir().unwrap();
-    fs::write(dir.path().join("main.rs"), "fn main() {}").unwrap();
-    let mut engine = Engine::new();
-    let advisories = engine.run(dir.path()).unwrap();
+    use gensense::ProjectRule;
+    use gensense::engine::source::SourceRegistry;
+    use gensense::rules::global::allocator_check::GlobalAllocatorCheck;
+    use gensense::semantics::SymbolRegistry;
 
-    let sbom_adv = advisories.iter().find(|a| a.rule_id == "MISSING_SBOM");
-    assert!(sbom_adv.is_some(), "MISSING_SBOM must fire");
-    let adv = sbom_adv.unwrap();
-    assert!(
-        adv.requires_human,
-        "governance advisories must set requires_human: true"
-    );
-    assert!(
-        !adv.auto_fixable,
-        "governance advisories must not be auto_fixable"
-    );
+    let rust_source = "// no allocator here\nfn main() {}\n";
+    let path = Path::new("main.rs");
+
+    let mut sources = SourceRegistry::new();
+    sources.register(path, rust_source.to_string());
+
+    let symbols = SymbolRegistry::new();
+    let rule = GlobalAllocatorCheck;
+    let advisories = rule.check_project(&symbols, &sources);
+
+    assert!(!advisories.is_empty(), "GlobalAllocatorCheck should fire");
+
+    for advisory in &advisories {
+        assert!(
+            advisory.requires_human,
+            "project rule advisory '{}' must set requires_human: true",
+            advisory.rule_id,
+        );
+        assert!(
+            !advisory.auto_fixable,
+            "project rule advisory '{}' must not be auto_fixable",
+            advisory.rule_id,
+        );
+    }
 }

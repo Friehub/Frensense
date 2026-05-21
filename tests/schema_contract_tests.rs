@@ -59,6 +59,64 @@ fn test_prisma_extractor_parses_models_fields_and_enums() {
 }
 
 #[test]
+fn test_prisma_extractor_handles_model_with_block_on_same_line() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let schema_dir = root.join("prisma");
+    fs::create_dir_all(&schema_dir).unwrap();
+
+    fs::write(
+        schema_dir.join("schema.prisma"),
+        "model Wallet { id String @id\n balance Decimal\n}",
+    )
+    .unwrap();
+
+    let schema_glob = glob::Pattern::new("**/*.prisma").unwrap();
+    let models = PrismaExtractor::extract_model_names(&schema_glob, root);
+    let fields = PrismaExtractor::extract_field_names(&schema_glob, root);
+
+    assert!(
+        models.contains("Wallet"),
+        "same-line brace model must be parsed"
+    );
+    assert!(
+        fields.contains("balance"),
+        "fields in same-line brace model must be parsed"
+    );
+}
+
+#[test]
+fn test_prisma_extractor_handles_multiple_schema_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let schema_dir = root.join("prisma").join("schema");
+    fs::create_dir_all(&schema_dir).unwrap();
+
+    fs::write(
+        schema_dir.join("user.prisma"),
+        "model User { id String @id\n email String\n}",
+    )
+    .unwrap();
+    fs::write(
+        schema_dir.join("order.prisma"),
+        "model Order { id String @id\n userId String\n}",
+    )
+    .unwrap();
+
+    let schema_glob = glob::Pattern::new("**/prisma/schema/**/*.prisma").unwrap();
+    let models = PrismaExtractor::extract_model_names(&schema_glob, root);
+
+    assert!(
+        models.contains("User"),
+        "User from user.prisma must be found"
+    );
+    assert!(
+        models.contains("Order"),
+        "Order from order.prisma must be found"
+    );
+}
+
+#[test]
 fn test_schema_contract_rules_fire_from_schema_contracts_key() {
     let dir = tempdir().unwrap();
     let root = dir.path();

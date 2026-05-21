@@ -700,3 +700,30 @@ fn test_mcp_missing_jsonrpc_field() {
 
     shutdown(child, stdin);
 }
+
+#[test]
+fn test_mcp_audit_response_contains_requires_human_field() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("panic.rs");
+    fs::write(&f, "fn main() { panic!(\"x\"); }").unwrap();
+
+    let result = once_tool_call(&f.to_string_lossy());
+
+    assert!(
+        result["requires_human"].is_array(),
+        "audit response must always include requires_human array"
+    );
+}
+
+#[test]
+fn test_mcp_audit_auto_fixed_is_zero_when_no_fixable_advisories() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("panic.rs");
+    fs::write(&f, "fn main() { panic!(\"x\"); }").unwrap();
+
+    let result = once_tool_call(&f.to_string_lossy());
+    assert_eq!(
+        result["auto_fixed"], 0,
+        "non-fixable advisories must not increment auto_fixed"
+    );
+}
