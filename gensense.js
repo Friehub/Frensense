@@ -5,35 +5,51 @@ const path = require('path');
  */
 let native;
 try {
+  // 1. Try primary location (local or pre-built)
   native = require('./gensense.node');
 } catch (e1) {
   try {
+    // 2. Try distribution location
     native = require('./dist/gensense.node');
   } catch (e2) {
-    // Platform-specific fallback (common in CI/CD environments)
-    const fs = require('fs');
-    const path = require('path');
-    const rootFiles = fs.existsSync('.') ? fs.readdirSync('.').filter(f => f.endsWith('.node')) : [];
-    const distFiles = fs.existsSync('./dist') ? fs.readdirSync('./dist').filter(f => f.endsWith('.node')) : [];
-    
-    const binary = rootFiles[0] || distFiles[0];
-    if (binary) {
-      try {
-        native = require(path.join(rootFiles[0] ? '.' : './dist', binary));
-      } catch (e3) {
+    try {
+      // 3. Try NAPI-RS naming convention (platform-prefixed)
+      const platform = process.platform;
+      const arch = process.arch;
+      const napiName = `./gensense.${platform}-${arch}.node`;
+      native = require(napiName);
+    } catch (e3) {
+      // 4. Fallback: Search the directory for ANY .node file
+      const fs = require('fs');
+      const searchDirs = ['.', './dist', './binaries'];
+      let found = false;
+      
+      for (const dir of searchDirs) {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir).filter(f => f.endsWith('.node'));
+          if (files.length > 0) {
+            try {
+              native = require(path.resolve(dir, files[0]));
+              found = true;
+              break;
+            } catch (e4) {
+              // Continue searching
+            }
+          }
+        }
+      }
+
+      if (!found) {
         throw new Error(
-          `[GenSense] Failed to load native binary '${binary}'.\n` +
-          `Error: ${e3.message}`
+          `[GenSense] Critical Failure: Could not load native semantic engine.\n` +
+          `Tried: ./gensense.node, ./dist/gensense.node, and platform-specific binaries.\n` +
+          `Error Details:\n` +
+          `- Local: ${e1.message}\n` +
+          `- Dist: ${e2.message}\n` +
+          `- Platform: ${e3.message}\n` +
+          `Please ensure '@friehub/gensense' was installed correctly for your platform (${process.platform}-${process.arch}).`
         );
       }
-    } else {
-      throw new Error(
-        `[GenSense] Failed to load native binary. Please ensure the package was built correctly for your platform.\n` +
-        `Primary error: ${e1.message}\n` +
-        `Secondary error: ${e2.message}\n` +
-        `Available root files: ${rootFiles.join(', ') || 'none'}\n` +
-        `Available dist files: ${distFiles.join(', ') || 'none'}`
-      );
     }
   }
 }

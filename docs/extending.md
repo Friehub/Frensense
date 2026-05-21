@@ -28,9 +28,11 @@ All rule sets are merged into one pipeline. If a user rule has the same `id` as 
 Create a `.yml` file in `.gensense/rules/` with this structure:
 
 ```yaml
+# Optional: declare the YAML format version (defaults to 0.3.0 if absent)
+version: "0.3.0"
 rules:
   - id: "MYCO_NO_PRINTLN"
-    domain: "maintainability"
+    category: "maintainability"
     target_ext: "rs"
     on_node: "macro_invocation"
     if_matches: "println!"
@@ -42,6 +44,19 @@ rules:
 
 You can put multiple rules in one file. The filename does not matter — the engine discovers all `.yml` files recursively.
 
+### YAML Format Version
+
+You can optionally declare the YAML format version at the top of your rules file:
+
+```yaml
+version: "0.3.0"
+rules:
+  - id: "MYCO_NO_PRINTLN"
+    ...
+```
+
+If omitted, the engine assumes the latest version (currently **0.3.0**). If an unknown version is specified, a warning is logged but processing continues. This ensures forward compatibility as the format evolves.
+
 ---
 
 ## Field Reference
@@ -49,7 +64,7 @@ You can put multiple rules in one file. The filename does not matter — the eng
 | Field | Required | Description |
 | :--- | :--- | :--- |
 | `id` | Yes | Unique identifier in `SCREAMING_SNAKE_CASE`. Must be unique across all rules. |
-| `domain` | Yes | Category: `security`, `reliability`, `performance`, `maintainability`, `quality` |
+| `category` | Yes | Logical grouping: `security`, `reliability`, `performance`, `maintainability`, `quality`. Also accepts `domain` (deprecated alias). |
 | `target_ext` | Yes | File extension to target: `rs`, `ts`, `tsx`, `js`, `jsx`, `sol`, or `*` for all |
 | `on_node` | Yes | The tree-sitter node kind to match. The rule fires once per matching node. |
 | `if_matches` | No | Regex. Rule fires only if the node's full text matches this pattern. |
@@ -140,7 +155,7 @@ A temporal rule checks the **order** of events inside a function. For example: "
 ```yaml
 rules:
   - id: "MYCO_LOCK_BEFORE_SEND"
-    domain: "reliability"
+    category: "reliability"
     target_ext: "rs"
     on_node: "function_item"
     observation: "A mutex guard is held across a channel send."
@@ -175,7 +190,7 @@ A taint rule tracks data flow from a source to a sink across variable assignment
 ```yaml
 rules:
   - id: "MYCO_SECRET_TO_LOG"
-    domain: "security"
+    category: "security"
     target_ext: "ts"
     on_node: "[ (function_declaration) (arrow_function) ] @node"
     observation: "A variable named 'password' or 'secret' flows into a logging sink."
@@ -197,7 +212,7 @@ Both `source_pattern` and `sink_pattern` must be specified together. The engine 
 ```yaml
 rules:
   - id: "MYCO_NO_PLACEHOLDER_PANICS"
-    domain: "reliability"
+    category: "reliability"
     target_ext: "rs"
     on_node: "macro_invocation"
     if_matches: "^(todo|unimplemented)!"
@@ -212,7 +227,7 @@ rules:
 ```yaml
 rules:
   - id: "MYCO_DEPRECATED_IMPORT"
-    domain: "maintainability"
+    category: "maintainability"
     target_ext: "ts"
     on_node: "(import_statement) @node"
     if_matches: "from ['\"]@internal/legacy"
@@ -227,7 +242,7 @@ rules:
 ```yaml
 rules:
   - id: "MYCO_MAX_FUNCTION_SIZE"
-    domain: "quality"
+    category: "quality"
     target_ext: "rs"
     on_node: "(function_item) @node"
     max_lines: 50
@@ -248,6 +263,61 @@ All rules must produce advisories that follow these guidelines regardless of whe
 - **Improvement**: Give a specific, actionable suggestion. Name the alternative API, pattern, or approach.
 
 Avoid marketing language, vague terms like "bad code", and superlatives. The advisory is a peer-review comment, not a warning banner.
+
+---
+
+---
+
+## Schema Contract Rules
+
+Schema contract rules validate that source code references to database objects (tables, columns, enum values) match the actual schema definitions. This catches mismatches between your code and your database schema at analysis time.
+
+### How It Works
+
+1. The engine scans schema files matched by `schema_glob` (e.g., `**/*.prisma`)
+2. Extracts the requested schema elements (`ModelNames`, `FieldNames`, or `EnumValues`)
+3. For each source file matched by `source_file_glob`, captures references matching `source_pattern`
+4. Reports any reference that does not exist in the extracted schema
+
+### Schema Contract Rule Example
+
+```yaml
+project_rules:
+  - id: "DB_TABLE_EXISTS"
+    name: "Table must exist in Prisma schema"
+    severity: Warning
+    category: "Reliability"
+    observation: "Referenced table '{{match}}' does not exist in any Prisma model definition."
+    impact: "This query will fail at runtime with a 'table not found' error."
+    improvement: "Add a matching model to your Prisma schema or correct the table name."
+    schema_contract:
+      source_ext: "sql"
+      source_pattern: '"?([A-Z][a-zA-Z0-9]+)"?'
+      schema_type: Prisma
+      schema_glob: "**/*.prisma"
+      schema_extract: ModelNames
+```
+
+### Schema Contract Fields
+
+| Field | Required | Description |
+| :--- | :--- | :--- |
+| `source_ext` | Yes\* | File extension to target (e.g., `sql`). Alternative to `source_file_glob`. |
+| `source_pattern` | No | Regex to capture references from source files. Uses capture group 1. |
+| `source_file_glob` | Yes\* | Glob pattern for source files (e.g., `**/*.sql`). Alternative to `source_ext`. |
+| `schema_type` | Yes | Schema language: `Prisma`. |
+| `schema_glob` | Yes | Glob to find schema files (e.g., `**/*.prisma`). |
+| `schema_extract` | Yes | What to extract: `ModelNames`, `FieldNames`, or `EnumValues`. |
+
+\* Either `source_ext` or `source_file_glob` is required.
+
+### Extraction Types
+
+| Value | Description | Example Schema |
+| :--- | :--- | :--- |
+| `ModelNames` | Extracts all model/table names | `model User { ... }` → `User` |
+| `FieldNames` | Extracts all field/column names | `String email @unique` → `email` |
+| `EnumValues` | Extracts enum variant values | `enum Role { USER ADMIN }` → `USER`, `ADMIN` |
 
 ---
 

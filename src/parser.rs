@@ -15,11 +15,14 @@ pub enum SupportedLanguage {
 pub struct ParserRegistry;
 
 impl ParserRegistry {
+    /// Returns the tree-sitter language for a given file path.
+    ///
+    /// # Errors
+    /// Returns an error if the file extension is missing or if the language is not supported.
     pub fn get_language(path: &Path) -> Result<Language> {
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .ok_or_else(|| GenSenseError::Config(format!("File has no extension: {path:?}")))?;
+        let ext = path.extension().and_then(|s| s.to_str()).ok_or_else(|| {
+            GenSenseError::Config(format!("File has no extension: {}", path.display()))
+        })?;
 
         match ext {
             #[cfg(feature = "rust")]
@@ -37,11 +40,12 @@ impl ParserRegistry {
         }
     }
 
+    #[must_use]
     pub fn get_symbol_query(path: &Path) -> Option<&'static str> {
         let ext = path.extension().and_then(|s| s.to_str())?;
         match ext {
             "rs" => Some(
-                r#"
+                r"
                 (function_item name: (identifier) @name)
                 (parameter pattern: (identifier) @name)
                 (parameter pattern: (tuple_pattern (identifier) @name))
@@ -51,66 +55,68 @@ impl ParserRegistry {
                 (enum_item name: (type_identifier) @name)
                 (trait_item name: (type_identifier) @name)
                 (const_item name: (identifier) @name)
-            "#,
+            ",
             ),
             "ts" | "tsx" => Some(
-                r#"
+                r"
                 (function_declaration name: (identifier) @name)
                 (class_declaration name: (type_identifier) @name)
                 (interface_declaration name: (type_identifier) @name)
                 (enum_declaration name: (identifier) @name)
                 (variable_declarator name: (identifier) @name)
                 (lexical_declaration (variable_declarator name: (identifier) @name))
-            "#,
+            ",
             ),
             "js" | "jsx" => Some(
-                r#"
+                r"
                 (function_declaration name: (identifier) @name)
                 (class_declaration name: (identifier) @name)
                 (variable_declarator name: (identifier) @name)
                 (lexical_declaration (variable_declarator name: (identifier) @name))
-            "#,
+            ",
             ),
             #[cfg(feature = "solidity")]
             "sol" => Some(
-                r#"
+                r"
                 (contract_declaration name: (identifier) @name)
                 (interface_declaration name: (identifier) @name)
                 (library_declaration name: (identifier) @name)
                 (function_definition name: (identifier) @name)
                 (struct_definition name: (identifier) @name)
                 (enum_definition name: (identifier) @name)
-            "#,
+            ",
             ),
             _ => None,
         }
     }
 
+    #[must_use]
     pub fn get_call_query(path: &Path) -> Option<&'static str> {
         let ext = path.extension().and_then(|s| s.to_str())?;
         match ext {
             "rs" => Some(
-                r#"
+                r"
                 (call_expression function: (identifier) @call)
                 (call_expression function: (field_expression field: (field_identifier) @call))
-            "#,
+            ",
             ),
             "ts" | "tsx" | "js" | "jsx" => Some(
-                r#"
+                r"
                 (call_expression function: (identifier) @call)
                 (call_expression function: (member_expression property: (property_identifier) @call))
-            "#,
+            ",
             ),
             #[cfg(feature = "solidity")]
             "sol" => Some(
-                r#"
+                r"
                 (function_call (identifier) @call)
-            "#,
+            ",
             ),
             _ => None,
         }
     }
 
+    #[must_use]
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
         matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")

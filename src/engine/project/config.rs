@@ -10,6 +10,7 @@ pub struct GenSenseConfig {
     pub severity_override: Option<HashMap<String, crate::Severity>>,
 }
 
+#[must_use]
 pub fn load_config(root: &Path) -> GenSenseConfig {
     let config_path = root.join(".gensense").join("config.yml");
     if !config_path.exists() {

@@ -1,6 +1,6 @@
 {
   "name": "@friehub/gensense",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "GenSense: Semantic Diagnostic Engine",
   "main": "gensense.js",
   "types": "gensense.d.ts",
@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Friehub/gensense"
+    "url": "git+https://github.com/Friehub/gensense.git"
   },
   "files": [
     "bin",
@@ -17,7 +17,13 @@
     "gensense.js",
     "gensense.d.ts",
     "index.js",
-    "rules"
+    "rules",
+    "README.md",
+    "CHANGELOG.md",
+    "gensense.linux-x64-gnu.node",
+    "gensense.darwin-x64.node",
+    "gensense.darwin-arm64.node",
+    "gensense.win32-x64-msvc.node"
   ],
   "napi": {
     "name": "gensense",
@@ -26,8 +32,8 @@
     }
   },
   "scripts": {
-    "build": "napi build --release --features node,rust,typescript",
-    "build:debug": "napi build --features node,rust,typescript",
+    "build": "napi build --release --features node,rust,typescript --dts gensense.d.ts",
+    "build:debug": "napi build --features node,rust,typescript --dts gensense.d.ts",
     "test": "node tests/node/integration.test.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

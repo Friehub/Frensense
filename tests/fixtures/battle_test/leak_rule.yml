@@ -1,0 +1,14 @@
+rules:
+  - id: "BATTLE_TEST_INTER_PROCEDURAL_LEAK"
+    name: "Inter-procedural Leak (Battle Test)"
+    domain: "security"
+    category: "Architecture"
+    severity: Critical
+    target_ext: "rs"
+    on_node: "function_item"
+    source_pattern: "get_sensitive_data"
+    sink_pattern: "db_query"
+    observation: "Sensitive data leaked across procedure boundaries!"
+    impact: "Data privacy violation."
+    improvement: "Sanitize data before sending to sink."
+    tags: ["battle-test"]

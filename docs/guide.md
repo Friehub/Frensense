@@ -4,7 +4,10 @@
 
 GenSense is a semantic diagnostic engine. It analyzes source code at the Abstract Syntax Tree (AST) level to detect logical, security, and architectural patterns that conventional linters cannot identify.
 
-A compiler or type-checker tells you that code is syntactically and type-theoretically valid. GenSense tells you whether it is semantically sound — whether the intent expressed in the code matches what will actually happen at runtime.
+### Core Concepts
+
+- **Symbol-Relative Identity (SRI)**: GenSense anchors findings to the enclosing symbol (function or class) rather than a line number. This means your CI baseline stays green even if you move code around or refactor files.
+- **Contextual Structural Analysis (CSA)**: GenSense can reason about the "guards" surrounding an operation across multiple files, ensuring that sensitive logic (like a database delete) is always protected by validation code.
 
 ### The Problem It Solves
 
@@ -133,7 +136,7 @@ npm install --save-dev @friehub/gensense
 
 ```toml
 [dependencies]
-gensense = "0.2.0-beta"
+gensense = "0.3.0"
 ```
 
 ---

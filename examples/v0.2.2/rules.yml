@@ -1,0 +1,147 @@
+# GenSense v0.2.2 Rule Format Examples
+#
+# v0.2.2 rules are purely diagnostic — they detect problems and report them,
+# but do not apply automatic fixes. Every field available in this version is
+# documented with an inline comment.
+#
+# Schema for a standard "file-level" rule:
+#
+#   rules:
+#     - id:              (required) Unique identifier. Use SCREAMING_SNAKE_CASE.
+#       name:            (required) Human-readable display name.
+#       target_ext:      (required) File extension(s) to scan. Pipe-separate for multiple: "ts|js"
+#       on_node:         (required) Tree-sitter node type to anchor the match on.
+#       severity:        (required) One of: Critical, Warning, Info
+#       category:        (required) Logical grouping: Security, Performance, Quality, etc.
+#       observation:     (required) What the engine observed. Shown to the developer.
+#       impact:          (required) Why this matters.
+#       improvement:     (required) Concrete remediation advice.
+#       tags:            (optional) List of string tags for filtering.
+#       if_matches:      (optional) Regex. Advisory fires only if the node text matches.
+#       must_not_contain:(optional) Regex. Advisory fires only if the node text does NOT match.
+#       must_contain:    (optional) Regex. Advisory fires only if the node text contains this.
+#       max_lines:       (optional) Integer. Advisory fires if the node spans more than N lines.
+#       max_depth:       (optional) Integer. Advisory fires if AST nesting exceeds N levels.
+#       source_pattern:  (optional) Taint source regex (used with sink_pattern for data-flow rules).
+#       sink_pattern:    (optional) Taint sink regex.
+
+rules:
+
+  # ─── Example 1: Simple Pattern Match ───────────────────────────────────────
+  # Fires whenever eval() is called. No conditions beyond the pattern.
+  - id: MY_DYNAMIC_EXECUTION
+    name: Dynamic Code Execution
+    target_ext: ts
+    on_node: call_expression
+    if_matches: eval\(
+    severity: Warning
+    category: Security
+    observation: >
+      Dynamic code execution via 'eval()' was detected.
+    impact: >
+      eval() executes arbitrary strings as code. In combination with user-supplied
+      input this is a Remote Code Execution (RCE) vector.
+    improvement: >
+      Replace eval() with a static dispatch map or JSON.parse() where applicable.
+    tags: [security]
+
+  # ─── Example 2: Negative Condition (must_not_contain) ──────────────────────
+  # Fires on any Prisma findMany/findUnique/findFirst call that does NOT
+  # include an explicit select or include block. This is the "SELECT *" detector.
+  - id: MY_PRISMA_SELECT_STAR
+    name: Prisma Query Without Explicit Select
+    target_ext: ts
+    on_node: (call_expression) @node
+    if_matches: \.(findMany|findUnique|findFirst)\(.*\)
+    must_not_contain: '(select|include):'
+    severity: Warning
+    category: Performance
+    observation: >
+      A Prisma query was found that fetches all columns (equivalent to SELECT *).
+    impact: >
+      Fetching entire rows increases network overhead and may inadvertently expose
+      sensitive fields such as password_hash or internal metadata.
+    improvement: >
+      Add an explicit 'select' or 'include' block to fetch only the fields
+      your business logic requires.
+    tags: [performance, database]
+
+  # ─── Example 3: Positive Condition (must_contain) ──────────────────────────
+  # Fires on fetch() calls that are NOT preceded by await.
+  # The engine checks that the node text contains 'await'.
+  - id: MY_FLOATING_PROMISE
+    name: Unawaited Promise
+    target_ext: ts
+    on_node: expression_statement
+    if_matches: fetch\(
+    must_contain: await
+    severity: Warning
+    category: Reliability
+    observation: >
+      A promise-returning call was found without an 'await' keyword.
+    impact: >
+      Floating promises cause race conditions, unhandled rejections, and
+      non-deterministic runtime behaviour.
+    improvement: >
+      Always await promise-returning calls or explicitly handle them with .catch().
+    tags: [reliability, concurrency]
+
+  # ─── Example 4: Size Limit (max_lines) ─────────────────────────────────────
+  # Fires on any TypeScript source file that exceeds 300 lines.
+  # Encourages the Single Responsibility Principle.
+  - id: MY_GOD_FILE
+    name: God File Detected
+    target_ext: ts
+    on_node: (program) @node
+    max_lines: 300
+    severity: Warning
+    category: Architecture
+    observation: >
+      This source file exceeds the 300-line modularity threshold.
+    impact: >
+      Oversized files typically contain mixed concerns, are harder to test,
+      and slow down code review cycles.
+    improvement: >
+      Decompose this file into smaller, focused modules. For services, consider
+      separating Command and Query logic (CQRS pattern).
+    tags: [maintainability, architecture]
+
+  # ─── Example 5: Nesting Depth (max_depth) ──────────────────────────────────
+  # Fires on any function whose body exceeds 3 levels of nesting.
+  - id: MY_DEEP_NESTING
+    name: Excessive Nesting Depth
+    target_ext: ts
+    on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
+    max_depth: 3
+    severity: Warning
+    category: Quality
+    observation: >
+      The logical nesting depth of this function exceeds the project limit (3 levels).
+    impact: >
+      Deeply nested code hides edge cases and becomes difficult to reason about
+      during debugging or code review.
+    improvement: >
+      Flatten logic using early returns (guard clauses) or extract inner blocks
+      into well-named helper functions.
+    tags: [quality, readability]
+
+  # ─── Example 6: Taint Analysis (source_pattern + sink_pattern) ─────────────
+  # Traces data flow from a source (password/token fields) to an unsafe sink
+  # (console.log). This is a cross-variable, intra-function taint trace.
+  - id: MY_SENSITIVE_DATA_LEAK
+    name: Sensitive Data Flowing to Log Sink
+    target_ext: ts
+    on_node: "[ (function_declaration) (method_definition) (arrow_function) ] @node"
+    source_pattern: '(?i)password|secret|token|apikey|cvv'
+    sink_pattern: 'console\.log'
+    severity: Warning
+    category: Security
+    observation: >
+      Sensitive data flow into an unsafe logging sink was detected via taint analysis.
+    impact: >
+      Logging credentials or PII to stdout in production is a major security violation
+      and can lead to account takeovers if logs are exposed.
+    improvement: >
+      Remove the logging statement or replace the sensitive value with a masked
+      representation (e.g., '[REDACTED]').
+    tags: [security, pii]

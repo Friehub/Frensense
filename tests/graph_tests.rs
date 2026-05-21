@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::engine::auditor::GenSenseAuditor;
 use gensense::engine::Engine;
 use tempfile::tempdir;
 
@@ -30,14 +29,13 @@ fn test_inter_procedural_call_graph() {
 
     std::fs::write(&file_path, content).unwrap();
 
-    let auditor = GenSenseAuditor::new(vec![]);
-    let mut engine = Engine::new(auditor);
+    let mut engine = Engine::new();
 
     // Run the engine
     let (_advisories, symbols) = engine.run_detailed(dir.path()).unwrap();
 
     // Verify Graph
-    let graph = &symbols.graph;
+    let graph = symbols.graph();
 
     let main_idx = graph.find_nodes("main")[0];
     let process_idx = graph.find_nodes("process")[0];
