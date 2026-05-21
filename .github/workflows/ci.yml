@@ -61,7 +61,7 @@ jobs:
 
 
       - name: Lint (Clippy)
-        run: cargo clippy --all-targets --features full -- -D warnings
+        run: cargo clippy --all-targets --features full -- -W clippy::pedantic -D warnings
 
       - name: Verify Feature Gating (cargo hack)
         # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).
@@ -187,6 +187,17 @@ jobs:
 
       - name: Run Full Regression Suite
         run: cargo test --features ${{ matrix.features }}
+
+      - name: CLI Binary Smoke Test
+        if: ${{ matrix.features != 'rust,typescript,solidity' }}
+        run: |
+          binary="./target/debug/gensense"
+          "$binary" --version
+          "$binary" --help
+          # Quick scan of a known small fixture
+          echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
+          "$binary" /tmp/test_smoke.rs --json > /dev/null
+          echo "CLI smoke test passed"
 
   # --- Correctness (Node.js Bindings) ---
   test-node:
@@ -374,6 +385,32 @@ jobs:
           name: self-audit-report-${{ github.sha }}
           path: self_audit_report.json
           retention-days: 30
+
+  # --- Docker Image Test ---
+  docker:
+    name: Docker Image Smoke Test
+    runs-on: ubuntu-latest
+    needs: [test-rust]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t gensense:test .
+
+      - name: Smoke test Docker image
+        run: |
+          docker run gensense:test --version
+          docker run gensense:test --help
+          echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
+          docker run -i gensense:test /dev/stdin --json < /tmp/test_smoke.rs > /dev/null
+          echo "Docker smoke test passed"
 
   # --- Documentation Deployment ---
   # Only runs on main when tests pass AND the version tag is new (guarded by sync.yml)

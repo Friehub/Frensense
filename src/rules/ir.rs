@@ -73,11 +73,7 @@ impl GenSenseRule for CoreRuleIr {
     }
 
     fn query(&self) -> Option<&str> {
-        if self.use_query && !self.match_queries.is_empty() {
-            Some(&self.match_queries[0].selector)
-        } else {
-            None
-        }
+        self.match_queries.first().map(|q| q.selector.as_str())
     }
 
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
@@ -250,8 +246,8 @@ impl CoreRuleIr {
 
         if let Some(re) = &self.body_must_contain_any_of {
             let body_node = node.child_by_field_name("body").unwrap_or(node);
-            let body_code = &context.source_code[body_node.start_byte()..body_node.end_byte()];
-            if re.is_match(body_code) {
+            let body_src = &context.source_code[body_node.start_byte()..body_node.end_byte()];
+            if re.is_match(body_src) {
                 let is_bypassed = if let Some(bypass_re) = &self.must_not_contain {
                     bypass_re.is_match(code)
                 } else {
@@ -382,14 +378,14 @@ impl CoreRuleIr {
         };
 
         if let Some(mut findings) = cached_findings {
-            findings.iter_mut().for_each(|a| {
+            for a in &mut findings {
                 a.rule_id = self.metadata.id.to_string();
                 a.severity = self.metadata.severity;
                 a.observation = self.metadata.observation.to_string();
                 a.impact = self.metadata.impact.to_string();
                 a.improvement = self.metadata.improvement.to_string();
                 a.confidence = self.metadata.confidence;
-            });
+            }
             advisories.extend(findings);
         } else {
             let analyzer = DataFlowAnalyzer::new(context, top);
@@ -499,7 +495,7 @@ impl CoreRuleIr {
         let original_content = context.source_code[node.start_byte()..node.end_byte()].to_string();
 
         let fingerprint = {
-            let mut hash: u64 = 0xcbf29ce484222325;
+            let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
             let input = format!(
                 "{}:{}:{}:{}",
                 rule_id,
@@ -508,8 +504,8 @@ impl CoreRuleIr {
                 original_content
             );
             for byte in input.bytes() {
-                hash ^= byte as u64;
-                hash = hash.wrapping_mul(0x100000001b3);
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x10_0000_01b3);
             }
             format!("{hash:016x}")
         };
@@ -534,7 +530,7 @@ impl CoreRuleIr {
             fingerprint,
             auto_fixable: self.auto_fixable.unwrap_or(false),
             requires_human: self.requires_human.unwrap_or(false),
-            tags: self.metadata.tags.iter().map(|t| t.to_string()).collect(),
+            tags: self.metadata.tags.iter().map(ToString::to_string).collect(),
         }
     }
 
@@ -695,7 +691,7 @@ impl ProjectRuleIr {
     ) -> Advisory {
         let rule_id = self.metadata.id.to_string();
         let fingerprint = {
-            let mut hash: u64 = 0xcbf29ce484222325;
+            let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
             let input = format!(
                 "{}:{}:{}:{}",
                 rule_id,
@@ -704,8 +700,8 @@ impl ProjectRuleIr {
                 original_content
             );
             for byte in input.bytes() {
-                hash ^= byte as u64;
-                hash = hash.wrapping_mul(0x100000001b3);
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x10_0000_01b3);
             }
             format!("{hash:016x}")
         };
@@ -730,7 +726,7 @@ impl ProjectRuleIr {
             end_byte,
             auto_fixable: false,
             requires_human: true,
-            tags: self.metadata.tags.iter().map(|t| t.to_string()).collect(),
+            tags: self.metadata.tags.iter().map(ToString::to_string).collect(),
         }
     }
 
@@ -766,7 +762,9 @@ impl ProjectRuleIr {
                 }
             }
 
-            if !covered {
+            if covered {
+                None
+            } else {
                 Some(self.new_advisory(
                     source.file_id,
                     source.file_path.clone(),
@@ -781,8 +779,6 @@ impl ProjectRuleIr {
                     u32::try_from(source.start_byte).unwrap_or(0),
                     u32::try_from(source.end_byte).unwrap_or(0),
                 ))
-            } else {
-                None
             }
         });
         advisories.extend(new_advisories);
@@ -1009,8 +1005,8 @@ impl ProjectRuleIr {
                             ),
                             matched_group.as_str().to_string(),
                             None,
-                            start_byte as u32,
-                            end_byte as u32,
+                            u32::try_from(start_byte).unwrap_or(u32::MAX),
+                            u32::try_from(end_byte).unwrap_or(u32::MAX),
                         );
                         advisories.push(advisory);
                     }
@@ -1049,12 +1045,10 @@ fn find_project_root(sources: &crate::SourceRegistry) -> std::path::PathBuf {
             }
             common_path = Some(common);
         } else {
-            common_path = Some(
-                file.path
-                    .parent()
-                    .map(std::path::Path::to_path_buf)
-                    .unwrap_or_else(|| std::path::PathBuf::from(".")),
-            );
+            common_path = Some(file.path.parent().map_or_else(
+                || std::path::PathBuf::from("."),
+                std::path::Path::to_path_buf,
+            ));
         }
     }
 

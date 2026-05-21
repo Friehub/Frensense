@@ -63,7 +63,11 @@ tests/fixtures/scratch/
 *.md
 !README.md
 !CHANGELOG.md
+!BENCHMARK.md
 !docs/**/*.md
 !src/**/*.md
 !tests/**/*.md
-!AUDIT_V0.3.0_REPORT.md
+/tests/assets/rules_baseline.md
+
+# Debug / scratch tests
+tests/list_files_test.rs

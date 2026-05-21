@@ -21,6 +21,9 @@ impl AnalysisRegistry {
     }
 
     /// Returns an error if the stored type `T` does not match the requested type.
+    ///
+    /// # Errors
+    /// Returns an error if the type `T` does not match the stored type.
     pub fn get_or_compute<T, F>(
         &mut self,
         rule_id: &str,

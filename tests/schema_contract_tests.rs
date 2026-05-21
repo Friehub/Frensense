@@ -126,12 +126,12 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
 
     fs::write(
         root.join("prisma").join("schema.prisma"),
-        r#"
+        r"
         model User {
           id String @id
           email String
         }
-        "#,
+        ",
     )
     .unwrap();
 
@@ -185,7 +185,7 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
             improvement: Rename the column reference or update the Prisma field to match.
             tags: [database, prisma]
             source_ext: rs
-            source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:[=<>!]|IS\s|IN\s)'
+            source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:!=\s|=\s|[<>]\s*[=]?|IS\s|IN\s)'
             source_file_glob: '**/*.rs'
             schema_type: prisma
             schema_glob: '**/*.prisma'
@@ -230,7 +230,7 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
 
 #[test]
 fn test_project_rule_compiler_accepts_schema_contract_fields() {
-    let yaml = r#"
+    let yaml = r"
     schema_contracts:
       - id: SCHEMA_RULE
         name: Schema Rule
@@ -246,7 +246,7 @@ fn test_project_rule_compiler_accepts_schema_contract_fields() {
         schema_type: prisma
         schema_glob: '**/*.prisma'
         schema_extract: field_names
-    "#;
+    ";
 
     let wrapper: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
     let rule_value = &wrapper["schema_contracts"][0];

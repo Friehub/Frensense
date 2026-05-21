@@ -309,6 +309,7 @@ project_rules:
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_bfs_does_not_deduplicate_across_files() {
     use gensense::ProjectRule;
     use gensense::SourceRegistry;

@@ -7,6 +7,25 @@ use gensense::{FileId, GenSenseContext, TaintCache};
 use std::collections::HashMap;
 use std::path::Path;
 
+struct DummyRule {
+    metadata: gensense::RuleMetadata,
+}
+impl gensense::GenSenseRule for DummyRule {
+    fn metadata(&self) -> &gensense::RuleMetadata {
+        &self.metadata
+    }
+    fn check<'a>(
+        &self,
+        _n: tree_sitter::Node<'a>,
+        _c: &GenSenseContext<'a>,
+    ) -> Vec<gensense::Advisory> {
+        vec![]
+    }
+    fn applies_to(&self, _ext: &str) -> bool {
+        true
+    }
+}
+
 // Test path interning address stability
 #[test]
 fn test_path_interning_stability() {
@@ -31,7 +50,7 @@ fn test_path_interning_stability() {
         (tree.clone(), content.to_string(), ops.clone()),
     );
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -42,8 +61,7 @@ fn test_path_interning_stability() {
         file_trees: &file_trees,
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let taint_reg = TaintRegistry::default();
 
     // Resolve definition in a different file multiple times
@@ -52,7 +70,7 @@ fn test_path_interning_stability() {
 
     if let (Some((_, _, _, _, p1, _)), Some((_, _, _, _, p2, _))) = (res1, res2) {
         // Assert that the returned reference addresses are physically identical!
-        assert_eq!(p1 as *const Path, p2 as *const Path);
+        assert!(std::ptr::eq(p1, p2));
     }
 }
 
@@ -77,7 +95,7 @@ fn test_parameter_destructuring_taint() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -88,8 +106,7 @@ fn test_parameter_destructuring_taint() {
         file_trees: &HashMap::new(),
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
 
     // Find the actual function definition node dynamically
     let mut def_node = None;
@@ -136,7 +153,7 @@ fn test_method_chain_taint_propagation() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -147,32 +164,13 @@ fn test_method_chain_taint_propagation() {
         file_trees: &HashMap::new(),
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = TaintRegistry::default();
     taint_reg.taint("raw", TaintOrigin::UserInput);
 
     let source_re = regex::Regex::new("get_input").unwrap();
     let sink_re = regex::Regex::new("sink").unwrap();
 
-    struct DummyRule {
-        metadata: gensense::RuleMetadata,
-    }
-    impl gensense::GenSenseRule for DummyRule {
-        fn metadata(&self) -> &gensense::RuleMetadata {
-            &self.metadata
-        }
-        fn check<'a>(
-            &self,
-            _n: tree_sitter::Node<'a>,
-            _c: &GenSenseContext<'a>,
-        ) -> Vec<gensense::Advisory> {
-            vec![]
-        }
-        fn applies_to(&self, _ext: &str) -> bool {
-            true
-        }
-    }
     let rule = DummyRule {
         metadata: gensense::RuleMetadata {
             id: "DUMMY".into(),
@@ -231,7 +229,7 @@ fn test_return_value_taint_propagation() {
         (tree.clone(), content.to_string(), ops.clone()),
     );
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -242,32 +240,13 @@ fn test_return_value_taint_propagation() {
         file_trees: &file_trees,
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = TaintRegistry::default();
     taint_reg.taint("secret", TaintOrigin::UserInput);
 
     let source_re = regex::Regex::new("get_input").unwrap();
     let sink_re = regex::Regex::new("sink").unwrap();
 
-    struct DummyRule {
-        metadata: gensense::RuleMetadata,
-    }
-    impl gensense::GenSenseRule for DummyRule {
-        fn metadata(&self) -> &gensense::RuleMetadata {
-            &self.metadata
-        }
-        fn check<'a>(
-            &self,
-            _n: tree_sitter::Node<'a>,
-            _c: &GenSenseContext<'a>,
-        ) -> Vec<gensense::Advisory> {
-            vec![]
-        }
-        fn applies_to(&self, _ext: &str) -> bool {
-            true
-        }
-    }
     let rule = DummyRule {
         metadata: gensense::RuleMetadata {
             id: "DUMMY".into(),
@@ -306,7 +285,6 @@ fn test_sexpr_ast_query() {
 rules:
   - id: "RUST_CSA_VALIDATE_UNCONDITIONAL_TEST"
     name: "Validator With No Rejection Path (Rust)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "rs"
@@ -330,11 +308,11 @@ rules:
     engine.set_rules(vec![Box::new(compiled_rule)]);
 
     // Positive case: a validate function that returns nothing / has no rejection path
-    let content_pos = r#"
+    let content_pos = r"
         fn validate_user(user: &User) {
             let x = 1;
         }
-    "#;
+    ";
     let path_pos = Path::new("validate.rs");
     let advisories_pos = engine.run_content(path_pos, content_pos).unwrap();
     assert_eq!(
@@ -348,24 +326,24 @@ rules:
     );
 
     // Negative case: a validate function that DOES return None / Err / panic
-    let content_neg1 = r#"
+    let content_neg1 = r"
         fn validate_user(user: &User) -> Result<(), Error> {
             if user.name.is_empty() {
                 return Err(Error::Empty);
             }
             Ok(())
         }
-    "#;
+    ";
     let path_neg1 = Path::new("validate_safe.rs");
     let advisories_neg1 = engine.run_content(path_neg1, content_neg1).unwrap();
     assert_eq!(advisories_neg1.len(), 0, "Should pass since it returns Err");
 
     // Negative case: a function whose name does NOT match the validator prefix (e.g. main)
-    let content_neg2 = r#"
+    let content_neg2 = r"
         fn main() {
             let x = 1;
         }
-    "#;
+    ";
     let path_neg2 = Path::new("main.rs");
     let advisories_neg2 = engine.run_content(path_neg2, content_neg2).unwrap();
     assert_eq!(
@@ -395,7 +373,7 @@ fn test_object_aliasing_field_taint_propagation() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -406,8 +384,7 @@ fn test_object_aliasing_field_taint_propagation() {
         file_trees: &HashMap::new(),
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = TaintRegistry::default();
 
     // Simulate: pwd is tainted by source_pattern, then payload = { data: pwd }
@@ -418,24 +395,6 @@ fn test_object_aliasing_field_taint_propagation() {
     let source_re = regex::Regex::new("input").unwrap();
     let sink_re = regex::Regex::new("console\\.log").unwrap();
 
-    struct DummyRule {
-        metadata: gensense::RuleMetadata,
-    }
-    impl gensense::GenSenseRule for DummyRule {
-        fn metadata(&self) -> &gensense::RuleMetadata {
-            &self.metadata
-        }
-        fn check<'a>(
-            &self,
-            _n: tree_sitter::Node<'a>,
-            _c: &GenSenseContext<'a>,
-        ) -> Vec<gensense::Advisory> {
-            vec![]
-        }
-        fn applies_to(&self, _ext: &str) -> bool {
-            true
-        }
-    }
     let rule = DummyRule {
         metadata: gensense::RuleMetadata {
             id: "TS_DATA_LEAK_TRACKER".into(),

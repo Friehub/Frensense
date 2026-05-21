@@ -13,6 +13,23 @@ struct RulesWrapper {
     rules: Vec<crate::rules::core::CoreRule>,
     #[serde(default, alias = "schema_contracts")]
     project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
+    /// Optional YAML format version. If absent, assumes latest (0.3.0).
+    /// Supported: "0.3.0"
+    #[serde(default)]
+    version: Option<String>,
+}
+
+impl RulesWrapper {
+    fn check_version(&self) {
+        if let Some(ref ver) = self.version {
+            if ver != "0.3.0" {
+                tracing::warn!(
+                    "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
+                    ver
+                );
+            }
+        }
+    }
 }
 
 impl GenSenseAuditor {
@@ -110,6 +127,7 @@ impl GenSenseAuditor {
                 if e.path().extension().and_then(|s| s.to_str()) == Some("yml") {
                     if let Ok(content) = std::fs::read_to_string(e.path()) {
                         if let Ok(wrapper) = serde_yaml::from_str::<RulesWrapper>(&content) {
+                            wrapper.check_version();
                             for dsl_rule in wrapper.rules {
                                 if let Ok(compiled) =
                                     crate::rules::compiler::RuleCompiler::compile(dsl_rule)
@@ -143,6 +161,7 @@ impl GenSenseAuditor {
             if let Some(rules_yml) = file.contents_utf8() {
                 match serde_yaml::from_str::<RulesWrapper>(rules_yml) {
                     Ok(wrapper) => {
+                        wrapper.check_version();
                         for dsl_rule in wrapper.rules {
                             if let Ok(compiled) =
                                 crate::rules::compiler::RuleCompiler::compile(dsl_rule)

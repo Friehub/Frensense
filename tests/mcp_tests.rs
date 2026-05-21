@@ -20,9 +20,11 @@ fn read_response(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
     let mut line = String::new();
     loop {
         line.clear();
-        if stdout.read_line(&mut line).unwrap() == 0 {
-            panic!("stdout closed unexpectedly");
-        }
+        assert_ne!(
+            stdout.read_line(&mut line).unwrap(),
+            0,
+            "stdout closed unexpectedly"
+        );
         let trimmed = line.trim();
         if !trimmed.is_empty() {
             return serde_json::from_str(trimmed).expect("invalid JSON-RPC response");
@@ -511,9 +513,11 @@ fn test_mcp_audit_large_project_does_not_deadlock() {
 }
 
 #[test]
+#[ignore = "slow in debug mode (>60s with full src/); run with --release or audit a smaller dir"]
 fn test_mcp_audit_self_source_directory() {
-    // Audit GenSense's own src directory — a realistic multi-file workload
-    // with Rust code that will trigger built-in rules.
+    // Audit GenSense's own source code to validate the MCP server handles
+    // real-world workloads without error. Must be run with --release to complete
+    // in a reasonable time.
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let src_dir = manifest_dir.join("src");
 
@@ -527,7 +531,6 @@ fn test_mcp_audit_self_source_directory() {
     let text: serde_json::Value =
         serde_json::from_str(resp["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
 
-    // Must complete without error
     assert!(
         text.get("error").is_none(),
         "self-audit must not error: {:?}",
@@ -537,7 +540,7 @@ fn test_mcp_audit_self_source_directory() {
         !text["advisories"].as_array().unwrap().is_empty(),
         "self-audit should find issues"
     );
-    assert!(text["clean"] == false);
+    assert_eq!(text["clean"], false);
     shutdown(child, stdin);
 }
 

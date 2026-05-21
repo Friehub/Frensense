@@ -11,6 +11,23 @@ struct RulesWrapper {
     rules: Vec<crate::rules::core::CoreRule>,
     #[serde(default, alias = "schema_contracts")]
     project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
+    /// Optional YAML format version. If absent, assumes latest (0.3.0).
+    /// Supported: "0.3.0"
+    #[serde(default)]
+    version: Option<String>,
+}
+
+impl RulesWrapper {
+    fn check_version(&self) {
+        if let Some(ref ver) = self.version {
+            if ver != "0.3.0" {
+                tracing::warn!(
+                    "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
+                    ver
+                );
+            }
+        }
+    }
 }
 
 #[allow(clippy::type_complexity)]
@@ -59,6 +76,7 @@ pub fn load_user_rules(
                 match std::fs::read_to_string(path) {
                     Ok(content) => match serde_yaml::from_str::<RulesWrapper>(&content) {
                         Ok(wrapper) => {
+                            wrapper.check_version();
                             for rule in wrapper.rules {
                                 match crate::rules::compiler::RuleCompiler::compile(rule) {
                                     Ok(compiled) => {

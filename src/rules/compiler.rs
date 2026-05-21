@@ -11,6 +11,7 @@ impl RuleCompiler {
     ///
     /// # Errors
     /// Returns an error if the regex patterns in the rule are invalid.
+    #[allow(clippy::too_many_lines)]
     pub fn compile(dsl: CoreRule) -> crate::Result<CoreRuleIr> {
         let mut match_queries = Vec::new();
         let mut flow_constraints = Vec::new();

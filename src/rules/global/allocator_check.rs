@@ -3,12 +3,12 @@
 use crate::engine::source::SourceRegistry;
 use crate::semantics::SymbolRegistry;
 use crate::{Advisory, FileId, ProjectRule, RuleMetadata, Severity};
-use once_cell::sync::Lazy;
 use std::borrow::Cow;
+use std::sync::LazyLock;
 
 pub struct GlobalAllocatorCheck;
 
-static META: Lazy<RuleMetadata> = Lazy::new(|| RuleMetadata {
+static META: LazyLock<RuleMetadata> = LazyLock::new(|| RuleMetadata {
     id: Cow::Borrowed("RUST_NO_GLOBAL_ALLOCATOR"),
     name: Cow::Borrowed("Rust No Global Allocator"),
     severity: Severity::Info,
@@ -30,11 +30,10 @@ impl ProjectRule for GlobalAllocatorCheck {
     }
 
     fn check_project(&self, _symbols: &SymbolRegistry, sources: &SourceRegistry) -> Vec<Advisory> {
-        let has_allocator = sources
+        if sources
             .all_sources()
-            .any(|(_, src)| src.contains("#[global_allocator]"));
-
-        if !has_allocator {
+            .all(|(_, src)| !src.contains("#[global_allocator]"))
+        {
             // Find a suitable file to report the advisory on (e.g. main.rs, lib.rs, or first rust file).
             // Default to FileId(0) if none found.
             let rust_file = sources

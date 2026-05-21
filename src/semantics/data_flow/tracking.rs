@@ -437,6 +437,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         None
     }
 
+    #[allow(clippy::too_many_lines)]
     fn resolve_call_taint(
         &self,
         call_node: Node<'a>,
@@ -618,7 +619,7 @@ fn find_returns<'a>(node: Node<'a>, returns: &mut Vec<Node<'a>>) {
     }
 }
 
-fn get_callee_returns<'a>(body: Node<'a>) -> Vec<Node<'a>> {
+fn get_callee_returns(body: Node<'_>) -> Vec<Node<'_>> {
     let mut returns = Vec::new();
     if body.kind() != "block"
         && body.kind() != "block_expression"

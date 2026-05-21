@@ -7,7 +7,6 @@ use crate::engine::auditor::{AuditOptions, GenSenseAuditor, ScanResult};
 use crate::engine::suppression::SuppressConfig;
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, GenSenseEnvironment, ProjectRule, Result, SourceRegistry};
-use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -132,7 +131,11 @@ impl Engine {
     /// # Errors
     /// Returns an error if parsing or auditing fails.
     pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        let config = self.initialize_auditor_and_config(Path::new(".")); // Dummy config load
+        let config = if self.auditor.rules().is_empty() && !self.isolate_rules {
+            self.initialize_auditor_and_config(Path::new("."))
+        } else {
+            config::load_config(Path::new("."))
+        };
         let id = self.source_registry.register(path, content.to_string());
         let (language, tree) = self.auditor.parse_source(path, content)?;
         let symbols = self
@@ -300,7 +303,7 @@ impl Engine {
         let auditor = &self.auditor;
 
         file_info
-            .into_par_iter()
+            .into_iter()
             .map(|(id, p, content)| {
                 let (language, tree) = auditor.parse_source(&p, &content)?;
                 let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree)?;
@@ -334,7 +337,7 @@ impl Engine {
         >,
     ) -> Result<Vec<Advisory>> {
         let results: Result<Vec<ScanResult>> = file_ids
-            .into_par_iter()
+            .iter()
             .map(|(id, p)| {
                 let snap = snapshot_map.get(id).ok_or_else(|| {
                     crate::GenSenseError::Engine(format!(
@@ -401,12 +404,6 @@ impl Engine {
             .collect()
     }
 }
-
-// Compile-time assertion: GenSenseAuditor must be Sync — it is shared across rayon threads.
-#[allow(dead_code)]
-struct _AssertAuditorSync
-where
-    crate::GenSenseAuditor: Sync;
 
 pub struct ProjectAuditor {
     rules: Vec<Box<dyn ProjectRule>>,

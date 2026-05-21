@@ -28,7 +28,8 @@ schema_contracts:
     source_ext: rs
     # Only match double-quoted camelCase identifiers in comparisons — the exact
     # pattern Prisma produces for column references in raw SQL.
-    source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:[=<>!]|IS\s|IN\s|LIKE\s|BETWEEN\s)'
+    # Avoid matching Rust match arms ("field" =>) by requiring whitespace after =
+    source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:!=\s|=\s|[<>]\s*[=]?|IS\s|IN\s|LIKE\s|BETWEEN\s)'
     source_file_glob: '**/*.rs'
     schema_type: prisma
     schema_glob: '**/*.prisma'

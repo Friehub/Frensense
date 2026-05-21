@@ -12,7 +12,7 @@ cargo fmt --all -- --check
 
 # 2. Clippy Lints
 echo "[CHECK] Running semantic lints..."
-cargo clippy --all-targets --all-features -- -D warnings
+cargo clippy --all-targets --all-features -- -W clippy::pedantic -D warnings
 
 # 3. Quick Tests
 echo "[TEST] Running unit tests..."

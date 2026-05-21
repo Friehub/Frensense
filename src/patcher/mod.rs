@@ -207,6 +207,10 @@ impl PatchManager {
         Ok(())
     }
 
+    /// Applies a single advisory to a file atomically using Shadow Writing.
+    ///
+    /// # Errors
+    /// Returns an error if file reading, patching, or renaming fails.
     pub fn apply_fix(&self, advisory: &Advisory, file_path: &Path) -> Result<()> {
         self.apply_fixes(&[advisory], file_path)
     }

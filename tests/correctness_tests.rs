@@ -36,6 +36,7 @@ fn test_symbol_shadowing() {
 }
 
 #[test]
+#[allow(clippy::items_after_statements)]
 fn test_taint_through_destructuring() {
     let content = r"
         let (a, b) = get_tainted_pair();
@@ -54,7 +55,7 @@ fn test_taint_through_destructuring() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -65,8 +66,7 @@ fn test_taint_through_destructuring() {
         file_trees: &HashMap::new(),
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = gensense::semantics::data_flow::TaintRegistry::default();
 
     // Manual source injection
@@ -124,7 +124,7 @@ fn test_taint_through_destructuring() {
 
 #[test]
 fn test_suppression_correctness() {
-    let _content = r#"
+    let _ = r#"
         // gensense-suppress RUST_PANIC
         panic!("intentional");
         panic!("unsuppressed");
@@ -145,8 +145,8 @@ fn test_snapshot_determinism() {
     assert_eq!(advisories1.len(), advisories2.len());
 }
 
-/// TASK-01 acceptance: project-rule advisories must carry a non-empty original_content
-/// so that --fix mode is never silently skipped.
+/// `TASK-01` acceptance: project-rule advisories must carry a non-empty `original_content`
+/// so that `--fix` mode is never silently skipped.
 #[test]
 fn test_project_rule_advisory_has_non_empty_original_content() {
     use gensense::ProjectRule;
@@ -223,15 +223,19 @@ fn test_sarif_output_properties() {
 
     let conf = properties
         .get("confidence")
-        .and_then(|v| v.as_f64())
+        .and_then(serde_json::Value::as_f64)
         .expect("confidence");
     assert!((conf - 0.85).abs() < 1e-5);
     assert_eq!(
-        properties.get("auto_fixable").and_then(|v| v.as_bool()),
+        properties
+            .get("auto_fixable")
+            .and_then(serde_json::Value::as_bool),
         Some(true)
     );
     assert_eq!(
-        properties.get("requires_human").and_then(|v| v.as_bool()),
+        properties
+            .get("requires_human")
+            .and_then(serde_json::Value::as_bool),
         Some(false)
     );
 

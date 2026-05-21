@@ -9,7 +9,7 @@
 //!   cargo bench --features full
 //!
 //! Run a single group:
-//!   cargo bench --features full -- scan_throughput
+//!   cargo bench --features full -- `scan_throughput`
 //!
 //! View HTML report:
 //!   open target/criterion/report/index.html
@@ -18,6 +18,7 @@ use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_ma
 use gensense::engine::auditor::GenSenseAuditor;
 use gensense::semantics::{Symbol, SymbolKind, SymbolRegistry};
 use gensense::{Engine, FileId};
+use std::fmt::Write;
 use std::path::Path;
 
 // ── Realistic source fixtures ─────────────────────────────────────────────────
@@ -98,7 +99,7 @@ fn validate_input(input: &str) -> bool {
 }
 "#;
 
-const TS_SERVICE_CLEAN: &str = r#"
+const TS_SERVICE_CLEAN: &str = r"
 import { prisma } from '../db';
 import { TRPCError } from '@trpc/server';
 import Decimal from 'decimal.js';
@@ -132,9 +133,9 @@ export const orderService = {
     return order;
   },
 };
-"#;
+";
 
-const TS_SERVICE_WITH_VIOLATIONS: &str = r#"
+const TS_SERVICE_WITH_VIOLATIONS: &str = r"
 import { prisma } from '../db';
 
 export const badOrderService = {
@@ -166,9 +167,9 @@ export const badOrderService = {
     console.log('Processing refund for token:', ctx.session!.token);
   },
 };
-"#;
+";
 
-const TS_MIXED_REAL_WORLD: &str = r#"
+const TS_MIXED_REAL_WORLD: &str = r"
 import { z } from 'zod';
 import { router, protectedProcedure } from '../trpc';
 import { inventoryService } from './inventory-service';
@@ -215,7 +216,7 @@ export const checkoutRouter = router({
       return order;
     }),
 });
-"#;
+";
 
 // ── Group 1: Scan Throughput ──────────────────────────────────────────────────
 // Measures raw scan speed across file sizes and violation densities.
@@ -372,14 +373,19 @@ fn bench_taint_depth(c: &mut Criterion) {
     group.finish();
 }
 
-/// Generates a realistic taint chain: password → x_1 → x_2 → ... → console.log
+/// Generates a realistic taint chain: `password` → `x_1` → `x_2` → ... → `console.log`
 fn build_taint_chain(depth: usize) -> String {
     let mut src = String::from("function handler(req: Request) {\n");
     src.push_str("  const password = req.body.password;\n");
     for i in 1..=depth {
-        src.push_str(&format!("  const x_{i} = x_{};\n", if i == 1 { "password".to_string() } else { format!("x_{}", i - 1) }));
+        let prev = if i == 1 {
+            "password".to_string()
+        } else {
+            format!("x_{}", i - 1)
+        };
+        writeln!(src, "  const x_{i} = x_{prev};").unwrap();
     }
-    src.push_str(&format!("  console.log(x_{depth});\n"));
+    writeln!(src, "  console.log(x_{depth});").unwrap();
     src.push_str("}\n");
     src
 }
@@ -442,7 +448,7 @@ fn bench_symbol_registry(c: &mut Criterion) {
             BenchmarkId::new("find_function_at/start", symbol_count),
             &symbol_count,
             |b, _| {
-                let file = format!("src/module_0.ts");
+                let file = "src/module_0.ts".to_string();
                 b.iter(|| registry.find_function_at(black_box(&file), black_box(5)));
             },
         );
@@ -453,9 +459,7 @@ fn bench_symbol_registry(c: &mut Criterion) {
             |b, &n| {
                 let mid_file = format!("src/module_{}.ts", n / 40);
                 let mid_line = (n / 2) * 15;
-                b.iter(|| {
-                    registry.find_function_at(black_box(&mid_file), black_box(mid_line))
-                });
+                b.iter(|| registry.find_function_at(black_box(&mid_file), black_box(mid_line)));
             },
         );
     }
@@ -512,6 +516,7 @@ fn bench_fingerprinting(c: &mut Criterion) {
 // The SchemaContractChecker walks source files and validates against
 // extracted Prisma schema sets. Measures extractor + checker together.
 
+#[allow(clippy::too_many_lines)]
 fn bench_schema_contract(c: &mut Criterion) {
     use gensense::rules::schema_contract::prisma_extractor::PrismaExtractor;
     use std::fs;
@@ -526,34 +531,105 @@ fn bench_schema_contract(c: &mut Criterion) {
     fs::create_dir_all(&schema_dir).unwrap();
 
     let models = [
-        ("user", vec!["id", "email", "passwordHash", "role", "createdAt", "updatedAt"]),
-        ("order", vec!["id", "userId", "subtotal", "status", "paymentMethod", "createdAt"]),
-        ("orderLine", vec!["id", "packageId", "variantId", "quantity", "price"]),
-        ("orderPackage", vec!["id", "orderId", "sellerId", "status", "trackingCode"]),
-        ("product", vec!["id", "sellerId", "slug", "title", "description", "status"]),
-        ("productVariant", vec!["id", "productId", "sku", "price", "stock"]),
+        (
+            "user",
+            vec![
+                "id",
+                "email",
+                "passwordHash",
+                "role",
+                "createdAt",
+                "updatedAt",
+            ],
+        ),
+        (
+            "order",
+            vec![
+                "id",
+                "userId",
+                "subtotal",
+                "status",
+                "paymentMethod",
+                "createdAt",
+            ],
+        ),
+        (
+            "orderLine",
+            vec!["id", "packageId", "variantId", "quantity", "price"],
+        ),
+        (
+            "orderPackage",
+            vec!["id", "orderId", "sellerId", "status", "trackingCode"],
+        ),
+        (
+            "product",
+            vec!["id", "sellerId", "slug", "title", "description", "status"],
+        ),
+        (
+            "productVariant",
+            vec!["id", "productId", "sku", "price", "stock"],
+        ),
         ("cart", vec!["id", "userId", "sessionId", "createdAt"]),
-        ("cartItem", vec!["id", "cartId", "variantId", "quantity", "priceSnapshot"]),
-        ("payment", vec!["id", "orderId", "method", "status", "amount", "reference"]),
-        ("wallet", vec!["id", "userId", "balance", "currency", "updatedAt"]),
-        ("ledgerEntry", vec!["id", "walletId", "type", "amount", "orderId", "createdAt"]),
-        ("seller", vec!["id", "userId", "storeName", "status", "commissionRate"]),
-        ("commission", vec!["id", "agentId", "orderId", "amount", "status"]),
-        ("dispute", vec!["id", "orderId", "buyerId", "sellerId", "reason", "status"]),
-        ("coupon", vec!["id", "sellerId", "code", "discount", "type", "expiresAt"]),
-        ("review", vec!["id", "productId", "buyerId", "rating", "body", "status"]),
-        ("notification", vec!["id", "userId", "type", "payload", "read", "createdAt"]),
-        ("address", vec!["id", "userId", "street", "city", "state", "country"]),
-        ("stockLevel", vec!["id", "variantId", "warehouseId", "quantity", "reserved"]),
-        ("stockReservation", vec!["id", "variantId", "orderId", "quantity", "status"]),
+        (
+            "cartItem",
+            vec!["id", "cartId", "variantId", "quantity", "priceSnapshot"],
+        ),
+        (
+            "payment",
+            vec!["id", "orderId", "method", "status", "amount", "reference"],
+        ),
+        (
+            "wallet",
+            vec!["id", "userId", "balance", "currency", "updatedAt"],
+        ),
+        (
+            "ledgerEntry",
+            vec!["id", "walletId", "type", "amount", "orderId", "createdAt"],
+        ),
+        (
+            "seller",
+            vec!["id", "userId", "storeName", "status", "commissionRate"],
+        ),
+        (
+            "commission",
+            vec!["id", "agentId", "orderId", "amount", "status"],
+        ),
+        (
+            "dispute",
+            vec!["id", "orderId", "buyerId", "sellerId", "reason", "status"],
+        ),
+        (
+            "coupon",
+            vec!["id", "sellerId", "code", "discount", "type", "expiresAt"],
+        ),
+        (
+            "review",
+            vec!["id", "productId", "buyerId", "rating", "body", "status"],
+        ),
+        (
+            "notification",
+            vec!["id", "userId", "type", "payload", "read", "createdAt"],
+        ),
+        (
+            "address",
+            vec!["id", "userId", "street", "city", "state", "country"],
+        ),
+        (
+            "stockLevel",
+            vec!["id", "variantId", "warehouseId", "quantity", "reserved"],
+        ),
+        (
+            "stockReservation",
+            vec!["id", "variantId", "orderId", "quantity", "status"],
+        ),
     ];
 
     let mut schema_content = String::new();
     for (name, fields) in &models {
         let pascal = pascal_case(name);
-        schema_content.push_str(&format!("model {pascal} {{\n"));
+        writeln!(schema_content, "model {pascal} {{").unwrap();
         for field in fields {
-            schema_content.push_str(&format!("  {field} String\n"));
+            writeln!(schema_content, "  {field} String").unwrap();
         }
         schema_content.push_str("}\n\n");
     }
@@ -563,15 +639,11 @@ fn bench_schema_contract(c: &mut Criterion) {
     let root = dir.path().to_path_buf();
 
     group.bench_function("extract_model_names_20_models", |b| {
-        b.iter(|| {
-            PrismaExtractor::extract_model_names(black_box(&schema_glob), black_box(&root))
-        });
+        b.iter(|| PrismaExtractor::extract_model_names(black_box(&schema_glob), black_box(&root)));
     });
 
     group.bench_function("extract_field_names_20_models", |b| {
-        b.iter(|| {
-            PrismaExtractor::extract_field_names(black_box(&schema_glob), black_box(&root))
-        });
+        b.iter(|| PrismaExtractor::extract_field_names(black_box(&schema_glob), black_box(&root)));
     });
 
     group.finish();
@@ -587,17 +659,9 @@ fn pascal_case(s: &str) -> String {
 
 // ── Groups wired to criterion ─────────────────────────────────────────────────
 
-criterion_group!(
-    throughput,
-    bench_scan_throughput,
-    bench_project_scale,
-);
+criterion_group!(throughput, bench_scan_throughput, bench_project_scale,);
 
-criterion_group!(
-    analysis,
-    bench_taint_depth,
-    bench_schema_contract,
-);
+criterion_group!(analysis, bench_taint_depth, bench_schema_contract,);
 
 criterion_group!(
     engine_internals,

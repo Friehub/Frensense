@@ -86,7 +86,7 @@ impl Reporter {
                 let line_count = adv.original_content.lines().count();
                 let end_line = adv.line + u32::try_from(line_count.saturating_sub(1)).unwrap_or(0);
                 let end_column = if line_count > 1 {
-                    u32::try_from(adv.original_content.lines().last().map(|l| l.len()).unwrap_or(0) + 1).unwrap_or(1)
+                    u32::try_from(adv.original_content.lines().last().map_or(0, str::len) + 1).unwrap_or(1)
                 } else {
                     adv.column + u32::try_from(adv.original_content.len()).unwrap_or(0)
                 };

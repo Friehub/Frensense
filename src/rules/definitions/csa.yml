@@ -2,7 +2,6 @@ rules:
   # Rule 1: Validators
   - id: "SOL_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (Solidity)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "sol"
@@ -17,7 +16,6 @@ rules:
 
   - id: "TS_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (TS/JS)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "ts|js|tsx|jsx"
@@ -33,7 +31,6 @@ rules:
 
   - id: "RUST_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (Rust)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "rs"
@@ -50,7 +47,6 @@ rules:
   # Rule 2: Sanitizers
   - id: "SOL_CSA_SANITIZE_PASSTHROUGH"
     name: "Sanitizer Returning Unmodified Input (Solidity)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "sol"
@@ -65,7 +61,6 @@ rules:
 
   - id: "TS_CSA_SANITIZE_PASSTHROUGH"
     name: "Sanitizer Returning Unmodified Input (TS/JS)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "ts|js|tsx|jsx"
@@ -81,7 +76,6 @@ rules:
   # Rule 3: Finders
   - id: "TS_CSA_FIND_NEVER_EMPTY"
     name: "Finder With No Empty Path (TS/JS)"
-    domain: "reliability"
     category: "Architecture"
     severity: Warning
     target_ext: "ts|js|tsx|jsx"
@@ -97,7 +91,6 @@ rules:
   # Rule 4: Auth
   - id: "TS_CSA_AUTH_NO_REJECTION"
     name: "Auth Function With No Rejection Path (TS/JS)"
-    domain: "security"
     category: "Architecture"
     severity: Critical
     target_ext: "ts|js|tsx|jsx"

@@ -122,6 +122,7 @@ impl PrismaExtractor {
     }
 
     /// Parses all .prisma files matching the schema glob and returns the set of model names.
+    #[must_use]
     pub fn extract_model_names(schema_glob: &glob::Pattern, root: &Path) -> HashSet<String> {
         let mut model_names = HashSet::new();
 
@@ -142,6 +143,7 @@ impl PrismaExtractor {
     }
 
     /// Parses all .prisma files matching the schema glob and returns the set of field names across all models.
+    #[must_use]
     pub fn extract_field_names(schema_glob: &glob::Pattern, root: &Path) -> HashSet<String> {
         let mut field_names = HashSet::new();
 
@@ -162,6 +164,7 @@ impl PrismaExtractor {
     }
 
     /// Parses all .prisma files matching the schema glob and returns the set of enum values across all enums.
+    #[must_use]
     pub fn extract_enum_values(schema_glob: &glob::Pattern, root: &Path) -> HashSet<String> {
         let mut enum_values = HashSet::new();
 

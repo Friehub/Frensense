@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-//! GenSense MCP Server — stdin/stdout JSON-RPC bridge to the GenSense engine.
+//! `GenSense` MCP Server — stdin/stdout JSON-RPC bridge to the `GenSense` engine.
 //!
 //! Implements the Model Context Protocol so AI agents (Claude Code, etc.) can
-//! use GenSense as a first-class semantic analysis tool.
+//! use `GenSense` as a first-class semantic analysis tool.
 
 use gensense::{Advisory, Engine, Severity};
 use serde::Deserialize;
@@ -23,8 +23,9 @@ struct JsonRpcRequest {
     params: Value,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 enum RequestId {
+    #[default]
     Absent,
     Null,
     Value(Value),
@@ -37,12 +38,6 @@ impl RequestId {
             RequestId::Null => Some(Value::Null),
             RequestId::Value(v) => Some(v),
         }
-    }
-}
-
-impl Default for RequestId {
-    fn default() -> Self {
-        RequestId::Absent
     }
 }
 
@@ -208,7 +203,7 @@ fn run_audit(path: &str, fix_auto: bool, severity_threshold: &str) -> Value {
 
     #[cfg(feature = "remediation")]
     if fix_auto {
-        let _ = apply_auto_fixes(&filtered, target);
+        apply_auto_fixes(&filtered, target);
     }
 
     json!({
@@ -228,10 +223,7 @@ fn severity_rank(s: Severity) -> u8 {
 }
 
 #[cfg(feature = "remediation")]
-fn apply_auto_fixes(
-    advisories: &[Advisory],
-    root: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn apply_auto_fixes(advisories: &[Advisory], root: &Path) {
     use gensense::patcher::PatchManager;
 
     let project_root = find_project_root_for_fix(root);
@@ -248,8 +240,6 @@ fn apply_auto_fixes(
     for adv in &fixable {
         let _ = patcher.apply_fix(adv, Path::new(&adv.file_path));
     }
-
-    Ok(())
 }
 
 #[cfg(feature = "remediation")]
@@ -285,8 +275,7 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
             rpc_result(req.id, result)
         }
 
-        "notifications/initialized" => rpc_no_response(),
-        "notifications/cancelled" => rpc_no_response(),
+        "notifications/initialized" | "notifications/cancelled" => rpc_no_response(),
 
         "shutdown" => rpc_result(req.id, json!(null)),
 

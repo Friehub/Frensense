@@ -8,8 +8,24 @@ use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::Parser;
 
+#[allow(clippy::too_many_lines)]
 #[test]
 fn test_temporal_consistency_rust_deadlock() {
+    struct MockRule {
+        metadata: RuleMetadata,
+    }
+    impl GenSenseRule for MockRule {
+        fn metadata(&self) -> &RuleMetadata {
+            &self.metadata
+        }
+        fn check(&self, _n: tree_sitter::Node, _c: &GenSenseContext) -> Vec<Advisory> {
+            vec![]
+        }
+        fn applies_to(&self, _ext: &str) -> bool {
+            true
+        }
+    }
+
     let content = r"
         async fn dangerous_op() {
             let _lock = my_mutex.lock();
@@ -40,7 +56,7 @@ fn test_temporal_consistency_rust_deadlock() {
     let tc = RefCell::new(HashMap::new());
     let ops = auditor.extract_semantic_ops(path, content, &tree);
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -51,26 +67,11 @@ fn test_temporal_consistency_rust_deadlock() {
         file_trees: &HashMap::new(),
     };
 
-    let ast_analyzer = gensense::semantics::temporal::TemporalAnalyzer::new(&context);
+    let ast_analyzer = gensense::semantics::temporal::TemporalAnalyzer::new(&ctx);
     let sequence = vec![
         regex::Regex::new("lock").unwrap(),
         regex::Regex::new(r"\.await").unwrap(),
     ];
-
-    struct MockRule {
-        metadata: RuleMetadata,
-    }
-    impl GenSenseRule for MockRule {
-        fn metadata(&self) -> &RuleMetadata {
-            &self.metadata
-        }
-        fn check(&self, _n: tree_sitter::Node, _c: &GenSenseContext) -> Vec<Advisory> {
-            vec![]
-        }
-        fn applies_to(&self, _ext: &str) -> bool {
-            true
-        }
-    }
 
     let rule = MockRule {
         metadata: RuleMetadata {
@@ -110,7 +111,7 @@ fn test_temporal_consistency_rust_deadlock() {
             if has_lock && ev.label == ".await" {
                 advisories_graph.push(rule.new_advisory(
                     &function_node,
-                    &context,
+                    &ctx,
                     "Graph-detected deadlock".to_string(),
                 ));
                 break;

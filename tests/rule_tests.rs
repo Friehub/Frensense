@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use gensense::engine::project::Engine;
+use std::fmt::Write;
 use std::path::Path;
 
 fn run_test(rule_id: &str, content: &str, expected_count: usize, ext: &str) {
@@ -78,7 +79,7 @@ fn test_ts_god_function() {
     // Positive (101 lines)
     let mut big_func = "function big() {\n".to_string();
     for i in 0..100 {
-        big_func.push_str(&format!("  console.log({i});\n"));
+        let _ = writeln!(big_func, "  console.log({i});");
     }
     big_func.push('}');
     run_test(rule_id, &big_func, 1, "ts");
@@ -91,17 +92,17 @@ fn test_ts_god_function() {
 fn test_ts_ssrf_vulnerability() {
     let rule_id = "TS_SSRF_VULNERABILITY";
 
-    let bad_code = r#"
+    let bad_code = r"
         async function handleRequest(req, res) {
             let url = req.query.url;
             // Unsafe flow to fetch
             let response = await fetch(url);
             res.send(await response.text());
         }
-    "#;
+    ";
     run_test(rule_id, bad_code, 1, "ts");
 
-    let good_code = r#"
+    let good_code = r"
         async function handleRequest(req, res) {
             let url = req.query.url;
             let safeUrl = sanitizeUrl(url);
@@ -109,7 +110,7 @@ fn test_ts_ssrf_vulnerability() {
             let response = await fetch(safeUrl);
             res.send(await response.text());
         }
-    "#;
+    ";
     // We expect 0 here because our data leak tracker (the taint engine)
     // will see that `sanitizeUrl` interrupts the flow from `req.query.url` to `fetch`.
     run_test(rule_id, good_code, 0, "ts");
@@ -119,17 +120,17 @@ fn test_ts_ssrf_vulnerability() {
 fn test_ts_unawaited_test_assertion() {
     let rule_id = "TS_UNAWAITED_TEST_ASSERTION";
 
-    let bad_code = r#"
+    let bad_code = r"
         it('should fail if unawaited', () => {
             expect(Promise.resolve(1)).resolves.toBe(1);
         });
-    "#;
+    ";
     run_test(rule_id, bad_code, 1, "ts");
 
-    let good_code = r#"
+    let good_code = r"
         it('should pass if awaited', async () => {
             await expect(Promise.resolve(1)).resolves.toBe(1);
         });
-    "#;
+    ";
     run_test(rule_id, good_code, 0, "ts");
 }

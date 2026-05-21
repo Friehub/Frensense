@@ -17,7 +17,7 @@ fn test_e2e_user_yaml_rule_loaded() {
 rules:
   - id: CUSTOM_TODO
     name: Custom Todo
-    domain: quality
+    category: quality
     severity: Info
     target_ext: "rs"
     on_node: "macro_invocation"
@@ -25,7 +25,6 @@ rules:
     observation: "Found a todo!"
     impact: "Impact"
     improvement: "Improvement"
-    category: "Test"
     tags: []
 "#;
     fs::write(rules_dir.join("custom.yml"), custom_rule).unwrap();
@@ -291,11 +290,14 @@ fn test_cli_json_output() {
     println!("STDERR: {stderr}");
 
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON output");
-    assert_eq!(parsed.get("clean").and_then(|v| v.as_bool()), Some(false));
+    assert_eq!(
+        parsed.get("clean").and_then(serde_json::Value::as_bool),
+        Some(false)
+    );
     assert!(
         parsed
             .get("advisory_count")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap()
             >= 1
     );

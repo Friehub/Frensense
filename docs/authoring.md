@@ -36,6 +36,7 @@ To enable IntelliSense for your custom rules, add the following to your `.vscode
 - Pattern matching (`if_matches`).
 - Taint analysis (`source_pattern`/`sink_pattern`).
 - Size and nesting limits (`max_lines`/`max_depth`).
+- Used `domain` field for categorization (now `category` with backward-compatible alias).
 
 ### v0.3.0 (Remediation & Governance)
 - **Everything in v0.2.2**, plus:
@@ -43,3 +44,12 @@ To enable IntelliSense for your custom rules, add the following to your `.vscode
 - **Import Injection**: `inject_import` with `{{root}}` resolution.
 - **Project-Level Guards**: `must_have_guard` for cross-file CSA verification.
 - **Symbol-Relative Identity**: Findings are anchored to functions/classes, not line numbers.
+- **Schema Contracts**: `schema_contract` block validates source patterns against database schema definitions (Prisma). Fields: `source_ext`, `source_pattern`, `source_file_glob`, `schema_type` (Prisma), `schema_glob`, `schema_extract` (ModelNames/FieldNames/EnumValues).
+- **YAML Version Field**: Optional `version: "0.3.0"` at the top of rules files.
+
+### YAML Format Changelog
+
+| Version | Changes |
+| :--- | :--- |
+| **0.3.0** | Added `version` field. Renamed `domain` → `category` (backward compat alias kept). Added `schema_contract` block. Added `auto_fixable`, `requires_human` fields. |
+| **0.2.2** | Baseline format. `domain` field for categorization. No `version` field. |

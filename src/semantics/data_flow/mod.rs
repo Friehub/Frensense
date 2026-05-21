@@ -98,7 +98,7 @@ impl<'a> TaintRegistry<'a> {
     #[must_use]
     pub fn get_any_field_origin(&self, var: &str) -> Option<TaintOrigin> {
         for scope in self.field_taint.iter().rev() {
-            for ((v, _), origin) in scope.iter() {
+            for ((v, _), origin) in scope {
                 if *v == var {
                     return Some(origin.clone());
                 }

@@ -60,6 +60,7 @@ pub struct RuleMetadata {
     pub impact: Cow<'static, str>,
     pub improvement: Cow<'static, str>,
     pub tags: Vec<Cow<'static, str>>,
+    #[serde(alias = "domain")]
     pub category: Cow<'static, str>,
     #[serde(default = "default_confidence")]
     pub confidence: f32,
@@ -240,7 +241,7 @@ pub trait GenSenseRule: Send + Sync {
             fingerprint: String::new(),
             auto_fixable: false,
             requires_human: false,
-            tags: meta.tags.iter().map(|t| t.to_string()).collect(),
+            tags: meta.tags.iter().map(ToString::to_string).collect(),
         }
     }
 
