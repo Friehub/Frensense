@@ -1,29 +1,31 @@
 const path = require('path');
 
-/**
- * Loading the native binding with a professional fall-back strategy.
- */
 let native;
 try {
-  // 1. Try primary location (local or pre-built)
   native = require('./gensense.node');
 } catch (e1) {
   try {
-    // 2. Try distribution location
     native = require('./dist/gensense.node');
   } catch (e2) {
-    try {
-      // 3. Try NAPI-RS naming convention (platform-prefixed)
-      const platform = process.platform;
-      const arch = process.arch;
-      const napiName = `./gensense.${platform}-${arch}.node`;
-      native = require(napiName);
-    } catch (e3) {
-      // 4. Fallback: Search the directory for ANY .node file
+    const platform = process.platform;
+    const arch = process.arch;
+    const names = [
+      `./gensense.${platform}-${arch}.node`,
+      `./gensense.${platform}-${arch}-gnu.node`,
+    ];
+    let found = false;
+    for (const name of names) {
+      try {
+        native = require(name);
+        found = true;
+        break;
+      } catch (_) {
+        // Try next variant
+      }
+    }
+    if (!found) {
       const fs = require('fs');
       const searchDirs = ['.', './dist', './binaries'];
-      let found = false;
-      
       for (const dir of searchDirs) {
         if (fs.existsSync(dir)) {
           const files = fs.readdirSync(dir).filter(f => f.endsWith('.node'));
@@ -32,13 +34,12 @@ try {
               native = require(path.resolve(dir, files[0]));
               found = true;
               break;
-            } catch (e4) {
+            } catch (_) {
               // Continue searching
             }
           }
         }
       }
-
       if (!found) {
         throw new Error(
           `[GenSense] Critical Failure: Could not load native semantic engine.\n` +
@@ -46,7 +47,6 @@ try {
           `Error Details:\n` +
           `- Local: ${e1.message}\n` +
           `- Dist: ${e2.message}\n` +
-          `- Platform: ${e3.message}\n` +
           `Please ensure '@friehub/gensense' was installed correctly for your platform (${process.platform}-${process.arch}).`
         );
       }

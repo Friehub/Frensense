@@ -285,7 +285,7 @@ jobs:
 
           # NAPI .node files — MUST use napi-rs platform naming so gensense.js
           # can resolve the correct binary at runtime on each OS.
-          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node  ./gensense.linux-x64-gnu.node
+          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node  ./gensense.linux-x64.node
           cp artifacts/library-x86_64-apple-darwin/gensense.node        ./gensense.darwin-x64.node
           cp artifacts/library-aarch64-apple-darwin/gensense.node        ./gensense.darwin-arm64.node
           cp artifacts/library-x86_64-pc-windows-msvc/gensense.node     ./gensense.win32-x64-msvc.node
