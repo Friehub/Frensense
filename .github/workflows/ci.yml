@@ -270,7 +270,7 @@ jobs:
         run: cargo criterion --features full --message-format json | tee raw_output.json
 
       - name: Convert results to benchmark-action format
-        run: jq -r 'select(.median != null) | "\(.name) \(.median)"' raw_output.json > output.txt
+        run: jq -s '[.[] | select(.reason == "benchmark-complete") | {name: .id, unit: .unit, value: .median.estimate, range: (.median_abs_dev.estimate | tostring)}]' raw_output.json > output.txt
 
       - name: Store and Compare Benchmark Results
         uses: benchmark-action/github-action-benchmark@v1
