@@ -228,6 +228,8 @@ jobs:
     needs: [test-rust]
     permissions:
       contents: write
+      pull-requests: write
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@v2
@@ -239,21 +241,78 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Run Full Benchmarks
-        run: cargo bench --features full -- --output-format bencher | tee output.txt
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/cache/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Store Benchmark Result
+      - name: Install cargo-criterion
+        run: cargo install cargo-criterion --locked
+
+      - name: Run Benchmarks
+        run: cargo criterion --features full --message-format json | tee output.txt
+
+      - name: Store and Compare Benchmark Results
         uses: benchmark-action/github-action-benchmark@v1
         with:
-          name: GenSense Engine Benchmarks
-          tool: 'cargo'
+          name: Gensense Engine Benchmarks
+          tool: cargo-criterion
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          # Show alert if performance regresses by more than 10%
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
           alert-threshold: '110%'
           comment-on-alert: true
           fail-on-alert: true
+          comment-always: true
+          summary-always: true
+
+  # --- Public benchmark dashboard ---
+  pages:
+    name: Publish Benchmark Dashboard
+    runs-on: ubuntu-latest
+    needs: [bench]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify benchmark data exists
+        run: |
+          if [ ! -f dev/bench/index.html ]; then
+            echo "No benchmark data found — first run, this is expected"
+            exit 0
+          fi
+          echo "Benchmark dashboard at dev/bench/index.html — $(wc -l < dev/bench/index.html) lines"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'chore: update benchmark dashboard [skip ci]'
 
   # --- Self-Audit (Engine scans itself) ---
   self-audit:

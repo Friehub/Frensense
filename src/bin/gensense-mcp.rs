@@ -5,6 +5,7 @@
 //! use GenSense as a first-class semantic analysis tool.
 
 use gensense::{Advisory, Engine, Severity};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
@@ -15,11 +16,45 @@ use std::path::Path;
 #[allow(dead_code)]
 struct JsonRpcRequest {
     jsonrpc: String,
-    #[serde(default)]
-    id: Option<Value>,
+    #[serde(default, deserialize_with = "deserialize_request_id")]
+    id: RequestId,
     method: String,
     #[serde(default)]
     params: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum RequestId {
+    Absent,
+    Null,
+    Value(Value),
+}
+
+impl RequestId {
+    fn into_response(self) -> Option<Value> {
+        match self {
+            RequestId::Absent => None,
+            RequestId::Null => Some(Value::Null),
+            RequestId::Value(v) => Some(v),
+        }
+    }
+}
+
+impl Default for RequestId {
+    fn default() -> Self {
+        RequestId::Absent
+    }
+}
+
+fn deserialize_request_id<'de, D>(d: D) -> Result<RequestId, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match Option::<Value>::deserialize(d) {
+        Ok(Some(v)) => Ok(RequestId::Value(v)),
+        Ok(None) => Ok(RequestId::Null),
+        Err(e) => Err(e),
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -41,10 +76,10 @@ struct JsonRpcError {
     data: Option<Value>,
 }
 
-fn rpc_error(id: Option<Value>, code: i32, message: String) -> JsonRpcResponse {
+fn rpc_error(id: RequestId, code: i32, message: String) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0",
-        id,
+        id: id.into_response(),
         result: None,
         error: Some(JsonRpcError {
             code,
@@ -54,10 +89,10 @@ fn rpc_error(id: Option<Value>, code: i32, message: String) -> JsonRpcResponse {
     }
 }
 
-fn rpc_result(id: Option<Value>, result: Value) -> JsonRpcResponse {
+fn rpc_result(id: RequestId, result: Value) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0",
-        id,
+        id: id.into_response(),
         result: Some(result),
         error: None,
     }
@@ -334,7 +369,7 @@ fn main() {
         let req: JsonRpcRequest = match serde_json::from_str(&line) {
             Ok(r) => r,
             Err(e) => {
-                let err_resp = rpc_error(None, -32700, format!("parse error: {e}"));
+                let err_resp = rpc_error(RequestId::Absent, -32700, format!("parse error: {e}"));
                 write_response(&err_resp);
                 continue;
             }
