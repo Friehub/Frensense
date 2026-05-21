@@ -6,6 +6,7 @@ use gensense::semantics::SymbolRegistry;
 use gensense::semantics::data_flow::TaintOrigin;
 use gensense::{FileId, GenSenseContext, TaintCache};
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 
 #[test]
@@ -241,4 +242,44 @@ fn test_sarif_output_properties() {
     assert_eq!(tags.len(), 2);
     assert_eq!(tags[0].as_str(), Some("security"));
     assert_eq!(tags[1].as_str(), Some("rust"));
+}
+
+#[test]
+fn test_non_remediated_advisory_is_not_auto_fixable() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("panic.rs");
+    fs::write(&f, "fn main() { panic!(\"boom\"); }").unwrap();
+
+    let mut engine = Engine::new();
+    let advisories = engine.run(&f).unwrap();
+    let panic_adv = advisories.iter().find(|a| a.rule_id == "RUST_PANIC_IN_LIB");
+
+    assert!(panic_adv.is_some(), "RUST_PANIC_IN_LIB must fire");
+    let adv = panic_adv.unwrap();
+    assert!(
+        !adv.auto_fixable,
+        "non-remediated advisory must not be auto_fixable"
+    );
+    assert!(adv.proposed_replacement.is_none());
+}
+
+#[test]
+fn test_requires_human_is_true_for_project_rule_advisories() {
+    // MISSING_SBOM is a governance check that fires when sbom.txt/bom.json is absent
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("main.rs"), "fn main() {}").unwrap();
+    let mut engine = Engine::new();
+    let advisories = engine.run(dir.path()).unwrap();
+
+    let sbom_adv = advisories.iter().find(|a| a.rule_id == "MISSING_SBOM");
+    assert!(sbom_adv.is_some(), "MISSING_SBOM must fire");
+    let adv = sbom_adv.unwrap();
+    assert!(
+        adv.requires_human,
+        "governance advisories must set requires_human: true"
+    );
+    assert!(
+        !adv.auto_fixable,
+        "governance advisories must not be auto_fixable"
+    );
 }

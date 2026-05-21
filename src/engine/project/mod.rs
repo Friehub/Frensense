@@ -238,6 +238,8 @@ impl Engine {
             }
         }
 
+        all_advisories.append(&mut self.run_governance_checks(root));
+
         if let Some(overrides) = &config.severity_override {
             for adv in &mut all_advisories {
                 if let Some(sev) = overrides.get(&adv.rule_id) {
