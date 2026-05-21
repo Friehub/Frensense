@@ -36,10 +36,12 @@ Acceptance: `cargo build -p gensense-cli`, `cargo build -p gensense-mcp`, `napi 
 
 ## 🟡 Medium
 
-### MED-01 · Benchmark CI is Fragile
+### MED-01 · Benchmark CI Runs on Every Branch, Causing gh-pages Conflicts
 **Files:** `.github/workflows/ci.yml:266-290`  
 **Time:** 30 minutes  
-**Impact:** The bench job has 3 serial steps (install cargo-criterion → run → jq convert) and takes ~5 minutes. Each has its own failure mode — network timeout on install, benchmark takes too long, jq parsing errors.
+**Impact:** The bench job had no branch guard, so it ran on every push (feature branches, PRs). The `benchmark-action` with `auto-push: true` attempted to push to `gh-pages` from every run, causing push conflicts between concurrent CI runs. The `dev/bench/` directory never appeared on `gh-pages` because concurrent pushes to the same branch from different feature branches conflicted and were rejected.
+
+Fix applied: Added `if: github.ref == 'refs/heads/main' && github.event_name == 'push'` to the bench job (line 239). Benchmarks now only run on `main` pushes, eliminating the conflict.
 
 Acceptance: Add a `--quick` mode via env var (`GENENSE_BENCH_QUICK=1`) that reduces `sample_size` and `measurement_time` so CI completes in < 1 minute. The full benchmark suite can be triggered manually or on `main` merges.
 
@@ -75,7 +77,56 @@ Acceptance: Running tests without the `mcp` feature gives a clear panic message 
 
 ---
 
+### MED-04 · MCP: Stream Large Scan Results
+**Files:** `src/bin/gensense-mcp.rs`, `src/engine/project/mod.rs`  
+**Time:** 1 hour  
+**Impact:** The `gensense_audit` tool returns all findings in a single JSON-RPC response. For a 500-file monorepo with thousands of findings, the response can exceed message size limits or timeout. AI agents need incremental results to show progress.
+
+Add a `stream: true` parameter to `gensense_audit` that emits findings as JSON-RPC notifications (one per finding or batch of findings) instead of a single response. End with a final result containing the count.
+
+Acceptance: `gensense_audit` with `stream: true` sends `{"jsonrpc":"2.0","method":"notification","params":{"type":"finding","data":...}}` for each advisory, then a final `{"jsonrpc":"2.0","id":1,"result":{"total":N}}`.
+
+---
+
+### MED-05 · MCP: Add Filter Parameters to `gensense_audit`
+**Files:** `src/bin/gensense-mcp.rs`  
+**Time:** 30 minutes  
+**Impact:** AI agents must post-process results to filter by severity, language, or rule ID. This wastes tokens and time. The MCP tool should accept optional filters.
+
+Add optional params: `severity` (Critical|Warning|Info), `language` (rust|typescript|solidity), `rules` (list of rule IDs to include/exclude). Apply filters server-side before returning.
+
+Acceptance: `gensense_audit` with `{"severity": "Critical", "language": "rust"}` returns only critical Rust findings. Filtering does not increase scan time (filter happens after audit, during serialization).
+
+---
+
+### MED-06 · MCP: Add `ping` Health-Check Method
+**File:** `src/bin/gensense-mcp.rs`  
+**Time:** 10 minutes  
+**Impact:** The JSON-RPC spec defines `ping` as a standard method. Without it, clients must call `tools/list` to check if the server is alive — which is wasteful and semantically wrong.
+
+Acceptance: `{"jsonrpc":"2.0","id":1,"method":"ping"}` returns `{"jsonrpc":"2.0","id":1,"result":"pong"}`.
+
+---
+
 ## 🟢 Low
+
+### LOW-04 · MCP: Improve Startup Error Messages
+**File:** `src/bin/gensense-mcp.rs`  
+**Time:** 15 minutes  
+**Impact:** When the engine fails to initialize (e.g., missing rules directory), the MCP server silently exits with a generic "failed to spawn" error that gives no debugging context to the AI agent.
+
+Wrap the main initialization in a try-catch that writes a proper JSON-RPC error response to stdout before exiting: `{"jsonrpc":"2.0","id":null,"error":{"code":-32000,"message":"Engine init failed: ..."}}`.
+
+Acceptance: A startup failure writes a JSON-RPC error to stdout so the client knows exactly what went wrong.
+
+---
+
+### LOW-05 · Website Not Updated for v0.3.0 (Missing MCP Docs, Changelog)
+**Files:** `docs/mcp.md`, `docs/changelog.md`, `docs/.vitepress/config.mjs`, `README.md`  
+**Time:** 1 hour  
+**Impact:** The VitePress site at https://friehub.github.io/gensense had no MCP server documentation and no changelog/release history. Users had no way to learn about the MCP server. The README also had no MCP section.
+
+Fix applied: Created `docs/mcp.md` (MCP server usage, tool reference, protocol details, client config examples), created `docs/changelog.md` (full release history), updated `docs/.vitepress/config.mjs` (nav + sidebar entries for MCP and Changelog), updated `README.md` (MCP server section with install and config examples).
 
 ### LOW-01 · Pre-Commit Hook Doesn't Run Integration Tests
 **File:** `hooks/pre-commit`  
@@ -109,7 +160,7 @@ Acceptance: Fix all instances and remove the `-A clippy::...` flags from the cli
 | Severity | Count | Total Effort |
 |----------|-------|-------------|
 | 🔴 Critical | 2 | ~3 hours |
-| 🟡 Medium | 3 | ~1 hour |
-| 🟢 Low | 3 | ~2.5 hours |
+| 🟡 Medium | 6 | ~2 hours 45 min |
+| 🟢 Low | 5 | ~3.5 hours |
 
-Total: ~6.5 hours of focused work to ship a materially more robust v0.3.1.
+Total: ~9 hours 15 min of focused work to ship a materially more robust v0.3.1.

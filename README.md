@@ -44,6 +44,35 @@ None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. Gen
 
 ## Installation
 
+### MCP Server (AI Agent Integration)
+
+GenSense ships a **Model Context Protocol (MCP) server** — a JSON-RPC 2.0 interface over stdin/stdout that lets AI agents (Claude Code, Cursor, etc.) audit code as part of their workflow.
+
+```bash
+# Build the MCP server
+cargo build --features mcp
+
+# Run it (stdin/stdout JSON-RPC)
+./target/debug/gensense-mcp
+```
+
+Configure in your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "gensense": {
+      "command": "gensense-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+The server exposes a single tool `gensense_audit` with `path`, `fix_auto`, and `severity_threshold` parameters. See [MCP Server docs](https://friehub.github.io/gensense/mcp) for the full reference.
+
+---
+
 ### CLI (via NPM)
 
 ```bash
