@@ -1,10 +1,19 @@
 # GenSense
 
-GenSense is a fast, modular semantic diagnostic engine that analyzes source code at the AST level to detect logical flaws, security risks, and AI-generated code patterns that conventional linters miss.
+GenSense is a fast, modular semantic diagnostic engine. It uses **Contextual Structural Analysis (CSA)** and **Symbol-Relative Identity (SRI)** to detect logical flaws, security risks, and unoptimized patterns that conventional linters miss.
 
-It operates on **semantic patterns** — not syntax. Code that compiles cleanly can still deadlock, leak secrets, silently swallow errors, or contain AI-generated placeholder logic that will fail in production. GenSense catches those classes of problems.
+It operates on **semantic intent** — not just syntax. Code that compiles cleanly can still deadlock, leak secrets, or contain unoptimized database queries. GenSense catches those classes of problems and can **automatically remediate** them.
 
 Full documentation: [https://friehub.github.io/gensense](https://friehub.github.io/gensense)
+
+---
+
+## v0.3.0 Key Features
+
+- **Symbol-Relative Identity (SRI)**: Findings are anchored to logical symbols (functions, classes) instead of line numbers, making CI baselines immune to refactoring.
+- **Contextual Structural Analysis (CSA)**: Rules can now reason across multiple files to verify that sensitive operations are protected by appropriate guards.
+- **Auto-Remediation Engine**: Many rules now support automated fixes via the `--fix` flag.
+- **High-Precision Taint Analysis**: Track data flow from sensitive sources to unsafe sinks across function bodies.
 
 ---
 
@@ -51,7 +60,7 @@ npx @friehub/gensense .
 
 ```toml
 [dependencies]
-gensense = "0.2.0"
+gensense = "0.3.0"
 ```
 
 ### Node.js Programmatic API

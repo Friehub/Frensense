@@ -20,6 +20,7 @@ impl GenSenseRule for AsyncPanicSafety {
             improvement: Cow::Borrowed("Use '?' (try operator) or handle the error gracefully to ensure the async task remains stable."),
             tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Safety"),
+            confidence: 0.85,
         })
     }
 
@@ -34,7 +35,7 @@ impl GenSenseRule for AsyncPanicSafety {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if self.is_in_async_scope(node, context.source_code) {
+        if Self::is_in_async_scope(node, context.source_code) {
             let kind = node.kind();
             if kind == "call_expression" {
                 if let Some(func) = node.child_by_field_name("function") {
@@ -50,16 +51,16 @@ impl GenSenseRule for AsyncPanicSafety {
                         );
                     }
                 }
-            } else if kind == "macro_invocation" {
-                if let Some(macro_name) = node.child(0) {
-                    let code = &context.source_code[macro_name.start_byte()..macro_name.end_byte()];
-                    if code == "panic" {
-                        advisories.push(self.new_advisory(
-                            &node,
-                            context,
-                            "Unsafe macro (panic!) used in async scope.".to_string(),
-                        ));
-                    }
+            } else if kind == "macro_invocation"
+                && let Some(macro_name) = node.child(0)
+            {
+                let code = &context.source_code[macro_name.start_byte()..macro_name.end_byte()];
+                if code == "panic" {
+                    advisories.push(self.new_advisory(
+                        &node,
+                        context,
+                        "Unsafe macro (panic!) used in async scope.".to_string(),
+                    ));
                 }
             }
         }
@@ -69,7 +70,7 @@ impl GenSenseRule for AsyncPanicSafety {
 }
 
 impl AsyncPanicSafety {
-    fn is_in_async_scope(&self, node: Node, source: &str) -> bool {
+    fn is_in_async_scope(node: Node, source: &str) -> bool {
         let mut current = node;
         while let Some(parent) = current.parent() {
             let kind = parent.kind();

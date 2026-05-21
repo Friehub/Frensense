@@ -4,6 +4,9 @@ version = "0.0.1"
 publish = false
 edition = "2021"
 
+[package.metadata.cargo-machete]
+ignored = ["gensense"]
+
 [dependencies]
 libfuzzer-sys = "0.4"
 gensense = { path = ".." }

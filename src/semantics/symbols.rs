@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::semantics::graph::SemanticGraph;
-use petgraph::graph::NodeIndex;
-use petgraph::visit::EdgeRef;
+use crate::semantics::graph::{SemanticGraph, SemanticNodeId};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -27,6 +25,7 @@ pub struct Symbol {
     pub start_byte: usize,
     pub end_byte: usize,
     pub file_path: String,
+    pub file_id: crate::FileId,
     pub line: usize,
     pub column: usize,
     pub end_line: usize,
@@ -34,39 +33,47 @@ pub struct Symbol {
 
 #[derive(Default)]
 pub struct SymbolRegistry {
-    pub graph: SemanticGraph,
-    pub file_index: HashMap<String, Vec<NodeIndex>>,
+    graph: SemanticGraph,
+    file_index: HashMap<String, Vec<SemanticNodeId>>,
 }
 
 impl SymbolRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn insert(&mut self, symbol: Symbol) -> NodeIndex {
-        let file_path = symbol.file_path.clone();
-        let idx = self.graph.add_symbol(symbol);
-
-        self.file_index.entry(file_path).or_default().push(idx);
-        idx
+    #[must_use]
+    pub const fn graph(&self) -> &SemanticGraph {
+        &self.graph
     }
 
+    pub fn insert(&mut self, symbol: Symbol) -> SemanticNodeId {
+        let file_path = symbol.file_path.clone();
+        let id = self.graph.add_symbol(symbol);
+
+        self.file_index.entry(file_path).or_default().push(id);
+        id
+    }
+
+    #[must_use]
     pub fn find(&self, name: &str) -> Vec<&Symbol> {
         self.graph
             .find_nodes(name)
             .into_iter()
-            .filter_map(|idx| self.graph.get_symbol(idx))
+            .filter_map(|id| self.graph.get_symbol(id))
             .collect()
     }
 
     /// Finds the innermost symbol with a specific name at a specific location.
     /// This handles variable shadowing by selecting the smallest containing interval.
+    #[must_use]
     pub fn find_at(&self, name: &str, file: &str, line: usize) -> Option<&Symbol> {
         self.file_index
             .get(file)?
             .iter()
-            .filter_map(|&idx| {
-                let s = self.graph.get_symbol(idx)?;
+            .filter_map(|&id| {
+                let s = self.graph.get_symbol(id)?;
                 if s.name == name && line >= s.line && line <= s.end_line {
                     Some(s)
                 } else {
@@ -77,27 +84,30 @@ impl SymbolRegistry {
     }
 
     /// Finds the innermost function containing the specified line.
-    pub fn find_function_at(&self, file: &str, line: usize) -> Option<NodeIndex> {
+    #[must_use]
+    pub fn find_function_at(&self, file: &str, line: usize) -> Option<SemanticNodeId> {
         self.file_index
             .get(file)?
             .iter()
-            .filter(|&&idx| {
-                if let Some(s) = self.graph.get_symbol(idx) {
+            .filter(|&&id| {
+                self.graph.get_symbol(id).is_some_and(|s| {
                     s.kind == SymbolKind::Function && line >= s.line && line <= s.end_line
-                } else {
-                    false
-                }
+                })
             })
-            .min_by_key(|&&idx| {
-                let s = self
-                    .graph
-                    .get_symbol(idx)
-                    .expect("Symbol missing after filter");
-                s.end_line - s.line
+            .min_by_key(|&&id| {
+                self.graph
+                    .get_symbol(id)
+                    .map_or(usize::MAX, |s| s.end_line - s.line)
             })
             .copied()
     }
 
+    #[must_use]
+    pub fn get_symbol(&self, id: SemanticNodeId) -> Option<&Symbol> {
+        self.graph.get_symbol(id)
+    }
+
+    #[must_use]
     pub fn query_all(&self) -> Vec<&Symbol> {
         self.graph.all_symbols()
     }
@@ -107,35 +117,40 @@ impl SymbolRegistry {
         self.file_index.clear();
     }
 
-    pub fn add_call_edge(&mut self, file_path: &Path, caller: &str, callee: &str) {
+    pub fn add_call_edge(&mut self, file_path: &Path, src_name: &str, target_name: &str) {
         let file_str = file_path.display().to_string();
-        let callers = self.find(caller);
-        let callees = self.find(callee);
+        let src_symbols = self.find(src_name);
+        let target_symbols = self.find(target_name);
 
         // 1. Resolve Caller: Must be in the current file
-        let caller_idx = callers
+        let src_node_id = src_symbols
             .iter()
             .find(|s| s.file_path == file_str)
             .and_then(|s| self.graph.find_node(&s.name, &s.file_path, s.line));
 
         // 2. Resolve Callee: Priority is local file, then unambiguous global
-        let callee_idx = if let Some(local) = callees.iter().find(|s| s.file_path == file_str) {
-            self.graph
-                .find_node(&local.name, &local.file_path, local.line)
-        } else if callees.len() == 1 {
-            self.graph
-                .find_node(&callees[0].name, &callees[0].file_path, callees[0].line)
-        } else {
-            // Still ambiguous or external - in a full implementation, we'd use imports/usings
-            None
-        };
+        let target_node_id =
+            if let Some(local) = target_symbols.iter().find(|s| s.file_path == file_str) {
+                self.graph
+                    .find_node(&local.name, &local.file_path, local.line)
+            } else if target_symbols.len() == 1 {
+                self.graph.find_node(
+                    &target_symbols[0].name,
+                    &target_symbols[0].file_path,
+                    target_symbols[0].line,
+                )
+            } else {
+                // Still ambiguous or external - in a full implementation, we'd use imports/usings
+                None
+            };
 
-        if let (Some(c1), Some(c2)) = (caller_idx, callee_idx) {
+        if let (Some(s_id), Some(t_id)) = (src_node_id, target_node_id) {
             self.graph
-                .add_edge(c1, c2, crate::semantics::graph::EdgeKind::Calls);
+                .add_edge(s_id, t_id, crate::semantics::graph::EdgeKind::Calls);
         }
     }
 
+    #[must_use]
     pub fn find_by_regex(&self, re: &regex::Regex) -> Vec<&Symbol> {
         self.graph
             .all_symbols()
@@ -144,30 +159,50 @@ impl SymbolRegistry {
             .collect()
     }
 
+    #[must_use]
     pub fn get_callees(&self, sym: &Symbol) -> Vec<&Symbol> {
-        let idx = match self.graph.find_node(&sym.name, &sym.file_path, sym.line) {
-            Some(i) => i,
-            None => return Vec::new(),
+        let Some(id) = self.graph.find_node(&sym.name, &sym.file_path, sym.line) else {
+            return Vec::new();
         };
 
         self.graph
-            .neighbors_of(idx, crate::semantics::graph::EdgeKind::Calls)
+            .neighbors_of(id, crate::semantics::graph::EdgeKind::Calls)
             .into_iter()
             .filter_map(|i| self.graph.get_symbol(i))
             .collect()
     }
 
+    #[must_use]
     pub fn get_callers(&self, sym: &Symbol) -> Vec<&Symbol> {
-        let idx = match self.graph.find_node(&sym.name, &sym.file_path, sym.line) {
-            Some(i) => i,
-            None => return Vec::new(),
+        let Some(id) = self.graph.find_node(&sym.name, &sym.file_path, sym.line) else {
+            return Vec::new();
         };
 
         self.graph
-            .graph
-            .edges_directed(idx, petgraph::Direction::Incoming)
-            .filter(|e| *e.weight() == crate::semantics::graph::EdgeKind::Calls)
-            .filter_map(|e| self.graph.get_symbol(e.source()))
+            .incoming_neighbors_of(id, crate::semantics::graph::EdgeKind::Calls)
+            .into_iter()
+            .filter_map(|i| self.graph.get_symbol(i))
             .collect()
+    }
+    #[must_use]
+    pub const fn graph_mut(&mut self) -> &mut SemanticGraph {
+        &mut self.graph
+    }
+
+    #[must_use]
+    pub fn find_callers(&self, name: &str) -> Vec<&Symbol> {
+        let nodes = self.graph.find_nodes(name);
+        let mut callers = Vec::new();
+        for node in nodes {
+            let caller_ids = self
+                .graph
+                .incoming_neighbors_of(node, crate::semantics::graph::EdgeKind::Calls);
+            for id in caller_ids {
+                if let Some(s) = self.graph.get_symbol(id) {
+                    callers.push(s);
+                }
+            }
+        }
+        callers
     }
 }

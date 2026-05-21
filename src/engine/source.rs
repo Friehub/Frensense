@@ -20,6 +20,7 @@ pub struct SourceRegistry {
 }
 
 impl SourceRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -43,15 +44,29 @@ impl SourceRegistry {
         id
     }
 
+    #[must_use]
     pub fn get(&self, id: FileId) -> Option<Arc<SourceFile>> {
         self.files.get(&id).cloned()
     }
 
+    #[must_use]
     pub fn get_by_path(&self, path: &Path) -> Option<Arc<SourceFile>> {
-        let id = self.path_to_id.get(path)?;
-        self.get(*id)
+        if let Some(id) = self.path_to_id.get(path) {
+            return self.get(*id);
+        }
+
+        // Fallback: Try to find a path that ends with the given path (heuristic for relative vs absolute)
+        let path_str = path.to_string_lossy();
+        for (p, id) in &self.path_to_id {
+            let p_str = p.to_string_lossy();
+            if p_str.ends_with(&*path_str) || path_str.ends_with(&*p_str) {
+                return self.get(*id);
+            }
+        }
+        None
     }
 
+    #[must_use]
     pub fn resolve_snippet(&self, id: FileId, start: u32, end: u32) -> Option<String> {
         let file = self.get(id)?;
         let start = start as usize;
@@ -61,5 +76,13 @@ impl SourceRegistry {
         } else {
             None
         }
+    }
+
+    pub fn all_sources(&self) -> impl Iterator<Item = (&Path, &str)> {
+        self.files.values().map(|f| (f.path.as_path(), &*f.content))
+    }
+
+    pub fn all_files(&self) -> impl Iterator<Item = Arc<SourceFile>> {
+        self.files.values().cloned()
     }
 }

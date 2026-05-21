@@ -15,11 +15,21 @@ pub struct AnalysisRegistry {
 }
 
 impl AnalysisRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn get_or_compute<T, F>(&mut self, rule_id: &str, scope: ScopeId, compute: F) -> Arc<T>
+    /// Returns an error if the stored type `T` does not match the requested type.
+    ///
+    /// # Errors
+    /// Returns an error if the type `T` does not match the stored type.
+    pub fn get_or_compute<T, F>(
+        &mut self,
+        rule_id: &str,
+        scope: ScopeId,
+        compute: F,
+    ) -> crate::Result<Arc<T>>
     where
         T: 'static + Send + Sync,
         F: FnOnce() -> T,
@@ -30,9 +40,8 @@ impl AnalysisRegistry {
             .entry(key)
             .or_insert_with(|| Arc::new(compute()));
 
-        entry
-            .clone()
-            .downcast::<T>()
-            .expect("Type mismatch in AnalysisRegistry")
+        entry.clone().downcast::<T>().map_err(|_| {
+            crate::GenSenseError::Engine("Type mismatch in AnalysisRegistry".to_string())
+        })
     }
 }

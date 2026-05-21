@@ -3,23 +3,26 @@
 use gensense::engine::auditor::GenSenseAuditor;
 use gensense::engine::project::Engine;
 use gensense::semantics::SymbolRegistry;
+use gensense::semantics::data_flow::TaintOrigin;
 use gensense::{FileId, GenSenseContext, TaintCache};
+use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 
 #[test]
 fn test_symbol_shadowing() {
-    let content = r#"
+    let content = r"
         let x = 1;
         fn inner() {
             let x = 2;
             let y = x;
         }
-    "#;
+    ";
     let path = Path::new("shadow.rs");
     let auditor = GenSenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
-        .discover_symbols(path, content, &lang, &tree)
+        .discover_symbols(path, FileId(1), content, &lang, &tree)
         .unwrap();
 
     let mut registry = SymbolRegistry::new();
@@ -33,16 +36,17 @@ fn test_symbol_shadowing() {
 }
 
 #[test]
+#[allow(clippy::items_after_statements)]
 fn test_taint_through_destructuring() {
-    let content = r#"
+    let content = r"
         let (a, b) = get_tainted_pair();
         sink(a);
-    "#;
+    ";
     let path = Path::new("destruct.rs");
     let auditor = GenSenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
-        .discover_symbols(path, content, &lang, &tree)
+        .discover_symbols(path, FileId(1), content, &lang, &tree)
         .unwrap();
     let mut registry = SymbolRegistry::new();
     for sym in symbols {
@@ -51,7 +55,7 @@ fn test_taint_through_destructuring() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let context = GenSenseContext {
+    let ctx = GenSenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -59,14 +63,14 @@ fn test_taint_through_destructuring() {
         symbols: &registry,
         semantic_ops: &ops,
         taint_cache: &taint_cache,
+        file_trees: &HashMap::new(),
     };
 
-    let analyzer =
-        gensense::semantics::data_flow::DataFlowAnalyzer::new(&context, tree.root_node());
+    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = gensense::semantics::data_flow::TaintRegistry::default();
 
     // Manual source injection
-    taint_reg.taint("get_tainted_pair", "source");
+    taint_reg.taint("get_tainted_pair", TaintOrigin::UserInput);
 
     let source_re = regex::Regex::new("get_tainted_pair").unwrap();
     let sink_re = regex::Regex::new("sink").unwrap();
@@ -101,11 +105,17 @@ fn test_taint_through_destructuring() {
             improvement: "None".into(),
             tags: vec![],
             category: "Test".into(),
+            confidence: 0.55,
         },
     };
 
-    let advisories =
-        analyzer.analyze_block(tree.root_node(), &source_re, &sink_re, &rule, taint_reg);
+    let advisories = analyzer.analyze_block(
+        tree.root_node(),
+        &source_re,
+        &sink_re,
+        &rule,
+        &mut taint_reg,
+    );
     assert!(
         !advisories.is_empty(),
         "Taint should flow through destructuring to sink(a)"
@@ -114,7 +124,7 @@ fn test_taint_through_destructuring() {
 
 #[test]
 fn test_suppression_correctness() {
-    let _content = r#"
+    let _ = r#"
         // gensense-suppress RUST_PANIC
         panic!("intentional");
         panic!("unsuppressed");
@@ -127,10 +137,165 @@ fn test_suppression_correctness() {
 fn test_snapshot_determinism() {
     let content = "fn main() { let x = 1; }";
     let path = Path::new("main.rs");
-    let engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
 
     let advisories1 = engine.run_content(path, content).unwrap();
     let advisories2 = engine.run_content(path, content).unwrap();
 
     assert_eq!(advisories1.len(), advisories2.len());
+}
+
+/// `TASK-01` acceptance: project-rule advisories must carry a non-empty `original_content`
+/// so that `--fix` mode is never silently skipped.
+#[test]
+fn test_project_rule_advisory_has_non_empty_original_content() {
+    use gensense::ProjectRule;
+    use gensense::engine::source::SourceRegistry;
+    use gensense::rules::global::allocator_check::GlobalAllocatorCheck;
+    use gensense::semantics::SymbolRegistry;
+
+    let rust_source = "// no allocator here\nfn main() {}\n";
+    let path = Path::new("main.rs");
+
+    let mut sources = SourceRegistry::new();
+    sources.register(path, rust_source.to_string());
+
+    let symbols = SymbolRegistry::new();
+    let rule = GlobalAllocatorCheck;
+    let advisories = rule.check_project(&symbols, &sources);
+
+    assert!(
+        !advisories.is_empty(),
+        "GlobalAllocatorCheck should fire when #[global_allocator] is absent"
+    );
+
+    for advisory in &advisories {
+        assert!(
+            !advisory.original_content.is_empty(),
+            "advisory.original_content must be non-empty for project rule '{}' (file: '{}')",
+            advisory.rule_id,
+            advisory.file_path,
+        );
+    }
+}
+
+#[test]
+fn test_sarif_output_properties() {
+    use gensense::Advisory;
+    use gensense::FileId;
+    use gensense::reporter::Reporter;
+
+    let adv = Advisory {
+        rule_id: "TEST_RULE".into(),
+        file_id: FileId(1),
+        file_path: "src/main.rs".into(),
+        severity: gensense::Severity::Warning,
+        confidence: 0.85,
+        observation: "observation".into(),
+        impact: "impact".into(),
+        improvement: "improvement".into(),
+        line: 10,
+        column: 5,
+        start_byte: 100,
+        end_byte: 120,
+        original_content: "foo()".into(),
+        proposed_replacement: None,
+        proposed_import: None,
+        enclosing_symbol: None,
+        fingerprint: "hash".into(),
+        auto_fixable: true,
+        requires_human: false,
+        tags: vec!["security".into(), "rust".into()],
+    };
+
+    let sarif = Reporter::to_sarif(&[adv], Path::new("."));
+    let results = sarif
+        .get("runs")
+        .and_then(|r| r.as_array())
+        .and_then(|r| r.first())
+        .and_then(|run| run.get("results"))
+        .and_then(|res| res.as_array())
+        .expect("SARIF structure");
+
+    assert_eq!(results.len(), 1);
+    let result = &results[0];
+    let properties = result.get("properties").expect("properties bag");
+
+    let conf = properties
+        .get("confidence")
+        .and_then(serde_json::Value::as_f64)
+        .expect("confidence");
+    assert!((conf - 0.85).abs() < 1e-5);
+    assert_eq!(
+        properties
+            .get("auto_fixable")
+            .and_then(serde_json::Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        properties
+            .get("requires_human")
+            .and_then(serde_json::Value::as_bool),
+        Some(false)
+    );
+
+    let tags = properties
+        .get("tags")
+        .and_then(|t| t.as_array())
+        .expect("tags array");
+    assert_eq!(tags.len(), 2);
+    assert_eq!(tags[0].as_str(), Some("security"));
+    assert_eq!(tags[1].as_str(), Some("rust"));
+}
+
+#[test]
+fn test_non_remediated_advisory_is_not_auto_fixable() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("panic.rs");
+    fs::write(&f, "fn main() { panic!(\"boom\"); }").unwrap();
+
+    let mut engine = Engine::new();
+    let advisories = engine.run(&f).unwrap();
+    let panic_adv = advisories.iter().find(|a| a.rule_id == "RUST_PANIC_IN_LIB");
+
+    assert!(panic_adv.is_some(), "RUST_PANIC_IN_LIB must fire");
+    let adv = panic_adv.unwrap();
+    assert!(
+        !adv.auto_fixable,
+        "non-remediated advisory must not be auto_fixable"
+    );
+    assert!(adv.proposed_replacement.is_none());
+}
+
+#[test]
+fn test_requires_human_is_true_for_project_rule_advisories() {
+    use gensense::ProjectRule;
+    use gensense::engine::source::SourceRegistry;
+    use gensense::rules::global::allocator_check::GlobalAllocatorCheck;
+    use gensense::semantics::SymbolRegistry;
+
+    let rust_source = "// no allocator here\nfn main() {}\n";
+    let path = Path::new("main.rs");
+
+    let mut sources = SourceRegistry::new();
+    sources.register(path, rust_source.to_string());
+
+    let symbols = SymbolRegistry::new();
+    let rule = GlobalAllocatorCheck;
+    let advisories = rule.check_project(&symbols, &sources);
+
+    assert!(!advisories.is_empty(), "GlobalAllocatorCheck should fire");
+
+    for advisory in &advisories {
+        assert!(
+            advisory.requires_human,
+            "project rule advisory '{}' must set requires_human: true",
+            advisory.rule_id,
+        );
+        assert!(
+            !advisory.auto_fixable,
+            "project rule advisory '{}' must not be auto_fixable",
+            advisory.rule_id,
+        );
+    }
 }

@@ -135,8 +135,29 @@ jobs:
       - name: Build NAPI Library
         run: npm run build -- --target ${{ matrix.settings.target }}
 
+      - name: Smoke test NAPI library
+        run: |
+          node -e "
+            const m = require('./gensense.node');
+            const api = new m.GenSenseEngine();
+            const r = api.auditContent('test.rs', 'fn main() { let x = 1; }');
+            const p = JSON.parse(r);
+            console.log('NAPI OK -', p.length, 'findings');
+          "
+
       - name: Build CLI Binary
         run: cargo build --release --features cli --target ${{ matrix.settings.target }}
+
+      - name: Smoke test CLI binary
+        shell: bash
+        run: |
+          binary="target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}"
+          file "$binary" || true
+          "$binary" --version
+          "$binary" --help
+          echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
+          "$binary" /tmp/test_smoke.rs --json > /dev/null
+          echo "CLI smoke test passed"
 
       - name: Upload NAPI Artifact
         uses: actions/upload-artifact@v4
@@ -249,19 +270,48 @@ jobs:
         with:
           path: artifacts
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Prepare NPM package
         run: |
           mkdir -p dist/binaries
-          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense ./dist/gensense
-          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node ./gensense.node
+
+          # CLI binaries (platform-named for the postinstall resolver)
+          cp artifacts/cli-x86_64-unknown-linux-gnu/gensense    ./dist/gensense
           cp artifacts/cli-x86_64-unknown-linux-gnu/gensense    ./dist/binaries/gensense-linux-x64
           cp artifacts/cli-x86_64-apple-darwin/gensense          ./dist/binaries/gensense-macos-x64
           cp artifacts/cli-aarch64-apple-darwin/gensense          ./dist/binaries/gensense-macos-arm64
           cp artifacts/cli-x86_64-pc-windows-msvc/gensense.exe   ./dist/binaries/gensense-windows-x64.exe
 
+          # NAPI .node files — MUST use napi-rs platform naming so gensense.js
+          # can resolve the correct binary at runtime on each OS.
+          cp artifacts/library-x86_64-unknown-linux-gnu/gensense.node  ./gensense.linux-x64-gnu.node
+          cp artifacts/library-x86_64-apple-darwin/gensense.node        ./gensense.darwin-x64.node
+          cp artifacts/library-aarch64-apple-darwin/gensense.node        ./gensense.darwin-arm64.node
+          cp artifacts/library-x86_64-pc-windows-msvc/gensense.node     ./gensense.win32-x64-msvc.node
+
       - name: Generate Rule Docs
         run: |
           cargo run --features cli -- --generate-docs
+
+      - name: Test NPM package before publish
+        run: |
+          PACKAGE=$(npm pack --silent 2>&1 | tail -1)
+          echo "Package: $PACKAGE"
+          TESTDIR=$(mktemp -d)
+          cd "$TESTDIR"
+          npm init -y > /dev/null
+          npm install "$GITHUB_WORKSPACE/$PACKAGE" > /dev/null 2>&1
+          npx gensense --version
+          echo 'fn main() { let x = 1; }' > test.rs
+          npx gensense test.rs --json > /dev/null
+          node -e "
+            const { GenSense } = require('@friehub/gensense');
+            const engine = new GenSense();
+            const r = engine.auditContent('test.rs', 'fn main() { let x = 1; }');
+            console.log('NPM package OK -', r.length, 'findings');
+          "
 
       - name: Check version not already published
         run: |

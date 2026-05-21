@@ -20,6 +20,7 @@ impl GenSenseRule for BlockingIoDetector {
             improvement: Cow::Borrowed("Use asynchronous alternatives (e.g., tokio::time::sleep, tokio::fs, or tokio::net). If no async version exists, use spawn_blocking."),
             tags: vec![Cow::Borrowed("performance"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Performance"),
+            confidence: 0.85,
         })
     }
 
@@ -34,7 +35,7 @@ impl GenSenseRule for BlockingIoDetector {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if self.is_in_async_scope(node, context.source_code) {
+        if Self::is_in_async_scope(node, context.source_code) {
             if let Some(func) = node.child_by_field_name("function") {
                 let code = &context.source_code[func.start_byte()..func.end_byte()];
 
@@ -63,7 +64,7 @@ impl GenSenseRule for BlockingIoDetector {
 }
 
 impl BlockingIoDetector {
-    fn is_in_async_scope(&self, node: Node, source: &str) -> bool {
+    fn is_in_async_scope(node: Node, source: &str) -> bool {
         let mut current = node;
         while let Some(parent) = current.parent() {
             let kind = parent.kind();

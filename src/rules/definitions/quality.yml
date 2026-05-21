@@ -11,6 +11,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70
 - id: RUST_NESTING_LIMIT
   target_ext: rs
   on_node: (function_item) @node
@@ -23,6 +24,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70
 - id: TS_GOD_FUNCTION
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
@@ -34,14 +36,16 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70
 - id: TS_NESTING_LIMIT
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
-  max_depth: 4
-  observation: 'Deep Nesting: logical depth exceeds standardized limit (4 levels).'
+  max_depth: 3
+  observation: 'Deep Nesting: logical depth exceeds standardized limit (3 levels).'
   impact: 'Rule #vibecoding: Extreme indentation indicates complex logic.'
   improvement: Extract inner logic into helper functions.
   name: Ts Nesting Limit
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.70

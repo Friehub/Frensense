@@ -20,6 +20,7 @@ impl GenSenseRule for TracingGuard {
             improvement: Cow::Borrowed("Add #[tracing::instrument] to the function or create an explicit span using 'info_span!' or 'debug_span!'."),
             tags: vec![Cow::Borrowed("observability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Observability"),
+            confidence: 0.85,
         })
     }
 

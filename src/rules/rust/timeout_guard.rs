@@ -20,6 +20,7 @@ impl GenSenseRule for TimeoutGuard {
             improvement: Cow::Borrowed("Wrap this operation in 'tokio::time::timeout(Duration, ...).await' to ensure system liveness even if the remote peer stops responding."),
             tags: vec![Cow::Borrowed("liveness"), Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Reliability"),
+            confidence: 0.85,
         })
     }
 

@@ -8,10 +8,12 @@ pub struct ProjectAuditor {
 }
 
 impl ProjectAuditor {
+    #[must_use]
     pub fn new(rules: Vec<Box<dyn ProjectRule>>) -> Self {
         Self { rules }
     }
 
+    #[must_use]
     pub fn run(
         &self,
         symbols: &SymbolRegistry,

@@ -20,6 +20,7 @@ impl GenSenseRule for FakeAsyncDetector {
             improvement: Cow::Borrowed("Remove the 'async' keyword if the function doesn't need to be concurrent, or implement the intended await points."),
             tags: vec![Cow::Borrowed("optimization"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Performance"),
+            confidence: 0.85,
         })
     }
 
@@ -56,13 +57,22 @@ impl GenSenseRule for FakeAsyncDetector {
 }
 
 fn has_await(node: Node) -> bool {
-    if node.kind() == "await_expression" {
-        return true;
-    }
     let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if has_await(child) {
+    let mut stack = vec![node];
+
+    while let Some(current) = stack.pop() {
+        if current.kind() == "await_expression" {
             return true;
+        }
+
+        cursor.reset(current);
+        if cursor.goto_first_child() {
+            loop {
+                stack.push(cursor.node());
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
         }
     }
     false

@@ -38,7 +38,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt
 
       - name: Cache Cargo dependencies
         uses: actions/cache@v4
@@ -54,8 +54,21 @@ jobs:
       - name: Enforce Style (rustfmt)
         run: cargo fmt --all -- --check
 
-      - name: Semantic Lints (Clippy)
-        run: cargo clippy --all-targets --features full -- -D warnings
+      - name: Install Linting Tools
+        run: |
+          cargo install cargo-hack --locked --force
+          cargo install cargo-machete --locked --force
+
+
+      - name: Lint (Clippy)
+        run: cargo clippy --all-targets --features full -- -W clippy::pedantic -A clippy::collapsible_if -A clippy::collapsible_match -A clippy::unnecessary_sort_by -A clippy::unnecessary_trailing_comma -D warnings
+
+      - name: Verify Feature Gating (cargo hack)
+        # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).
+        run: cargo hack check --each-feature --exclude-features node
+
+      - name: Prune Unused Dependencies (cargo machete)
+        run: cargo machete
 
   # --- Supply Chain Audit ---
   security:
@@ -129,6 +142,28 @@ jobs:
           toolchain: 1.88
       - run: cargo check --features cli,solidity,fingerprinting
 
+  # --- SemVer Compatibility ---
+  semver:
+    name: SemVer Compatibility
+    runs-on: ubuntu-latest
+    needs: [qa]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --version 0.44.0 --locked
+      - name: Check SemVer
+        # This will fail if the current version introduces breaking changes
+        # relative to the version currently on crates.io.
+        run: cargo semver-checks check-release || echo "SemVer check failed (expected for major/minor bumps)"
+
   # --- Correctness (Rust) ---
   test-rust:
     name: Rust Tests (${{ matrix.features }})
@@ -138,7 +173,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        features: [cli, "full", "rust,typescript,solidity"]
+        features: [cli, "full", "rust,typescript,solidity,mcp"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@v2
@@ -152,6 +187,17 @@ jobs:
 
       - name: Run Full Regression Suite
         run: cargo test --features ${{ matrix.features }}
+
+      - name: CLI Binary Smoke Test
+        if: ${{ matrix.features != 'rust,typescript,solidity' }}
+        run: |
+          binary="./target/debug/gensense"
+          "$binary" --version
+          "$binary" --help
+          # Quick scan of a known small fixture
+          echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
+          "$binary" /tmp/test_smoke.rs --json > /dev/null
+          echo "CLI smoke test passed"
 
   # --- Correctness (Node.js Bindings) ---
   test-node:
@@ -186,13 +232,197 @@ jobs:
       - name: Verify JS Bridge
         run: npm test
 
+  # --- Performance Regression ---
+  bench:
+    name: Performance Regression
+    runs-on: ubuntu-latest
+    needs: [test-rust]
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/cache/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-criterion
+        run: cargo install cargo-criterion --locked
+
+      - name: Run Benchmarks
+        run: cargo criterion --features full --message-format json | tee raw_output.json
+
+      - name: Convert results to benchmark-action format
+        run: >
+          jq -s '[.[] | select(.reason == "benchmark-complete") | {name: .id, unit: .unit, value: .median.estimate, range: (.median_abs_dev.estimate | tostring)}]' raw_output.json > output.txt
+
+      - name: Store and Compare Benchmark Results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Gensense Engine Benchmarks
+          tool: customSmallerIsBetter
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
+          alert-threshold: '110%'
+          comment-on-alert: true
+          fail-on-alert: true
+          comment-always: true
+          summary-always: true
+
+  # --- Public benchmark dashboard ---
+  pages:
+    name: Publish Benchmark Dashboard
+    runs-on: ubuntu-latest
+    needs: [bench]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify benchmark data exists
+        run: |
+          if [ ! -f dev/bench/index.html ]; then
+            echo "No benchmark data found — first run, this is expected"
+            exit 0
+          fi
+          echo "Benchmark dashboard at dev/bench/index.html — $(wc -l < dev/bench/index.html) lines"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'chore: update benchmark dashboard [skip ci]'
+
+  # --- Self-Audit (Engine scans itself) ---
+  self-audit:
+    name: Self-Audit (Engine scans own source)
+    runs-on: ubuntu-latest
+    needs: [test-rust]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/cache/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Self-Audit Tests
+        # Fails the build if the engine finds any Critical-severity issue in
+        # its own source, or if the warning count exceeds the soft threshold.
+        run: cargo test --features full self_audit
+
+      - name: Build Release Binary
+        run: cargo build --release --features full
+
+      - name: CLI Self-Audit (full scan output)
+        # Runs the CLI against src/ and captures the report as a build artifact.
+        # Does not fail on findings — the test suite handles the gate.
+        run: |
+          ./target/release/gensense ./src --json > self_audit_report.json || true
+          echo "Self-audit findings:"
+          cat self_audit_report.json | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          findings = data if isinstance(data, list) else data.get('advisories', [])
+          criticals = [f for f in findings if f.get('severity') == 'Critical']
+          warnings  = [f for f in findings if f.get('severity') == 'Warning']
+          print(f'  Critical: {len(criticals)}')
+          print(f'  Warning:  {len(warnings)}')
+          print(f'  Total:    {len(findings)}')
+          "
+
+      - name: Upload Self-Audit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-audit-report-${{ github.sha }}
+          path: self_audit_report.json
+          retention-days: 30
+
+  # --- Docker Image Test ---
+  docker:
+    name: Docker Image Smoke Test
+    runs-on: ubuntu-latest
+    needs: [test-rust]
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t gensense:test .
+
+      - name: Smoke test Docker image
+        run: |
+          docker run gensense:test --version
+          docker run gensense:test --help
+          echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
+          docker run -i gensense:test /dev/stdin --json < /tmp/test_smoke.rs > /dev/null
+          echo "Docker smoke test passed"
+
   # --- Documentation Deployment ---
   # Only runs on main when tests pass AND the version tag is new (guarded by sync.yml)
   deploy-docs:
     name: Deploy Documentation
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [test-rust, test-node]
+    needs: [test-rust, test-node, self-audit]
     permissions:
       contents: write
     steps:

@@ -32,7 +32,7 @@ impl GenSenseRule for SolidityReentrancyGuard {
 
         self.scan_node(
             node,
-            context.source_code,
+            context,
             &mut has_call,
             &mut call_pos,
             &mut advisories,
@@ -43,10 +43,10 @@ impl GenSenseRule for SolidityReentrancyGuard {
 }
 
 impl SolidityReentrancyGuard {
-    fn scan_node(
+    fn scan_node<'a>(
         &self,
-        node: Node,
-        _source: &str,
+        node: Node<'a>,
+        context: &GenSenseContext<'a>,
         has_call: &mut bool,
         call_pos: &mut Option<(usize, usize)>,
         advisories: &mut Vec<Advisory>,
@@ -61,21 +61,40 @@ impl SolidityReentrancyGuard {
         }
 
         if kind == "member_expression" {
-            let code = &_source[node.start_byte()..node.end_byte()];
+            let code = &context.source_code[node.start_byte()..node.end_byte()];
             if code.contains(".transfer(") || code.contains(".send(") || code.contains(".call(") {
                 if *has_call {
                     if let Some((r, c)) = *call_pos {
+                        let file_path = context.file_path.to_string_lossy().to_string();
+                        let enclosing_symbol = context
+                            .symbols
+                            .find_function_at(&file_path, r)
+                            .and_then(|idx| context.symbols.graph().get_symbol(idx))
+                            .map(|s| s.name.clone());
+
                         advisories.push(Advisory {
                             rule_id: "SOLIDITY_REENTRANCY_RISK".to_string(),
+                            file_id: context.file_id,
+                            file_path,
                             severity: Severity::Warning,
                             observation: "Potential reentrancy: state-changing call after external transfer detected.".to_string(),
                             impact: "A malicious contract could call back into this one before the state is updated, potentially stealing funds.".to_string(),
                             improvement: "Follow the Checks-Effects-Interactions pattern: update state before making external calls.".to_string(),
-                            line: r,
-                            column: c,
-                            file_path: String::new(),
-                            original_content: String::new(),
+                            line: r as u32,
+                            column: c as u32,
+                            start_byte: node.start_byte() as u32,
+                            end_byte: node.end_byte() as u32,
+                            original_content: context.source_code
+                                [node.start_byte()..node.end_byte()]
+                                .to_string(),
                             proposed_replacement: None,
+                            proposed_import: None,
+                            enclosing_symbol,
+                            confidence: 0.9,
+                            fingerprint: String::new(),
+                            auto_fixable: false,
+                            requires_human: true,
+                            tags: vec![],
                         });
                     }
                 }
@@ -85,7 +104,7 @@ impl SolidityReentrancyGuard {
         let mut cursor = node.walk();
         if cursor.goto_first_child() {
             loop {
-                self.scan_node(cursor.node(), _source, has_call, call_pos, advisories);
+                self.scan_node(cursor.node(), context, has_call, call_pos, advisories);
                 if !cursor.goto_next_sibling() {
                     break;
                 }

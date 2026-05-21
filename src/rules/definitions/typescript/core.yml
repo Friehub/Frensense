@@ -12,6 +12,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.95
+
 - id: TS_DYNAMIC_EXECUTION
   target_ext: ts
   observation: We observed a pattern of dynamic code execution using 'eval()'.
@@ -25,6 +27,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.95
+
 - id: TS_ALIASED_DYNAMIC_EXECUTION
   target_ext: ts
   observation: Aliased dynamic code execution detected.
@@ -38,18 +42,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
-- id: TS_CONSOLE_USAGE
-  target_ext: ts
-  observation: I noticed 'console.log' being used here.
-  impact: Direct console outputs can be tricky to filter in production logs.
-  improvement: Consider using the standard logger (e.g. Pino, Winston) for better
-    observability.
-  on_node: call_expression
-  if_matches: console\.log
-  name: Ts Console Usage
-  severity: Warning
-  tags: []
-  category: Quality
+  confidence: 0.90
+
 - id: TS_BLOCKING_IO
   target_ext: ts
   observation: We observed a synchronous I/O call within a potentially asynchronous
@@ -64,6 +58,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.85
+
 - id: TS_EMPTY_CATCH
   target_ext: ts
   observation: Hey, it looks like this catch block is empty.
@@ -77,6 +73,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: TS_NON_NULL_ASSERTION
   target_ext: ts
   observation: We noticed a non-null assertion (!) being used.
@@ -89,31 +87,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
-- id: TS_MAGIC_NUMBER
-  target_ext: ts
-  observation: We noticed a raw numeric literal (magic number) being used.
-  impact: Magic numbers make code harder to read and maintain as their intent is not
-    immediately clear.
-  improvement: We recommend defining a named constant (e.g., const MAX_RETRIES = 3;)
-    for better clarity.
-  on_node: (number) @node
-  if_matches: ^[0-9]{3,}$
-  name: Ts Magic Number
-  severity: Warning
-  tags: []
-  category: Maintainability
-- id: TS_ANY_TYPE
-  target_ext: ts
-  observation: I spotted an 'any' type annotation.
-  impact: Using 'any' completely disables TypeScript's safety checks for that variable.
-  improvement: Consider using 'unknown' and narrowing the type, or defining a strict
-    interface.
-  on_node: '[ (type_identifier) (predefined_type) ] @node'
-  if_matches: any
-  name: Ts Any Type
-  severity: Warning
-  tags: []
-  category: Quality
+  confidence: 0.90
+
 - id: TS_REACT_HOOK_DEPS
   target_ext: tsx
   observation: I noticed a 'useEffect' hook with an empty dependency array [].
@@ -127,6 +102,8 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  confidence: 0.85
+
 - id: TS_BUNDLE_BLOAT
   target_ext: ts
   observation: Hey, it looks like a heavy library is being imported entirely using
@@ -141,6 +118,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  confidence: 0.85
+
 - id: TS_ASYNC_FOR_EACH
   target_ext: ts
   observation: I noticed a '.forEach' call with an 'async' callback.
@@ -154,6 +133,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.90
+
 - id: TS_SENSITIVE_DATA_LOGGING
   target_ext: ts
   observation: I noticed a logging call that seems to include sensitive keywords (password,
@@ -168,6 +149,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.65
+
 - id: TS_DATA_LEAK_TRACKER
   target_ext: ts
   observation: Sensitive data flow into unsafe sink detected via Taint Analysis
@@ -181,6 +164,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  confidence: 0.85
+
 - id: TS_FLOATING_PROMISE
   target_ext: ts
   observation: A promise-returning call is made without an 'await'.
@@ -193,3 +178,32 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
+  confidence: 0.85
+
+- id: TS_SSRF_VULNERABILITY
+  target_ext: ts|js
+  observation: 'SSRF Vulnerability: User input flows directly into a network sink.'
+  impact: Allows attackers to make arbitrary requests from the backend.
+  improvement: Sanitize the input or use an allowlist.
+  on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
+  source_pattern: (req|request)\.(query|body|params)
+  sink_pattern: ^(fetch|axios)$
+  name: TS SSRF Vulnerability
+  severity: Critical
+  tags: [security]
+  category: Security
+  confidence: 0.90
+
+- id: TS_UNAWAITED_TEST_ASSERTION
+  target_ext: ts|js|tsx|jsx
+  observation: 'Unawaited test assertion detected.'
+  impact: The test will silently pass even if the assertion fails.
+  improvement: Add `await` before the assertion.
+  on_node: expression_statement
+  if_matches: expect\(.*(\.resolves|\.rejects)
+  must_contain: await
+  name: TS Unawaited Test Assertion
+  severity: Critical
+  tags: [reliability]
+  category: Reliability
+  confidence: 0.90

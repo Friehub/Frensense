@@ -3,18 +3,23 @@
 use crate::rules::core::CoreRule;
 use crate::rules::ir::{AstQuery, CoreRuleIr, FlowConstraint};
 
-/// The GenSense Rule Compiler.
+/// The `GenSense` Rule Compiler.
 pub struct RuleCompiler;
 
 impl RuleCompiler {
+    /// Compiles a DSL rule into its Internal Representation (IR).
+    ///
+    /// # Errors
+    /// Returns an error if the regex patterns in the rule are invalid.
+    #[allow(clippy::too_many_lines)]
     pub fn compile(dsl: CoreRule) -> crate::Result<CoreRuleIr> {
         let mut match_queries = Vec::new();
         let mut flow_constraints = Vec::new();
 
-        if dsl.on_node.contains(" ") || dsl.on_node.contains("(") {
+        if dsl.on_node.contains(' ') || dsl.on_node.contains('(') {
             match_queries.push(AstQuery {
                 selector: dsl.on_node.clone(),
-                capture_name: "node".to_string(),
+                _capture_name: "node".to_string(),
             });
         } else {
             let kinds: Vec<String> = dsl.on_node.split('|').map(|s| format!("({s})")).collect();
@@ -25,7 +30,7 @@ impl RuleCompiler {
             };
             match_queries.push(AstQuery {
                 selector: query,
-                capture_name: "node".to_string(),
+                _capture_name: "node".to_string(),
             });
         }
 
@@ -36,8 +41,31 @@ impl RuleCompiler {
             });
         }
 
+        if let (Some(src_re), Some(sink_re)) =
+            (dsl.forbidden_source_pattern, dsl.forbidden_sink_pattern)
+        {
+            flow_constraints.push(FlowConstraint::TaintForbidden {
+                source: src_re,
+                sink: sink_re,
+            });
+        }
+
         if let Some(scope) = dsl.within_scope {
-            flow_constraints.push(FlowConstraint::ScopeConstraint { pattern: scope });
+            let re = regex::Regex::new(&scope)
+                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+            flow_constraints.push(FlowConstraint::ScopeConstraint {
+                pattern: re,
+                invert: false,
+            });
+        }
+
+        if let Some(scope) = dsl.outside_scope {
+            let re = regex::Regex::new(&scope)
+                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+            flow_constraints.push(FlowConstraint::ScopeConstraint {
+                pattern: re,
+                invert: true,
+            });
         }
 
         if let Some(temp) = dsl.temporal {
@@ -50,8 +78,19 @@ impl RuleCompiler {
             }
 
             let behavior = match temp.behavior.as_str() {
-                "must_follow" => crate::rules::ir::TemporalBehavior::MustFollow,
                 "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
+                "forbidden_between" => {
+                    if sequence.len() == 2 {
+                        crate::rules::ir::TemporalBehavior::ForbiddenBetween(
+                            sequence[0].clone(),
+                            sequence[1].clone(),
+                        )
+                    } else {
+                        return Err(crate::GenSenseError::Pattern(
+                            "forbidden_between requires exactly 2 elements in sequence".to_string(),
+                        ));
+                    }
+                }
                 _ => crate::rules::ir::TemporalBehavior::MustFollow,
             };
             flow_constraints.push(FlowConstraint::Temporal { sequence, behavior });
@@ -59,8 +98,23 @@ impl RuleCompiler {
 
         let use_query = dsl.use_query.unwrap_or_else(|| {
             // Default heuristic if not explicitly specified
-            !dsl.on_node.contains('|') && dsl.on_node.contains(' ')
+            dsl.on_node.contains('(') || (!dsl.on_node.contains('|') && dsl.on_node.contains(' '))
         });
+
+        let fix_pattern = if let Some(pat) = dsl.fix_pattern {
+            Some(
+                regex::Regex::new(&pat)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+            )
+        } else {
+            None
+        };
+
+        let target_kinds: Vec<String> = dsl
+            .on_node
+            .split('|')
+            .map(|s| s.trim().to_string())
+            .collect();
 
         Ok(CoreRuleIr {
             metadata: dsl.metadata,
@@ -72,7 +126,18 @@ impl RuleCompiler {
             max_lines: dsl.max_lines,
             max_depth: dsl.max_depth,
             target_ext: dsl.target_ext,
+            target_kinds,
             use_query,
+            fix_pattern,
+            fix_template: dsl.fix_with,
+            inject_import: dsl.inject_import,
+            if_name_matches: dsl.if_name_matches,
+            body_must_contain: dsl.body_must_contain,
+            body_may_delegate_via: dsl.body_may_delegate_via,
+            body_must_contain_any_of: dsl.body_must_contain_any_of,
+            must_be_preceded_by: dsl.must_be_preceded_by,
+            auto_fixable: dsl.auto_fixable,
+            requires_human: dsl.requires_human,
         })
     }
 }
@@ -83,6 +148,10 @@ use crate::rules::ir::{ProjectFlowConstraint, ProjectRuleIr};
 pub struct ProjectRuleCompiler;
 
 impl ProjectRuleCompiler {
+    /// Compiles a project-level DSL rule into its Internal Representation (IR).
+    ///
+    /// # Errors
+    /// Returns an error if the regex patterns or file globs in the rule are invalid.
     pub fn compile(dsl: ProjectCoreRule) -> crate::Result<ProjectRuleIr> {
         let mut constraints = Vec::new();
 
@@ -114,6 +183,69 @@ impl ProjectRuleCompiler {
                     .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
                 sink_re: regex::Regex::new(&taint.sink_pattern)
                     .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+            });
+        }
+
+        if let Some(taint) = dsl.global_data_flow {
+            constraints.push(ProjectFlowConstraint::GlobalDataFlow {
+                source_pattern: regex::Regex::new(&taint.source_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                sink_pattern: regex::Regex::new(&taint.sink_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+            });
+        }
+
+        let schema_contract_present = dsl.source_pattern.is_some()
+            || dsl.source_ext.is_some()
+            || dsl.source_file_glob.is_some()
+            || dsl.schema_type.is_some()
+            || dsl.schema_glob.is_some()
+            || dsl.schema_extract.is_some();
+
+        if schema_contract_present {
+            let source_pattern = dsl.source_pattern.as_ref().ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require source_pattern".to_string(),
+                )
+            })?;
+            let schema_type = dsl.schema_type.ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require schema_type".to_string(),
+                )
+            })?;
+            let schema_glob = dsl.schema_glob.as_ref().ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require schema_glob".to_string(),
+                )
+            })?;
+            let schema_extract = dsl.schema_extract.ok_or_else(|| {
+                crate::GenSenseError::Config(
+                    "schema contract rules require schema_extract".to_string(),
+                )
+            })?;
+
+            let source_file_glob = if let Some(glob) = dsl.source_file_glob.as_ref() {
+                glob::Pattern::new(glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?
+            } else if let Some(source_ext) = dsl.source_ext.as_ref() {
+                let ext = source_ext.trim().trim_start_matches('.');
+                glob::Pattern::new(&format!("**/*.{ext}"))
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?
+            } else {
+                return Err(crate::GenSenseError::Config(
+                    "schema contract rules require either source_file_glob or source_ext"
+                        .to_string(),
+                ));
+            };
+
+            constraints.push(ProjectFlowConstraint::SchemaContract {
+                source_capture_re: regex::Regex::new(source_pattern)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                source_file_glob,
+                schema_type,
+                schema_file_glob: glob::Pattern::new(schema_glob)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                schema_extract,
             });
         }
 

@@ -3,7 +3,7 @@
 use crate::semantics::symbols::Symbol;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// The type of relationship between two semantic symbols.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub enum EdgeKind {
     Parameter,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EventType {
     Acquire,
     Release,
@@ -44,51 +44,65 @@ pub enum SemanticNode {
     Event(TemporalEvent),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SemanticNodeId(pub(crate) NodeIndex);
+
 /// A directed graph representing the semantic structure of the codebase.
 #[derive(Default)]
 pub struct SemanticGraph {
-    pub graph: DiGraph<SemanticNode, EdgeKind>,
-    pub name_index: HashMap<String, Vec<NodeIndex>>,
+    graph: DiGraph<SemanticNode, EdgeKind>,
+    name_index: HashMap<String, Vec<NodeIndex>>,
 }
 
 impl SemanticGraph {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_symbol(&mut self, symbol: Symbol) -> NodeIndex {
+    pub fn add_symbol(&mut self, symbol: Symbol) -> SemanticNodeId {
         let name = symbol.name.clone();
         let idx = self.graph.add_node(SemanticNode::Declaration(symbol));
         self.name_index.entry(name).or_default().push(idx);
-        idx
+        SemanticNodeId(idx)
     }
 
-    pub fn add_event(&mut self, event: TemporalEvent) -> NodeIndex {
+    pub fn add_event(&mut self, event: TemporalEvent) -> SemanticNodeId {
         let label = event.label.clone();
         let idx = self.graph.add_node(SemanticNode::Event(event));
         self.name_index.entry(label).or_default().push(idx);
-        idx
+        SemanticNodeId(idx)
     }
 
-    pub fn add_edge(&mut self, from: NodeIndex, to: NodeIndex, kind: EdgeKind) {
-        self.graph.add_edge(from, to, kind);
+    pub fn add_edge(&mut self, from: SemanticNodeId, to: SemanticNodeId, kind: EdgeKind) {
+        self.graph.add_edge(from.0, to.0, kind);
     }
 
-    pub fn find_nodes(&self, name: &str) -> Vec<NodeIndex> {
-        self.name_index.get(name).cloned().unwrap_or_default()
+    #[must_use]
+    pub fn find_nodes(&self, name: &str) -> Vec<SemanticNodeId> {
+        self.name_index
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(SemanticNodeId)
+            .collect()
     }
 
-    pub fn get_node(&self, idx: NodeIndex) -> Option<&SemanticNode> {
-        self.graph.node_weight(idx)
+    #[must_use]
+    pub fn get_node(&self, id: SemanticNodeId) -> Option<&SemanticNode> {
+        self.graph.node_weight(id.0)
     }
 
-    pub fn get_symbol(&self, idx: NodeIndex) -> Option<&Symbol> {
-        match self.graph.node_weight(idx) {
+    #[must_use]
+    pub fn get_symbol(&self, id: SemanticNodeId) -> Option<&Symbol> {
+        match self.graph.node_weight(id.0) {
             Some(SemanticNode::Declaration(s)) => Some(s),
             _ => None,
         }
     }
 
+    #[must_use]
     pub fn all_symbols(&self) -> Vec<&Symbol> {
         self.graph
             .node_weights()
@@ -102,34 +116,52 @@ impl SemanticGraph {
             .collect()
     }
 
-    pub fn find_node(&self, name: &str, file: &str, line: usize) -> Option<NodeIndex> {
-        self.find_nodes(name).into_iter().find(|&idx| {
-            if let Some(SemanticNode::Declaration(s)) = self.get_node(idx) {
-                s.file_path == file && s.line == line
-            } else {
-                false
-            }
-        })
+    #[must_use]
+    pub fn find_node(&self, name: &str, file: &str, line: usize) -> Option<SemanticNodeId> {
+        self.name_index
+            .get(name)
+            .and_then(|indices| {
+                indices.iter().find(|&&idx| {
+                    if let Some(SemanticNode::Declaration(s)) = self.get_node(SemanticNodeId(idx)) {
+                        s.file_path == file && s.line == line
+                    } else {
+                        false
+                    }
+                })
+            })
+            .copied()
+            .map(SemanticNodeId)
     }
 
-    pub fn neighbors_of(&self, idx: NodeIndex, kind: EdgeKind) -> Vec<NodeIndex> {
+    #[must_use]
+    pub fn neighbors_of(&self, id: SemanticNodeId, kind: EdgeKind) -> Vec<SemanticNodeId> {
         self.graph
-            .edges(idx)
+            .edges(id.0)
             .filter(|e| *e.weight() == kind)
-            .map(|e| e.target())
+            .map(|e| SemanticNodeId(e.target()))
             .collect()
     }
 
-    pub fn ordered_events_in_scope(&self, scope_idx: NodeIndex) -> Vec<TemporalEvent> {
+    #[must_use]
+    pub fn incoming_neighbors_of(&self, id: SemanticNodeId, kind: EdgeKind) -> Vec<SemanticNodeId> {
+        self.graph
+            .edges_directed(id.0, petgraph::Direction::Incoming)
+            .filter(|e| *e.weight() == kind)
+            .map(|e| SemanticNodeId(e.source()))
+            .collect()
+    }
+
+    #[must_use]
+    pub fn ordered_events_in_scope(&self, scope_id: SemanticNodeId) -> Vec<TemporalEvent> {
         let mut events = Vec::new();
-        let event_indices: Vec<NodeIndex> = self
-            .neighbors_of(scope_idx, EdgeKind::InScope)
+        let event_ids: Vec<SemanticNodeId> = self
+            .neighbors_of(scope_id, EdgeKind::InScope)
             .into_iter()
-            .filter(|&idx| matches!(self.get_node(idx), Some(SemanticNode::Event(_))))
+            .filter(|&id| matches!(self.get_node(id), Some(SemanticNode::Event(_))))
             .collect();
 
         let event_set: std::collections::HashSet<NodeIndex> =
-            event_indices.iter().copied().collect();
+            event_ids.iter().map(|id| id.0).collect();
 
         let mut starts: Vec<_> = event_set
             .iter()
@@ -147,8 +179,8 @@ impl SemanticGraph {
 
         if starts.len() > 1 {
             starts.sort_by(|a, b| {
-                let node_a = self.get_node(*a);
-                let node_b = self.get_node(*b);
+                let node_a = self.get_node(SemanticNodeId(*a));
+                let node_b = self.get_node(SemanticNodeId(*b));
                 match (node_a, node_b) {
                     (Some(SemanticNode::Event(ea)), Some(SemanticNode::Event(eb))) => {
                         ea.line.cmp(&eb.line).then(ea.column.cmp(&eb.column))
@@ -157,13 +189,13 @@ impl SemanticGraph {
                 }
             });
         }
-        let mut current = starts.first().copied();
+        let mut queue: std::collections::VecDeque<_> = starts.into_iter().collect();
         let mut visited = std::collections::HashSet::new();
-        while let Some(idx) = current {
+        while let Some(idx) = queue.pop_front() {
             if !visited.insert(idx) {
-                break;
+                continue;
             }
-            if let Some(SemanticNode::Event(ev)) = self.get_node(idx) {
+            if let Some(SemanticNode::Event(ev)) = self.get_node(SemanticNodeId(idx)) {
                 events.push(ev.clone());
             }
             let mut next_edges: Vec<_> = self
@@ -175,8 +207,8 @@ impl SemanticGraph {
                 .collect();
             if next_edges.len() > 1 {
                 next_edges.sort_by(|a, b| {
-                    let node_a = self.get_node(a.target());
-                    let node_b = self.get_node(b.target());
+                    let node_a = self.get_node(SemanticNodeId(a.target()));
+                    let node_b = self.get_node(SemanticNodeId(b.target()));
                     match (node_a, node_b) {
                         (Some(SemanticNode::Event(ea)), Some(SemanticNode::Event(eb))) => {
                             ea.line.cmp(&eb.line).then(ea.column.cmp(&eb.column))
@@ -185,8 +217,38 @@ impl SemanticGraph {
                     }
                 });
             }
-            current = next_edges.first().map(|e| e.target());
+            for e in next_edges {
+                queue.push_back(e.target());
+            }
         }
         events
+    }
+
+    #[must_use]
+    pub fn has_call_path(
+        &self,
+        from_nodes: &[SemanticNodeId],
+        to_nodes: &[SemanticNodeId],
+    ) -> bool {
+        let to_nodes: HashSet<_> = to_nodes.iter().map(|id| id.0).collect();
+
+        for from in from_nodes {
+            let mut visited = HashSet::new();
+            let mut stack = vec![from.0];
+            visited.insert(from.0);
+
+            while let Some(current) = stack.pop() {
+                if to_nodes.contains(&current) {
+                    return true;
+                }
+
+                for edge in self.graph.edges(current) {
+                    if *edge.weight() == EdgeKind::Calls && visited.insert(edge.target()) {
+                        stack.push(edge.target());
+                    }
+                }
+            }
+        }
+        false
     }
 }

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::engine::auditor::GenSenseAuditor;
 use gensense::engine::project::Engine;
 use std::fs;
 use tempfile::tempdir;
@@ -18,7 +17,7 @@ fn test_e2e_user_yaml_rule_loaded() {
 rules:
   - id: CUSTOM_TODO
     name: Custom Todo
-    domain: quality
+    category: quality
     severity: Info
     target_ext: "rs"
     on_node: "macro_invocation"
@@ -26,7 +25,6 @@ rules:
     observation: "Found a todo!"
     impact: "Impact"
     improvement: "Improvement"
-    category: "Test"
     tags: []
 "#;
     fs::write(rules_dir.join("custom.yml"), custom_rule).unwrap();
@@ -36,7 +34,7 @@ rules:
     fs::write(&rs_file, "fn main() { todo!(); }").unwrap();
 
     // 3. Run engine
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     let has_custom = advisories.iter().any(|a| a.rule_id == "CUSTOM_TODO");
@@ -56,7 +54,7 @@ fn test_e2e_suppress_file_respected() {
     fs::write(&rs_file, "fn main() { panic!(\"error\"); }").unwrap();
 
     // 2. Verify it fires without suppression
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
     assert!(advisories.iter().any(|a| a.rule_id == "RUST_PANIC_IN_LIB"));
 
@@ -70,7 +68,7 @@ suppressions:
     fs::write(suppress_file, suppress_content).unwrap();
 
     // 4. Run again
-    let mut engine2 = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine2 = Engine::new();
     let advisories2 = engine2.run(root).unwrap();
     let has_panic = advisories2.iter().any(|a| a.rule_id == "RUST_PANIC_IN_LIB");
     assert!(
@@ -88,10 +86,10 @@ fn test_e2e_severity_override() {
     let config_dir = root.join(".gensense");
     fs::create_dir_all(&config_dir).unwrap();
 
-    let config_content = r#"
+    let config_content = r"
 severity_override:
   RUST_PANIC_IN_LIB: Critical
-"#;
+";
     fs::write(config_dir.join("config.yml"), config_content).unwrap();
 
     // 2. Create violation
@@ -99,7 +97,7 @@ severity_override:
     fs::write(&rs_file, "fn main() { panic!(\"error\"); }").unwrap();
 
     // 3. Run engine
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     let panic_adv = advisories
@@ -147,7 +145,7 @@ project_rules:
     )
     .unwrap();
 
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     assert!(
@@ -193,14 +191,14 @@ project_rules:
     // Disable it via config
     fs::write(
         config_dir.join("config.yml"),
-        r#"
+        r"
 disabled_rules:
   - MUST_HAVE_AUTH
-"#,
+",
     )
     .unwrap();
 
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     assert!(
@@ -242,14 +240,14 @@ project_rules:
     .unwrap();
     fs::write(
         config_dir.join("config.yml"),
-        r#"
+        r"
 severity_override:
   MUST_HAVE_AUTH: Warning
-"#,
+",
     )
     .unwrap();
 
-    let mut engine = Engine::new(GenSenseAuditor::default_auditor());
+    let mut engine = Engine::new();
     let advisories = engine.run(root).unwrap();
 
     let adv = advisories
@@ -262,4 +260,51 @@ severity_override:
         gensense::Severity::Warning,
         "Severity should be overridden to Warning"
     );
+}
+
+#[test]
+fn test_cli_json_output() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    // Write a simple rust file to trigger some advisory
+    fs::write(root.join("main.rs"), "fn main() { panic!(\"test\"); }").unwrap();
+
+    let output = std::process::Command::new("cargo")
+        .args([
+            "run",
+            "--bin",
+            "gensense",
+            "--features",
+            "cli",
+            "--",
+            root.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .expect("failed to execute gensense");
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    println!("STDOUT: {stdout}");
+    println!("STDERR: {stderr}");
+
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON output");
+    assert_eq!(
+        parsed.get("clean").and_then(serde_json::Value::as_bool),
+        Some(false)
+    );
+    assert!(
+        parsed
+            .get("advisory_count")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap()
+            >= 1
+    );
+
+    let advisories = parsed
+        .get("advisories")
+        .and_then(|v| v.as_array())
+        .expect("advisories list");
+    assert!(!advisories.is_empty());
 }

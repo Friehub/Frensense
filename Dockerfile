@@ -1,5 +1,5 @@
 # --- Build Stage ---
-FROM rust:1.75-slim-bookworm AS builder
+FROM rust:slim-bookworm AS builder
 
 WORKDIR /usr/src/gensense
 COPY . .
