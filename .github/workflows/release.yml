@@ -292,7 +292,7 @@ jobs:
 
       - name: Generate Rule Docs
         run: |
-          cargo run --features cli -- --generate-docs
+          cargo run --bin gensense --features cli -- --generate-docs
 
       - name: Test NPM package before publish
         run: |
