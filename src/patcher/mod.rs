@@ -37,34 +37,34 @@ impl PatchManager {
 
         // Extract the path between quotes
         if let Some(start_quote) = import_stmt.find('\'').or_else(|| import_stmt.find('\"')) {
-            if let Some(end_quote) = import_stmt.rfind('\'').or_else(|| import_stmt.rfind('\"')) {
-                if start_quote < end_quote {
-                    let logical_path = &import_stmt[start_quote + 1..end_quote];
-                    if logical_path.contains("{{root}}") {
-                        let resolved_root =
-                            logical_path.replace("{{root}}", self.root_dir.to_str().unwrap_or(""));
-                        let target = PathBuf::from(&resolved_root);
+            if let Some(end_quote) = import_stmt.rfind('\'').or_else(|| import_stmt.rfind('\"'))
+                && start_quote < end_quote
+            {
+                let logical_path = &import_stmt[start_quote + 1..end_quote];
+                if logical_path.contains("{{root}}") {
+                    let resolved_root =
+                        logical_path.replace("{{root}}", self.root_dir.to_str().unwrap_or(""));
+                    let target = PathBuf::from(&resolved_root);
 
-                        let absolute_from = if from_file.is_absolute() {
-                            from_file.to_path_buf()
-                        } else {
-                            self.root_dir.join(from_file)
-                        };
+                    let absolute_from = if from_file.is_absolute() {
+                        from_file.to_path_buf()
+                    } else {
+                        self.root_dir.join(from_file)
+                    };
 
-                        let from_dir = absolute_from.parent().unwrap_or(&absolute_from);
+                    let from_dir = absolute_from.parent().unwrap_or(&absolute_from);
 
-                        if let Some(rel_path) = pathdiff::diff_paths(&target, from_dir) {
-                            let mut s = rel_path.to_string_lossy().to_string();
-                            if !s.starts_with('.') {
-                                s = format!("./{s}");
-                            }
-                            final_stmt = format!(
-                                "{}{}{}",
-                                &import_stmt[..=start_quote],
-                                s,
-                                &import_stmt[end_quote..]
-                            );
+                    if let Some(rel_path) = pathdiff::diff_paths(&target, from_dir) {
+                        let mut s = rel_path.to_string_lossy().to_string();
+                        if !s.starts_with('.') {
+                            s = format!("./{s}");
                         }
+                        final_stmt = format!(
+                            "{}{}{}",
+                            &import_stmt[..=start_quote],
+                            s,
+                            &import_stmt[end_quote..]
+                        );
                     }
                 }
             }

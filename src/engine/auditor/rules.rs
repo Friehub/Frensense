@@ -21,13 +21,13 @@ struct RulesWrapper {
 
 impl RulesWrapper {
     fn check_version(&self) {
-        if let Some(ref ver) = self.version {
-            if ver != "0.3.0" {
-                tracing::warn!(
-                    "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
-                    ver
-                );
-            }
+        if let Some(ref ver) = self.version
+            && ver != "0.3.0"
+        {
+            tracing::warn!(
+                "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
+                ver
+            );
         }
     }
 }
@@ -124,27 +124,26 @@ impl GenSenseAuditor {
         let local_rules_path = Path::new("src/rules/definitions");
         if local_rules_path.exists() && local_rules_path.is_dir() {
             for e in WalkDir::new(local_rules_path).into_iter().flatten() {
-                if e.path().extension().and_then(|s| s.to_str()) == Some("yml") {
-                    if let Ok(content) = std::fs::read_to_string(e.path()) {
-                        if let Ok(wrapper) = serde_yaml::from_str::<RulesWrapper>(&content) {
-                            wrapper.check_version();
-                            for dsl_rule in wrapper.rules {
-                                if let Ok(compiled) =
-                                    crate::rules::compiler::RuleCompiler::compile(dsl_rule)
-                                {
-                                    rules.push(Box::new(compiled));
-                                }
-                            }
-                            for p_rule in wrapper.project_rules {
-                                if let Ok(compiled) =
-                                    crate::rules::compiler::ProjectRuleCompiler::compile(p_rule)
-                                {
-                                    project_rules.push(Box::new(compiled));
-                                }
-                            }
-                            yaml_rules_loaded = true;
+                if e.path().extension().and_then(|s| s.to_str()) == Some("yml")
+                    && let Ok(content) = std::fs::read_to_string(e.path())
+                    && let Ok(wrapper) = serde_yaml::from_str::<RulesWrapper>(&content)
+                {
+                    wrapper.check_version();
+                    for dsl_rule in wrapper.rules {
+                        if let Ok(compiled) =
+                            crate::rules::compiler::RuleCompiler::compile(dsl_rule)
+                        {
+                            rules.push(Box::new(compiled));
                         }
                     }
+                    for p_rule in wrapper.project_rules {
+                        if let Ok(compiled) =
+                            crate::rules::compiler::ProjectRuleCompiler::compile(p_rule)
+                        {
+                            project_rules.push(Box::new(compiled));
+                        }
+                    }
+                    yaml_rules_loaded = true;
                 }
             }
         }

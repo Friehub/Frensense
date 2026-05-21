@@ -159,19 +159,19 @@ impl GenSenseAuditor {
         content: &str,
         registry: &mut SymbolRegistry,
     ) {
-        if let Some(func) = self.find_enclosing_function(node) {
-            if let Some(name_node) = func.child_by_field_name("name") {
-                let name = &content[name_node.start_byte()..name_node.end_byte()];
-                for &func_idx in &registry.graph().find_nodes(name) {
-                    if let Some(sym) = registry.graph().get_symbol(func_idx) {
-                        if sym.file_path == path.to_string_lossy() {
-                            registry.graph_mut().add_edge(
-                                func_idx,
-                                event_idx,
-                                crate::semantics::graph::EdgeKind::InScope,
-                            );
-                        }
-                    }
+        if let Some(func) = self.find_enclosing_function(node)
+            && let Some(name_node) = func.child_by_field_name("name")
+        {
+            let name = &content[name_node.start_byte()..name_node.end_byte()];
+            for &func_idx in &registry.graph().find_nodes(name) {
+                if let Some(sym) = registry.graph().get_symbol(func_idx)
+                    && sym.file_path == path.to_string_lossy()
+                {
+                    registry.graph_mut().add_edge(
+                        func_idx,
+                        event_idx,
+                        crate::semantics::graph::EdgeKind::InScope,
+                    );
                 }
             }
         }
@@ -197,12 +197,12 @@ impl GenSenseAuditor {
                         if let Some(f) = v.child_by_field_name("function") {
                             val_name = &content[f.start_byte()..f.end_byte()];
                         }
-                    } else if v.kind() == "macro_invocation" {
-                        if let Some(m) = v.child_by_field_name("macro") {
-                            val_name = &content[m.start_byte()..m.end_byte()];
-                            if val_name.ends_with('!') {
-                                val_name = &val_name[..val_name.len() - 1];
-                            }
+                    } else if v.kind() == "macro_invocation"
+                        && let Some(m) = v.child_by_field_name("macro")
+                    {
+                        val_name = &content[m.start_byte()..m.end_byte()];
+                        if val_name.ends_with('!') {
+                            val_name = &val_name[..val_name.len() - 1];
                         }
                     }
 

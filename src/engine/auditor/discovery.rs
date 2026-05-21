@@ -125,14 +125,14 @@ impl GenSenseAuditor {
                     _ => continue,
                 };
 
-                if let Some(func) = self.find_enclosing_function(call_node) {
-                    if let Some(name_node) = func.child_by_field_name("name") {
-                        let caller_name = match name_node.utf8_text(content.as_bytes()) {
-                            Ok(s) if !s.is_empty() => s,
-                            _ => continue,
-                        };
-                        edges.push((caller_name.to_string(), call_name.to_string()));
-                    }
+                if let Some(func) = self.find_enclosing_function(call_node)
+                    && let Some(name_node) = func.child_by_field_name("name")
+                {
+                    let caller_name = match name_node.utf8_text(content.as_bytes()) {
+                        Ok(s) if !s.is_empty() => s,
+                        _ => continue,
+                    };
+                    edges.push((caller_name.to_string(), call_name.to_string()));
                 }
             }
         }
@@ -191,22 +191,22 @@ impl GenSenseAuditor {
                 let idx = registry
                     .graph()
                     .find_node(&sym.name, &sym.file_path, sym.line);
-                if let (Some(idx), Some(func)) = (idx, self.find_enclosing_function(node)) {
-                    if let Some(fname_node) = func.child_by_field_name("name") {
-                        let fname = match fname_node.utf8_text(content.as_bytes()) {
-                            Ok(s) if !s.is_empty() => s,
-                            _ => return,
-                        };
-                        for &f_idx in &registry.graph().find_nodes(fname) {
-                            if let Some(fsym) = registry.graph().get_symbol(f_idx) {
-                                if fsym.file_path == path_str {
-                                    let kind = match node.kind() {
-                                        "parameter" => crate::semantics::graph::EdgeKind::Parameter,
-                                        _ => crate::semantics::graph::EdgeKind::InScope,
-                                    };
-                                    registry.graph_mut().add_edge(f_idx, idx, kind);
-                                }
-                            }
+                if let (Some(idx), Some(func)) = (idx, self.find_enclosing_function(node))
+                    && let Some(fname_node) = func.child_by_field_name("name")
+                {
+                    let fname = match fname_node.utf8_text(content.as_bytes()) {
+                        Ok(s) if !s.is_empty() => s,
+                        _ => return,
+                    };
+                    for &f_idx in &registry.graph().find_nodes(fname) {
+                        if let Some(fsym) = registry.graph().get_symbol(f_idx)
+                            && fsym.file_path == path_str
+                        {
+                            let kind = match node.kind() {
+                                "parameter" => crate::semantics::graph::EdgeKind::Parameter,
+                                _ => crate::semantics::graph::EdgeKind::InScope,
+                            };
+                            registry.graph_mut().add_edge(f_idx, idx, kind);
                         }
                     }
                 }

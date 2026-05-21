@@ -19,13 +19,13 @@ struct RulesWrapper {
 
 impl RulesWrapper {
     fn check_version(&self) {
-        if let Some(ref ver) = self.version {
-            if ver != "0.3.0" {
-                tracing::warn!(
-                    "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
-                    ver
-                );
-            }
+        if let Some(ref ver) = self.version
+            && ver != "0.3.0"
+        {
+            tracing::warn!(
+                "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
+                ver
+            );
         }
     }
 }

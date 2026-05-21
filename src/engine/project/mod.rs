@@ -281,12 +281,11 @@ impl Engine {
         }
 
         let suppress_file = root.join(".gensense-suppress.yml");
-        if suppress_file.exists() {
-            if let Ok(content) = std::fs::read_to_string(suppress_file) {
-                if let Ok(supp_config) = serde_yaml::from_str::<SuppressConfig>(&content) {
-                    self.auditor.set_suppressions(supp_config);
-                }
-            }
+        if suppress_file.exists()
+            && let Ok(content) = std::fs::read_to_string(suppress_file)
+            && let Ok(supp_config) = serde_yaml::from_str::<SuppressConfig>(&content)
+        {
+            self.auditor.set_suppressions(supp_config);
         }
         config
     }
