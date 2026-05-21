@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779397691999,
+  "lastUpdate": 1779399575537,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -683,6 +683,176 @@ window.BENCHMARK_DATA = {
             "name": "fingerprinting/advisory_fuzzy_identity",
             "value": 69.72992254574861,
             "range": "0.47660039196545895",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Friehub",
+            "username": "Friehub"
+          },
+          "committer": {
+            "name": "Friehub",
+            "username": "Friehub"
+          },
+          "id": "ee66796b30e4d3e4b800c28fe26a919d7fa82710",
+          "message": "Merge v0.3.0",
+          "timestamp": "2026-05-21T20:53:20Z",
+          "url": "https://github.com/Friehub/gensense/pull/27/commits/ee66796b30e4d3e4b800c28fe26a919d7fa82710"
+        },
+        "date": 1779399574325,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 15963793.25,
+            "range": "164409.77355614305",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 15945227.625,
+            "range": "146080.20475655794",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 16243011.25,
+            "range": "83131.7897491157",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 16896256.125,
+            "range": "534535.6678850949",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 17953646.75,
+            "range": "603122.2252674401",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 132671550,
+            "range": "1691927.522662282",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 567524693.5,
+            "range": "4812870.890754461",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1107918085,
+            "range": "7098590.822374821",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2180976786.5,
+            "range": "13485991.780775785",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 15909828.75,
+            "range": "28125.66280066967",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 16258976.25,
+            "range": "47972.30202332139",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 16797827.875,
+            "range": "82732.41438120604",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 17361992.875,
+            "range": "31489.49681594968",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 46044.33592132505,
+            "range": "68.7027019405059",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 54113.861802549305,
+            "range": "96.73507035083597",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 5812707.333333334,
+            "range": "26639.603427053647",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 97.6458692309728,
+            "range": "0.17434194670631625",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 47.77579819349853,
+            "range": "0.10470557675151637",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 48.53185262741818,
+            "range": "0.09048665406396181",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 48.15248852878052,
+            "range": "0.08869498259636514",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 51.78934347439273,
+            "range": "0.150581517431754",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 48.16841511693809,
+            "range": "0.09830633292044087",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 50.94330973027584,
+            "range": "0.13747016741243218",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 52.9979563773272,
+            "range": "0.63229067334566",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 69.95444618725868,
+            "range": "0.08432343865486956",
             "unit": "ns"
           }
         ]
