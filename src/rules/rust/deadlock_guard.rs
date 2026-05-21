@@ -71,37 +71,6 @@ impl DeadlockGuard {
 }
 
 fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
-    let mut cursor = node.walk();
-    let mut stack = vec![node];
-
-    while let Some(current) = stack.pop() {
-        if current.start_byte() >= before_byte {
-            continue;
-        }
-
-        if current.kind() == "call_expression" {
-            if let Some(f) = current.child_by_field_name("function") {
-                let code = &source[f.start_byte()..f.end_byte()];
-                if code.contains(".lock") {
-                    return true;
-                }
-            }
-        }
-
-        cursor.reset(current);
-        if cursor.goto_first_child() {
-            loop {
-                stack.push(cursor.node());
-                if !cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
-    }
-    false
-}
-
-fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
     if node.kind() == "call_expression" {
         if let Some(f) = node.child_by_field_name("function") {
             let code = &source[f.start_byte()..f.end_byte()];
