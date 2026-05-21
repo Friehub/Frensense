@@ -25,6 +25,7 @@ required-features = ["cli"]
 [[bin]]
 name = "gensense-mcp"
 path = "src/bin/gensense-mcp.rs"
+required-features = ["mcp"]
 
 [dependencies]
 tree-sitter = "0.23"
@@ -59,7 +60,8 @@ fingerprinting = []
 remediation = ["dep:diff"]
 node = ["dep:napi", "dep:napi-derive"]
 cli = ["rust", "typescript", "remediation"]
-full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "cli"]
+mcp = []
+full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "cli", "mcp"]
 
 [build-dependencies]
 napi-build = "2.0"
