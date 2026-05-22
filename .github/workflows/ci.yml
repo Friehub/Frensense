@@ -444,7 +444,7 @@ jobs:
         run: npm ci
       - name: Generate Rule Docs
         run: |
-          cargo run --features cli -- --generate-docs
+          cargo run --features cli --bin gensense -- --generate-docs
           mv RULES.md docs/rules.md
       - name: Build VitePress Site
         run: npm run docs:build

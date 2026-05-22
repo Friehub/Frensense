@@ -100,6 +100,19 @@ Acceptance: `gensense_audit` with `{"severity": "Critical", "language": "rust"}`
 ---
 
 ### MED-06 · MCP: Add `ping` Health-Check Method
+
+### MED-07 · No Benchmark for `post_process_ngrams` (O(n²) Risk)
+**File:** `src/engine/project/helpers.rs:42`  
+**Time:** 30 minutes  
+**Impact:** The Jaccard similarity comparison in `post_process_ngrams` is O(n²) over all function fingerprints — every function is pairwise compared against every other. There's no benchmark tracking its performance. As the codebase grows, this could quietly degrade without anyone noticing until it's a problem.
+
+Add a criterion benchmark that measures `post_process_ngrams` across increasing fingerprint counts (10, 50, 200, 500 functions). Track the result in the benchmark dashboard. This is especially important before v0.4.0 when the n-gram style baseline introduces more fingerprint features.
+
+Acceptance: CI bench job includes `post_process_ngrams` throughput (functions/second) across 4 sizes. A regression alert triggers if throughput drops below 80% of baseline.
+
+---
+
+### MED-06 · MCP: Add `ping` Health-Check Method
 **File:** `src/bin/gensense-mcp.rs`  
 **Time:** 10 minutes  
 **Impact:** The JSON-RPC spec defines `ping` as a standard method. Without it, clients must call `tools/list` to check if the server is alive — which is wasteful and semantically wrong.
@@ -160,7 +173,7 @@ Acceptance: Fix all instances and remove the `-A clippy::...` flags from the cli
 | Severity | Count | Total Effort |
 |----------|-------|-------------|
 | 🔴 Critical | 2 | ~3 hours |
-| 🟡 Medium | 6 | ~2 hours 45 min |
+| 🟡 Medium | 7 | ~3 hours 15 min |
 | 🟢 Low | 5 | ~3.5 hours |
 
-Total: ~9 hours 15 min of focused work to ship a materially more robust v0.3.1.
+Total: ~9 hours 45 min of focused work to ship a materially more robust v0.3.1.
