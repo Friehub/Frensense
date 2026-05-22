@@ -265,7 +265,7 @@ jobs:
           key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-criterion
-        run: cargo install cargo-criterion --locked
+        run: cargo install cargo-criterion --locked --force
 
       - name: Run Benchmarks
         run: cargo criterion --features full --message-format json | tee raw_output.json
