@@ -168,6 +168,49 @@ Acceptance: Fix all instances and remove the `-A clippy::...` flags from the cli
 
 ---
 
+## Known Bottlenecks (Unfixed)
+
+Discovered during real-world validation (jumia-clone scan). Not yet addressed — deferred to v0.4.0.
+
+### BTL-01 · Full Re-Scan Every Run
+**File:** `src/engine/project/mod.rs:299`  
+**Time:** 2–3 hours  
+**Impact:** Every `gensense .` re-parses and re-audits every file. On a 500-file monorepo, even a 1-line change triggers a full scan. No incremental/diff-only mode.
+**Fix:** `--diff-only` flag that compares against git index (`git diff --name-only HEAD`) and only scans changed files. Combine with content-hash cache to skip unchanged files entirely.
+
+### BTL-02 · `post_process_ngrams` O(n²) — No Optimization
+**File:** `src/engine/project/helpers.rs:44`  
+**Time:** 2 hours  
+**Impact:** 500 functions → 125k pairwise Jaccard comparisons. At 2000 functions it's 2M (16x more). Benchmark exists (MED-07) but no optimization was applied.
+**Fix:** Add early-exit threshold (min similarity before comparison), cluster by language first, or use MinHash/LSH for approximate nearest neighbor.
+
+### BTL-03 · No Accuracy Corpus / Ground Truth
+**File:** `tests/corpus/` (does not exist)  
+**Time:** 3–4 hours  
+**Impact:** No one knows gensense's false positive or false negative rate. A new release could regress silently.
+**Fix:** Seed `tests/corpus/` with 50–100 real PRs where known bugs were fixed. "Before" = ground-truth buggy, "after" = ground-truth clean. CI step reports TP/FP/FN per release.
+
+### BTL-04 · Filters Are Post-Scan
+**File:** `src/bin/gensense.rs:318`  
+**Time:** 1 hour  
+**Impact:** Changing `--severity` or `--language` re-runs the full scan. Filtering happens after audit completes — no early-exit for irrelevant files.
+**Fix:** Push `--language` filter into `collect_files` so only matching extensions are walked. Push `--severity` into the audit pipeline so rules below threshold aren't even checked.
+
+### BTL-05 · No Content-Hash Cache
+**File:** `src/engine/project/mod.rs`  
+**Time:** 1–2 hours  
+**Impact:** Same file scanned identically on consecutive runs. No watermark to detect that file hasn't changed.
+**Fix:** On first scan, store `(path → blake3_hash)` in `.gensense/cache.json`. On subsequent runs, skip files whose hash matches.
+
+## Resolved (Not Fixed — Closed by Decision)
+
+| Issue | Resolution |
+|-------|-----------|
+| CRIT-02 · Workspace Split | Closed: Single-crate `[[bin]]` chosen over workspace split for simpler publishing. Both binaries ship via `cargo install gensense`. |
+| MED-06 · MCP ping | Implemented. `{"method":"ping"}` returns `"pong"`. |
+| LOW-04 · MCP Startup Errors | Resolved by lazy engine init — engine initializes on first `tools/call`, not at startup. |
+| LOW-05 · Website Docs | Fixed. MCP docs, changelog, and README all updated. |
+
 ## Summary
 
 | Severity | Count | Total Effort |
