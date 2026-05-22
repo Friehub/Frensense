@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779409399326,
+  "lastUpdate": 1779410383280,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -1201,6 +1201,180 @@ window.BENCHMARK_DATA = {
             "name": "fingerprinting/advisory_fuzzy_identity",
             "value": 73.92880055068692,
             "range": "0.10391246889648137",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": false,
+          "id": "102c1985cd89148d4275e9baaecccd6ed7a6e713",
+          "message": "V0.3.1 docs (#32)\n\n* docs: add v0.4.0 project memory spec\n\n* fix: add --bin gensense to generate-docs step to resolve ambiguous binary\n\n* docs: add MED-07 for post_process_ngrams benchmark gap\n\n---------\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-05-22T00:27:40Z",
+          "tree_id": "64021bb60d9a9087729716b0732342e64b9c124e",
+          "url": "https://github.com/Friehub/gensense/commit/102c1985cd89148d4275e9baaecccd6ed7a6e713"
+        },
+        "date": 1779410382199,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 18415599,
+            "range": "45853.8519859314",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 18273039.5,
+            "range": "35879.66066300869",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 18306261.375,
+            "range": "30207.60381370783",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 19509607.5,
+            "range": "39860.4415923357",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 20399900.833333336,
+            "range": "30378.473460677047",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 131221300.5,
+            "range": "131820.55820971727",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 556737143,
+            "range": "599725.0327527523",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1085437783.5,
+            "range": "1346902.7871876955",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2149578559,
+            "range": "2962724.7467011213",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 18144541.5,
+            "range": "32533.617847412825",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 18441707.5,
+            "range": "28079.331551492214",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 19577578.666666668,
+            "range": "42051.230153440505",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 20274212,
+            "range": "31267.2921448946",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 47301.35235997483,
+            "range": "72.91108048120304",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 54240.11586204833,
+            "range": "197.19510245132577",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 5776802.722222222,
+            "range": "11247.662333646796",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 98.5094451776437,
+            "range": "0.0877310735492661",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 48.06624556743924,
+            "range": "0.06237054800414911",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 48.353935020027905,
+            "range": "0.11600618929421146",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 48.170595359613735,
+            "range": "0.10530549379280789",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 50.43309389168153,
+            "range": "0.09862071637250631",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 48.079644138005676,
+            "range": "0.1070946098598539",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 50.82436466821441,
+            "range": "0.16383548583645527",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 52.902432598132926,
+            "range": "0.360555909060106",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 69.80921069720456,
+            "range": "0.2669884325562052",
             "unit": "ns"
           }
         ]
