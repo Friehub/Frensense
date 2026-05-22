@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
 use std::borrow::Cow;
 use std::sync::OnceLock;

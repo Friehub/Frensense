@@ -35,51 +35,30 @@ impl GenSenseRule for BlockingIoDetector {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if Self::is_in_async_scope(node, context.source_code) {
-            if let Some(func) = node.child_by_field_name("function") {
-                let code = &context.source_code[func.start_byte()..func.end_byte()];
+        if super::is_in_async_scope(node, context.source_code)
+            && let Some(func) = node.child_by_field_name("function")
+        {
+            let code = &context.source_code[func.start_byte()..func.end_byte()];
 
-                let blocking_patterns = [
-                    "std::thread::sleep",
-                    "thread::sleep",
-                    "std::fs",
-                    "fs::",
-                    "std::net",
-                    "TcpStream::connect",
-                    "TcpListener::bind",
-                ];
+            let blocking_patterns = [
+                "std::thread::sleep",
+                "thread::sleep",
+                "std::fs",
+                "fs::",
+                "std::net",
+                "TcpStream::connect",
+                "TcpListener::bind",
+            ];
 
-                if blocking_patterns.iter().any(|p| code.contains(p)) {
-                    advisories.push(self.new_advisory(
-                        &node,
-                        context,
-                        format!("Potentially blocking call '{code}' detected in async context."),
-                    ));
-                }
+            if blocking_patterns.iter().any(|p| code.contains(p)) {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    format!("Potentially blocking call '{code}' detected in async context."),
+                ));
             }
         }
 
         advisories
-    }
-}
-
-impl BlockingIoDetector {
-    fn is_in_async_scope(node: Node, source: &str) -> bool {
-        let mut current = node;
-        while let Some(parent) = current.parent() {
-            let kind = parent.kind();
-            if kind == "async_block" {
-                return true;
-            }
-            if kind == "function_item" {
-                let header = &source[parent.start_byte()
-                    ..parent
-                        .child_by_field_name("body")
-                        .map_or(parent.end_byte(), |b| b.start_byte())];
-                return header.contains("async");
-            }
-            current = parent;
-        }
-        false
     }
 }

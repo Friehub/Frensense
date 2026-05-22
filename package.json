@@ -1,6 +1,6 @@
 {
   "name": "@friehub/gensense",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "GenSense: Semantic Diagnostic Engine",
   "main": "gensense.js",
   "types": "gensense.d.ts",
@@ -16,7 +16,6 @@
     "dist",
     "gensense.js",
     "gensense.d.ts",
-    "index.js",
     "rules",
     "README.md",
     "CHANGELOG.md",
@@ -32,8 +31,8 @@
     }
   },
   "scripts": {
-    "build": "napi build --release --features node,rust,typescript --dts gensense.d.ts",
-    "build:debug": "napi build --features node,rust,typescript --dts gensense.d.ts",
+    "build": "napi build --release --cargo-cwd gensense-node --dts gensense.d.ts",
+    "build:debug": "napi build --cargo-cwd gensense-node --dts gensense.d.ts",
     "test": "node tests/node/integration.test.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

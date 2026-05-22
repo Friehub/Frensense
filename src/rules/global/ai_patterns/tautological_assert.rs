@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
@@ -78,15 +80,11 @@ impl GenSenseRule for TautologicalAssert {
                     }
                 })
             }
-            "assert_eq" | "assert_ne" => {
-                if args.len() >= 2 {
-                    let lhs = context.source_code[args[0].start_byte()..args[0].end_byte()].trim();
-                    let rhs = context.source_code[args[1].start_byte()..args[1].end_byte()].trim();
-                    // Same text on both sides — assert_eq!(x, x)
-                    lhs == rhs
-                } else {
-                    false
-                }
+            "assert_eq" | "assert_ne" if args.len() >= 2 => {
+                let lhs = context.source_code[args[0].start_byte()..args[0].end_byte()].trim();
+                let rhs = context.source_code[args[1].start_byte()..args[1].end_byte()].trim();
+                // Same text on both sides — assert_eq!(x, x)
+                lhs == rhs
             }
             _ => false,
         };
@@ -106,18 +104,17 @@ impl GenSenseRule for TautologicalAssert {
                 regex::Regex::new(r"^\(\s*([^=!\s]+)\s*(?:==|!=)\s*([^=!\s]+)\s*\)$")
                     .ok()
                     .and_then(|re| re.captures(text))
+                && caps.get(1).map(|m| m.as_str()) == caps.get(2).map(|m| m.as_str())
             {
-                if caps.get(1).map(|m| m.as_str()) == caps.get(2).map(|m| m.as_str()) {
-                    let advisory = self.new_advisory(
-                        &node,
-                        context,
-                        format!(
-                            "Tautological assertion detected via text analysis: '{}'.",
-                            caps.get(0).map_or(text, |m| m.as_str())
-                        ),
-                    );
-                    advisories.push(self.with_confidence(advisory, 0.70)); // Lower confidence for text fallback
-                }
+                let advisory = self.new_advisory(
+                    &node,
+                    context,
+                    format!(
+                        "Tautological assertion detected via text analysis: '{}'.",
+                        caps.get(0).map_or(text, |m| m.as_str())
+                    ),
+                );
+                advisories.push(self.with_confidence(advisory, 0.70)); // Lower confidence for text fallback
             }
         }
 

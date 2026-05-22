@@ -120,31 +120,31 @@ impl CoreRuleIr {
                 return false;
             }
 
-            if let (Some(fix_re), Some(template)) = (&self.fix_pattern, &self.fix_template) {
-                if let Some(_caps) = fix_re.captures(code) {
-                    let replacement = fix_re.replace_all(code, template).to_string();
-                    if replacement == code {
-                        return false;
-                    }
-
-                    let import = self.inject_import.as_ref().map(|import_template| {
-                        let mut import_stmt = String::new();
-                        let caps = fix_re
-                            .captures(code)
-                            .expect("Regex captures should not fail since we just checked them");
-                        caps.expand(import_template, &mut import_stmt);
-                        import_stmt
-                    });
-
-                    advisories.push(self.new_remediated_advisory(
-                        &node,
-                        context,
-                        self.metadata.observation.to_string(),
-                        replacement,
-                        import,
-                    ));
-                    // Removed early return to allow flow constraints to run
+            if let (Some(fix_re), Some(template)) = (&self.fix_pattern, &self.fix_template)
+                && let Some(_caps) = fix_re.captures(code)
+            {
+                let replacement = fix_re.replace_all(code, template).to_string();
+                if replacement == code {
+                    return false;
                 }
+
+                let import = self.inject_import.as_ref().map(|import_template| {
+                    let mut import_stmt = String::new();
+                    let caps = fix_re
+                        .captures(code)
+                        .expect("Regex captures should not fail since we just checked them");
+                    caps.expand(import_template, &mut import_stmt);
+                    import_stmt
+                });
+
+                advisories.push(self.new_remediated_advisory(
+                    &node,
+                    context,
+                    self.metadata.observation.to_string(),
+                    replacement,
+                    import,
+                ));
+                // Removed early return to allow flow constraints to run
             }
 
             if self.flow_constraints.is_empty()
@@ -234,14 +234,14 @@ impl CoreRuleIr {
         advisories: &mut Vec<Advisory>,
     ) {
         let code = &context.source_code[node.start_byte()..node.end_byte()];
-        if let Some(re) = &self.must_contain {
-            if !re.is_match(code) {
-                advisories.push(self.new_advisory(
-                    &node,
-                    context,
-                    format!("Pattern '{}' was expected but not found.", re.as_str()),
-                ));
-            }
+        if let Some(re) = &self.must_contain
+            && !re.is_match(code)
+        {
+            advisories.push(self.new_advisory(
+                &node,
+                context,
+                format!("Pattern '{}' was expected but not found.", re.as_str()),
+            ));
         }
 
         if let Some(re) = &self.body_must_contain_any_of {
@@ -262,14 +262,14 @@ impl CoreRuleIr {
                     ));
                 }
             }
-        } else if let Some(re) = &self.must_not_contain {
-            if re.is_match(code) {
-                advisories.push(self.new_advisory(
-                    &node,
-                    context,
-                    format!("Prohibited pattern '{}' was found.", re.as_str()),
-                ));
-            }
+        } else if let Some(re) = &self.must_not_contain
+            && re.is_match(code)
+        {
+            advisories.push(self.new_advisory(
+                &node,
+                context,
+                format!("Prohibited pattern '{}' was found.", re.as_str()),
+            ));
         }
 
         if let Some(kind) = &self.must_be_preceded_by {
@@ -303,14 +303,14 @@ impl CoreRuleIr {
         advisories: &mut Vec<Advisory>,
     ) {
         let node_lines = node.end_position().row - node.start_position().row + 1;
-        if let Some(max) = self.max_lines {
-            if node_lines > max {
-                advisories.push(self.new_advisory(
-                    &node,
-                    context,
-                    format!("Function size ({node_lines} lines) exceeds threshold of {max}."),
-                ));
-            }
+        if let Some(max) = self.max_lines
+            && node_lines > max
+        {
+            advisories.push(self.new_advisory(
+                &node,
+                context,
+                format!("Function size ({node_lines} lines) exceeds threshold of {max}."),
+            ));
         }
 
         if let Some(max) = self.max_depth {

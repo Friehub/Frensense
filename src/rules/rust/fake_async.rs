@@ -40,16 +40,15 @@ impl GenSenseRule for FakeAsyncDetector {
             .map_or(node.end_byte(), |b| b.start_byte());
         let header = &context.source_code[node.start_byte()..header_end];
 
-        if header.contains("async") {
-            if let Some(body) = node.child_by_field_name("body") {
-                if !has_await(body) {
-                    advisories.push(self.new_advisory(
-                        &node,
-                        context,
-                        "Async function contains no await points (Fake Async).".to_string(),
-                    ));
-                }
-            }
+        if header.contains("async")
+            && let Some(body) = node.child_by_field_name("body")
+            && !has_await(body)
+        {
+            advisories.push(self.new_advisory(
+                &node,
+                context,
+                "Async function contains no await points (Fake Async).".to_string(),
+            ));
         }
 
         advisories

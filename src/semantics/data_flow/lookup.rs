@@ -88,14 +88,12 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             }
             if let Some((path_str, (tree, src, ops))) =
                 self.context.file_trees.get_key_value(&sym.file_path)
-            {
-                if let Some(node) = tree
+                && let Some(node) = tree
                     .root_node()
                     .descendant_for_byte_range(sym.start_byte, sym.end_byte)
-                {
-                    let path = Path::new(path_str);
-                    return Some((node, src, tree, sym.file_id, path, ops));
-                }
+            {
+                let path = Path::new(path_str);
+                return Some((node, src, tree, sym.file_id, path, ops));
             }
         }
 
@@ -152,10 +150,10 @@ fn extract_parameter_bindings<'a>(node: Node<'a>, source: &'a str, bindings: &mu
         | "property" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                if child.kind() == "pair" || child.kind() == "property" {
-                    if let Some(val_node) = child.child_by_field_name("value") {
-                        extract_parameter_bindings(val_node, source, bindings);
-                    }
+                if (child.kind() == "pair" || child.kind() == "property")
+                    && let Some(val_node) = child.child_by_field_name("value")
+                {
+                    extract_parameter_bindings(val_node, source, bindings);
                 } else if child.kind() != ":"
                     && child.kind() != ","
                     && child.kind() != "{"

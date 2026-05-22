@@ -16,8 +16,6 @@ pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/rules
 pub const GENSENSE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod engine;
-#[cfg(feature = "node")]
-pub mod js;
 pub mod parser;
 pub mod patcher;
 pub mod reporter;

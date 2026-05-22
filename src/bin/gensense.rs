@@ -136,14 +136,14 @@ fn handle_test_rule(args: &[String]) {
                 std::process::exit(1);
             },
             |finding| {
-                if let Some(expected_line) = expect_line {
-                    if finding.line != expected_line {
-                        println!(
-                            "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
-                            expected_line, finding.line
-                        );
-                        std::process::exit(1);
-                    }
+                if let Some(expected_line) = expect_line
+                    && finding.line != expected_line
+                {
+                    println!(
+                        "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
+                        expected_line, finding.line
+                    );
+                    std::process::exit(1);
                 }
                 println!("[PASS]");
                 std::process::exit(0);
@@ -492,14 +492,14 @@ fn handle_early_args(args: &[String]) -> bool {
         return true;
     }
 
-    if let Some(pos) = args.iter().position(|a| a == "--debug") {
-        if let Some(file_path) = args.get(pos + 1) {
-            if let Err(e) = handle_debug_ast(file_path) {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-            return true;
+    if let Some(pos) = args.iter().position(|a| a == "--debug")
+        && let Some(file_path) = args.get(pos + 1)
+    {
+        if let Err(e) = handle_debug_ast(file_path) {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
         }
+        return true;
     }
 
     if args.contains(&"--list-rules".to_string()) {
@@ -591,10 +591,10 @@ fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path:
     let mut skipped_count = 0;
 
     for adv in &fix_advisories {
-        if options.show_diff {
-            if let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path)) {
-                println!("{diff}");
-            }
+        if options.show_diff
+            && let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path))
+        {
+            println!("{diff}");
         }
         if options.do_fix {
             match patcher.apply_fix(adv, Path::new(&adv.file_path)) {

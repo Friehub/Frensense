@@ -200,6 +200,60 @@ fn test_mcp_severity_threshold_filter() {
     shutdown(child, stdin);
 }
 
+#[test]
+fn test_mcp_language_filter() {
+    let dir = tempfile::tempdir().unwrap();
+    let ts_file = dir.path().join("test.ts");
+    fs::write(&ts_file, "function validate(x: any) { return true; }").unwrap();
+    let rs_file = dir.path().join("test.rs");
+    fs::write(&rs_file, "fn main() { panic!(\"boom\"); }").unwrap();
+
+    let (child, mut stdin, mut stdout) = spawn_mcp();
+
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","language":"rust"}}}}}}"#,
+        dir.path().to_string_lossy()
+    );
+    send_request(&mut stdin, &req);
+    let resp = read_response(&mut stdout);
+    let text: serde_json::Value =
+        serde_json::from_str(resp["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert!(
+        text["advisories"].as_array().unwrap().iter().all(|a| {
+            std::path::Path::new(a["file_path"].as_str().unwrap_or(""))
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
+        }),
+        "language=rust should only return .rs advisories"
+    );
+
+    shutdown(child, stdin);
+}
+
+#[test]
+fn test_mcp_rules_filter() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("test.ts");
+    fs::write(&f, "function validate(x: any) { return true; }").unwrap();
+
+    let (child, mut stdin, mut stdout) = spawn_mcp();
+
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","rules":["NONEXISTENT_RULE"]}}}}}}"#,
+        f.to_string_lossy()
+    );
+    send_request(&mut stdin, &req);
+    let resp = read_response(&mut stdout);
+    let text: serde_json::Value =
+        serde_json::from_str(resp["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        text["clean"], true,
+        "rules=[NONEXISTENT_RULE] should filter out all advisories"
+    );
+
+    shutdown(child, stdin);
+}
+
 // ── Production-hardness tests ─────────────────────────────────────────────────
 
 #[test]
@@ -255,7 +309,7 @@ fn test_mcp_rapid_sequential_requests() {
     // This stresses the JSON-RPC line reader and the per-call engine lifecycle.
     let count = 10;
     for i in 0..count {
-        let req = format!(r#"{{"jsonrpc":"2.0","id":{i},"method":"tools/list","params":{{}}}}"#,);
+        let req = format!(r#"{{"jsonrpc":"2.0","id":{i},"method":"tools/list","params":{{}}}}"#);
         send_request(&mut stdin, &req);
     }
 
@@ -436,7 +490,7 @@ fn test_mcp_consecutive_initialize_is_idempotent() {
 
     // Multiple initializes should each return success
     for i in 0..3 {
-        let req = format!(r#"{{"jsonrpc":"2.0","id":{i},"method":"initialize","params":{{}}}}"#,);
+        let req = format!(r#"{{"jsonrpc":"2.0","id":{i},"method":"initialize","params":{{}}}}"#);
         send_request(&mut stdin, &req);
         let resp = read_response(&mut stdout);
         assert_eq!(resp["id"], i);

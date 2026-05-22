@@ -35,17 +35,17 @@ impl GenSenseRule for DeadlockGuard {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if let Some(parent_fn) = Self::find_parent_function(node) {
-            if Self::has_mutex_lock(parent_fn, node, context.source_code) {
-                advisories.push(
-                    self.new_advisory(
-                        &node,
-                        context,
-                        "Potential async deadlock detected: Mutex guard held across .await point."
-                            .to_string(),
-                    ),
-                );
-            }
+        if let Some(parent_fn) = Self::find_parent_function(node)
+            && Self::has_mutex_lock(parent_fn, node, context.source_code)
+        {
+            advisories.push(
+                self.new_advisory(
+                    &node,
+                    context,
+                    "Potential async deadlock detected: Mutex guard held across .await point."
+                        .to_string(),
+                ),
+            );
         }
 
         advisories
@@ -71,12 +71,12 @@ impl DeadlockGuard {
 }
 
 fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
-    if node.kind() == "call_expression" {
-        if let Some(f) = node.child_by_field_name("function") {
-            let code = &source[f.start_byte()..f.end_byte()];
-            if code.contains(".lock") && f.start_byte() < before_byte {
-                return true;
-            }
+    if node.kind() == "call_expression"
+        && let Some(f) = node.child_by_field_name("function")
+    {
+        let code = &source[f.start_byte()..f.end_byte()];
+        if code.contains(".lock") && f.start_byte() < before_byte {
+            return true;
         }
     }
 

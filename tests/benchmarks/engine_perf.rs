@@ -725,9 +725,9 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
 
 // ── Groups wired to criterion ─────────────────────────────────────────────────
 
-criterion_group!(throughput, bench_scan_throughput, bench_project_scale,);
+criterion_group!(throughput, bench_scan_throughput, bench_project_scale);
 
-criterion_group!(analysis, bench_taint_depth, bench_schema_contract,);
+criterion_group!(analysis, bench_taint_depth, bench_schema_contract);
 
 criterion_group!(
     engine_internals,

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+pub mod common;
 pub mod discovery;
 pub mod events;
 pub mod project_auditor;

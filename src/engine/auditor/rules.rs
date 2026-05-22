@@ -2,35 +2,11 @@
 #![allow(clippy::type_complexity)]
 
 use super::GenSenseAuditor;
+use super::common::RulesWrapper;
 use crate::{EMBEDDED_RULES_DIR, GenSenseRule, ProjectRule};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
-
-#[derive(serde::Deserialize)]
-struct RulesWrapper {
-    #[serde(default)]
-    rules: Vec<crate::rules::core::CoreRule>,
-    #[serde(default, alias = "schema_contracts")]
-    project_rules: Vec<crate::rules::core::project::ProjectCoreRule>,
-    /// Optional YAML format version. If absent, assumes latest (0.3.0).
-    /// Supported: "0.3.0"
-    #[serde(default)]
-    version: Option<String>,
-}
-
-impl RulesWrapper {
-    fn check_version(&self) {
-        if let Some(ref ver) = self.version
-            && ver != "0.3.0"
-        {
-            tracing::warn!(
-                "[WARNING] Unknown rules format version '{}'. Assuming 0.3.0 compatibility. Supported versions: 0.3.0",
-                ver
-            );
-        }
-    }
-}
 
 impl GenSenseAuditor {
     pub fn is_rule_enabled(

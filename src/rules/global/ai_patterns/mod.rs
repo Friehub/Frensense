@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pub mod dead_result;
 pub mod placeholder_panic;
 // pub mod redundant_comment;

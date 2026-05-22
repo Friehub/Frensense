@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
 use std::borrow::Cow;
 use std::sync::OnceLock;
@@ -24,8 +26,9 @@ impl GenSenseRule for UselessTest {
     fn check<'a>(&self, node: Node<'a>, context: & GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
-        if code.contains("#[test]") || code.contains("#[tokio::test]") {
-            if let Some(body) = node.child_by_field_name("body") {
+        if (code.contains("#[test]") || code.contains("#[tokio::test]"))
+            && let Some(body) = node.child_by_field_name("body")
+        {
                 let body_code = &context.source_code[body.start_byte()..body.end_byte()];
                 let has_assert = body_code.contains("assert!");
                 let only_logs = body_code.contains("info!")
@@ -39,7 +42,6 @@ impl GenSenseRule for UselessTest {
                         "We noticed a test function that logs output but lacks assertions.".to_string(),
                     ));
                 }
-            }
         }
         advisories
     }

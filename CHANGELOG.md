@@ -4,7 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [0.3.0] - 2026-05-21
+### [0.3.1] - 2026-05-22
+
+### Changed
+- **Consolidated single-binaries into unified crate**: `cargo install gensense` now produces both `gensense` (CLI) and `gensense-mcp` (MCP server) binaries. Removed separate `gensense-cli` and `gensense-mcp` workspace crates.
+- **MCP filter params**: Added `language` (file extension matching) and `rules` (rule_id set) parameters to `gensense_audit` tool, applied server-side via `filter_advisories` after scan.
+- **Clippy pedantic compliance**: All ~35 `clippy::pedantic` violations fixed. The four `-A` flags removed from CI and pre-commit hook.
+
+### Added
+- **License headers**: `// SPDX-License-Identifier: MIT` added to 13 unattributed files. Solidty rule changed from proprietary to MIT. Codebase is now 100% MIT-consistent.
+- **Shared `RulesWrapper`**: Extracted duplicated `RulesWrapper + check_version()` into `src/engine/auditor/common.rs`.
+- **Shared `is_in_async_scope`**: Extracted duplicated helper into `src/rules/rust/mod.rs`.
+
+### Fixed
+- **MCP tests**: `test_mcp_language_filter` and `test_mcp_rules_filter` verify server-side filtering works correctly. 36/36 MCP tests pass.
+- **Macro test**: `test_cli_json_output` updated for consolidated crate structure.
+- **Pre-commit hook**: Now runs full test suite (`cargo test`) instead of `cargo test --lib --bins`.
+- **File extension**: `research/sparse_spectral_enginev2.rs` renamed to `.md`.
+- **Package.json**: Removed non-existent `index.js` from `files` array.
 
 ### Changed (Breaking)
 - **Rust API: `GenSenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.

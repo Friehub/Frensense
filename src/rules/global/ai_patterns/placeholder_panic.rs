@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 

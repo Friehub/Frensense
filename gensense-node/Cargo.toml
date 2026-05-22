@@ -1,0 +1,20 @@
+[package]
+name = "gensense-node"
+version = "0.3.1"
+authors = ["Friehub Developers"]
+edition = "2024"
+description = "GenSense NAPI bindings for Node.js"
+repository = "https://github.com/Friehub/gensense"
+license = "MIT"
+rust-version = "1.88"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gensense = { path = "..", default-features = false, features = ["rust", "typescript"] }
+napi = { version = "2.12", default-features = false, features = ["napi4"] }
+napi-derive = "2.12"
+
+[build-dependencies]
+napi-build = "2.0"
