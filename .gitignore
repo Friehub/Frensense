@@ -63,6 +63,8 @@ tests/fixtures/scratch/
 !README.md
 !CHANGELOG.md
 !BENCHMARK.md
+!V0_3_1_ISSUES.md
+!V0_4_0_PROJECT_MEMORY.md
 !docs/**/*.md
 !src/**/*.md
 !tests/**/*.md
