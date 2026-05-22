@@ -8,7 +8,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 fn print_help() {
-    println!("GenSense - Semantic Insight for Modern Codebases");
+    println!("GenSense - Semantic Code Analysis Engine");
     println!("Version: {}", gensense::GENSENSE_VERSION);
     println!("Usage: gensense <path> [options]");
     println!("\nOptions:");
@@ -43,7 +43,8 @@ fn print_help() {
 }
 
 fn print_version() {
-    println!("GenSense version {}", gensense::GENSENSE_VERSION);
+    println!("GenSense v{} - Semantic Code Analysis Engine", gensense::GENSENSE_VERSION);
+    println!("Ship with confidence. Audit with insight.");
     println!("\nFeatures Enabled:");
     #[cfg(feature = "rust")]
     println!("  [x] Rust Analysis");
@@ -344,7 +345,12 @@ fn print_results(
             if filtered_advisories.is_empty() {
                 println!("Analysis Complete: Looking great! No structural concerns found.");
             } else {
-                println!("GenSense: Analysis Results for {}\n", input_path.display());
+                println!("╔══════════════════════════════════════════════════╗");
+                println!("║  GenSense v{}                              ║", gensense::GENSENSE_VERSION);
+                println!("║  Semantic Code Analysis Engine                ║");
+                println!("╚══════════════════════════════════════════════════╝");
+                println!("Analysis: {}", input_path.display());
+                println!();
                 for v in filtered_advisories {
                     let severity_label = match v.severity {
                         gensense::Severity::Critical => "[CRITICAL]",
