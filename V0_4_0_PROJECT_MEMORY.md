@@ -151,9 +151,168 @@ let advisories = engine.run_with_profile(Path::new("./src"))?;
 
 **Total:** ~8.5 hours
 
+---
+
+## Appendix A — CSA Expansion: `AtomicSection` Constraint
+
+### Problem
+
+The sleeping barber race condition shows a pattern that no existing CSA constraint catches:
+
+```c
+void *customer(void *arg) {
+    if (waiting == chairs) return NULL;    // READ outside mutex ← BUG
+    pthread_mutex_lock(&mutex);             // lock
+    waiting++;                               // WRITE inside mutex
+    pthread_cond_signal(&customer_ready);
+    pthread_cond_wait(&barber_ready, &mutex);
+    pthread_mutex_unlock(&mutex);
+    return NULL;
+}
+```
+
+The `if (waiting == chairs)` check reads a mutex-protected variable **outside the mutex**. Between the read and the lock, the barber can change `waiting`. This allows two customers to both pass the `waiting == chairs` gate, both increment past capacity, and deadlock waiting on `barber_ready`.
+
+**The invariant:** `waiting` is protected by `mutex` — every write (`waiting++`, `waiting--`) happens inside a critical section. But the read in `if (waiting == chairs)` violates the invariant. Any code path that reads a mutex-protected variable without holding the mutex is a potential TOCTOU race.
+
+### Proposed Constraint: `AtomicSection`
+
+A new `ProjectFlowConstraint` variant that declares "these operations must execute atomically (under the same lock)":
+
+```yaml
+constraints:
+  - AtomicSection:
+      name: "capacity_check"
+      shared_variable: "waiting"
+      guard_mutex: "mutex"
+      description: >
+        The capacity check and increment must be atomic.
+        Reading 'waiting' outside the mutex allows a TOCTOU race
+        where two threads both pass the capacity gate.
+```
+
+In YAML rules:
+
+```yaml
+rules:
+  - id: "RACE_CAPACITY_CHECK"
+    domain: "concurrency"
+    target_ext: "c"
+    constraints:
+      - AtomicSection:
+          shared_variable: "{expr}"
+          guard_mutex: "{expr}"
+```
+
+### Implementation
+
+#### Phase 1: Lock-Set Construction (AST pass)
+
+Build a map of `{variable → set of mutexes that protect it}`:
+
+```rust
+struct LockSet {
+    // For each mutex-guarded variable, which mutex(es) protect it
+    protected_by: HashMap<VarId, HashSet<MutexId>>,
+    // All lock/unlock sites
+    mutex_ops: Vec<MutexOp>,
+}
+
+struct MutexOp {
+    kind: LockOp,       // Lock | Unlock
+    mutex: MutexId,
+    location: SourceLoc,
+    enclosing_function: FunctionId,
+}
+```
+
+Walk the AST and collect:
+- All `pthread_mutex_lock(&m)` / `pthread_mutex_unlock(&m)` calls
+- All `pthread_cond_wait(&cond, &m)` calls (which atomically unlock m and wait)
+- All reads and writes of shared variables
+
+Infer protection: if every write to variable `v` is inside a `lock(m)`...`unlock(m)` span, then `v` is protected by `m`.
+
+#### Phase 2: Read-Outside-Lock Detection
+
+For every read of a protected variable, check if it occurs within the lock/unlock span of its protecting mutex:
+
+```rust
+fn check_atomic_section(engine: &Engine, constraint: &AtomicSection) -> Vec<Advisory> {
+    let var = &constraint.shared_variable;
+    let mutex = &constraint.guard_mutex;
+
+    engine.source_registry
+        .functions()
+        .flat_map(|func| {
+            let reads = func.reads_of(var);
+            let lock_held = |loc| func.is_inside_mutex_span(loc, mutex);
+            reads
+                .filter(|r| !lock_held(r.location))
+                .map(|r| advisory_for_read_outside_lock(r, var, mutex))
+        })
+        .collect()
+}
+```
+
+#### Phase 3: Condition Variable Pairing
+
+For `pthread_cond_signal`/`pthread_cond_wait` pairs, verify:
+
+1. The signal is always called **while holding** the associated mutex
+2. The wait is always called **while holding** the associated mutex (by POSIX spec)
+3. The predicate (`waiting > 0` for barber, `waiting < chairs` for customer) is checked **after** reacquiring the mutex on wake
+
+This catches "lost wakeup" patterns where `signal()` is called when nobody is waiting on the condition variable — not a direct CSA constraint, but a temporal invariant that the condition variable graph can verify.
+
+### Advisory Output
+
+```
+Rule: RACE_CAPACITY_CHECK
+Severity: Critical
+File: sleeping_barber.c:8
+Observation: Read of 'waiting' outside mutex 'mutex'
+  Variable 'waiting' is protected by 'mutex' — every write (lines 11, 28)
+  occurs inside pthread_mutex_lock/unlock. But line 8 reads it without
+  holding the mutex, allowing a TOCTOU race.
+Impact: Two threads can both pass the capacity check, increment past
+  capacity, and deadlock waiting on a condition signal.
+Improvement: Move the capacity check inside the mutex:
+    pthread_mutex_lock(&mutex);
+    if (waiting == chairs) { pthread_mutex_unlock(&mutex); return NULL; }
+    waiting++;
+    ...rest of critical section...
+```
+
+### Effort
+
+| Step | Time |
+|------|------|
+| Lock-set construction AST pass (Phase 1) | 3h |
+| Read-outside-lock detection (Phase 2) | 2h |
+| Condition variable pairing verification (Phase 3) | 2h |
+| YAML constraint DSL + parsing | 1h |
+| C target support (tree-sitter-c grammar) | 2h |
+| Integration tests (sleeping barber fixture) | 1h |
+| Benchmark (lock-set on rustc-sized codebase) | 30m |
+
+**Total:** ~11.5 hours
+
+### Relation to Style Profile
+
+The `AtomicSection` constraint is **complementary** to the style-anomaly profile:
+
+- **Style profile** catches *"this doesn't look like our code"* — unwritten conventions, LLM tells
+- **AtomicSection** catches *"this is demonstrably wrong"* — race conditions, TOCTOU, lost wakeups
+
+Both are part of v0.4.0. The style profile is the headline feature; `AtomicSection` is the depth feature that catches real bugs the style profile would miss.
+
+---
+
 ## Future Work (v0.4.1+)
 
 - **Temporal decay:** Old functions contribute less to the profile (project conventions evolve)
 - **Multi-repo profiles:** Cross-project style comparison ("does this code look like it belongs to this org?")
 - **Profile diff:** When reviewing a PR, diff the PR branch's profile vs main to surface what the PR changes stylistically
 - **Auto-remediation:** Suggest replacements for off-style patterns based on the profile (e.g., `any` → the most common type at that position)
+- **Model checking (v0.5.x):** Full state-space exploration for small critical sections — enumerate reachable states of {shared vars, locks, condition queues} and prove absence of deadlock.
