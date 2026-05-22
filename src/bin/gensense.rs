@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 fn print_help() {
     println!("GenSense - Semantic Code Analysis Engine");
     println!("Version: {}", gensense::GENSENSE_VERSION);
+    println!("Analyzes Rust, TypeScript, JavaScript, and YAML codebases for bugs,");
+    println!("anti-patterns, security risks, and SQL drift — with AST-level precision.");
+    println!();
     println!("Usage: gensense <path> [options]");
     println!("\nOptions:");
     println!("  --version          Display version and features");
