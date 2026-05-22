@@ -195,6 +195,12 @@ impl Engine {
     /// # Errors
     /// Returns an error if file reading or parsing fails.
     pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
+        if !root.exists() {
+            return Err(crate::GenSenseError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("path does not exist: {}", root.display()),
+            )));
+        }
         let config = self.initialize_auditor_and_config(root);
         let snapshots = self.collect_and_snapshot_files(root)?;
 
