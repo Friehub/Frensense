@@ -115,7 +115,7 @@ fn write_response(resp: &JsonRpcResponse) {
 fn tool_definition() -> Value {
     json!({
         "name": "gensense_audit",
-        "description": "Run semantic analysis on a file or directory. Returns advisories the agent must resolve before code is considered correct. An empty advisories array and clean=true means the code satisfies all invariants.",
+        "description": "Run semantic analysis on a file or directory. Returns advisories the agent must resolve before code is considered correct. An empty advisories array and clean=true means the code satisfies all invariants. When stream=true, findings are sent as notifications followed by a final result.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -133,11 +133,117 @@ fn tool_definition() -> Value {
                     "enum": ["critical", "warning", "info"],
                     "default": "warning",
                     "description": "Minimum severity to report (critical=only critical, warning=critical+warning, info=all)"
+                },
+                "stream": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Emit findings as JSON-RPC notifications for progressive display"
                 }
             },
             "required": ["path"]
         }
     })
+}
+
+fn write_notification(params: &Value) {
+    let notification = json!({
+        "jsonrpc": "2.0",
+        "method": "notification",
+        "params": params
+    });
+    if let Ok(line) = serde_json::to_string(&notification) {
+        let mut stdout = io::stdout().lock();
+        let _ = writeln!(stdout, "{line}");
+        let _ = stdout.flush();
+    }
+}
+
+fn run_audit_streamed(id: RequestId, path: &str, fix_auto: bool, severity_threshold: &str) {
+    let target = Path::new(path);
+    if !target.exists() {
+        let result = json!({
+            "clean": false,
+            "advisories": [],
+            "auto_fixed": 0,
+            "requires_human": [],
+            "error": format!("path does not exist: {}", path)
+        });
+        write_response(&rpc_result(id, result));
+        return;
+    }
+
+    let threshold = match severity_threshold {
+        "critical" => Severity::Critical,
+        "warning" => Severity::Warning,
+        _ => Severity::Info,
+    };
+
+    let mut engine = Engine::new();
+    let rule_count = engine.list_rules().len();
+    eprintln!(
+        "gensense-mcp: streaming cwd={:?}, rules={}, threshold={:?}",
+        std::env::current_dir().ok(),
+        rule_count,
+        severity_threshold
+    );
+
+    let advisories = match engine.run(target) {
+        Ok(a) => a,
+        Err(e) => {
+            let result = json!({
+                "clean": false,
+                "advisories": [],
+                "auto_fixed": 0,
+                "requires_human": [],
+                "error": format!("analysis error: {}", e)
+            });
+            write_response(&rpc_result(id, result));
+            return;
+        }
+    };
+
+    let filtered: Vec<Advisory> = advisories
+        .into_iter()
+        .filter(|a| severity_rank(a.severity) >= severity_rank(threshold))
+        .collect();
+
+    let total = filtered.len();
+    write_notification(&json!({
+        "type": "progress",
+        "current": 0,
+        "total": total
+    }));
+
+    let mut auto_fixable_count = 0u64;
+    let mut requires_human: Vec<Advisory> = Vec::new();
+
+    for (i, advisory) in filtered.iter().enumerate() {
+        if advisory.proposed_replacement.is_some() {
+            auto_fixable_count += 1;
+        }
+        if advisory.requires_human || advisory.proposed_replacement.is_none() {
+            requires_human.push(advisory.clone());
+        }
+        write_notification(&json!({
+            "type": "finding",
+            "current": i + 1,
+            "total": total,
+            "data": advisory
+        }));
+    }
+
+    #[cfg(feature = "remediation")]
+    if fix_auto {
+        apply_auto_fixes(&filtered, target);
+    }
+
+    let result = json!({
+        "clean": filtered.is_empty(),
+        "advisories": serde_json::to_value(&filtered).unwrap_or_default(),
+        "auto_fixed": auto_fixable_count,
+        "requires_human": serde_json::to_value(&requires_human).unwrap_or_default()
+    });
+    write_response(&rpc_result(id, result));
 }
 
 fn run_audit(path: &str, fix_auto: bool, severity_threshold: &str) -> Value {
@@ -310,6 +416,13 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                 .and_then(Value::as_str)
                 .unwrap_or("warning")
                 .to_string();
+
+            let stream = args.get("stream").and_then(Value::as_bool).unwrap_or(false);
+
+            if stream {
+                run_audit_streamed(req.id, &path, fix_auto, &severity_threshold);
+                return rpc_no_response();
+            }
 
             let result_data = run_audit(&path, fix_auto, &severity_threshold);
 
