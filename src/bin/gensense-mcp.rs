@@ -385,6 +385,8 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 
         "shutdown" => rpc_result(req.id, json!(null)),
 
+        "ping" => rpc_result(req.id, json!("pong")),
+
         "tools/list" => {
             let result = json!({
                 "tools": [tool_definition()]
