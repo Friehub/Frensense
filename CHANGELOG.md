@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **MCP tests**: `test_mcp_language_filter` and `test_mcp_rules_filter` verify server-side filtering works correctly. 36/36 MCP tests pass.
+- **Binary file crash**: `collect_files` now filters to supported extensions via `ParserRegistry::is_supported`, preventing `"stream did not contain valid UTF-8"` panic on binary files (`.term`, `.idx`, `.store`, etc.).
 - **Macro test**: `test_cli_json_output` updated for consolidated crate structure.
 - **Pre-commit hook**: Now runs full test suite (`cargo test`) instead of `cargo test --lib --bins`.
 - **File extension**: `research/sparse_spectral_enginev2.rs` renamed to `.md`.

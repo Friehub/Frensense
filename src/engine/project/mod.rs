@@ -5,6 +5,7 @@ pub mod helpers;
 
 use crate::engine::auditor::{AuditOptions, GenSenseAuditor, ScanResult};
 use crate::engine::suppression::SuppressConfig;
+use crate::parser::ParserRegistry;
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, GenSenseEnvironment, ProjectRule, Result, SourceRegistry};
 use std::collections::{HashMap, HashSet};
@@ -406,6 +407,7 @@ impl Engine {
             .filter_map(std::result::Result::ok)
             .filter(|e| e.file_type().is_file())
             .map(|e| e.path().to_path_buf())
+            .filter(|p| ParserRegistry::is_supported(p))
             .collect()
     }
 }
