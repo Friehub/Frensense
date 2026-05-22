@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779406749240,
+  "lastUpdate": 1779409399326,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -1027,6 +1027,180 @@ window.BENCHMARK_DATA = {
             "name": "fingerprinting/advisory_fuzzy_identity",
             "value": 68.92575388648396,
             "range": "0.15344745614485875",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": false,
+          "id": "5e678cadc86d322b57f26c9a8dc87fc682396e03",
+          "message": "V0.3.1 docs (#31)\n\n* docs: add MCP server docs, changelog page, and benchmark CI fix\n\n* fix: add keep_files to deploy-docs to preserve benchmark dashboard\n\n* fix: add --force to cargo-criterion install to fix cached binary conflict\n\n---------\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-05-22T00:11:07Z",
+          "tree_id": "d5de1eedd2a6c94b3b5acbba8f18b55c2e2e4519",
+          "url": "https://github.com/Friehub/gensense/commit/5e678cadc86d322b57f26c9a8dc87fc682396e03"
+        },
+        "date": 1779409398885,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 20612069.833333336,
+            "range": "64772.81605005725",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 20487193.666666668,
+            "range": "60780.91562092212",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 20362446.5,
+            "range": "46024.350982904434",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 20939040.333333332,
+            "range": "50632.27170109472",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 22034123.166666664,
+            "range": "51822.79947996416",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 132966648,
+            "range": "176976.47625803947",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 559739535.5,
+            "range": "492621.2693542242",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1090684643,
+            "range": "1748478.3334583044",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2157445864,
+            "range": "2825768.091532588",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 20155525,
+            "range": "44324.55011308193",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 20439384.833333336,
+            "range": "38679.79781329816",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 20962612.333333332,
+            "range": "54319.99203562829",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 21679498.833333332,
+            "range": "44926.238602397985",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 53067.83350131657,
+            "range": "77.73328215466195",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 59451.20078218283,
+            "range": "117.9147467775984",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 5766322.222222222,
+            "range": "17599.202987550998",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 102.9912914258858,
+            "range": "0.554411492372591",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 51.2012062359332,
+            "range": "0.10868769708013674",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 53.884281372746656,
+            "range": "0.3494682973956434",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 51.237960188264445,
+            "range": "0.1032230521166596",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 57.09034434008488,
+            "range": "0.15523695757610073",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 51.16354112843039,
+            "range": "0.10899730162234245",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 56.790638538539,
+            "range": "0.10679806274542267",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 65.45649669997806,
+            "range": "0.5224567378964372",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 73.92880055068692,
+            "range": "0.10391246889648137",
             "unit": "ns"
           }
         ]
