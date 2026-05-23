@@ -18,6 +18,7 @@ impl GenSenseRule for PlaceholderPanic {
                 tags: vec!["ai-risk".into(), "security".into(), "reliability".into()],
                 category: "Logic".into(),
                 confidence: 0.85,
+                precision: crate::Precision::High,
             }
         });
         &META

@@ -21,6 +21,7 @@ impl GenSenseRule for AsyncPanicSafety {
             tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Safety"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 

@@ -18,6 +18,7 @@ impl GenSenseRule for TautologicalAssert {
                 tags: vec!["ai-risk".into(), "correctness".into()],
                 category: "Logic".into(),
                 confidence: 0.85,
+                precision: crate::Precision::High,
             }
         });
         &META

@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [0.3.1] - 2026-05-22
+### [0.3.2] - 2026-05-23
+
+### Added
+- **Rule quality pipeline**: Every rule now carries a `precision` tier (`very-high | high | medium | low`), letting users choose a rule suite via `--suite {default|extended|all}`. `default` runs only `very-high` rules (battle-tested, near-zero false positives). `extended` adds `high` rules (well-tested, occasional FP). `all` runs every rule (current behavior, unchanged as default).
+- **`--suite` CLI flag**: `gensense --suite default path/` filters to high-confidence findings only. Backward compatible — existing invocations without `--suite` behave identically.
+
+### Changed
+- **Precision assigned to all 75 rules**: 6 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 65 YAML rules tiered by confidence score (39 `very-high`, 10 `high`, 10 `medium`, 6 `low`). 25 `solidity`/`jumia` rules default to `low` (unvalidated).
 
 ### Changed
 - **Consolidated single-binaries into unified crate**: `cargo install gensense` now produces both `gensense` (CLI) and `gensense-mcp` (MCP server) binaries. Removed separate `gensense-cli` and `gensense-mcp` workspace crates.

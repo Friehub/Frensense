@@ -3,7 +3,7 @@
 
 use super::GenSenseAuditor;
 use super::common::RulesWrapper;
-use crate::{EMBEDDED_RULES_DIR, GenSenseRule, ProjectRule};
+use crate::{EMBEDDED_RULES_DIR, GenSenseRule, ProjectRule, Suite};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -14,9 +14,15 @@ impl GenSenseAuditor {
         rule: &dyn GenSenseRule,
         cat_filter: &HashSet<String>,
         tag_filter: &HashSet<String>,
+        suite: Suite,
         env: crate::GenSenseEnvironment,
     ) -> bool {
         let meta = rule.metadata();
+
+        // Suite filter: only include rules meeting the precision threshold
+        if !meta.meets_suite(suite) {
+            return false;
+        }
 
         if env == crate::GenSenseEnvironment::Production && meta.tags.iter().any(|t| t == "beta") {
             return false;

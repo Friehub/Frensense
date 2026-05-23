@@ -21,6 +21,7 @@ impl GenSenseRule for BlockingIoDetector {
             tags: vec![Cow::Borrowed("performance"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Performance"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 

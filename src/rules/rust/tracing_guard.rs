@@ -21,6 +21,7 @@ impl GenSenseRule for TracingGuard {
             tags: vec![Cow::Borrowed("observability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Observability"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 

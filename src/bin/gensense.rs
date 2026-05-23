@@ -233,8 +233,10 @@ struct CliOptions {
     compare_baseline_path: Option<String>,
     min_confidence: f32,
     language_filter: Option<String>,
+    suite: gensense::Suite,
 }
 
+#[allow(clippy::too_many_lines)]
 fn parse_options(args: &[String]) -> CliOptions {
     let mut options = CliOptions {
         format: "text".to_string(),
@@ -250,6 +252,7 @@ fn parse_options(args: &[String]) -> CliOptions {
         compare_baseline_path: None,
         min_confidence: 0.0,
         language_filter: None,
+        suite: gensense::Suite::All,
     };
 
     let mut i = 2;
@@ -313,6 +316,22 @@ fn parse_options(args: &[String]) -> CliOptions {
             "--language" => {
                 if let Some(val) = args.get(i + 1) {
                     options.language_filter = Some(val.clone());
+                    i += 1;
+                }
+            }
+            "--suite" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.suite = match val.to_lowercase().as_str() {
+                        "default" => gensense::Suite::Default,
+                        "extended" => gensense::Suite::Extended,
+                        "all" => gensense::Suite::All,
+                        _ => {
+                            eprintln!(
+                                "Error: Unknown suite '{val}'. Valid values: default, extended, all"
+                            );
+                            std::process::exit(1);
+                        }
+                    };
                     i += 1;
                 }
             }
@@ -472,6 +491,7 @@ fn main() -> Result<()> {
         engine.add_rule_dir(dir.clone());
     }
     engine.set_no_builtin_rules(options.no_builtin);
+    engine.set_suite(options.suite);
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = gensense::parser::ParserRegistry::extensions_for(lang_arg) {

@@ -182,6 +182,7 @@ fn test_method_chain_taint_propagation() {
             tags: vec![],
             category: "Test".into(),
             confidence: 0.5,
+            precision: gensense::Precision::VeryHigh,
         },
     };
 
@@ -258,6 +259,7 @@ fn test_return_value_taint_propagation() {
             tags: vec![],
             category: "Test".into(),
             confidence: 0.5,
+            precision: gensense::Precision::VeryHigh,
         },
     };
 
@@ -406,6 +408,7 @@ fn test_object_aliasing_field_taint_propagation() {
             tags: vec![],
             category: "Test".into(),
             confidence: 0.85,
+            precision: gensense::Precision::VeryHigh,
         },
     };
 

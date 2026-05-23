@@ -32,6 +32,7 @@ pub struct Engine {
     environment: GenSenseEnvironment,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
+    suite: crate::Suite,
     extra_rule_dirs: Vec<PathBuf>,
     no_builtin_rules: bool,
     isolate_rules: bool,
@@ -51,6 +52,7 @@ impl Engine {
             environment: GenSenseEnvironment::Development,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
+            suite: crate::Suite::All,
             extra_rule_dirs: Vec::new(),
             no_builtin_rules: false,
             isolate_rules: false,
@@ -126,6 +128,10 @@ impl Engine {
 
     pub fn set_language_filter(&mut self, extensions: &[&'static str]) {
         self.language_filter = Some(extensions.to_vec());
+    }
+
+    pub fn set_suite(&mut self, suite: crate::Suite) {
+        self.suite = suite;
     }
 
     /// Runs the project auditor on the given root directory.
@@ -267,6 +273,7 @@ impl Engine {
             file_trees: &file_trees,
             category_filter: &self.enabled_categories,
             tag_filter: &self.enabled_tags,
+            suite: self.suite,
             env: self.environment,
         };
 
@@ -485,6 +492,7 @@ impl Engine {
                     file_trees,
                     category_filter: &self.enabled_categories,
                     tag_filter: &self.enabled_tags,
+                    suite: self.suite,
                     env: self.environment,
                 };
                 let result = self.auditor.audit(&opts)?;

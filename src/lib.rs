@@ -49,6 +49,22 @@ pub enum GenSenseEnvironment {
     Development,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Precision {
+    VeryHigh,
+    High,
+    Medium,
+    Low,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Suite {
+    Default,
+    Extended,
+    All,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RuleMetadata {
     pub id: Cow<'static, str>,
@@ -62,10 +78,27 @@ pub struct RuleMetadata {
     pub category: Cow<'static, str>,
     #[serde(default = "default_confidence")]
     pub confidence: f32,
+    #[serde(default = "default_precision")]
+    pub precision: Precision,
 }
 
 const fn default_confidence() -> f32 {
     0.55
+}
+
+const fn default_precision() -> Precision {
+    Precision::Low
+}
+
+impl RuleMetadata {
+    #[must_use]
+    pub fn meets_suite(&self, suite: Suite) -> bool {
+        match suite {
+            Suite::Default => self.precision == Precision::VeryHigh,
+            Suite::Extended => matches!(self.precision, Precision::VeryHigh | Precision::High),
+            Suite::All => true,
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]

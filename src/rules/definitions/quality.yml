@@ -12,6 +12,7 @@ rules:
   tags: []
   category: Quality
   confidence: 0.70
+  precision: high
 - id: RUST_NESTING_LIMIT
   target_ext: rs
   on_node: (function_item) @node
@@ -25,6 +26,7 @@ rules:
   tags: []
   category: Quality
   confidence: 0.70
+  precision: high
 - id: TS_GOD_FUNCTION
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
@@ -37,6 +39,7 @@ rules:
   tags: []
   category: Quality
   confidence: 0.70
+  precision: high
 - id: TS_NESTING_LIMIT
   target_ext: ts
   on_node: '[ (function_declaration) (method_definition) (arrow_function) ] @node'
@@ -49,3 +52,4 @@ rules:
   tags: []
   category: Quality
   confidence: 0.70
+  precision: high

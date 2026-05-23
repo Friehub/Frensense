@@ -21,6 +21,7 @@ impl GenSenseRule for FakeAsyncDetector {
             tags: vec![Cow::Borrowed("optimization"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Performance"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 

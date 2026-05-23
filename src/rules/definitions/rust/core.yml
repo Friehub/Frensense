@@ -13,6 +13,7 @@ rules:
   tags: []
   category: Security
   confidence: 0.95
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_HOST_INTERACTION
@@ -29,6 +30,7 @@ rules:
   tags: []
   category: Isolation
   confidence: 0.85
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_STD_OUTPUT
@@ -45,6 +47,7 @@ rules:
   tags: []
   category: Quality
   confidence: 0.90
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_ALLOCATION_IN_LOG
@@ -61,6 +64,7 @@ rules:
   tags: []
   category: Performance
   confidence: 0.80
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_CLONE_IN_LOOP
@@ -76,6 +80,7 @@ rules:
   tags: []
   category: Performance
   confidence: 0.80
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_CONSTRUCTOR_BLOAT
@@ -92,6 +97,7 @@ rules:
   tags: []
   category: Maintainability
   confidence: 0.65
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_SILENT_FAILURE
@@ -108,6 +114,7 @@ rules:
   tags: []
   category: Reliability
   confidence: 0.70
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_VEC_FRONT_REMOVE
@@ -125,6 +132,7 @@ rules:
   tags: []
   category: Performance
   confidence: 0.90
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_ALGO_N2_LOOP
@@ -142,6 +150,7 @@ rules:
   tags: []
   category: Performance
   confidence: 0.60
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_CHANNEL_UNBOUNDED
@@ -158,6 +167,7 @@ rules:
   tags: []
   category: Concurrency
   confidence: 0.90
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_OVER_GENERAL_VARIABLE
@@ -174,6 +184,7 @@ rules:
   tags: []
   category: Quality
   confidence: 0.55
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 
@@ -191,6 +202,7 @@ rules:
   tags: []
   category: Reliability
   confidence: 0.75
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_UNWRAP_SAFETY
@@ -208,6 +220,7 @@ rules:
   tags: []
   category: Reliability
   confidence: 0.85
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_TOKIO_SELECT_ELSE
@@ -226,6 +239,7 @@ rules:
   tags: []
   category: Reliability
   confidence: 0.90
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_LARGE_STACK_ALLOCATION
@@ -241,6 +255,7 @@ rules:
   tags: []
   category: Reliability
   confidence: 0.90
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_PANIC_IN_LIB
@@ -258,6 +273,7 @@ rules:
   tags: []
   category: Safety
   confidence: 0.80
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: SECRET_LEAK_DETECTION
@@ -272,6 +288,7 @@ rules:
   tags: []
   category: Security
   confidence: 0.60
+  precision: medium
 
 - id: RUST_SPAWN_WITHOUT_JOINHANDLE
   target_ext: rs
@@ -285,6 +302,7 @@ rules:
   name: Rust Spawn Without Joinhandle
   tags: []
   confidence: 0.85
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 
@@ -300,6 +318,7 @@ rules:
   name: Rust Mutex Poisoning Unhandled
   tags: []
   confidence: 0.90
+  precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_BLOCKING_IN_ASYNC
@@ -316,6 +335,7 @@ rules:
   name: Rust Blocking In Async
   tags: []
   confidence: 0.85
+  precision: very-high
 
 - id: RUST_SERDE_MISSING_DENY_UNKNOWN
   target_ext: rs
@@ -330,4 +350,5 @@ rules:
   tags: [security, serde, api]
   name: Rust Serde Missing Deny Unknown
   confidence: 0.90
+  precision: very-high
 

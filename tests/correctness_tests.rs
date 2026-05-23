@@ -106,6 +106,7 @@ fn test_taint_through_destructuring() {
             tags: vec![],
             category: "Test".into(),
             confidence: 0.55,
+            precision: gensense::Precision::VeryHigh,
         },
     };
 

@@ -13,6 +13,7 @@ rules:
     improvement: "Ensure the function uses 'require' or 'revert' for invalid input."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
+    precision: very-high
 
   - id: "TS_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (TS/JS)"
@@ -28,6 +29,7 @@ rules:
     improvement: "Ensure the function returns false or throws for invalid input."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
+    precision: very-high
 
   - id: "RUST_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (Rust)"
@@ -43,6 +45,7 @@ rules:
     improvement: "Ensure the function returns false, Option::None, or Result::Err for invalid input."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
+    precision: very-high
 
   # Rule 2: Sanitizers
   - id: "SOL_CSA_SANITIZE_PASSTHROUGH"
@@ -58,6 +61,7 @@ rules:
     improvement: "Implement proper input transformation logic."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
+    precision: very-high
 
   - id: "TS_CSA_SANITIZE_PASSTHROUGH"
     name: "Sanitizer Returning Unmodified Input (TS/JS)"
@@ -72,6 +76,7 @@ rules:
     improvement: "Implement proper input transformation logic."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
+    precision: very-high
 
   # Rule 3: Finders
   - id: "TS_CSA_FIND_NEVER_EMPTY"
@@ -87,6 +92,7 @@ rules:
     improvement: "Ensure the function handles missing data."
     tags: ["csa", "ai-risk", "reliability"]
     confidence: 0.85
+    precision: very-high
 
   # Rule 4: Auth
   - id: "TS_CSA_AUTH_NO_REJECTION"
@@ -102,3 +108,4 @@ rules:
     improvement: "Implement rejection logic."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
+    precision: very-high
