@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+use crate::parser::ParserRegistry;
 use crate::semantics::data_flow::DataFlowAnalyzer;
 use crate::semantics::data_flow::TaintRegistry;
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
@@ -62,6 +63,8 @@ pub struct CoreRuleIr {
     pub auto_fixable: Option<bool>,
     pub requires_human: Option<bool>,
     pub exclude_scope: Option<Regex>,
+    pub skip_if_parent: Option<String>,
+    pub body_query: Option<String>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -94,6 +97,14 @@ impl GenSenseRule for CoreRuleIr {
                 }
                 current = ancestor.parent();
             }
+        }
+
+        // Skip if parent node kind matches skip_if_parent
+        if let Some(kind) = &self.skip_if_parent
+            && let Some(parent) = node.parent()
+            && parent.kind() == kind.as_str()
+        {
+            return Vec::new();
         }
 
         let mut top = node;
@@ -291,6 +302,27 @@ impl CoreRuleIr {
                     context,
                     format!("Prohibited pattern '{}' was found.", re.as_str()),
                 ));
+            }
+        }
+
+        // Body tree-sitter query: run query within the body subtree
+        if let Some(query_str) = &self.body_query {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            if let Ok(language) = ParserRegistry::get_language(context.file_path)
+                && let Ok(query) = tree_sitter::Query::new(&language, query_str)
+            {
+                let mut cursor = tree_sitter::QueryCursor::new();
+                let has_match = cursor
+                    .matches(&query, body_node, context.source_code.as_bytes())
+                    .next()
+                    .is_some();
+                if has_match {
+                    advisories.push(self.new_advisory(
+                        &node,
+                        context,
+                        self.metadata.observation.to_string(),
+                    ));
+                }
             }
         }
 

@@ -195,6 +195,7 @@ Discovered during real-world validation (jumia-clone scan). Not yet addressed �
 **Time:** 1 hour  
 **Impact:** Changing `--severity` or `--language` re-runs the full scan. Filtering happens after audit completes — no early-exit for irrelevant files.
 **Fix:** Push `--language` filter into `collect_files` so only matching extensions are walked. Push `--severity` into the audit pipeline so rules below threshold aren't even checked.
+**Status: ✅ DONE.** `--language` filter now applies at `collect_files` time. File collection walks only matching extensions. Both `collect_files` (directory scan) and `run_files` (diff-only) use `ParserRegistry::extensions_for()` as the single extension lookup. `--severity` push deferred to v0.4.0.
 
 ### BTL-06 · `panic!` / `println!` Rules Fire Inside `#[cfg(test)]` Blocks
 **Files:** All rules checking `panic!` or `println!` in library context  

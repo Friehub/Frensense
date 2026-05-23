@@ -25,7 +25,7 @@ impl GenSenseRule for AsyncPanicSafety {
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {

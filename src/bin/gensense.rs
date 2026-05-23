@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #![warn(clippy::unwrap_used)]
 
+use gensense::parser::ParserRegistry;
 #[cfg(feature = "remediation")]
 use gensense::patcher::PatchManager;
 use gensense::{Advisory, Engine, Result, Severity};
@@ -27,6 +28,10 @@ fn print_help() {
     println!("  --sarif            Output findings in SARIF format");
     println!("  --emit-baseline <file> Capture current advisories to a baseline file");
     println!("  --compare-baseline <file> Compare against a baseline and fail on regressions");
+    println!("  --diff-only          Only scan files changed since last git commit");
+    println!(
+        "  --language <lang>    Only scan files matching language (rust, typescript, javascript, solidity, yaml)"
+    );
     #[cfg(feature = "remediation")]
     println!("  --fix              Apply automated remediation (experimental)");
     #[cfg(feature = "remediation")]
@@ -46,7 +51,10 @@ fn print_help() {
 }
 
 fn print_version() {
-    println!("GenSense v{} - Semantic Code Analysis Engine", gensense::GENSENSE_VERSION);
+    println!(
+        "GenSense v{} - Semantic Code Analysis Engine",
+        gensense::GENSENSE_VERSION
+    );
     println!("Ship with confidence. Audit with insight.");
     println!("\nFeatures Enabled:");
     #[cfg(feature = "rust")]
@@ -216,6 +224,7 @@ struct CliOptions {
     is_strict: bool,
     do_fix: bool,
     show_diff: bool,
+    diff_only: bool,
     severity_filter: Option<Severity>,
     enabled_tags: Vec<String>,
     extra_rule_dirs: Vec<PathBuf>,
@@ -223,6 +232,7 @@ struct CliOptions {
     emit_baseline_path: Option<String>,
     compare_baseline_path: Option<String>,
     min_confidence: f32,
+    language_filter: Option<String>,
 }
 
 fn parse_options(args: &[String]) -> CliOptions {
@@ -231,6 +241,7 @@ fn parse_options(args: &[String]) -> CliOptions {
         is_strict: false,
         do_fix: false,
         show_diff: false,
+        diff_only: false,
         severity_filter: None,
         enabled_tags: Vec::new(),
         extra_rule_dirs: Vec::new(),
@@ -238,6 +249,7 @@ fn parse_options(args: &[String]) -> CliOptions {
         emit_baseline_path: None,
         compare_baseline_path: None,
         min_confidence: 0.0,
+        language_filter: None,
     };
 
     let mut i = 2;
@@ -250,6 +262,7 @@ fn parse_options(args: &[String]) -> CliOptions {
             "--fix" => options.do_fix = true,
             #[cfg(feature = "remediation")]
             "--diff" => options.show_diff = true,
+            "--diff-only" => options.diff_only = true,
             "--no-builtin-rules" => options.no_builtin = true,
             "--min-confidence" => {
                 if let Some(val) = args.get(i + 1) {
@@ -294,6 +307,12 @@ fn parse_options(args: &[String]) -> CliOptions {
             "--compare-baseline" => {
                 if let Some(path) = args.get(i + 1) {
                     options.compare_baseline_path = Some(path.clone());
+                    i += 1;
+                }
+            }
+            "--language" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.language_filter = Some(val.clone());
                     i += 1;
                 }
             }
@@ -349,7 +368,10 @@ fn print_results(
                 println!("Analysis Complete: Looking great! No structural concerns found.");
             } else {
                 println!("╔══════════════════════════════════════════════════╗");
-                println!("║  GenSense v{}                              ║", gensense::GENSENSE_VERSION);
+                println!(
+                    "║  GenSense v{}                              ║",
+                    gensense::GENSENSE_VERSION
+                );
                 println!("║  Semantic Code Analysis Engine                ║");
                 println!("╚══════════════════════════════════════════════════╝");
                 println!("Analysis: {}", input_path.display());
@@ -451,7 +473,69 @@ fn main() -> Result<()> {
     }
     engine.set_no_builtin_rules(options.no_builtin);
 
-    let mut filtered_advisories = engine.run(&input_path)?;
+    if let Some(lang_arg) = &options.language_filter {
+        if let Some(exts) = gensense::parser::ParserRegistry::extensions_for(lang_arg) {
+            engine.set_language_filter(exts);
+        } else {
+            eprintln!(
+                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, solidity/sol, yaml"
+            );
+            std::process::exit(1);
+        }
+    }
+
+    let mut filtered_advisories = if options.diff_only {
+        let repo_dir = if input_path.is_dir() {
+            input_path.clone()
+        } else {
+            input_path.parent().unwrap_or(&input_path).to_path_buf()
+        };
+        let output = std::process::Command::new("git")
+            .arg("diff")
+            .arg("--name-only")
+            .arg("HEAD")
+            .current_dir(&repo_dir)
+            .output()
+            .map_err(|e| {
+                gensense::GenSenseError::Config(format!(
+                    "Failed to run git diff: {e} — is this a git repository?"
+                ))
+            })?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(gensense::GenSenseError::Config(format!(
+                "git diff failed: {stderr}"
+            )));
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let diff_files: Vec<PathBuf> = stdout
+            .lines()
+            .map(|l| repo_dir.join(l))
+            .filter(|p| ParserRegistry::is_supported(p))
+            .filter(|p| {
+                if let Some(ref lang) = options.language_filter {
+                    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+                    gensense::parser::ParserRegistry::extensions_for(lang)
+                        .is_some_and(|exts| exts.contains(&ext))
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        if diff_files.is_empty() {
+            eprintln!("No changed files to scan.");
+            Vec::new()
+        } else {
+            eprintln!(
+                "Diff-only: scanning {} changed file(s)...",
+                diff_files.len()
+            );
+            engine.run_files(&input_path, &diff_files)?
+        }
+    } else {
+        engine.run(&input_path)?
+    };
     apply_filters(&mut filtered_advisories, &options, &engine);
 
     print_results(&filtered_advisories, &options.format, &input_path)?;

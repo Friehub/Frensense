@@ -148,6 +148,8 @@ impl RuleCompiler {
             auto_fixable: dsl.auto_fixable,
             requires_human: dsl.requires_human,
             exclude_scope,
+            skip_if_parent: dsl.skip_if_parent,
+            body_query: dsl.body_query,
         })
     }
 }

@@ -4,13 +4,15 @@ use crate::{GenSenseError, Result};
 use std::path::Path;
 use tree_sitter::Language;
 
-pub enum SupportedLanguage {
-    Rust,
-    TypeScript,
-    JavaScript,
-    Solidity,
-    Yaml,
-}
+/// Maps language names (as passed via `--language`) to their file extensions.
+/// Adding a new language means adding an entry here and in `get_language`/`is_supported`.
+const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
+    (&["rust"], &["rs"]),
+    (&["typescript", "ts"], &["ts", "tsx"]),
+    (&["javascript", "js"], &["js", "jsx"]),
+    (&["solidity", "sol"], &["sol"]),
+    (&["yaml", "yml"], &["yml", "yaml"]),
+];
 
 pub struct ParserRegistry;
 
@@ -121,5 +123,27 @@ impl ParserRegistry {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
         matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")
             || (cfg!(feature = "solidity") && ext == "sol")
+    }
+
+    /// Look up file extensions for a language name as passed via `--language`.
+    /// Returns `None` if the name is not recognised or if the language feature is disabled.
+    #[must_use]
+    pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {
+        let lower = name.to_lowercase();
+        if !cfg!(feature = "solidity") && (lower == "solidity" || lower == "sol") {
+            return None;
+        }
+        LANGUAGE_EXTENSIONS
+            .iter()
+            .find(|(names, _)| names.contains(&lower.as_str()))
+            .map(|(_, exts)| *exts)
+    }
+
+    /// Check whether a file extension matches one of the given allowed extensions.
+    /// Convenience for rule `applies_to()` implementations — keeps the extension list
+    /// in one place when a new language is added.
+    #[must_use]
+    pub fn ext_matches(ext: &str, allowed: &[&str]) -> bool {
+        allowed.contains(&ext)
     }
 }

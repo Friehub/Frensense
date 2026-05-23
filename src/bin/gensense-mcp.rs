@@ -7,7 +7,6 @@
 use gensense::{Advisory, Engine, Severity};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::ffi::OsStr;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
@@ -180,19 +179,18 @@ fn filter_advisories(
         _ => Severity::Info,
     };
 
-    let extension = language.and_then(|lang| match lang {
-        "rust" => Some(OsStr::new("rs")),
-        "typescript" => Some(OsStr::new("ts")),
-        "solidity" => Some(OsStr::new("sol")),
-        _ => None,
-    });
+    let extensions = language.and_then(gensense::parser::ParserRegistry::extensions_for);
 
     advisories
         .into_iter()
         .filter(|a| severity_rank(a.severity) >= severity_rank(threshold))
         .filter(|a| {
-            if let Some(ext) = extension {
-                Path::new(&a.file_path).extension() == Some(ext)
+            if let Some(exts) = extensions {
+                let ext = Path::new(&a.file_path)
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("");
+                exts.contains(&ext)
             } else {
                 true
             }

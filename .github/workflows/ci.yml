@@ -63,6 +63,15 @@ jobs:
       - name: Lint (Clippy)
         run: cargo clippy --all-features -- -W clippy::pedantic -D warnings
 
+      - name: Install MSRV 1.88
+        uses: dtolnay/rust-toolchain@1.88.0
+      - name: cargo check with MSRV
+        run: cargo check --all-features
+      - name: Restore stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
       - name: Verify Feature Gating (cargo hack)
         # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).
         run: cargo hack check -p gensense --each-feature
@@ -193,6 +202,13 @@ jobs:
           echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
           "$binary" /tmp/test_smoke.rs --json > /dev/null
           echo "CLI smoke test passed"
+
+      - name: Baseline Regression Check
+        run: |
+          binary="./target/debug/gensense"
+          echo "Checking baseline comparison against corpus targets..."
+          "$binary" tests/corpus/targets --json --compare-baseline tests/corpus/baselines/targets.json 2>&1
+          echo "Baseline regression check passed"
 
       - name: MCP Binary Smoke Test
         run: |

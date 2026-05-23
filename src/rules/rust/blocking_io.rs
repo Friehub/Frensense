@@ -25,7 +25,7 @@ impl GenSenseRule for BlockingIoDetector {
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {
@@ -34,6 +34,26 @@ impl GenSenseRule for BlockingIoDetector {
 
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
+
+        if super::is_excluded_test_scope(node, context) {
+            return Vec::new();
+        }
+
+        // Skip if this call expression is wrapped in .await (correctly async)
+        if let Some(parent) = node.parent()
+            && parent.kind() == "await_expression"
+        {
+            return Vec::new();
+        }
+
+        // Skip if this call is .unwrap()/.expect() on an await_expression
+        if let Some(func) = node.child_by_field_name("function")
+            && func.kind() == "field_expression"
+            && let Some(value) = func.child_by_field_name("value")
+            && value.kind() == "await_expression"
+        {
+            return Vec::new();
+        }
 
         if super::is_in_async_scope(node, context.source_code)
             && let Some(func) = node.child_by_field_name("function")
