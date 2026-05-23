@@ -5,18 +5,20 @@
 # and reports how advisory counts evolved over time.
 #
 # Usage:
-#   ./scripts/historical-benchmark.sh <target-repo-path> [--sample]
+#   ./scripts/historical-benchmark.sh <target-repo-path> [scan-subpath] [--sample]
 #
-#   --sample   Only scan every Nth tag (e.g. --sample 10) for large repos.
+#   scan-subpath   Subdirectory to scan within the target repo (default: src)
+#   --sample N     Only scan every Nth tag (e.g. --sample 10) for large repos.
 #
-# Example:
+# Examples:
 #   git clone git@github.com:tokio-rs/tokio.git /tmp/tokio
-#   ./scripts/historical-benchmark.sh /tmp/tokio --sample 5
+#   ./scripts/historical-benchmark.sh /tmp/tokio tokio/src --sample 5
 
 set -euo pipefail
 
 TARGET_REPO="$1"
-SAMPLE="${2:-1}"  # default: every tag
+SCAN_PATH="${2:-src}"  # subpath within repo to scan (default: src)
+SAMPLE="${3:-1}"      # default: every tag
 
 if [ ! -d "$TARGET_REPO/.git" ]; then
   echo "Error: $TARGET_REPO is not a git repository"
@@ -49,7 +51,7 @@ for TAG in "${TAGS[@]}"; do
   (cd "$TARGET_REPO" && git checkout --quiet "$TAG" 2>/dev/null)
 
   # Run gensense with --json, suppress gensense's own stdout/stderr
-  JSON=$("$GENSENSE" "$TARGET_REPO/src" --json 2>/dev/null || echo '{"advisories":[],"advisory_count":0}')
+  JSON=$("$GENSENSE" "$TARGET_REPO/$SCAN_PATH" --json 2>/dev/null || echo '{"advisories":[],"advisory_count":0}')
 
   TOTAL=$(echo "$JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('advisory_count',0))")
   CRIT=$(echo "$JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(1 for a in d.get('advisories',[]) if a.get('severity')=='Critical'))")

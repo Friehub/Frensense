@@ -206,8 +206,11 @@ jobs:
       - name: Baseline Regression Check
         run: |
           binary="./target/debug/gensense"
+          baseline="tests/corpus/baselines/targets.json"
+          echo "Emitting baseline for corpus targets..."
+          "$binary" tests/corpus/targets --json --emit-baseline "$baseline" 2>&1
           echo "Checking baseline comparison against corpus targets..."
-          "$binary" tests/corpus/targets --json --compare-baseline tests/corpus/baselines/targets.json 2>&1
+          "$binary" tests/corpus/targets --json --compare-baseline "$baseline" 2>&1
           echo "Baseline regression check passed"
 
       - name: MCP Binary Smoke Test

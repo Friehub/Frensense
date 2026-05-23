@@ -367,14 +367,19 @@ fn test_mcp_tools_call_without_args_missing_name() {
 
 #[test]
 fn test_mcp_tools_call_without_arguments() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("test.rs");
+    fs::write(&f, "fn main() {}").unwrap();
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     send_request(
         &mut stdin,
-        r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gensense_audit"}}"#,
+        &format!(
+            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}"}}}}}}"#,
+            dir.path().display()
+        ),
     );
     let resp = read_response(&mut stdout);
-    // Should fall back to path="." and succeed — we're scanning CWD
     let text: serde_json::Value =
         serde_json::from_str(resp["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert!(text.get("clean").is_some());
@@ -383,11 +388,17 @@ fn test_mcp_tools_call_without_arguments() {
 
 #[test]
 fn test_mcp_extra_fields_ignored() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("test.rs");
+    fs::write(&f, "fn main() {}").unwrap();
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     send_request(
         &mut stdin,
-        r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"gensense_audit","arguments":{"path":".","fix_auto":false,"severity_threshold":"info","unknown_field":"should-be-ignored"},"extraTopLevel":null}}"#,
+        &format!(
+            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","fix_auto":false,"severity_threshold":"info","unknown_field":"should-be-ignored"}},"extraTopLevel":null}}}}"#,
+            dir.path().display()
+        ),
     );
     let resp = read_response(&mut stdout);
     assert!(
