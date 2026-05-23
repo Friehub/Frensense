@@ -147,7 +147,9 @@ impl GenSenseRule for CoreRuleIr {
                     file_path: context.file_path.to_string_lossy().to_string(),
                     severity: meta.severity,
                     confidence: meta.confidence,
-                    observation: format!("File length ({line_count} lines) exceeds threshold of {max}."),
+                    observation: format!(
+                        "File length ({line_count} lines) exceeds threshold of {max}."
+                    ),
                     impact: meta.impact.to_string(),
                     improvement: meta.improvement.to_string(),
                     line: 1,
