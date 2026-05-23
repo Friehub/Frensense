@@ -88,6 +88,9 @@ impl GenSenseAuditor {
             ));
         }
 
+        // Language-agnostic file-level rules
+        rules.push(Box::new(crate::rules::global::file_length::LongFile));
+
         let yaml_rules_loaded = Self::load_yaml_rules_from_disk(&mut rules, &mut project_rules);
 
         // Load embedded YAML rules if local rules were not loaded
