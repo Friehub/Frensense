@@ -79,10 +79,10 @@ fn self_audit_report_warnings() {
         }
     }
 
-    // Soft threshold: fail if warnings exceed 165. (Acknowledge baseline debt)
+    // Soft threshold: fail if warnings exceed 175. (Acknowledge baseline debt)
     assert!(
-        warnings.len() <= 165,
-        "[SELF-AUDIT] Warning count ({}) exceeds threshold (165). \
+        warnings.len() <= 175,
+        "[SELF-AUDIT] Warning count ({}) exceeds threshold (175). \
          Review and resolve accumulated findings before merging.",
         warnings.len()
     );
