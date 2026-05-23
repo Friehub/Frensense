@@ -207,6 +207,7 @@ jobs:
         run: |
           binary="./target/debug/gensense"
           baseline="tests/corpus/baselines/targets.json"
+          mkdir -p "$(dirname "$baseline")"
           echo "Emitting baseline for corpus targets..."
           "$binary" tests/corpus/targets --json --emit-baseline "$baseline" 2>&1
           echo "Checking baseline comparison against corpus targets..."
