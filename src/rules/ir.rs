@@ -264,10 +264,11 @@ impl CoreRuleIr {
 
         if let Some(re) = &self.body_must_contain_any_of {
             let body_node = node.child_by_field_name("body").unwrap_or(node);
-            let body_src = &context.source_code[body_node.start_byte()..body_node.end_byte()];
-            if re.is_match(body_src) {
+            let checker =
+                crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
+            if checker.any_reachable_path_contains(body_node, re) {
                 let is_bypassed = if let Some(bypass_re) = &self.must_not_contain {
-                    bypass_re.is_match(code)
+                    checker.any_reachable_path_contains(body_node, bypass_re)
                 } else {
                     false
                 };
@@ -280,14 +281,17 @@ impl CoreRuleIr {
                     ));
                 }
             }
-        } else if let Some(re) = &self.must_not_contain
-            && re.is_match(code)
-        {
-            advisories.push(self.new_advisory(
-                &node,
-                context,
-                format!("Prohibited pattern '{}' was found.", re.as_str()),
-            ));
+        } else if let Some(re) = &self.must_not_contain {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            let checker =
+                crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
+            if checker.any_reachable_path_contains(body_node, re) {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    format!("Prohibited pattern '{}' was found.", re.as_str()),
+                ));
+            }
         }
 
         if let Some(kind) = &self.must_be_preceded_by {
