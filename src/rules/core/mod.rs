@@ -32,6 +32,8 @@ pub struct CoreRule {
     #[serde(default)]
     pub max_depth: Option<usize>,
     #[serde(default)]
+    pub max_file_lines: Option<usize>,
+    #[serde(default)]
     pub within_scope: Option<String>,
     #[serde(default)]
     pub outside_scope: Option<String>,

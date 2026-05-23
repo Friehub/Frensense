@@ -232,6 +232,12 @@ pub trait GenSenseRule: Send + Sync {
     /// Helper to check file applicability
     fn applies_to(&self, extension: &str) -> bool;
 
+    /// File-level check (not per-node). Fires once per file.
+    /// Default no-op — override for rules like file-length limits.
+    fn file_check(&self, _context: &GenSenseContext<'_>) -> Vec<Advisory> {
+        Vec::new()
+    }
+
     /// Helper for query-based matching
     fn query(&self) -> Option<&str> {
         None

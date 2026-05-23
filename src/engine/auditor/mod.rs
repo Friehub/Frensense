@@ -181,6 +181,31 @@ impl GenSenseAuditor {
             }
         }
 
+        // Phase 3: file-level checks (max_file_lines, etc.)
+        let taint_cache = TaintCache::default();
+        let file_context = GenSenseContext {
+            file_id: opts.file_id,
+            file_path: opts.path,
+            source_code: opts.content,
+            tree: opts.tree,
+            symbols: opts.symbols,
+            semantic_ops: opts.semantic_ops,
+            taint_cache: &taint_cache,
+            file_trees: opts.file_trees,
+        };
+        for rule in &self.rules {
+            if !self.is_rule_enabled(
+                rule.as_ref(),
+                opts.category_filter,
+                opts.tag_filter,
+                opts.suite,
+                opts.env,
+            ) {
+                continue;
+            }
+            advisories.extend(rule.file_check(&file_context));
+        }
+
         #[cfg(feature = "fingerprinting")]
         extract_fingerprints(
             opts.tree.root_node(),

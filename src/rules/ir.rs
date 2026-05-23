@@ -49,6 +49,7 @@ pub struct CoreRuleIr {
     pub must_not_contain: Option<Regex>,
     pub max_lines: Option<usize>,
     pub max_depth: Option<usize>,
+    pub max_file_lines: Option<usize>,
     pub target_ext: String,
     pub target_kinds: Vec<String>,
     pub use_query: bool,
@@ -133,6 +134,40 @@ impl GenSenseRule for CoreRuleIr {
         self.check_flow_constraints(node, context, top, &mut advisories);
 
         advisories
+    }
+
+    fn file_check(&self, context: &GenSenseContext<'_>) -> Vec<Advisory> {
+        if let Some(max) = self.max_file_lines {
+            let line_count = context.source_code.lines().count();
+            if line_count > max {
+                let meta = self.metadata();
+                return vec![Advisory {
+                    rule_id: meta.id.to_string(),
+                    file_id: context.file_id,
+                    file_path: context.file_path.to_string_lossy().to_string(),
+                    severity: meta.severity,
+                    confidence: meta.confidence,
+                    observation: format!(
+                        "File length ({line_count} lines) exceeds threshold of {max}."
+                    ),
+                    impact: meta.impact.to_string(),
+                    improvement: meta.improvement.to_string(),
+                    line: 1,
+                    column: 1,
+                    start_byte: 0,
+                    end_byte: 0,
+                    original_content: String::new(),
+                    proposed_replacement: None,
+                    proposed_import: None,
+                    enclosing_symbol: None,
+                    fingerprint: String::new(),
+                    auto_fixable: false,
+                    requires_human: false,
+                    tags: meta.tags.iter().map(ToString::to_string).collect(),
+                }];
+            }
+        }
+        Vec::new()
     }
 }
 

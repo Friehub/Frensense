@@ -134,6 +134,7 @@ impl RuleCompiler {
             must_not_contain: dsl.must_not_contain,
             max_lines: dsl.max_lines,
             max_depth: dsl.max_depth,
+            max_file_lines: dsl.max_file_lines,
             target_ext: dsl.target_ext,
             target_kinds,
             use_query,
