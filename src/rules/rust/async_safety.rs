@@ -35,6 +35,10 @@ impl GenSenseRule for AsyncPanicSafety {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
+        if super::is_excluded_test_scope(node, context) {
+            return Vec::new();
+        }
+
         if super::is_in_async_scope(node, context.source_code) {
             let kind = node.kind();
             if kind == "call_expression" {

@@ -61,6 +61,7 @@ pub struct CoreRuleIr {
     pub must_be_preceded_by: Option<String>,
     pub auto_fixable: Option<bool>,
     pub requires_human: Option<bool>,
+    pub exclude_scope: Option<Regex>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -78,6 +79,23 @@ impl GenSenseRule for CoreRuleIr {
 
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
+
+        // Exclude scope check: skip if file path or any ancestor's source text matches
+        if let Some(re) = &self.exclude_scope {
+            let file_path = context.file_path.to_string_lossy();
+            if re.is_match(&file_path) {
+                return Vec::new();
+            }
+            let mut current = node.parent();
+            while let Some(ancestor) = current {
+                let text = &context.source_code[ancestor.start_byte()..ancestor.end_byte()];
+                if re.is_match(text) {
+                    return Vec::new();
+                }
+                current = ancestor.parent();
+            }
+        }
+
         let mut top = node;
         while let Some(parent) = top.parent() {
             top = parent;

@@ -196,6 +196,12 @@ Discovered during real-world validation (jumia-clone scan). Not yet addressed �
 **Impact:** Changing `--severity` or `--language` re-runs the full scan. Filtering happens after audit completes — no early-exit for irrelevant files.
 **Fix:** Push `--language` filter into `collect_files` so only matching extensions are walked. Push `--severity` into the audit pipeline so rules below threshold aren't even checked.
 
+### BTL-06 · `panic!` / `println!` Rules Fire Inside `#[cfg(test)]` Blocks
+**Files:** All rules checking `panic!` or `println!` in library context  
+**Time:** 1 hour  
+**Impact:** `RUST_PANIC_IN_LIB` and `RUST_STD_OUTPUT` flag `panic!` and `println!` inside `#[cfg(test)]` modules and `#[test]` functions, where they are standard and expected. ~25% false positive rate in tested repos.
+**Fix:** Walk AST ancestors of the matched node. If any ancestor is a `#[cfg(test)]` module or `#[test]` function, skip the finding. Implement as a shared helper in `src/rules/rust/mod.rs`.
+
 ### BTL-05 · No Content-Hash Cache
 **File:** `src/engine/project/mod.rs`  
 **Time:** 1–2 hours  

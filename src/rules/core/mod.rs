@@ -67,6 +67,8 @@ pub struct CoreRule {
     pub auto_fixable: Option<bool>,
     #[serde(default)]
     pub requires_human: Option<bool>,
+    #[serde(default)]
+    pub exclude_scope: Option<String>,
 }
 
 impl GenSenseRule for CoreRule {
