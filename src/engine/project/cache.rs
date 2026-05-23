@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: MIT
+
+use std::collections::HashMap;
+use std::path::Path;
+
+/// Content-hash cache stored at `<project_root>/.gensense/cache.json`.
+///
+/// Maps file paths to blake3 hex hashes of their content. On subsequent runs,
+/// files whose hash matches the cache are skipped entirely — no parse, no audit.
+///
+/// Safe because: unchanged content → same findings as last run.
+/// The cache is invalidated when the engine version changes (version field).
+#[derive(Default)]
+pub struct FileCache {
+    pub files: HashMap<String, String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CacheFile {
+    version: u32,
+    files: HashMap<String, String>,
+}
+
+impl FileCache {
+    const CURRENT_VERSION: u32 = 1;
+
+    /// Load cache from `.gensense/cache.json` under the project root.
+    /// Returns an empty cache if the file doesn't exist or is corrupt.
+    #[must_use]
+    pub fn load(root: &Path) -> Self {
+        let cache_path = root.join(".gensense").join("cache.json");
+        let files = std::fs::read_to_string(&cache_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<CacheFile>(&s).ok())
+            .filter(|c| c.version == Self::CURRENT_VERSION)
+            .map(|c| c.files)
+            .unwrap_or_default();
+        Self { files }
+    }
+
+    /// Save cache to `.gensense/cache.json` under the project root.
+    /// Creates the `.gensense/` directory if it doesn't exist.
+    pub fn save(&self, root: &Path) {
+        if self.files.is_empty() {
+            return;
+        }
+        let dir = root.join(".gensense");
+        let cache_path = dir.join("cache.json");
+        let wrapper = CacheFile {
+            version: Self::CURRENT_VERSION,
+            files: self.files.clone(),
+        };
+        if let Ok(content) = serde_json::to_string_pretty(&wrapper) {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(&cache_path, content);
+        }
+    }
+
+    /// Returns `true` if the file's content matches the cached hash.
+    #[must_use]
+    pub fn is_unchanged(&self, path: &Path, content: &str) -> bool {
+        let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+        self.files.get(&path_to_key(path)) == Some(&hash)
+    }
+
+    /// Update the cache entry for a file with its current content hash.
+    pub fn update(&mut self, path: &Path, content: &str) {
+        let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+        self.files.insert(path_to_key(path), hash);
+    }
+
+    /// Remove a file from the cache (e.g., when a read error occurs).
+    pub fn remove(&mut self, path: &Path) {
+        self.files.remove(&path_to_key(path));
+    }
+}
+
+fn path_to_key(path: &Path) -> String {
+    path.to_string_lossy().to_string()
+}

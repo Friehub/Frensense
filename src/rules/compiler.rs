@@ -110,6 +110,15 @@ impl RuleCompiler {
             None
         };
 
+        let exclude_scope = if let Some(scope) = dsl.exclude_scope {
+            Some(
+                regex::Regex::new(&scope)
+                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+            )
+        } else {
+            None
+        };
+
         let target_kinds: Vec<String> = dsl
             .on_node
             .split('|')
@@ -138,6 +147,9 @@ impl RuleCompiler {
             must_be_preceded_by: dsl.must_be_preceded_by,
             auto_fixable: dsl.auto_fixable,
             requires_human: dsl.requires_human,
+            exclude_scope,
+            skip_if_parent: dsl.skip_if_parent,
+            body_query: dsl.body_query,
         })
     }
 }

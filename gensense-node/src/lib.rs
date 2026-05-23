@@ -1,4 +1,4 @@
-use crate::engine::Engine;
+use gensense::Engine;
 use napi_derive::napi;
 use std::path::Path;
 
@@ -38,7 +38,7 @@ impl GenSenseEngine {
     #[napi(getter)]
     #[must_use]
     pub fn version(&self) -> String {
-        crate::GENSENSE_VERSION.to_string()
+        gensense::GENSENSE_VERSION.to_string()
     }
 }
 
@@ -60,9 +60,9 @@ impl GenSenseEngine {
     #[allow(clippy::needless_pass_by_value)]
     pub fn set_environment(&mut self, env: String) {
         let env_enum = match env.as_str() {
-            "production" => crate::GenSenseEnvironment::Production,
-            "staging" => crate::GenSenseEnvironment::Staging,
-            _ => crate::GenSenseEnvironment::Development,
+            "production" => gensense::GenSenseEnvironment::Production,
+            "staging" => gensense::GenSenseEnvironment::Staging,
+            _ => gensense::GenSenseEnvironment::Development,
         };
         self.inner.set_environment(env_enum);
     }

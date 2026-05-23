@@ -34,36 +34,36 @@ impl<'a> ReachabilityChecker<'a> {
         let kind = node.kind();
 
         // Handle if statements specially to prune dead branches
-        if kind == "if_statement" || kind == "if_expression" {
-            if let Some(cond) = node.child_by_field_name("condition") {
-                let (consequence_dead, alternative_dead) = match self.evaluate_condition(cond) {
-                    Some(true) => (false, true),
-                    Some(false) => (true, false),
-                    None => (false, false),
-                };
+        if (kind == "if_statement" || kind == "if_expression")
+            && let Some(cond) = node.child_by_field_name("condition")
+        {
+            let (consequence_dead, alternative_dead) = match self.evaluate_condition(cond) {
+                Some(true) => (false, true),
+                Some(false) => (true, false),
+                None => (false, false),
+            };
 
-                // Visit condition
-                let cond_text = &self.source[cond.start_byte()..cond.end_byte()];
-                if pattern.is_match(cond_text) {
-                    return true;
-                }
-
-                // Visit consequence
-                if let Some(consequence) = node.child_by_field_name("consequence") {
-                    if self.walk_reachable(consequence, pattern, consequence_dead) {
-                        return true;
-                    }
-                }
-
-                // Visit alternative
-                if let Some(alternative) = node.child_by_field_name("alternative") {
-                    if self.walk_reachable(alternative, pattern, alternative_dead) {
-                        return true;
-                    }
-                }
-
-                return false;
+            // Visit condition
+            let cond_text = &self.source[cond.start_byte()..cond.end_byte()];
+            if pattern.is_match(cond_text) {
+                return true;
             }
+
+            // Visit consequence
+            if let Some(consequence) = node.child_by_field_name("consequence")
+                && self.walk_reachable(consequence, pattern, consequence_dead)
+            {
+                return true;
+            }
+
+            // Visit alternative
+            if let Some(alternative) = node.child_by_field_name("alternative")
+                && self.walk_reachable(alternative, pattern, alternative_dead)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         let text = &self.source[node.start_byte()..node.end_byte()];

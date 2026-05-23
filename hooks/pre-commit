@@ -12,11 +12,11 @@ cargo fmt --all -- --check
 
 # 2. Clippy Lints
 echo "[CHECK] Running semantic lints..."
-cargo clippy --all-targets --all-features -- -W clippy::pedantic -A clippy::collapsible_if -A clippy::collapsible_match -A clippy::unnecessary_sort_by -A clippy::unnecessary_trailing_comma -D warnings
+cargo clippy --all-features -- -W clippy::pedantic -D warnings
 
-# 3. Quick Tests
-echo "[TEST] Running unit tests..."
-cargo test --lib --bins
+# 3. Tests
+echo "[TEST] Running all tests..."
+cargo test
 
 echo "[SUCCESS] All checks passed. Proceeding with commit."
 exit 0

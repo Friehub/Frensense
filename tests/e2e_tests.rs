@@ -275,8 +275,6 @@ fn test_cli_json_output() {
             "run",
             "--bin",
             "gensense",
-            "--features",
-            "cli",
             "--",
             root.to_str().unwrap(),
             "--json",

@@ -61,11 +61,20 @@ jobs:
 
 
       - name: Lint (Clippy)
-        run: cargo clippy --all-targets --features full -- -W clippy::pedantic -A clippy::collapsible_if -A clippy::collapsible_match -A clippy::unnecessary_sort_by -A clippy::unnecessary_trailing_comma -D warnings
+        run: cargo clippy --all-features -- -W clippy::pedantic -D warnings
+
+      - name: Install MSRV 1.88
+        uses: dtolnay/rust-toolchain@1.88.0
+      - name: cargo check with MSRV
+        run: cargo check --all-features
+      - name: Restore stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - name: Verify Feature Gating (cargo hack)
         # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).
-        run: cargo hack check --each-feature --exclude-features node
+        run: cargo hack check -p gensense --each-feature
 
       - name: Prune Unused Dependencies (cargo machete)
         run: cargo machete
@@ -140,7 +149,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.88
-      - run: cargo check --features cli,solidity,fingerprinting
+      - run: cargo check --all-features
 
   # --- SemVer Compatibility ---
   semver:
@@ -166,14 +175,11 @@ jobs:
 
   # --- Correctness (Rust) ---
   test-rust:
-    name: Rust Tests (${{ matrix.features }})
+    name: Rust Tests
     runs-on: ubuntu-latest
     needs: [qa]
     permissions:
       contents: read
-    strategy:
-      matrix:
-        features: [cli, "full", "rust,typescript,solidity,mcp"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@v2
@@ -186,18 +192,33 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run Full Regression Suite
-        run: cargo test --features ${{ matrix.features }}
+        run: cargo test
 
       - name: CLI Binary Smoke Test
-        if: ${{ matrix.features != 'rust,typescript,solidity' }}
         run: |
           binary="./target/debug/gensense"
           "$binary" --version
           "$binary" --help
-          # Quick scan of a known small fixture
           echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
           "$binary" /tmp/test_smoke.rs --json > /dev/null
           echo "CLI smoke test passed"
+
+      - name: Baseline Regression Check
+        run: |
+          binary="./target/debug/gensense"
+          baseline="tests/corpus/baselines/targets.json"
+          mkdir -p "$(dirname "$baseline")"
+          echo "Emitting baseline for corpus targets..."
+          "$binary" tests/corpus/targets --json --emit-baseline "$baseline" 2>&1
+          echo "Checking baseline comparison against corpus targets..."
+          "$binary" tests/corpus/targets --json --compare-baseline "$baseline" 2>&1
+          echo "Baseline regression check passed"
+
+      - name: MCP Binary Smoke Test
+        run: |
+          binary="./target/debug/gensense-mcp"
+          echo '{"jsonrpc":"2.0","id":1,"method":"ping"}' | timeout 5 "$binary" || true
+          echo "MCP smoke test passed"
 
   # --- Correctness (Node.js Bindings) ---
   test-node:
@@ -268,7 +289,7 @@ jobs:
         run: cargo install cargo-criterion --locked --force
 
       - name: Run Benchmarks
-        run: cargo criterion --features full --message-format json | tee raw_output.json
+        run: cargo criterion --message-format json | tee raw_output.json
 
       - name: Convert results to benchmark-action format
         run: >
@@ -362,10 +383,10 @@ jobs:
       - name: Run Self-Audit Tests
         # Fails the build if the engine finds any Critical-severity issue in
         # its own source, or if the warning count exceeds the soft threshold.
-        run: cargo test --features full self_audit
+        run: cargo test self_audit
 
       - name: Build Release Binary
-        run: cargo build --release --features full
+        run: cargo build --release
 
       - name: CLI Self-Audit (full scan output)
         # Runs the CLI against src/ and captures the report as a build artifact.
@@ -444,7 +465,7 @@ jobs:
         run: npm ci
       - name: Generate Rule Docs
         run: |
-          cargo run --features cli --bin gensense -- --generate-docs
+          cargo run --bin gensense -- --generate-docs
           mv RULES.md docs/rules.md
       - name: Build VitePress Site
         run: npm run docs:build

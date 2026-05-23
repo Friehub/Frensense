@@ -1,11 +1,11 @@
 # --- Build Stage ---
-FROM rust:slim-bookworm AS builder
+FROM rust:1.88-slim-bookworm AS builder
 
 WORKDIR /usr/src/gensense
 COPY . .
 
-# Build with optimizations
-RUN cargo build --release --features full
+# Build with optimizations — produces both gensense and gensense-mcp binaries
+RUN cargo build --release
 
 # --- Final Stage ---
 FROM debian:bookworm-slim

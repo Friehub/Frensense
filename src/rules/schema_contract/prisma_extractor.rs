@@ -21,10 +21,10 @@ impl PrismaExtractor {
             }
 
             let file_path = entry.path();
-            if let Ok(rel_path) = file_path.strip_prefix(root) {
-                if schema_glob.matches_with(rel_path.to_str().unwrap_or(""), options) {
-                    files.push(file_path.to_path_buf());
-                }
+            if let Ok(rel_path) = file_path.strip_prefix(root)
+                && schema_glob.matches_with(rel_path.to_str().unwrap_or(""), options)
+            {
+                files.push(file_path.to_path_buf());
             }
         }
 

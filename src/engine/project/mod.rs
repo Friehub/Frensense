@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+pub mod cache;
 pub mod config;
 pub mod helpers;
 
 use crate::engine::auditor::{AuditOptions, GenSenseAuditor, ScanResult};
 use crate::engine::suppression::SuppressConfig;
+use crate::parser::ParserRegistry;
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, GenSenseEnvironment, ProjectRule, Result, SourceRegistry};
 use std::collections::{HashMap, HashSet};
@@ -30,9 +32,13 @@ pub struct Engine {
     environment: GenSenseEnvironment,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
+    suite: crate::Suite,
     extra_rule_dirs: Vec<PathBuf>,
     no_builtin_rules: bool,
     isolate_rules: bool,
+    language_filter: Option<Vec<&'static str>>,
+    file_cache: cache::FileCache,
+    cache_root: Option<PathBuf>,
 }
 
 impl Engine {
@@ -46,9 +52,13 @@ impl Engine {
             environment: GenSenseEnvironment::Development,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
+            suite: crate::Suite::All,
             extra_rule_dirs: Vec::new(),
             no_builtin_rules: false,
             isolate_rules: false,
+            language_filter: None,
+            file_cache: cache::FileCache::default(),
+            cache_root: None,
         }
     }
 
@@ -116,6 +126,14 @@ impl Engine {
         self.isolate_rules = val;
     }
 
+    pub fn set_language_filter(&mut self, extensions: &[&'static str]) {
+        self.language_filter = Some(extensions.to_vec());
+    }
+
+    pub fn set_suite(&mut self, suite: crate::Suite) {
+        self.suite = suite;
+    }
+
     /// Runs the project auditor on the given root directory.
     ///
     /// # Errors
@@ -124,6 +142,97 @@ impl Engine {
     pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
         let (advisories, _) = self.run_detailed(root)?;
         Ok(advisories)
+    }
+
+    /// Runs the auditor on a specific set of files (diff-only mode).
+    ///
+    /// Unlike `run()` which scans all files in a directory tree, this method
+    /// processes only the given files. Useful with `--diff-only` to only audit
+    /// changed files.
+    ///
+    /// # Errors
+    /// Returns an error if file reading, parsing, or auditing fails.
+    pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
+        let _config = self.initialize_auditor_and_config(root);
+        self.file_cache = cache::FileCache::load(root);
+
+        let mut snapshots = Vec::new();
+        for p in files {
+            if let Some(ref allowed) = self.language_filter {
+                let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+                if !allowed.contains(&ext) {
+                    continue;
+                }
+            }
+            let content = match std::fs::read_to_string(p) {
+                Ok(c) => c,
+                Err(e) => {
+                    self.file_cache.remove(p);
+                    tracing::warn!("cannot read {}: {e}", p.display());
+                    continue;
+                }
+            };
+            if self.file_cache.is_unchanged(p, &content) {
+                continue;
+            }
+            let id = self.source_registry.register(p, content.clone());
+            let (language, tree) = match self.auditor.parse_source(p, &content) {
+                Ok(v) => v,
+                Err(e) => {
+                    self.file_cache.remove(p);
+                    tracing::warn!("cannot parse {}: {e}", p.display());
+                    continue;
+                }
+            };
+            let symbols = self
+                .auditor
+                .discover_symbols(p, id, &content, &language, &tree)?;
+            let edges = self.auditor.scan_for_edges(p, &content, &language, &tree)?;
+            let semantic_ops = self.auditor.extract_semantic_ops(p, &content, &tree);
+            self.file_cache.update(p, &content);
+            snapshots.push(FileSnapshot {
+                id,
+                path: p.clone(),
+                content,
+                tree,
+                symbols,
+                edges,
+                semantic_ops,
+            });
+        }
+
+        let mut symbols = SymbolRegistry::new();
+        let mut file_ids = Vec::new();
+        let mut snapshot_map = HashMap::new();
+        let mut file_trees = HashMap::new();
+
+        for snap in &snapshots {
+            file_ids.push((snap.id, snap.path.clone()));
+            snapshot_map.insert(snap.id, snap);
+            for sym in snap.symbols.clone() {
+                symbols.insert(sym);
+            }
+            file_trees.insert(
+                snap.path.to_string_lossy().to_string(),
+                (
+                    snap.tree.clone(),
+                    snap.content.clone(),
+                    snap.semantic_ops.clone(),
+                ),
+            );
+        }
+
+        for snap in &snapshots {
+            for (caller, callee) in &snap.edges {
+                symbols.add_call_edge(&snap.path, caller, callee);
+            }
+        }
+
+        let all_advisories =
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+
+        self.file_cache.save(root);
+        Ok(all_advisories)
     }
 
     /// Runs the audit on a single virtual file with the given content.
@@ -164,6 +273,7 @@ impl Engine {
             file_trees: &file_trees,
             category_filter: &self.enabled_categories,
             tag_filter: &self.enabled_tags,
+            suite: self.suite,
             env: self.environment,
         };
 
@@ -195,6 +305,15 @@ impl Engine {
     /// # Errors
     /// Returns an error if file reading or parsing fails.
     pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
+        if !root.exists() {
+            return Err(crate::GenSenseError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("path does not exist: {}", root.display()),
+            )));
+        }
+        self.file_cache = cache::FileCache::load(root);
+        self.cache_root = Some(root.to_path_buf());
+
         let config = self.initialize_auditor_and_config(root);
         let snapshots = self.collect_and_snapshot_files(root)?;
 
@@ -249,6 +368,7 @@ impl Engine {
             }
         }
 
+        self.file_cache.save(root);
         Ok((all_advisories, symbols))
     }
 
@@ -291,34 +411,51 @@ impl Engine {
     }
 
     fn collect_and_snapshot_files(&mut self, root: &Path) -> Result<Vec<FileSnapshot>> {
-        let files = Self::collect_files(root);
-        let mut file_info = Vec::new();
+        let files = Self::collect_files(root, self.language_filter.as_ref());
+        let mut snapshots = Vec::new();
         for p in files {
-            let content = std::fs::read_to_string(&p)?;
+            let content = match std::fs::read_to_string(&p) {
+                Ok(c) => c,
+                Err(e) => {
+                    self.file_cache.remove(&p);
+                    return Err(crate::GenSenseError::Io(e));
+                }
+            };
+            if self.file_cache.is_unchanged(&p, &content) {
+                continue;
+            }
             let id = self.source_registry.register(&p, content.clone());
-            file_info.push((id, p, content));
+            let auditor = &self.auditor;
+            match auditor.parse_source(&p, &content) {
+                Ok((language, tree)) => {
+                    let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree);
+                    let edges = auditor.scan_for_edges(&p, &content, &language, &tree);
+                    let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
+                    if let (Ok(symbols), Ok(edges)) = (symbols, edges) {
+                        self.file_cache.update(&p, &content);
+                        snapshots.push(FileSnapshot {
+                            id,
+                            path: p,
+                            content,
+                            tree,
+                            symbols,
+                            edges,
+                            semantic_ops,
+                        });
+                    } else {
+                        self.file_cache.remove(&p);
+                        return Err(crate::GenSenseError::Io(std::io::Error::other(
+                            "symbol or edge discovery failed",
+                        )));
+                    }
+                }
+                Err(e) => {
+                    self.file_cache.remove(&p);
+                    return Err(e);
+                }
+            }
         }
-
-        let auditor = &self.auditor;
-
-        file_info
-            .into_iter()
-            .map(|(id, p, content)| {
-                let (language, tree) = auditor.parse_source(&p, &content)?;
-                let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree)?;
-                let edges = auditor.scan_for_edges(&p, &content, &language, &tree)?;
-                let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
-                Ok(FileSnapshot {
-                    id,
-                    path: p,
-                    content,
-                    tree,
-                    symbols,
-                    edges,
-                    semantic_ops,
-                })
-            })
-            .collect()
+        Ok(snapshots)
     }
 
     fn perform_parallel_audit(
@@ -355,6 +492,7 @@ impl Engine {
                     file_trees,
                     category_filter: &self.enabled_categories,
                     tag_filter: &self.enabled_tags,
+                    suite: self.suite,
                     env: self.environment,
                 };
                 let result = self.auditor.audit(&opts)?;
@@ -380,7 +518,7 @@ impl Engine {
         Ok(all_advisories)
     }
 
-    fn collect_files(root: &Path) -> Vec<PathBuf> {
+    fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -> Vec<PathBuf> {
         if root.is_file() {
             return vec![root.to_path_buf()];
         }
@@ -400,6 +538,15 @@ impl Engine {
             .filter_map(std::result::Result::ok)
             .filter(|e| e.file_type().is_file())
             .map(|e| e.path().to_path_buf())
+            .filter(|p| ParserRegistry::is_supported(p))
+            .filter(|p| {
+                if let Some(allowed) = language_filter {
+                    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+                    allowed.contains(&ext)
+                } else {
+                    true
+                }
+            })
             .collect()
     }
 }

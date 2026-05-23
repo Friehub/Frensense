@@ -21,11 +21,12 @@ impl GenSenseRule for TimeoutGuard {
             tags: vec![Cow::Borrowed("liveness"), Cow::Borrowed("reliability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Reliability"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {

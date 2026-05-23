@@ -1,6 +1,6 @@
 [package]
 name = "gensense"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Friehub Developers"]
 edition = "2024"
 description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
@@ -12,20 +12,17 @@ categories = ["development-tools::static-analysis", "security"]
 keywords = ["static-analysis", "linter", "security", "code-quality"]
 publish = true
 rust-version = "1.88"
-autobins = false
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+name = "gensense"
 
 [[bin]]
 name = "gensense"
 path = "src/bin/gensense.rs"
-required-features = ["cli"]
 
 [[bin]]
 name = "gensense-mcp"
 path = "src/bin/gensense-mcp.rs"
-required-features = ["mcp"]
 
 [dependencies]
 tree-sitter = "0.23"
@@ -44,12 +41,11 @@ walkdir = "2"
 diff = { version = "0.1", optional = true }
 include_dir = { version = "0.7", features = ["glob"] }
 glob = "0.3"
-napi = { version = "2.12", default-features = false, features = ["napi4"], optional = true }
-napi-derive = { version = "2.12", optional = true }
 petgraph = "0.6"
 dirs = "5.0"
 pathdiff = "0.2"
 rustc-hash = "1.1"
+blake3 = "1.5"
 
 [features]
 default = ["rust", "typescript", "fingerprinting", "remediation"]
@@ -58,13 +54,6 @@ typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 solidity = ["dep:tree-sitter-solidity"]
 fingerprinting = []
 remediation = ["dep:diff"]
-node = ["dep:napi", "dep:napi-derive"]
-cli = ["rust", "typescript", "remediation", "mcp"]
-mcp = []
-full = ["rust", "typescript", "solidity", "fingerprinting", "remediation", "cli", "mcp"]
-
-[build-dependencies]
-napi-build = "2.0"
 
 [dev-dependencies]
 tempfile = "3"

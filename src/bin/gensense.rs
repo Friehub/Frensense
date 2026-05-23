@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #![warn(clippy::unwrap_used)]
 
+use gensense::parser::ParserRegistry;
 #[cfg(feature = "remediation")]
 use gensense::patcher::PatchManager;
 use gensense::{Advisory, Engine, Result, Severity};
@@ -8,8 +9,11 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 fn print_help() {
-    println!("GenSense - Semantic Insight for Modern Codebases");
+    println!("GenSense - Semantic Code Analysis Engine");
     println!("Version: {}", gensense::GENSENSE_VERSION);
+    println!("Analyzes Rust, TypeScript, JavaScript, and YAML codebases for bugs,");
+    println!("anti-patterns, security risks, and SQL drift — with AST-level precision.");
+    println!();
     println!("Usage: gensense <path> [options]");
     println!("\nOptions:");
     println!("  --version          Display version and features");
@@ -24,6 +28,10 @@ fn print_help() {
     println!("  --sarif            Output findings in SARIF format");
     println!("  --emit-baseline <file> Capture current advisories to a baseline file");
     println!("  --compare-baseline <file> Compare against a baseline and fail on regressions");
+    println!("  --diff-only          Only scan files changed since last git commit");
+    println!(
+        "  --language <lang>    Only scan files matching language (rust, typescript, javascript, solidity, yaml)"
+    );
     #[cfg(feature = "remediation")]
     println!("  --fix              Apply automated remediation (experimental)");
     #[cfg(feature = "remediation")]
@@ -43,7 +51,11 @@ fn print_help() {
 }
 
 fn print_version() {
-    println!("GenSense version {}", gensense::GENSENSE_VERSION);
+    println!(
+        "GenSense v{} - Semantic Code Analysis Engine",
+        gensense::GENSENSE_VERSION
+    );
+    println!("Ship with confidence. Audit with insight.");
     println!("\nFeatures Enabled:");
     #[cfg(feature = "rust")]
     println!("  [x] Rust Analysis");
@@ -136,14 +148,14 @@ fn handle_test_rule(args: &[String]) {
                 std::process::exit(1);
             },
             |finding| {
-                if let Some(expected_line) = expect_line {
-                    if finding.line != expected_line {
-                        println!(
-                            "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
-                            expected_line, finding.line
-                        );
-                        std::process::exit(1);
-                    }
+                if let Some(expected_line) = expect_line
+                    && finding.line != expected_line
+                {
+                    println!(
+                        "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
+                        expected_line, finding.line
+                    );
+                    std::process::exit(1);
                 }
                 println!("[PASS]");
                 std::process::exit(0);
@@ -212,6 +224,7 @@ struct CliOptions {
     is_strict: bool,
     do_fix: bool,
     show_diff: bool,
+    diff_only: bool,
     severity_filter: Option<Severity>,
     enabled_tags: Vec<String>,
     extra_rule_dirs: Vec<PathBuf>,
@@ -219,14 +232,18 @@ struct CliOptions {
     emit_baseline_path: Option<String>,
     compare_baseline_path: Option<String>,
     min_confidence: f32,
+    language_filter: Option<String>,
+    suite: gensense::Suite,
 }
 
+#[allow(clippy::too_many_lines)]
 fn parse_options(args: &[String]) -> CliOptions {
     let mut options = CliOptions {
         format: "text".to_string(),
         is_strict: false,
         do_fix: false,
         show_diff: false,
+        diff_only: false,
         severity_filter: None,
         enabled_tags: Vec::new(),
         extra_rule_dirs: Vec::new(),
@@ -234,6 +251,8 @@ fn parse_options(args: &[String]) -> CliOptions {
         emit_baseline_path: None,
         compare_baseline_path: None,
         min_confidence: 0.0,
+        language_filter: None,
+        suite: gensense::Suite::All,
     };
 
     let mut i = 2;
@@ -246,6 +265,7 @@ fn parse_options(args: &[String]) -> CliOptions {
             "--fix" => options.do_fix = true,
             #[cfg(feature = "remediation")]
             "--diff" => options.show_diff = true,
+            "--diff-only" => options.diff_only = true,
             "--no-builtin-rules" => options.no_builtin = true,
             "--min-confidence" => {
                 if let Some(val) = args.get(i + 1) {
@@ -290,6 +310,28 @@ fn parse_options(args: &[String]) -> CliOptions {
             "--compare-baseline" => {
                 if let Some(path) = args.get(i + 1) {
                     options.compare_baseline_path = Some(path.clone());
+                    i += 1;
+                }
+            }
+            "--language" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.language_filter = Some(val.clone());
+                    i += 1;
+                }
+            }
+            "--suite" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.suite = match val.to_lowercase().as_str() {
+                        "default" => gensense::Suite::Default,
+                        "extended" => gensense::Suite::Extended,
+                        "all" => gensense::Suite::All,
+                        _ => {
+                            eprintln!(
+                                "Error: Unknown suite '{val}'. Valid values: default, extended, all"
+                            );
+                            std::process::exit(1);
+                        }
+                    };
                     i += 1;
                 }
             }
@@ -344,7 +386,15 @@ fn print_results(
             if filtered_advisories.is_empty() {
                 println!("Analysis Complete: Looking great! No structural concerns found.");
             } else {
-                println!("GenSense: Analysis Results for {}\n", input_path.display());
+                println!("╔══════════════════════════════════════════════════╗");
+                println!(
+                    "║  GenSense v{}                              ║",
+                    gensense::GENSENSE_VERSION
+                );
+                println!("║  Semantic Code Analysis Engine                ║");
+                println!("╚══════════════════════════════════════════════════╝");
+                println!("Analysis: {}", input_path.display());
+                println!();
                 for v in filtered_advisories {
                     let severity_label = match v.severity {
                         gensense::Severity::Critical => "[CRITICAL]",
@@ -441,8 +491,71 @@ fn main() -> Result<()> {
         engine.add_rule_dir(dir.clone());
     }
     engine.set_no_builtin_rules(options.no_builtin);
+    engine.set_suite(options.suite);
 
-    let mut filtered_advisories = engine.run(&input_path)?;
+    if let Some(lang_arg) = &options.language_filter {
+        if let Some(exts) = gensense::parser::ParserRegistry::extensions_for(lang_arg) {
+            engine.set_language_filter(exts);
+        } else {
+            eprintln!(
+                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, solidity/sol, yaml"
+            );
+            std::process::exit(1);
+        }
+    }
+
+    let mut filtered_advisories = if options.diff_only {
+        let repo_dir = if input_path.is_dir() {
+            input_path.clone()
+        } else {
+            input_path.parent().unwrap_or(&input_path).to_path_buf()
+        };
+        let output = std::process::Command::new("git")
+            .arg("diff")
+            .arg("--name-only")
+            .arg("HEAD")
+            .current_dir(&repo_dir)
+            .output()
+            .map_err(|e| {
+                gensense::GenSenseError::Config(format!(
+                    "Failed to run git diff: {e} — is this a git repository?"
+                ))
+            })?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(gensense::GenSenseError::Config(format!(
+                "git diff failed: {stderr}"
+            )));
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let diff_files: Vec<PathBuf> = stdout
+            .lines()
+            .map(|l| repo_dir.join(l))
+            .filter(|p| ParserRegistry::is_supported(p))
+            .filter(|p| {
+                if let Some(ref lang) = options.language_filter {
+                    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+                    gensense::parser::ParserRegistry::extensions_for(lang)
+                        .is_some_and(|exts| exts.contains(&ext))
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        if diff_files.is_empty() {
+            eprintln!("No changed files to scan.");
+            Vec::new()
+        } else {
+            eprintln!(
+                "Diff-only: scanning {} changed file(s)...",
+                diff_files.len()
+            );
+            engine.run_files(&input_path, &diff_files)?
+        }
+    } else {
+        engine.run(&input_path)?
+    };
     apply_filters(&mut filtered_advisories, &options, &engine);
 
     print_results(&filtered_advisories, &options.format, &input_path)?;
@@ -492,14 +605,14 @@ fn handle_early_args(args: &[String]) -> bool {
         return true;
     }
 
-    if let Some(pos) = args.iter().position(|a| a == "--debug") {
-        if let Some(file_path) = args.get(pos + 1) {
-            if let Err(e) = handle_debug_ast(file_path) {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-            return true;
+    if let Some(pos) = args.iter().position(|a| a == "--debug")
+        && let Some(file_path) = args.get(pos + 1)
+    {
+        if let Err(e) = handle_debug_ast(file_path) {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
         }
+        return true;
     }
 
     if args.contains(&"--list-rules".to_string()) {
@@ -591,10 +704,10 @@ fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path:
     let mut skipped_count = 0;
 
     for adv in &fix_advisories {
-        if options.show_diff {
-            if let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path)) {
-                println!("{diff}");
-            }
+        if options.show_diff
+            && let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path))
+        {
+            println!("{diff}");
         }
         if options.do_fix {
             match patcher.apply_fix(adv, Path::new(&adv.file_path)) {

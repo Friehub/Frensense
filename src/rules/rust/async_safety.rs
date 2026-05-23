@@ -21,11 +21,12 @@ impl GenSenseRule for AsyncPanicSafety {
             tags: vec![Cow::Borrowed("safety"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Safety"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {
@@ -35,7 +36,11 @@ impl GenSenseRule for AsyncPanicSafety {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if Self::is_in_async_scope(node, context.source_code) {
+        if super::is_excluded_test_scope(node, context) {
+            return Vec::new();
+        }
+
+        if super::is_in_async_scope(node, context.source_code) {
             let kind = node.kind();
             if kind == "call_expression" {
                 if let Some(func) = node.child_by_field_name("function") {
@@ -66,26 +71,5 @@ impl GenSenseRule for AsyncPanicSafety {
         }
 
         advisories
-    }
-}
-
-impl AsyncPanicSafety {
-    fn is_in_async_scope(node: Node, source: &str) -> bool {
-        let mut current = node;
-        while let Some(parent) = current.parent() {
-            let kind = parent.kind();
-            if kind == "async_block" {
-                return true;
-            }
-            if kind == "function_item" {
-                let header = &source[parent.start_byte()
-                    ..parent
-                        .child_by_field_name("body")
-                        .map_or(parent.end_byte(), |b| b.start_byte())];
-                return header.contains("async");
-            }
-            current = parent;
-        }
-        false
     }
 }

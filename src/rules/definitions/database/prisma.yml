@@ -16,3 +16,4 @@ rules:
   severity: Warning
   tags: []
   category: Performance
+  precision: low

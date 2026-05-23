@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+use crate::parser::ParserRegistry;
 use crate::semantics::data_flow::DataFlowAnalyzer;
 use crate::semantics::data_flow::TaintRegistry;
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
@@ -61,6 +62,9 @@ pub struct CoreRuleIr {
     pub must_be_preceded_by: Option<String>,
     pub auto_fixable: Option<bool>,
     pub requires_human: Option<bool>,
+    pub exclude_scope: Option<Regex>,
+    pub skip_if_parent: Option<String>,
+    pub body_query: Option<String>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -78,6 +82,31 @@ impl GenSenseRule for CoreRuleIr {
 
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
+
+        // Exclude scope check: skip if file path or any ancestor's source text matches
+        if let Some(re) = &self.exclude_scope {
+            let file_path = context.file_path.to_string_lossy();
+            if re.is_match(&file_path) {
+                return Vec::new();
+            }
+            let mut current = node.parent();
+            while let Some(ancestor) = current {
+                let text = &context.source_code[ancestor.start_byte()..ancestor.end_byte()];
+                if re.is_match(text) {
+                    return Vec::new();
+                }
+                current = ancestor.parent();
+            }
+        }
+
+        // Skip if parent node kind matches skip_if_parent
+        if let Some(kind) = &self.skip_if_parent
+            && let Some(parent) = node.parent()
+            && parent.kind() == kind.as_str()
+        {
+            return Vec::new();
+        }
+
         let mut top = node;
         while let Some(parent) = top.parent() {
             top = parent;
@@ -120,31 +149,31 @@ impl CoreRuleIr {
                 return false;
             }
 
-            if let (Some(fix_re), Some(template)) = (&self.fix_pattern, &self.fix_template) {
-                if let Some(_caps) = fix_re.captures(code) {
-                    let replacement = fix_re.replace_all(code, template).to_string();
-                    if replacement == code {
-                        return false;
-                    }
-
-                    let import = self.inject_import.as_ref().map(|import_template| {
-                        let mut import_stmt = String::new();
-                        let caps = fix_re
-                            .captures(code)
-                            .expect("Regex captures should not fail since we just checked them");
-                        caps.expand(import_template, &mut import_stmt);
-                        import_stmt
-                    });
-
-                    advisories.push(self.new_remediated_advisory(
-                        &node,
-                        context,
-                        self.metadata.observation.to_string(),
-                        replacement,
-                        import,
-                    ));
-                    // Removed early return to allow flow constraints to run
+            if let (Some(fix_re), Some(template)) = (&self.fix_pattern, &self.fix_template)
+                && let Some(_caps) = fix_re.captures(code)
+            {
+                let replacement = fix_re.replace_all(code, template).to_string();
+                if replacement == code {
+                    return false;
                 }
+
+                let import = self.inject_import.as_ref().map(|import_template| {
+                    let mut import_stmt = String::new();
+                    let caps = fix_re
+                        .captures(code)
+                        .expect("Regex captures should not fail since we just checked them");
+                    caps.expand(import_template, &mut import_stmt);
+                    import_stmt
+                });
+
+                advisories.push(self.new_remediated_advisory(
+                    &node,
+                    context,
+                    self.metadata.observation.to_string(),
+                    replacement,
+                    import,
+                ));
+                // Removed early return to allow flow constraints to run
             }
 
             if self.flow_constraints.is_empty()
@@ -234,22 +263,23 @@ impl CoreRuleIr {
         advisories: &mut Vec<Advisory>,
     ) {
         let code = &context.source_code[node.start_byte()..node.end_byte()];
-        if let Some(re) = &self.must_contain {
-            if !re.is_match(code) {
-                advisories.push(self.new_advisory(
-                    &node,
-                    context,
-                    format!("Pattern '{}' was expected but not found.", re.as_str()),
-                ));
-            }
+        if let Some(re) = &self.must_contain
+            && !re.is_match(code)
+        {
+            advisories.push(self.new_advisory(
+                &node,
+                context,
+                format!("Pattern '{}' was expected but not found.", re.as_str()),
+            ));
         }
 
         if let Some(re) = &self.body_must_contain_any_of {
             let body_node = node.child_by_field_name("body").unwrap_or(node);
-            let body_src = &context.source_code[body_node.start_byte()..body_node.end_byte()];
-            if re.is_match(body_src) {
+            let checker =
+                crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
+            if checker.any_reachable_path_contains(body_node, re) {
                 let is_bypassed = if let Some(bypass_re) = &self.must_not_contain {
-                    bypass_re.is_match(code)
+                    checker.any_reachable_path_contains(body_node, bypass_re)
                 } else {
                     false
                 };
@@ -263,12 +293,36 @@ impl CoreRuleIr {
                 }
             }
         } else if let Some(re) = &self.must_not_contain {
-            if re.is_match(code) {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            let checker =
+                crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
+            if checker.any_reachable_path_contains(body_node, re) {
                 advisories.push(self.new_advisory(
                     &node,
                     context,
                     format!("Prohibited pattern '{}' was found.", re.as_str()),
                 ));
+            }
+        }
+
+        // Body tree-sitter query: run query within the body subtree
+        if let Some(query_str) = &self.body_query {
+            let body_node = node.child_by_field_name("body").unwrap_or(node);
+            if let Ok(language) = ParserRegistry::get_language(context.file_path)
+                && let Ok(query) = tree_sitter::Query::new(&language, query_str)
+            {
+                let mut cursor = tree_sitter::QueryCursor::new();
+                let has_match = cursor
+                    .matches(&query, body_node, context.source_code.as_bytes())
+                    .next()
+                    .is_some();
+                if has_match {
+                    advisories.push(self.new_advisory(
+                        &node,
+                        context,
+                        self.metadata.observation.to_string(),
+                    ));
+                }
             }
         }
 
@@ -303,14 +357,14 @@ impl CoreRuleIr {
         advisories: &mut Vec<Advisory>,
     ) {
         let node_lines = node.end_position().row - node.start_position().row + 1;
-        if let Some(max) = self.max_lines {
-            if node_lines > max {
-                advisories.push(self.new_advisory(
-                    &node,
-                    context,
-                    format!("Function size ({node_lines} lines) exceeds threshold of {max}."),
-                ));
-            }
+        if let Some(max) = self.max_lines
+            && node_lines > max
+        {
+            advisories.push(self.new_advisory(
+                &node,
+                context,
+                format!("Function size ({node_lines} lines) exceeds threshold of {max}."),
+            ));
         }
 
         if let Some(max) = self.max_depth {

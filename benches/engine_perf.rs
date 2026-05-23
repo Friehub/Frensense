@@ -1,6 +1,19 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use gensense::semantics::{Symbol, SymbolKind, SymbolRegistry};
 
+/// Return criterion config. When `GENENSE_BENCH_QUICK=1` is set, reduce
+/// sample size and measurement time for fast CI runs.
+fn bench_config() -> Criterion {
+    let mut c = Criterion::default().configure_from_args();
+    if std::env::var("GENENSE_BENCH_QUICK").is_ok() {
+        c = c
+            .sample_size(10)
+            .measurement_time(std::time::Duration::from_secs(5))
+            .warm_up_time(std::time::Duration::from_secs(1));
+    }
+    c
+}
+
 fn bench_symbol_lookup(c: &mut Criterion) {
     let mut registry = SymbolRegistry::new();
     let num_symbols = 100_000;
@@ -55,5 +68,9 @@ fn bench_assembly_phase(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_symbol_lookup, bench_assembly_phase);
+criterion_group! {
+    name = benches;
+    config = bench_config;
+    targets = bench_symbol_lookup, bench_assembly_phase
+}
 criterion_main!(benches);

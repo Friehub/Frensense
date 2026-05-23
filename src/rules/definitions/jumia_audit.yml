@@ -9,6 +9,7 @@ rules:
   name: Jumia God Service
   severity: Warning
   category: Architecture
+  precision: low
   tags: [maintainability, architecture]
 
 - id: JUMIA_REPETITIVE_DECIMAL_LOGIC
@@ -21,6 +22,7 @@ rules:
   name: Jumia Repetitive Finance Logic
   severity: Info
   category: Quality
+  precision: low
   tags: [quality, refactor]
 
 - id: JUMIA_STUB_FALLBACK
@@ -33,6 +35,7 @@ rules:
   name: Jumia Rust Fallback
   severity: Info
   category: Reliability
+  precision: low
   tags: [production, reliability]
 
 - id: JUMIA_NESTING_LIMIT
@@ -45,6 +48,7 @@ rules:
   name: Jumia Nesting Limit
   severity: Warning
   category: Quality
+  precision: low
   tags: [quality, readability]
 
 - id: JUMIA_ASYNC_FOR_EACH
@@ -57,5 +61,6 @@ rules:
   name: Jumia Async ForEach
   severity: Critical
   category: Reliability
+  precision: low
   tags: [reliability, concurrency]
 
