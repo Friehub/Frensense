@@ -163,7 +163,7 @@ impl GenSenseRule for CoreRuleIr {
                     fingerprint: String::new(),
                     auto_fixable: false,
                     requires_human: false,
-                    tags: meta.tags.iter().map(|t| t.to_string()).collect(),
+                    tags: meta.tags.iter().map(ToString::to_string).collect(),
                 }];
             }
         }
