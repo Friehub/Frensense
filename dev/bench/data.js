@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779435739096,
+  "lastUpdate": 1779568882565,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -1549,6 +1549,204 @@ window.BENCHMARK_DATA = {
             "name": "fingerprinting/advisory_fuzzy_identity",
             "value": 72.79155008311648,
             "range": "0.1873264409584407",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0d90a54865967f45bd110ace3368e8a4b7979e7c",
+          "message": "V0.3.1 tasks (#34)\n\n* fix: CRIT-01 — Engine::run() and run_detailed() now return Err for invalid paths\n\n* fix: MED-03 — hermetic MCP tests with clear error when binary missing\n\n* feat: MED-04 — MCP streaming for large scans with progress notifications\n\n* feat: MED-06 — MCP ping health-check method\n\n* v0.3.1 — unified crate, MCP filters, clippy pedantic, licensing\n\n- Consolidate into single crate: 'cargo install gensense' produces both\n  'gensense' (CLI) and 'gensense-mcp' (MCP server) binaries\n- MCP: language and rules filter params applied server-side post-scan\n- MCP: 36/36 tests pass, includes streaming and ping health-check\n- Clippy: all ~35 pedantic violations fixed, 4 -A flags removed\n- License: 13 files attributed, solidity.rs changed to MIT, 100% consistent\n- Dedup: RulesWrapper and is_in_async_scope extracted to shared modules\n- Pre-commit hook: runs full test suite, no more suppressed lints\n- Version bumped to 0.3.1 across all Cargo.toml and package.json\n\n* fix: filter collect_files to supported extensions to prevent binary file crash\n\n* docs: add GenSense article and unignore it in .gitignore\n\nPublished alongside the Friehub engineering blog post.\nArchive repo referenced: github.com/Friehub/Friehub-auditor\n\n* feat: add branded CLI header with tagline for product screenshots\n\n* feat: add detailed description to --help output\n\n* docs: document known bottlenecks and resolutions in V0_3_1_ISSUES.md\n\n* feat: add exclude_scope field to rule DSL to filter test-context false positives\n\n* feat: extend ReachabilityChecker to all CSA content constraint checks\n\n* v0.3.1-tasks: BTL-04/05, exclude_scope, dead code, corpus, report\n\n* feat: rule quality pipeline — precision tiers, --suite flag, and precision metadata for all rules\n\n* fix: bump self-audit warning threshold to 165 (baseline debt from --suite flag)\n\n* docs: add historical self-scan benchmark script + BENCHMARK.md section\n\n* fix: MCP tests scan temp dirs instead of CWD; CI baseline regression emits before comparing\n\n* chore: remove stray benchmark CSV\n\n* docs: update BENCHMARK.md with v0.3.1 criterion and tokio data\n\n* fix: mkdir -p baseline dir before emit in CI\n\n---------\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-05-23T20:27:10Z",
+          "tree_id": "0e577486a84b951e71751ec6c352af2d4359a0ec",
+          "url": "https://github.com/Friehub/gensense/commit/0d90a54865967f45bd110ace3368e8a4b7979e7c"
+        },
+        "date": 1779568882145,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 17908400.125,
+            "range": "138472.24299162626",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 17670963.125,
+            "range": "39828.93634289503",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 17442038.625,
+            "range": "50916.93089604378",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 18020909.5,
+            "range": "63461.76524832845",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 19982379.166666664,
+            "range": "90491.23069345675",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 29956122.96818182,
+            "range": "6731251.396029628",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 207634531.8333333,
+            "range": "356326.3479739133",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1143526763,
+            "range": "1775997.6128697395",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2263509018,
+            "range": "1915037.3210012913",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 17501377.25,
+            "range": "107782.42353647947",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 17870409.5,
+            "range": "70510.41617318988",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 18359760.625,
+            "range": "72448.3596637845",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 19998748.666666664,
+            "range": "100307.03091919054",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 53578.58229234263,
+            "range": "67.94831899268104",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 60467.346408655845,
+            "range": "111.64495555862666",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 6865711.8125,
+            "range": "30255.417662858963",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 119.63237546792054,
+            "range": "0.28744237186027743",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 50.94683100519369,
+            "range": "0.11331784316859927",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 54.31571965542683,
+            "range": "0.1363443089149678",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 51.128522874186764,
+            "range": "0.10309413004040861",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 56.667776269028096,
+            "range": "0.10993492798428325",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 51.150091689493244,
+            "range": "0.10421634821157214",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 56.6699726458937,
+            "range": "0.1397040801366168",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 54.75294666756058,
+            "range": "0.07132397285140504",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 72.60015293282419,
+            "range": "0.09977445778968133",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/10",
+            "value": 31403.26230654762,
+            "range": "57.134737908068146",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/50",
+            "value": 518092.24475524476,
+            "range": "1513.8214280612951",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/200",
+            "value": 6456720.625,
+            "range": "13917.721927911043",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/500",
+            "value": 37090915.5,
+            "range": "141516.0207375884",
             "unit": "ns"
           }
         ]
