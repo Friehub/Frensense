@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 use crate::{Advisory, GenSenseContext, GenSenseRule};
 use tree_sitter::Node;
 
@@ -16,13 +18,14 @@ impl GenSenseRule for PlaceholderPanic {
                 tags: vec!["ai-risk".into(), "security".into(), "reliability".into()],
                 category: "Logic".into(),
                 confidence: 0.85,
+                precision: crate::Precision::High,
             }
         });
         &META
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+pub mod common;
 pub mod discovery;
 pub mod events;
 pub mod project_auditor;
@@ -53,6 +54,7 @@ pub struct AuditOptions<'a> {
     >,
     pub category_filter: &'a HashSet<String>,
     pub tag_filter: &'a HashSet<String>,
+    pub suite: crate::Suite,
     pub env: crate::GenSenseEnvironment,
 }
 
@@ -163,6 +165,7 @@ impl GenSenseAuditor {
                     rule.as_ref(),
                     opts.category_filter,
                     opts.tag_filter,
+                    opts.suite,
                     opts.env,
                 ) {
                     continue;
@@ -261,6 +264,7 @@ impl GenSenseAuditor {
                     rule.as_ref(),
                     opts.category_filter,
                     opts.tag_filter,
+                    opts.suite,
                     opts.env,
                 ) {
                     continue;

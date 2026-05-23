@@ -12,6 +12,7 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  precision: low
 - id: SOL_PRAGMA_STABILITY
   target_ext: sol
   observation: We noticed a floating pragma (e.g., ^0.8.0) in the contract header.
@@ -25,6 +26,7 @@ rules:
   severity: Warning
   tags: []
   category: Stability
+  precision: low
 - id: SOL_ACCESS_CONTROL_SETTER
   target_ext: sol
   observation: We observed a state mutation in a function that may be missing access
@@ -40,6 +42,7 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  precision: low
 - id: SOL_ZERO_ADDRESS_CHECK
   target_ext: sol
   observation: We noticed an address assignment that might be missing a zero-address
@@ -54,6 +57,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  precision: low
 - id: SOL_MISSING_EVENT_INDEX
   target_ext: sol
   observation: We noticed an event parameter that is not 'indexed'.
@@ -67,6 +71,7 @@ rules:
   severity: Warning
   tags: []
   category: Quality
+  precision: low
 - id: SOL_HARDCODED_ADDRESS
   target_ext: sol
   observation: We observed a hardcoded hexadecimal address literal.
@@ -80,6 +85,7 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  precision: low
 - id: SOL_TX_ORIGIN
   target_ext: sol
   observation: We noticed 'tx.origin' being used for authentication.
@@ -93,6 +99,7 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  precision: low
 - id: SOL_TIMESTAMP_DEPENDENCY
   target_ext: sol
   observation: I noticed the use of 'block.timestamp' for timing logic.
@@ -106,6 +113,7 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  precision: low
 - id: SOL_REENTRANCY_RISK
   target_ext: sol
   observation: I noticed an external call that might be missing a reentrancy guard.
@@ -120,6 +128,7 @@ rules:
   severity: Warning
   tags: []
   category: Security
+  precision: low
 - id: SOL_PRECISION_LOSS
   target_ext: sol
   observation: It looks like a division operation occurs before multiplication here.
@@ -133,3 +142,4 @@ rules:
   severity: Warning
   tags: []
   category: Fintech
+  precision: low

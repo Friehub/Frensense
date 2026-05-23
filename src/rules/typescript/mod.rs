@@ -1,2 +1,1 @@
-// #[allow(clippy::module_inception)]
-// pub mod typescript;
+// SPDX-License-Identifier: MIT

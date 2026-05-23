@@ -285,45 +285,41 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             }
         }
 
-        if !tainted_args.is_empty() && self.depth < self.max_depth {
-            if let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
+        if !tainted_args.is_empty()
+            && self.depth < self.max_depth
+            && let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
                 self.find_definition(fn_name, registry)
-            {
-                if let Some(mut next_registry) =
-                    self.map_params(def_node, def_source, &tainted_args)
-                {
-                    if let Some(body) = def_node.child_by_field_name("body") {
-                        let new_context = crate::GenSenseContext {
-                            file_id: def_id,
-                            file_path: def_path,
-                            source_code: def_source,
-                            tree: def_tree,
-                            symbols: self.context.symbols,
-                            semantic_ops: def_ops,
-                            taint_cache: self.context.taint_cache,
-                            file_trees: self.context.file_trees,
-                        };
+            && let Some(mut next_registry) = self.map_params(def_node, def_source, &tainted_args)
+            && let Some(body) = def_node.child_by_field_name("body")
+        {
+            let new_context = crate::GenSenseContext {
+                file_id: def_id,
+                file_path: def_path,
+                source_code: def_source,
+                tree: def_tree,
+                symbols: self.context.symbols,
+                semantic_ops: def_ops,
+                taint_cache: self.context.taint_cache,
+                file_trees: self.context.file_trees,
+            };
 
-                        let sub_analyzer = DataFlowAnalyzer::with_depth(
-                            &new_context,
-                            def_source,
-                            def_tree,
-                            def_path,
-                            def_id,
-                            body,
-                            self.depth + 1,
-                            self.max_depth,
-                        );
-                        advisories.extend(sub_analyzer.analyze_block(
-                            body,
-                            source_re,
-                            sink_re,
-                            rule,
-                            &mut next_registry,
-                        ));
-                    }
-                }
-            }
+            let sub_analyzer = DataFlowAnalyzer::with_depth(
+                &new_context,
+                def_source,
+                def_tree,
+                def_path,
+                def_id,
+                body,
+                self.depth + 1,
+                self.max_depth,
+            );
+            advisories.extend(sub_analyzer.analyze_block(
+                body,
+                source_re,
+                sink_re,
+                rule,
+                &mut next_registry,
+            ));
         }
 
         advisories
@@ -393,24 +389,22 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     if let Some(object_node) = current
                         .child_by_field_name("object")
                         .or_else(|| current.child(0))
-                    {
-                        if let Some(property_node) = current
+                        && let Some(property_node) = current
                             .child_by_field_name("property")
                             .or_else(|| current.child_by_field_name("field"))
                             .or_else(|| current.child(2))
-                        {
-                            let obj_name = &self.current_source
-                                [object_node.start_byte()..object_node.end_byte()];
-                            let prop_name = &self.current_source
-                                [property_node.start_byte()..property_node.end_byte()];
+                    {
+                        let obj_name =
+                            &self.current_source[object_node.start_byte()..object_node.end_byte()];
+                        let prop_name = &self.current_source
+                            [property_node.start_byte()..property_node.end_byte()];
 
-                            if let Some(origin) = registry.get_field_origin(obj_name, prop_name) {
-                                return Some(origin);
-                            }
+                        if let Some(origin) = registry.get_field_origin(obj_name, prop_name) {
+                            return Some(origin);
+                        }
 
-                            if let Some(origin) = registry.get_origin(obj_name) {
-                                return Some(origin);
-                            }
+                        if let Some(origin) = registry.get_origin(obj_name) {
+                            return Some(origin);
                         }
                     }
                 }
@@ -452,20 +446,15 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             .child_by_field_name("function")
             .or_else(|| call_node.child_by_field_name("callee"))
             .or_else(|| call_node.child(0))
+            && (callee_node.kind() == "member_expression"
+                || callee_node.kind() == "field_expression")
+            && let Some(receiver) = callee_node
+                .child_by_field_name("object")
+                .or_else(|| callee_node.child(0))
+            && let Some(receiver_origin) =
+                self.resolve_taint(receiver, source_re, sink_re, rule, registry, advisories)
         {
-            if callee_node.kind() == "member_expression" || callee_node.kind() == "field_expression"
-            {
-                if let Some(receiver) = callee_node
-                    .child_by_field_name("object")
-                    .or_else(|| callee_node.child(0))
-                {
-                    if let Some(receiver_origin) =
-                        self.resolve_taint(receiver, source_re, sink_re, rule, registry, advisories)
-                    {
-                        return Some(receiver_origin);
-                    }
-                }
-            }
+            return Some(receiver_origin);
         }
 
         // Get function name
@@ -514,61 +503,51 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         }
 
         // Check if there is a definition
-        if self.depth < self.max_depth {
-            if let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
+        if self.depth < self.max_depth
+            && let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
                 self.find_definition(fn_name, registry)
-            {
-                if let Some(mut next_registry) =
-                    self.map_params(def_node, def_source, &tainted_args)
-                {
-                    if let Some(body) = def_node.child_by_field_name("body") {
-                        let new_context = crate::GenSenseContext {
-                            file_id: def_id,
-                            file_path: def_path,
-                            source_code: def_source,
-                            tree: def_tree,
-                            symbols: self.context.symbols,
-                            semantic_ops: def_ops,
-                            taint_cache: self.context.taint_cache,
-                            file_trees: self.context.file_trees,
-                        };
+            && let Some(mut next_registry) = self.map_params(def_node, def_source, &tainted_args)
+            && let Some(body) = def_node.child_by_field_name("body")
+        {
+            let new_context = crate::GenSenseContext {
+                file_id: def_id,
+                file_path: def_path,
+                source_code: def_source,
+                tree: def_tree,
+                symbols: self.context.symbols,
+                semantic_ops: def_ops,
+                taint_cache: self.context.taint_cache,
+                file_trees: self.context.file_trees,
+            };
 
-                        let sub_analyzer = DataFlowAnalyzer::with_depth(
-                            &new_context,
-                            def_source,
-                            def_tree,
-                            def_path,
-                            def_id,
-                            body,
-                            self.depth + 1,
-                            self.max_depth,
-                        );
+            let sub_analyzer = DataFlowAnalyzer::with_depth(
+                &new_context,
+                def_source,
+                def_tree,
+                def_path,
+                def_id,
+                body,
+                self.depth + 1,
+                self.max_depth,
+            );
 
-                        sub_analyzer.discover_symbols(&mut next_registry);
+            sub_analyzer.discover_symbols(&mut next_registry);
 
-                        let sub_advisories = sub_analyzer.analyze_block(
-                            body,
-                            source_re,
-                            sink_re,
-                            rule,
-                            &mut next_registry,
-                        );
-                        advisories.extend(sub_advisories);
+            let sub_advisories =
+                sub_analyzer.analyze_block(body, source_re, sink_re, rule, &mut next_registry);
+            advisories.extend(sub_advisories);
 
-                        let return_nodes = get_callee_returns(body);
-                        for ret_node in return_nodes {
-                            if let Some(ret_origin) = sub_analyzer.resolve_taint(
-                                ret_node,
-                                source_re,
-                                sink_re,
-                                rule,
-                                &next_registry,
-                                advisories,
-                            ) {
-                                return Some(ret_origin);
-                            }
-                        }
-                    }
+            let return_nodes = get_callee_returns(body);
+            for ret_node in return_nodes {
+                if let Some(ret_origin) = sub_analyzer.resolve_taint(
+                    ret_node,
+                    source_re,
+                    sink_re,
+                    rule,
+                    &next_registry,
+                    advisories,
+                ) {
+                    return Some(ret_origin);
                 }
             }
         }
@@ -596,12 +575,12 @@ fn find_returns<'a>(node: Node<'a>, returns: &mut Vec<Node<'a>>) {
             }
         }
         "block" | "block_expression" | "compound_statement" | "statement_block" => {
-            if node.kind() == "block" || node.kind() == "block_expression" {
-                if let Some(last_child) = node.child(node.child_count().saturating_sub(2)) {
-                    let kind = last_child.kind();
-                    if kind != ";" && !kind.contains("statement") && kind != "}" && kind != "{" {
-                        returns.push(last_child);
-                    }
+            if (node.kind() == "block" || node.kind() == "block_expression")
+                && let Some(last_child) = node.child(node.child_count().saturating_sub(2))
+            {
+                let kind = last_child.kind();
+                if kind != ";" && !kind.contains("statement") && kind != "}" && kind != "{" {
+                    returns.push(last_child);
                 }
             }
             let mut cursor = node.walk();

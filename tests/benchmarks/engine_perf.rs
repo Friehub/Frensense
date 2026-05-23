@@ -657,17 +657,84 @@ fn pascal_case(s: &str) -> String {
     }
 }
 
+// ── Group 8: N-gram Post-Processing (Jaccard Similarity) ─────────────────────
+// Measures post_process_ngrams at increasing fingerprint counts.
+// This is O(n²) pairwise comparison — watch for quadratic degradation.
+// Particularly important before v0.4.0 when the style-baseline adds more features.
+
+fn bench_post_process_ngrams(c: &mut Criterion) {
+    use rustc_hash::FxHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut group = c.benchmark_group("post_process_ngrams");
+
+    for fp_count in [10usize, 50, 200, 500] {
+        // Generate synthetic fingerprints with deterministic n-gram hashes.
+        // Each fingerprint gets 20-50 hashes with controlled overlap (~30% shared).
+        let mut fingerprints = Vec::with_capacity(fp_count);
+        let shared_hashes: Vec<u64> = (0..20)
+            .map(|i| {
+                let mut h = FxHasher::default();
+                (0usize, i).hash(&mut h);
+                h.finish()
+            })
+            .collect();
+
+        for i in 0..fp_count {
+            let ngram_count = 20 + (i % 31);
+            let mut hashes = rustc_hash::FxHashSet::default();
+
+            // Add some shared hashes (simulating boilerplate)
+            for h in &shared_hashes {
+                if i % 3 == 0 || (h % 3) == (i as u64 % 3) {
+                    hashes.insert(*h);
+                }
+            }
+
+            // Add unique hashes
+            for j in 0..ngram_count.saturating_sub(hashes.len()).max(3) {
+                let mut h = FxHasher::default();
+                (i, j).hash(&mut h);
+                hashes.insert(h.finish());
+            }
+
+            fingerprints.push(gensense::FunctionFingerprint {
+                file_path: format!("src/service_{}.rs", i / 10),
+                function_name: format!("fn_{i}"),
+                line: i * 12 + 1,
+                ngram_hashes: hashes,
+            });
+        }
+
+        let sources = gensense::SourceRegistry::new();
+
+        group.bench_with_input(
+            BenchmarkId::new("pairwise_comparison", fp_count),
+            &fp_count,
+            |b, _| {
+                let engine = Engine::new();
+                b.iter(|| {
+                    engine.post_process_ngrams(black_box(&fingerprints), black_box(&sources))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
 // ── Groups wired to criterion ─────────────────────────────────────────────────
 
-criterion_group!(throughput, bench_scan_throughput, bench_project_scale,);
+criterion_group!(throughput, bench_scan_throughput, bench_project_scale);
 
-criterion_group!(analysis, bench_taint_depth, bench_schema_contract,);
+criterion_group!(analysis, bench_taint_depth, bench_schema_contract);
 
 criterion_group!(
     engine_internals,
     bench_rule_compilation,
     bench_symbol_registry,
     bench_fingerprinting,
+    bench_post_process_ngrams,
 );
 
 criterion_main!(throughput, analysis, engine_internals);

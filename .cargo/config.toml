@@ -1,17 +1,13 @@
 [alias]
-# Core logic tests — safe to run anywhere, no Node.js runtime required.
-# Covers: rust, typescript, solidity, fingerprinting, remediation.
-# Excludes: node (napi bindings require a live Node.js runtime to link against).
+# Core logic tests — run all lib integration tests.
 test-core = "test --no-default-features --features rust,typescript,fingerprinting,remediation,solidity"
 
 # Doc-test run without node bindings.
 test-doc = "test --no-default-features --features rust,typescript,fingerprinting,remediation,solidity --doc"
 
-# Full linting pass (excludes node feature — clippy on napi cdylib requires napi-build toolchain).
-lint = "clippy --all-targets --features full -- -D warnings"
+# Full linting pass (excludes node crate — clippy on napi cdylib requires napi-build toolchain).
+lint = "clippy --all-features -- -W clippy::pedantic -D warnings"
 
 # Build the native .node addon for Node.js consumption.
 # Requires: `npm install -g @napi-rs/cli`
-# Usage: cargo napi-build --release
-# Note: Do NOT use `cargo build --features node` directly for distribution.
-# Always use the napi CLI to produce a correctly linked .node file.
+# Usage: napi build --cargo-cwd gensense-node

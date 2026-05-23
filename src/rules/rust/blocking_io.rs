@@ -21,11 +21,12 @@ impl GenSenseRule for BlockingIoDetector {
             tags: vec![Cow::Borrowed("performance"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Performance"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {
@@ -35,51 +36,50 @@ impl GenSenseRule for BlockingIoDetector {
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
-        if Self::is_in_async_scope(node, context.source_code) {
-            if let Some(func) = node.child_by_field_name("function") {
-                let code = &context.source_code[func.start_byte()..func.end_byte()];
+        if super::is_excluded_test_scope(node, context) {
+            return Vec::new();
+        }
 
-                let blocking_patterns = [
-                    "std::thread::sleep",
-                    "thread::sleep",
-                    "std::fs",
-                    "fs::",
-                    "std::net",
-                    "TcpStream::connect",
-                    "TcpListener::bind",
-                ];
+        // Skip if this call expression is wrapped in .await (correctly async)
+        if let Some(parent) = node.parent()
+            && parent.kind() == "await_expression"
+        {
+            return Vec::new();
+        }
 
-                if blocking_patterns.iter().any(|p| code.contains(p)) {
-                    advisories.push(self.new_advisory(
-                        &node,
-                        context,
-                        format!("Potentially blocking call '{code}' detected in async context."),
-                    ));
-                }
+        // Skip if this call is .unwrap()/.expect() on an await_expression
+        if let Some(func) = node.child_by_field_name("function")
+            && func.kind() == "field_expression"
+            && let Some(value) = func.child_by_field_name("value")
+            && value.kind() == "await_expression"
+        {
+            return Vec::new();
+        }
+
+        if super::is_in_async_scope(node, context.source_code)
+            && let Some(func) = node.child_by_field_name("function")
+        {
+            let code = &context.source_code[func.start_byte()..func.end_byte()];
+
+            let blocking_patterns = [
+                "std::thread::sleep",
+                "thread::sleep",
+                "std::fs",
+                "fs::",
+                "std::net",
+                "TcpStream::connect",
+                "TcpListener::bind",
+            ];
+
+            if blocking_patterns.iter().any(|p| code.contains(p)) {
+                advisories.push(self.new_advisory(
+                    &node,
+                    context,
+                    format!("Potentially blocking call '{code}' detected in async context."),
+                ));
             }
         }
 
         advisories
-    }
-}
-
-impl BlockingIoDetector {
-    fn is_in_async_scope(node: Node, source: &str) -> bool {
-        let mut current = node;
-        while let Some(parent) = current.parent() {
-            let kind = parent.kind();
-            if kind == "async_block" {
-                return true;
-            }
-            if kind == "function_item" {
-                let header = &source[parent.start_byte()
-                    ..parent
-                        .child_by_field_name("body")
-                        .map_or(parent.end_byte(), |b| b.start_byte())];
-                return header.contains("async");
-            }
-            current = parent;
-        }
-        false
     }
 }

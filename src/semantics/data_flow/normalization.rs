@@ -139,12 +139,12 @@ impl SemanticExtractor {
                     let mut fn_name = source[f.start_byte()..f.end_byte()].to_string();
 
                     // Handle method calls: obj.method()
-                    if f.kind() == "member_expression" {
-                        if let Some(prop) = f.child_by_field_name("property") {
-                            fn_name = source[prop.start_byte()..prop.end_byte()].to_string();
-                            if let Some(receiver) = f.child_by_field_name("object") {
-                                args.push(receiver.into());
-                            }
+                    if f.kind() == "member_expression"
+                        && let Some(prop) = f.child_by_field_name("property")
+                    {
+                        fn_name = source[prop.start_byte()..prop.end_byte()].to_string();
+                        if let Some(receiver) = f.child_by_field_name("object") {
+                            args.push(receiver.into());
                         }
                     }
 
@@ -219,13 +219,13 @@ impl SemanticExtractor {
                     let mut fn_name = source[f.start_byte()..f.end_byte()].to_string();
 
                     // Handle method calls: obj.method()
-                    if f.kind() == "field_expression" {
-                        if let Some(field) = f.child_by_field_name("field") {
-                            fn_name = source[field.start_byte()..field.end_byte()].to_string();
-                            // Optionally track the receiver as an argument for taint propagation
-                            if let Some(receiver) = f.child_by_field_name("value") {
-                                args.push(receiver.into());
-                            }
+                    if f.kind() == "field_expression"
+                        && let Some(field) = f.child_by_field_name("field")
+                    {
+                        fn_name = source[field.start_byte()..field.end_byte()].to_string();
+                        // Optionally track the receiver as an argument for taint propagation
+                        if let Some(receiver) = f.child_by_field_name("value") {
+                            args.push(receiver.into());
                         }
                     }
 

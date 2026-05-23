@@ -2,7 +2,9 @@
 
 use gensense::engine::auditor::GenSenseAuditor;
 use gensense::semantics::SymbolRegistry;
-use gensense::{Advisory, FileId, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use gensense::{
+    Advisory, FileId, GenSenseContext, GenSenseRule, Precision, RuleMetadata, Severity,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
@@ -84,6 +86,7 @@ fn test_temporal_consistency_rust_deadlock() {
             tags: vec![],
             category: "Security".into(),
             confidence: 0.55,
+            precision: Precision::VeryHigh,
         },
     };
 

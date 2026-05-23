@@ -21,11 +21,12 @@ impl GenSenseRule for TracingGuard {
             tags: vec![Cow::Borrowed("observability"), Cow::Borrowed("async"), Cow::Borrowed("rust")],
             category: Cow::Borrowed("Observability"),
             confidence: 0.85,
+            precision: crate::Precision::VeryHigh,
         })
     }
 
     fn applies_to(&self, ext: &str) -> bool {
-        ext == "rs"
+        crate::parser::ParserRegistry::ext_matches(ext, &["rs"])
     }
 
     fn query(&self) -> Option<&str> {
