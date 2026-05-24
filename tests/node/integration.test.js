@@ -66,10 +66,12 @@ async function runTest() {
     // 7. Version check
     console.log('\n--- Testing Version API ---');
     console.log(`Engine Version: ${engine.version}`);
-    // Support v0.3.x and ensure it follows semantic versioning format
-    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
-    if (!semverRegex.test(engine.version) || !engine.version.startsWith('0.3')) {
-      throw new Error(`Invalid or unexpected version reported: ${engine.version}`);
+    const expectedVersion = '0.3.1';
+    if (engine.version !== expectedVersion) {
+      throw new Error(
+        `Version mismatch: engine reports "${engine.version}", expected "${expectedVersion}". ` +
+        'The NAPI binary may need to be rebuilt from the current crate version.'
+      );
     }
 
     // 8. Test auditProject (Cross-file rules)
