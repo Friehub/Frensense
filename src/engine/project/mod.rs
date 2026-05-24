@@ -423,6 +423,22 @@ impl Engine {
             };
             let id = self.source_registry.register(&p, content.clone());
             let auditor = &self.auditor;
+            if self.file_cache.is_unchanged(&p, &content) {
+                // Cache hit: skip heavy symbol/edge work but still parse tree
+                // so Phases 1-3 (combined-query, walk-tree, file-level) can run.
+                if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
+                    snapshots.push(FileSnapshot {
+                        id,
+                        path: p,
+                        content,
+                        tree,
+                        symbols: Vec::new(),
+                        edges: Vec::new(),
+                        semantic_ops: Vec::new(),
+                    });
+                }
+                continue;
+            }
             match auditor.parse_source(&p, &content) {
                 Ok((language, tree)) => {
                     let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree);
