@@ -421,9 +421,6 @@ impl Engine {
                     return Err(crate::GenSenseError::Io(e));
                 }
             };
-            if self.file_cache.is_unchanged(&p, &content) {
-                continue;
-            }
             let id = self.source_registry.register(&p, content.clone());
             let auditor = &self.auditor;
             match auditor.parse_source(&p, &content) {
