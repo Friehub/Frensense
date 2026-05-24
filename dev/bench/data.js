@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779568882565,
+  "lastUpdate": 1779606546055,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -1747,6 +1747,204 @@ window.BENCHMARK_DATA = {
             "name": "post_process_ngrams/pairwise_comparison/500",
             "value": 37090915.5,
             "range": "141516.0207375884",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "da8dc52660e591b4c276e96bc0de339dd6c2952f",
+          "message": "V0.3.1 tasks (#37)\n\n* fix: bump self-audit threshold 165→175\n\n* fix: remove file-cache skip from full scan path\n\ncollect_and_snapshot_files() was skipping files whose blake3 hash\nmatched the previous run's cache, causing audit() (including Phase 3\nfile_check for LONG_FILE) to never be called for cached files. This\nmade both --json and text output return 0 advisories on subsequent\nruns, making JSON appear broken.\n\nThe cache is still maintained and used by run_files() for diff-only\nmode where skipping unchanged files is intentional.\n\n---------\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-05-24T06:54:45Z",
+          "tree_id": "00dd95c2e796f6ed30ecfd92d9d57c9c0225c5ec",
+          "url": "https://github.com/Friehub/gensense/commit/da8dc52660e591b4c276e96bc0de339dd6c2952f"
+        },
+        "date": 1779606545411,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 16658111.625,
+            "range": "30809.724728018045",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 16445149.25,
+            "range": "33844.2362241447",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 16233480.375,
+            "range": "38201.78287178278",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 16778773.625,
+            "range": "47382.59788379073",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 17828074.625,
+            "range": "45022.11340069771",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 136239185.5,
+            "range": "201661.39516979456",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 586647340,
+            "range": "1312945.317390561",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1150796881.5,
+            "range": "2053300.8880466223",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2273966847,
+            "range": "3059881.74687624",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 16197311.375,
+            "range": "32917.24059060216",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 16585475.25,
+            "range": "32618.496695905924",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 17144262,
+            "range": "29046.357384324074",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 18286869.625,
+            "range": "31240.975995361805",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 47602.780806412135,
+            "range": "112.24273284942979",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 54458.74315807649,
+            "range": "93.33486185890473",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 6821600.8125,
+            "range": "18129.788453131914",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 111.0115174749507,
+            "range": "0.1914562133773519",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 47.257503751322865,
+            "range": "0.09781836075506482",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 48.881817132043984,
+            "range": "0.11037973530715137",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 47.29471852438046,
+            "range": "0.09665745655030229",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 49.31362857642374,
+            "range": "0.11344269185465086",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 46.351535383876254,
+            "range": "0.28720134083760335",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 50.44467463530653,
+            "range": "0.13517134482744736",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 52.54335169428299,
+            "range": "0.16142882007804624",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 69.7189548184158,
+            "range": "0.24958459750181583",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/10",
+            "value": 29313.040839460784,
+            "range": "50.65482681436643",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/50",
+            "value": 478532.01839857316,
+            "range": "859.630005556458",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/200",
+            "value": 5892860.222222222,
+            "range": "9563.346396882791",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/500",
+            "value": 33731577.5,
+            "range": "59362.56164610386",
             "unit": "ns"
           }
         ]
