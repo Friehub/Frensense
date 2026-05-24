@@ -88,6 +88,13 @@ impl GenSenseAuditor {
             ));
         }
 
+        #[cfg(feature = "typescript")]
+        {
+            rules.push(Box::new(
+                crate::rules::typescript::ts_tautological_assert::TautologicalAssert,
+            ));
+        }
+
         // Language-agnostic file-level rules
         rules.push(Box::new(crate::rules::global::file_length::LongFile));
 

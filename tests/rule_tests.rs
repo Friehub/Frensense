@@ -163,3 +163,59 @@ fn test_ts_unawaited_test_assertion() {
     ";
     run_test(rule_id, good_code, 0, "ts");
 }
+
+#[test]
+fn test_ts_tautological_assert() {
+    let rule_id = "TS_TAUTOLOGICAL_ASSERT";
+
+    // Positive: expect(x).toBe(x)
+    run_test(
+        rule_id,
+        "it('test', () => { expect(x).toBe(x); });",
+        1,
+        "ts",
+    );
+
+    // Positive: expect(x).toEqual(x)
+    run_test(
+        rule_id,
+        "it('test', () => { expect(result).toEqual(result); });",
+        1,
+        "ts",
+    );
+
+    // Positive: expect(true).toBeTruthy() — literal matches matcher
+    run_test(
+        rule_id,
+        "it('test', () => { expect(true).toBeTruthy(); });",
+        1,
+        "ts",
+    );
+
+    // Positive: expect(null).toBeNull()
+    run_test(
+        rule_id,
+        "it('test', () => { expect(null).toBeNull(); });",
+        1,
+        "ts",
+    );
+
+    // Negative: expect(x).toBe(y) — different variables
+    run_test(
+        rule_id,
+        "it('test', () => { expect(x).toBe(y); });",
+        0,
+        "ts",
+    );
+
+    // Negative: expect(x).toBe(42) — different values
+    run_test(
+        rule_id,
+        "it('test', () => { expect(result).toBe(42); });",
+        0,
+        "ts",
+    );
+
+    // Negative: non-expect chain
+    run_test(rule_id, "const x = foo().bar();", 0, "ts");
+}
