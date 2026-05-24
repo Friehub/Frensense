@@ -70,6 +70,35 @@ fn test_rust_panic_in_lib() {
 
     // Negative
     run_test(rule_id, "fn t() { return Err(\"error\"); }", 0, "rs");
+
+    // Positive from corpus fixture
+    let fixture_content = std::fs::read_to_string("corpus/targets/rust_panic_in_lib_positive.rs")
+        .expect("fixture file not found — run from project root");
+    run_test(rule_id, &fixture_content, 1, "rs");
+
+    // #[cfg(test)] mod block should suppress panics (BTL-06)
+    run_test(
+        rule_id,
+        "#[cfg(test)]\nmod tests {\n    fn helper() {\n        panic!(\"in test\");\n    }\n}\n",
+        0,
+        "rs",
+    );
+
+    // Plain mod tests { ... } without #[cfg(test)] should still fire (not excluded)
+    run_test(
+        rule_id,
+        "mod tests {\n    fn helper() {\n        panic!(\"in non-cfg mod\");\n    }\n}\n",
+        1,
+        "rs",
+    );
+
+    // #[test] function should suppress panic
+    run_test(
+        rule_id,
+        "#[test]\nfn unit() {\n    panic!(\"in test fn\");\n}\n",
+        0,
+        "rs",
+    );
 }
 
 #[test]

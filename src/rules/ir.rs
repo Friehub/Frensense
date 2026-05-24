@@ -100,6 +100,32 @@ impl GenSenseRule for CoreRuleIr {
             }
         }
 
+        // AST-level check for #[cfg(test)] mod { ... } blocks where the
+        // attribute is a sibling of the mod_item (invisible to the regex
+        // text-walk above).
+        {
+            let mut cur = node;
+            while let Some(parent) = cur.parent() {
+                if parent.kind() == "mod_item" {
+                    let mut prev = parent.prev_sibling();
+                    while let Some(sib) = prev {
+                        if sib.kind() == "attribute_item" {
+                            let text = &context.source_code[sib.start_byte()..sib.end_byte()];
+                            if text.contains("#[cfg(test)]") || text.contains("#[test]") {
+                                return Vec::new();
+                            }
+                            break;
+                        }
+                        if sib.kind() != "line_comment" && sib.kind() != "block_comment" {
+                            break;
+                        }
+                        prev = sib.prev_sibling();
+                    }
+                }
+                cur = parent;
+            }
+        }
+
         // Skip if parent node kind matches skip_if_parent
         if let Some(kind) = &self.skip_if_parent
             && let Some(parent) = node.parent()

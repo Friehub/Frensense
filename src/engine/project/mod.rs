@@ -154,7 +154,7 @@ impl Engine {
     /// Returns an error if file reading, parsing, or auditing fails.
     pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
         let _config = self.initialize_auditor_and_config(root);
-        self.file_cache = cache::FileCache::load(root);
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
 
         let mut snapshots = Vec::new();
         for p in files {
@@ -231,7 +231,7 @@ impl Engine {
         let all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
 
-        self.file_cache.save(root);
+        self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
     }
 
@@ -311,7 +311,7 @@ impl Engine {
                 format!("path does not exist: {}", root.display()),
             )));
         }
-        self.file_cache = cache::FileCache::load(root);
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
         self.cache_root = Some(root.to_path_buf());
 
         let config = self.initialize_auditor_and_config(root);
@@ -368,7 +368,7 @@ impl Engine {
             }
         }
 
-        self.file_cache.save(root);
+        self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
     }
 

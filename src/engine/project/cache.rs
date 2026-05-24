@@ -9,7 +9,8 @@ use std::path::Path;
 /// files whose hash matches the cache are skipped entirely — no parse, no audit.
 ///
 /// Safe because: unchanged content → same findings as last run.
-/// The cache is invalidated when the engine version changes (version field).
+/// The cache is invalidated when the engine version changes (version field) or
+/// when the active language filter differs from the one used to build the cache.
 #[derive(Default)]
 pub struct FileCache {
     pub files: HashMap<String, String>,
@@ -18,29 +19,47 @@ pub struct FileCache {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct CacheFile {
     version: u32,
+    language_filter: Option<Vec<String>>,
     files: HashMap<String, String>,
 }
 
 impl FileCache {
-    const CURRENT_VERSION: u32 = 1;
+    const CURRENT_VERSION: u32 = 2;
 
     /// Load cache from `.gensense/cache.json` under the project root.
-    /// Returns an empty cache if the file doesn't exist or is corrupt.
+    /// Returns an empty cache if the file doesn't exist, is corrupt, or
+    /// was built under a different language filter.
     #[must_use]
-    pub fn load(root: &Path) -> Self {
+    pub fn load(root: &Path, language_filter: Option<&[&str]>) -> Self {
         let cache_path = root.join(".gensense").join("cache.json");
-        let files = std::fs::read_to_string(&cache_path)
+        let cached = std::fs::read_to_string(&cache_path)
             .ok()
             .and_then(|s| serde_json::from_str::<CacheFile>(&s).ok())
-            .filter(|c| c.version == Self::CURRENT_VERSION)
-            .map(|c| c.files)
-            .unwrap_or_default();
-        Self { files }
+            .filter(|c| c.version == Self::CURRENT_VERSION);
+
+        let Some(cached) = cached else {
+            return Self {
+                files: HashMap::new(),
+            };
+        };
+
+        // Invalidate if the language filter changed
+        let current_filter: Option<Vec<String>> =
+            language_filter.map(|f| f.iter().map(|s| s.to_string()).collect());
+        if cached.language_filter != current_filter {
+            return Self {
+                files: HashMap::new(),
+            };
+        }
+
+        Self {
+            files: cached.files,
+        }
     }
 
     /// Save cache to `.gensense/cache.json` under the project root.
     /// Creates the `.gensense/` directory if it doesn't exist.
-    pub fn save(&self, root: &Path) {
+    pub fn save(&self, root: &Path, language_filter: Option<&[&str]>) {
         if self.files.is_empty() {
             return;
         }
@@ -48,6 +67,7 @@ impl FileCache {
         let cache_path = dir.join("cache.json");
         let wrapper = CacheFile {
             version: Self::CURRENT_VERSION,
+            language_filter: language_filter.map(|f| f.iter().map(|s| s.to_string()).collect()),
             files: self.files.clone(),
         };
         if let Ok(content) = serde_json::to_string_pretty(&wrapper) {
