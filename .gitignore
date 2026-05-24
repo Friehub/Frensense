@@ -74,3 +74,4 @@ tests/fixtures/scratch/
 
 # Debug / scratch tests
 tests/list_files_test.rs
+*.csv

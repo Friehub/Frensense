@@ -20,6 +20,22 @@ use gensense::semantics::{Symbol, SymbolKind, SymbolRegistry};
 use gensense::{Engine, FileId};
 use std::fmt::Write;
 use std::path::Path;
+use std::time::Duration;
+
+/// If `GENSENSE_BENCH_QUICK` is set to `1` or `true`, override each benchmark
+/// group with a minimal sample count and short measurement window so CI runs
+/// finish in seconds instead of minutes.
+fn apply_quick_mode(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
+    if std::env::var("GENSENSE_BENCH_QUICK")
+        .ok()
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false)
+    {
+        group.sample_size(10);
+        group.measurement_time(Duration::from_secs(5));
+        group.warm_up_time(Duration::from_secs(1));
+    }
+}
 
 // ── Realistic source fixtures ─────────────────────────────────────────────────
 // These represent actual patterns a developer would write — including patterns
@@ -224,6 +240,7 @@ export const checkoutRouter = router({
 
 fn bench_scan_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("scan_throughput");
+    apply_quick_mode(&mut group);
 
     // Clean Rust service — baseline (no violations, no extra work)
     group.bench_function("rust_clean_service", |b| {
@@ -304,6 +321,7 @@ fn bench_project_scale(c: &mut Criterion) {
     let mut group = c.benchmark_group("project_scale");
     // Fewer samples because each iteration writes files to disk
     group.sample_size(20);
+    apply_quick_mode(&mut group);
 
     for file_count in [10usize, 50, 100, 200] {
         group.bench_with_input(
@@ -348,6 +366,7 @@ fn bench_project_scale(c: &mut Criterion) {
 
 fn bench_taint_depth(c: &mut Criterion) {
     let mut group = c.benchmark_group("taint_analysis");
+    apply_quick_mode(&mut group);
 
     // Build taint chains of increasing depth
     for chain_len in [5usize, 20, 50, 100] {
@@ -396,6 +415,7 @@ fn build_taint_chain(depth: usize) -> String {
 
 fn bench_rule_compilation(c: &mut Criterion) {
     let mut group = c.benchmark_group("rule_compilation");
+    apply_quick_mode(&mut group);
 
     group.bench_function("compile_all_builtin_rules", |b| {
         b.iter(|| {
@@ -420,6 +440,7 @@ fn bench_rule_compilation(c: &mut Criterion) {
 
 fn bench_symbol_registry(c: &mut Criterion) {
     let mut group = c.benchmark_group("symbol_registry");
+    apply_quick_mode(&mut group);
 
     // Build registries of different sizes representing project scales:
     // 1k = small lib, 10k = medium service, 100k = large monorepo
@@ -475,6 +496,7 @@ fn bench_fingerprinting(c: &mut Criterion) {
     use gensense::Advisory;
 
     let mut group = c.benchmark_group("fingerprinting");
+    apply_quick_mode(&mut group);
 
     let advisory = Advisory {
         rule_id: "TS_ASYNC_FOR_EACH".into(),
@@ -524,6 +546,7 @@ fn bench_schema_contract(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("schema_contract");
     group.sample_size(30);
+    apply_quick_mode(&mut group);
 
     // Build a realistic Prisma schema (20 models, ~8 fields each)
     let dir = tempdir().unwrap();
@@ -667,6 +690,7 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
     use std::hash::{Hash, Hasher};
 
     let mut group = c.benchmark_group("post_process_ngrams");
+    apply_quick_mode(&mut group);
 
     for fp_count in [10usize, 50, 200, 500] {
         // Generate synthetic fingerprints with deterministic n-gram hashes.
