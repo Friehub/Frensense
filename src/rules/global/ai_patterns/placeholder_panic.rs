@@ -9,7 +9,7 @@ impl GenSenseRule for PlaceholderPanic {
     fn metadata(&self) -> &crate::RuleMetadata {
         static META: std::sync::LazyLock<crate::RuleMetadata> = std::sync::LazyLock::new(|| {
             crate::RuleMetadata {
-                id: "AI_PLACEHOLDER_PANIC".into(),
+                id: "RUST_PLACEHOLDER_PANIC".into(),
                 name: "Placeholder Panic".into(),
                 severity: crate::Severity::Critical,
                 observation: "A 'todo!' or 'unimplemented!' placeholder macro was detected.".into(),

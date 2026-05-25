@@ -29,10 +29,10 @@ fn is_inside_spawn_blocking(node: Node, source: &[u8]) -> bool {
                 } else {
                     None
                 };
-                if let Some(name) = name {
-                    if known_wrappers.iter().any(|w| name.contains(w)) {
-                        return true;
-                    }
+                if let Some(name) = name
+                    && known_wrappers.iter().any(|w| name.contains(w))
+                {
+                    return true;
                 }
             }
         }

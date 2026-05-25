@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [Unreleased] — v0.3.1
 
 ### Added
+- **`taint_max_depth` Rule DSL field**: Rules can set `taint_max_depth: <N>` in YAML to control cross-function taint chain length per-rule. Falls back to 5 (existing default) when unset.
+- **Visited-set cycle detection in `resolve_call_taint`**: Prevents re-analysis and infinite recursion when the same callee is encountered multiple times during taint resolution. Tracks `(file_path, start_byte)` pairs per analysis.
+- **Match-arm and if-expression return propagation**: `find_returns()` now explicitly walks `match_expression` arms and `if_expression` consequence/alternative branches as potential return values, improving intra-procedural taint flow through conditional logic.
 - **Rule quality pipeline**: Every rule now carries a `precision` tier (`very-high | high | medium | low`), letting users choose a rule suite via `--suite {default|extended|all}`. `default` runs only `very-high` rules (battle-tested, near-zero false positives). `extended` adds `high` rules (well-tested, occasional FP). `all` runs every rule (current behavior, unchanged as default).
 - **`--suite` CLI flag**: `gensense --suite default path/` filters to high-confidence findings only. Backward compatible — existing invocations without `--suite` behave identically.
 - **Historical self-scan benchmark**: `scripts/historical-benchmark.sh` scans a target repo at every tagged version with the current gensense binary and outputs a CSV showing how advisory counts evolved over time. Documented in `BENCHMARK.md`.

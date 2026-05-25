@@ -8,7 +8,7 @@ impl GenSenseRule for LongFile {
     fn metadata(&self) -> &RuleMetadata {
         static META: std::sync::LazyLock<RuleMetadata> = std::sync::LazyLock::new(|| {
             RuleMetadata {
-                id: "LONG_FILE".into(),
+                id: "FILE_TOO_LONG".into(),
                 name: "File Exceeds Line Limit".into(),
                 severity: crate::Severity::Warning,
                 observation: "Source file exceeds the recommended maximum length.".into(),

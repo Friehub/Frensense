@@ -56,6 +56,7 @@ pub struct AuditOptions<'a> {
     pub tag_filter: &'a HashSet<String>,
     pub suite: crate::Suite,
     pub env: crate::GenSenseEnvironment,
+    pub severity_filter: Option<crate::Severity>,
 }
 
 impl GenSenseAuditor {
@@ -167,6 +168,7 @@ impl GenSenseAuditor {
                     opts.tag_filter,
                     opts.suite,
                     opts.env,
+                    opts.severity_filter,
                 ) {
                     continue;
                 }
@@ -200,6 +202,7 @@ impl GenSenseAuditor {
                 opts.tag_filter,
                 opts.suite,
                 opts.env,
+                opts.severity_filter,
             ) {
                 continue;
             }
@@ -291,6 +294,7 @@ impl GenSenseAuditor {
                     opts.tag_filter,
                     opts.suite,
                     opts.env,
+                    opts.severity_filter,
                 ) {
                     continue;
                 }

@@ -6,7 +6,8 @@ pub mod tracking;
 
 use crate::FileId;
 use crate::GenSenseContext;
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tree_sitter::Node;
 
@@ -154,11 +155,12 @@ pub struct DataFlowAnalyzer<'a, 'ctx> {
     pub(crate) root: Node<'a>,
     pub(crate) depth: usize,
     pub(crate) max_depth: usize,
+    pub(crate) visited: RefCell<HashSet<(String, usize)>>,
 }
 
 impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
     #[must_use]
-    pub const fn new(context: &'ctx GenSenseContext<'a>, root: Node<'a>) -> Self {
+    pub fn new(context: &'ctx GenSenseContext<'a>, root: Node<'a>) -> Self {
         Self {
             context,
             current_source: context.source_code,
@@ -168,12 +170,13 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             root,
             depth: 0,
             max_depth: 5,
+            visited: RefCell::new(HashSet::new()),
         }
     }
 
     #[allow(clippy::too_many_arguments)]
     #[must_use]
-    pub const fn with_depth(
+    pub fn with_depth(
         context: &'ctx GenSenseContext<'a>,
         current_source: &'a str,
         current_tree: &'a tree_sitter::Tree,
@@ -192,6 +195,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             root,
             depth,
             max_depth,
+            visited: RefCell::new(HashSet::new()),
         }
     }
 }

@@ -12,8 +12,8 @@ rules:
   severity: Warning
   tags: []
   category: Security
-  confidence: 0.95
-  precision: very-high
+  confidence: 0.40
+  precision: low
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_HOST_INTERACTION
@@ -29,8 +29,8 @@ rules:
   severity: Warning
   tags: []
   category: Isolation
-  confidence: 0.85
-  precision: very-high
+  confidence: 0.70
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_ALLOCATION_IN_LOG
@@ -46,8 +46,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
-  confidence: 0.80
-  precision: high
+  confidence: 0.65
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_CLONE_IN_LOOP
@@ -62,8 +62,8 @@ rules:
   severity: Warning
   tags: []
   category: Performance
-  confidence: 0.80
-  precision: high
+  confidence: 0.60
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_SILENT_FAILURE
@@ -79,8 +79,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
-  confidence: 0.70
-  precision: high
+  confidence: 0.60
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_VEC_FRONT_REMOVE
@@ -132,7 +132,7 @@ rules:
   severity: Warning
   tags: []
   category: Concurrency
-  confidence: 0.90
+  confidence: 0.85
   precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
@@ -149,8 +149,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
-  confidence: 0.75
-  precision: high
+  confidence: 0.65
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_UNWRAP_SAFETY
@@ -167,8 +167,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
-  confidence: 0.85
-  precision: very-high
+  confidence: 0.60
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_TOKIO_SELECT_ELSE
@@ -202,8 +202,8 @@ rules:
   severity: Warning
   tags: []
   category: Reliability
-  confidence: 0.90
-  precision: very-high
+  confidence: 0.65
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_PANIC_IN_LIB
@@ -220,8 +220,8 @@ rules:
   severity: Warning
   tags: []
   category: Safety
-  confidence: 0.80
-  precision: high
+  confidence: 0.65
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: SECRET_LEAK_DETECTION
@@ -235,7 +235,7 @@ rules:
   severity: Critical
   tags: []
   category: Security
-  confidence: 0.60
+  confidence: 0.90
   precision: medium
 
 - id: RUST_SPAWN_WITHOUT_JOINHANDLE
@@ -249,8 +249,8 @@ rules:
   category: Concurrency
   name: Rust Spawn Without Joinhandle
   tags: []
-  confidence: 0.85
-  precision: very-high
+  confidence: 0.70
+  precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 
@@ -265,8 +265,8 @@ rules:
   category: Concurrency
   name: Rust Mutex Poisoning Unhandled
   tags: []
-  confidence: 0.90
-  precision: very-high
+  confidence: 0.60
+  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_BLOCKING_IN_ASYNC
@@ -282,8 +282,8 @@ rules:
   category: Performance
   name: Rust Blocking In Async
   tags: []
-  confidence: 0.85
-  precision: very-high
+  confidence: 0.65
+  precision: medium
 
 - id: RUST_SERDE_MISSING_DENY_UNKNOWN
   target_ext: rs
@@ -297,8 +297,8 @@ rules:
   category: Security
   tags: [security, serde, api]
   name: Rust Serde Missing Deny Unknown
-  confidence: 0.90
-  precision: very-high
+  confidence: 0.65
+  precision: medium
 
 - id: RUST_LOCK_SLEEP
   target_ext: rs
@@ -320,4 +320,149 @@ rules:
   confidence: 0.85
   precision: high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
+
+- id: RUST_CONNECTION_LEAK
+  target_ext: rs
+  on_node: function_item
+  if_matches: \b(get_connection|pool\.get|(?:pool|conn|client|manager)\.acquire)\b
+  temporal:
+    sequence: ["^(get_connection|pool\\.get|acquire|connect)$", "^(close|release|drop)$"]
+    behavior: must_follow
+  observation: A connection or resource is acquired but not released in this scope.
+  impact: Unreleased connections can lead to resource exhaustion and connection pool starvation.
+  improvement: Ensure every acquire/get_connection is paired with a close/release/drop, typically via a scope guard or explicit cleanup.
+  name: Connection Leak
+  severity: Warning
+  category: Reliability
+  tags: [concurrency, resources]
+  confidence: 0.65
+  precision: medium
+  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
+
+- id: RUST_NETWORK_IN_TXN
+  target_ext: rs
+  on_node: function_item
+  if_matches: \b(begin_transaction|tx\.begin)\b
+  temporal:
+    sequence:
+      - "^begin_transaction$"
+      - "^(commit|rollback)$"
+      - '^(fetch|reqwest|reqwest::get|http|req\.get|req\.post|req\.put|req\.delete|client\.(get|post|put|delete))$'
+    behavior: forbidden_between
+  observation: Network I/O detected inside a database transaction.
+  impact: Network calls inside a transaction can hold the transaction open for long periods, causing connection pool exhaustion and database deadlocks.
+  improvement: Move the network call outside the transaction boundary, or restructure to use a separate connection.
+  name: Network I/O Inside Transaction
+  severity: Warning
+  category: Performance
+  tags: [database, concurrency, transaction]
+  confidence: 0.65
+  precision: medium
+  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
+
+- id: RUST_MUTATE_AFTER_RESPONSE
+  target_ext: rs
+  on_node: function_item
+  if_matches: \b(send_response|reply|commit_response)\b
+  temporal:
+    sequence: ["^(send_response|reply|commit_response)$", "^(write|modify|update|delete|insert|save)$"]
+    behavior: must_not_follow
+  observation: Mutation detected after response was sent.
+  impact: Mutating state after sending a response can lead to inconsistent client outcomes and phantom writes if the mutation fails.
+  improvement: Perform all mutations before sending the response, or use a two-phase commit pattern.
+  name: Mutation After Response
+  severity: Warning
+  category: Reliability
+  tags: [concurrency, state]
+  confidence: 0.75
+  precision: high
+  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
+
+- id: RUST_LLM_CLONE_LITERAL
+  target_ext: rs
+  on_node: call_expression
+  if_matches: \d+\.clone\(\)|true\.clone\(\)|false\.clone\(\)|'[^']*'\.clone\(\)|"[^"]*"\.clone\(\)
+  observation: "Clone called on a literal value — the type likely implements Copy and clone() is unnecessary."
+  impact: "Cloning primitive values is redundant and wastes CPU cycles. LLMs often add unnecessary .clone() to work around borrow checker confusion."
+  improvement: "Remove the .clone() call — literals with Copy semantics are implicitly copied."
+  name: Rust LLM Clone Literal
+  severity: Warning
+  tags: [llm, performance]
+  category: Performance
+  confidence: 0.60
+  precision: medium
+
+- id: RUST_LLM_AWAIT_IN_SYNC
+  target_ext: rs
+  on_node: function_item
+  if_matches: \w+\.await\b
+  must_contain: async
+  observation: "Use of .await inside a non-async function."
+  impact: "The .await keyword is only valid inside async functions. This code will not compile."
+  improvement: "Add the 'async' keyword before 'fn', or remove the .await if the call is synchronous."
+  name: Rust LLM Await In Sync
+  severity: Critical
+  tags: [llm, compilation]
+  category: Reliability
+  confidence: 0.60
+  precision: medium
+
+- id: RUST_TRANSMUTE
+  target_ext: rs
+  on_node: call_expression
+  if_matches: \btransmute\b
+  observation: "Use of std::mem::transmute detected — it bypasses Rust's type safety guarantees."
+  impact: "transmute can create invalid type states, cause undefined behavior, or violate assumed invariants. LLMs often use it as a quick fix for type mismatches."
+  improvement: "Prefer safe conversions using From/TryFrom, or use safe casting methods like as, cast(), or bytemuck."
+  name: Rust Transmute
+  severity: Warning
+  tags: [llm, safety]
+  category: Safety
+  confidence: 0.90
+  precision: very-high
+
+- id: RUST_LLM_NEVER_ERR
+  target_ext: rs
+  on_node: function_item
+  if_matches: ->\s*Result<|->\s*Option<
+  body_must_contain: \?|return\s+(Err|None)|Err\(|\bNone\b
+  must_not_contain: ^\s*(Ok|Some)\(
+  observation: "Function returns Result or Option but the body never produces an error or None."
+  impact: "The function signature promises fallibility but always succeeds, misleading callers. LLMs often write 'fn foo() -> Result<T>' without any Err path."
+  improvement: "Either change the return type, or add proper error handling with ? / Err(...) / None."
+  name: Rust LLM Never Err
+  severity: Warning
+  tags: [llm, reliability]
+  category: Reliability
+  confidence: 0.50
+  precision: low
+
+- id: RUST_MISSING_AWAIT
+  target_ext: rs
+  on_node: expression_statement
+  if_matches: tokio::time::sleep\(
+  must_contain: \.await
+  observation: "tokio::time::sleep() or sleep() called without .await."
+  impact: "Calling an async function without .await only creates a Future but doesn't execute it. The sleep will not actually pause execution."
+  improvement: "Add .await: tokio::time::sleep(dur).await;"
+  name: Rust Missing Await
+  severity: Critical
+  tags: [llm, reliability]
+  category: Reliability
+  confidence: 0.85
+  precision: very-high
+
+- id: RUST_DISCARDED_RESULT
+  target_ext: rs
+  on_node: expression_statement
+  if_matches: \.ok\(\)|\.unwrap_or_default\(
+  observation: "Result or Option value is discarded via .ok() or .unwrap_or_default()."
+  impact: "Silently discarding errors with .ok() or .unwrap_or_default() instead of propagating them can mask real failures and lead to silent data corruption."
+  improvement: "Use ? to propagate the error, match on the Result, or handle both Ok and Err explicitly."
+  name: Rust Discarded Result
+  severity: Warning
+  tags: [llm, reliability]
+  category: Reliability
+  confidence: 0.60
+  precision: medium
 

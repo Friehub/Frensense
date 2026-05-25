@@ -1,3 +1,3 @@
 // correctness_samples/positive/secret_leak.rs
-// Rule: SECRET_LEAK_DETECTION
+// Rule: RUST_SECRET_LEAK
 const API_KEY = "0xabcdef1234567890abcdef1234567890abcdef1234567890";

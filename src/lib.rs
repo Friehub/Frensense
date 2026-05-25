@@ -44,6 +44,18 @@ pub enum Severity {
     Info,
 }
 
+impl Severity {
+    #[must_use]
+    pub fn meets_threshold(&self, threshold: Severity) -> bool {
+        match (self, threshold) {
+            (Severity::Critical, _)
+            | (Severity::Info, Severity::Info)
+            | (Severity::Warning, Severity::Warning | Severity::Info) => true,
+            (Severity::Warning, Severity::Critical) | (Severity::Info, _) => false,
+        }
+    }
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GenSenseEnvironment {
     Production,

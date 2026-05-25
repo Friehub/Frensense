@@ -16,6 +16,7 @@ impl GenSenseAuditor {
         tag_filter: &HashSet<String>,
         suite: Suite,
         env: crate::GenSenseEnvironment,
+        severity_filter: Option<crate::Severity>,
     ) -> bool {
         let meta = rule.metadata();
 
@@ -25,6 +26,13 @@ impl GenSenseAuditor {
         }
 
         if env == crate::GenSenseEnvironment::Production && meta.tags.iter().any(|t| t == "beta") {
+            return false;
+        }
+
+        // Severity filter
+        if let Some(ref min_sev) = severity_filter
+            && !meta.severity.meets_threshold(*min_sev)
+        {
             return false;
         }
 
@@ -204,5 +212,27 @@ impl GenSenseAuditor {
         project_rules.extend(user_project_rules);
 
         (rules, project_rules)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_typescript_yaml_rules_parse() {
+        let content = std::fs::read_to_string("src/rules/definitions/typescript/core.yml")
+            .expect("TS YAML file should exist");
+        let wrapper: RulesWrapper =
+            serde_yaml::from_str(&content).expect("TS YAML should parse without duplicates");
+        let count = wrapper.rules.len();
+        #[allow(clippy::print_stderr)]
+        {
+            eprintln!("Parsed {count} TS rules");
+            for (i, r) in wrapper.rules.iter().enumerate() {
+                eprintln!("  [{i}] {} target_ext={}", r.metadata.id, r.target_ext);
+            }
+        }
+        assert!(count > 0, "Should have at least one TS rule");
     }
 }

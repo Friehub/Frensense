@@ -22,22 +22,22 @@ Verified 2026-05-24 against commit `ae315d6`. Phases ordered by dependency — e
 
 `max_depth: 5` is hardcoded at `src/semantics/data_flow/mod.rs:170`. A YAML rule cannot override it. Taint through a 6-deep call chain silently stops tracking with no warning.
 
-- [ ] **Add `taint_max_depth: Option<usize>`** to `CoreRule` and `CoreRuleIr`
-- [ ] **Pass through in `evaluate_taint_constraint()`** at `src/rules/ir.rs:506` when constructing `DataFlowAnalyzer`
-- [ ] **YAML field** — `taint_max_depth: 8` for SSRF rules, omit for default (5)
+- [x] **Add `taint_max_depth: Option<usize>`** to `CoreRule` and `CoreRuleIr`
+- [x] **Pass through in `evaluate_taint_constraint()`** when constructing `DataFlowAnalyzer`
+- [x] **YAML field** — `taint_max_depth: 8` for SSRF rules, omit for default (5)
 
 ### 0b. Visited-set in `resolve_call_taint()`
 
 `resolve_call_taint()` at `src/semantics/data_flow/tracking.rs` re-analyzes the same callee on every taint path. No cycle detection — mutually recursive functions can loop infinitely.
 
-- [ ] **Add `HashSet<(file_path, start_byte)>`** through the recursion to prevent re-analysis and detect cycles
-- [ ] **Soundness improvement** — not a capability gap, but prevents silent infinite loops
+- [x] **Add `HashSet<(file_path, start_byte)>`** through the recursion to prevent re-analysis and detect cycles
+- [x] **Soundness improvement** — not a capability gap, but prevents silent infinite loops
 
 ### 0c. Match arm return propagation in `find_returns()`
 
 `find_returns()` recurses through most node kinds but stops at nested function definitions (`fn`, `\| \|`, `method`). Returns inside closures that are immediately invoked (`(\|\| { return tainted; }())`) are missed — ~20 lines to fix.
 
-- [ ] **Add `if_expression` and `match_expression`** as explicit cases that extract taint from each arm's last expression
+- [x] **Add `if_expression` and `match_expression`** as explicit cases that extract taint from each arm's last expression
 
 ### Deferred: Taint lifetime model redesign
 
@@ -112,7 +112,7 @@ A project-global profile flags test files as anomalous (they have different conv
 
 ## Phase 2 — Rule Coverage Hardening
 
-**Why third:** Existing rules have coverage gaps and one has a false positive (deadlock_guard byte-scan). These are quick wins (no new infrastructure) that raise the reliability baseline before adding new capabilities.
+**Why third:** Existing rules have coverage gaps. These are quick wins (no new infrastructure) that raise the reliability baseline before adding new capabilities.
 
 ### 2a. CSA Rule Test Coverage
 
@@ -141,15 +141,15 @@ A project-global profile flags test files as anomalous (they have different conv
 something().await;  // safe — temporal analyzer would reset found_first = false
 ```
 
-- [ ] **Replace byte-scan** with call to `TemporalAnalyzer::check_temporal()` using events from `ordered_events_in_scope()`
+- [x] **Replace byte-scan** with call to `TemporalAnalyzer::check_temporal()` using events from `ordered_events_in_scope()`
 
 ### 2c. Three Temporal Rules
 
 The `TemporalAnalyzer` at `src/semantics/temporal.rs` has three behaviors, zero consumers. Unlock them:
 
-- [ ] **`RUST_CONNECTION_LEAK`** — `MustFollow`: `get_connection`/`acquire` not followed by `close`/`release`/`drop`
-- [ ] **`RUST_NETWORK_IN_TXN`** — `ForbiddenBetween`: `fetch`/`http` between `begin_transaction` and `commit`/`rollback`
-- [ ] **`RUST_MUTATE_AFTER_RESPONSE`** — `MustNotFollow`: `write`/`modify` after `send_response`/`reply`/`commit`
+- [x] **`RUST_CONNECTION_LEAK`** — `MustFollow`: `get_connection`/`acquire` not followed by `close`/`release`/`drop`
+- [x] **`RUST_NETWORK_IN_TXN`** — `ForbiddenBetween`: `fetch`/`http` between `begin_transaction` and `commit`/`rollback`
+- [x] **`RUST_MUTATE_AFTER_RESPONSE`** — `MustNotFollow`: `write`/`modify` after `send_response`/`reply`/`commit`
 - [ ] **Tests** — corpus fixtures + `run_test()` for all three
 
 ---
@@ -184,7 +184,7 @@ Filter advisories to only symbols changed in the current branch vs main, using S
 
 Deferred from v0.3.x. Push `--severity` into the rule dispatcher so rules below threshold are never evaluated.
 
-- [ ] **Rule dispatcher filter** — skip rules below severity threshold before evaluation
+- [x] **Rule dispatcher filter** — skip rules below severity threshold before evaluation
 
 ---
 

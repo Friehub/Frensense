@@ -23,11 +23,11 @@ pub fn compile_temporal_config(
     let behavior = match config.behavior.as_str() {
         "must_not_follow" => TemporalBehavior::MustNotFollow,
         "forbidden_between" => {
-            if sequence.len() == 2 {
+            if sequence.len() >= 2 {
                 TemporalBehavior::ForbiddenBetween(sequence[0].clone(), sequence[1].clone())
             } else {
                 return Err(crate::GenSenseError::Pattern(
-                    "forbidden_between requires exactly 2 elements in sequence".to_string(),
+                    "forbidden_between requires at least 2 elements in sequence (start, end, + forbidden patterns)".to_string(),
                 ));
             }
         }

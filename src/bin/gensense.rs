@@ -22,6 +22,7 @@ fn print_help() {
     println!("  --debug <file>     Anonymized AST debug dump");
     println!("  --severity <level> Filter findings by severity (critical, warning, info)");
     println!("  --min-confidence <0.0-1.0> Filter findings by confidence score (default: 0.0)");
+    println!("  --confidence <tier> Convenience: high (≥0.85), medium (≥0.60), low (≥0.30), any");
     println!("  --tag <name>       Enable an optional diagnostic tag (e.g., sbom, governance)");
     println!("  --strict           Exit with code 1 if any findings match filter");
     println!("  --json             Output findings as JSON");
@@ -202,7 +203,9 @@ fn handle_debug_ast(file_path: &str) -> Result<()> {
 }
 
 fn handle_list_rules() -> Result<()> {
-    let engine = Engine::new();
+    let (rules, _project_rules) = gensense::engine::auditor::GenSenseAuditor::default_rules();
+    let mut engine = Engine::new();
+    engine.set_rules(rules);
     let catalog = engine.list_rules();
     println!("GenSense: Active Rules Catalog");
     println!("{:->100}", "");
@@ -268,6 +271,23 @@ fn parse_options(args: &[String]) -> CliOptions {
                     if let Ok(c) = val.parse::<f32>() {
                         options.min_confidence = c;
                     }
+                    i += 1;
+                }
+            }
+            "--confidence" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.min_confidence = match val.to_lowercase().as_str() {
+                        "high" => 0.85,
+                        "medium" => 0.60,
+                        "low" => 0.30,
+                        "any" => 0.0,
+                        _ => {
+                            eprintln!(
+                                "Error: Unknown confidence tier '{val}'. Valid: high, medium, low, any"
+                            );
+                            std::process::exit(1);
+                        }
+                    };
                     i += 1;
                 }
             }
@@ -488,6 +508,7 @@ fn main() -> Result<()> {
     }
     engine.set_no_builtin_rules(options.no_builtin);
     engine.set_suite(options.suite);
+    engine.set_severity_filter(options.severity_filter);
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = gensense::parser::ParserRegistry::extensions_for(lang_arg) {
@@ -657,8 +678,10 @@ fn apply_filters(advisories: &mut Vec<Advisory>, options: &CliOptions, engine: &
         });
     }
 
+    // Post-filter: severity threshold (redundant if pre-filter is active, but catches
+    // any rules that bypass the pre-filter, e.g. direct API users)
     if let Some(filter) = options.severity_filter {
-        advisories.retain(|a| a.severity == filter);
+        advisories.retain(|a| a.severity.meets_threshold(filter));
     }
 }
 

@@ -165,7 +165,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
             } else if end_re.is_match(&event.label) {
                 in_forbidden_zone = false;
             } else if in_forbidden_zone {
-                for (i, re) in sequence.iter().enumerate() {
+                for (i, re) in sequence.iter().enumerate().skip(2) {
                     if re.is_match(&event.label) {
                         let file_path = self.context.file_path.to_string_lossy().to_string();
                         let enclosing_symbol = self

@@ -129,6 +129,7 @@ impl RuleCompiler {
             exclude_scope,
             skip_if_parent: dsl.skip_if_parent,
             body_query: dsl.body_query,
+            taint_max_depth: dsl.taint_max_depth,
         })
     }
 }

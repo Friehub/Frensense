@@ -66,6 +66,7 @@ pub struct CoreRuleIr {
     pub exclude_scope: Option<Regex>,
     pub skip_if_parent: Option<String>,
     pub body_query: Option<String>,
+    pub taint_max_depth: Option<usize>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -293,24 +294,34 @@ impl CoreRuleIr {
             let checker =
                 crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
             if !checker.any_reachable_path_contains(body_node, re) {
-                let mut is_delegated = false;
-                if let Some(delegation_re) = &self.body_may_delegate_via {
+                let is_bypassed = if let Some(bypass_re) = &self.must_not_contain {
                     let code_in_body =
                         &context.source_code[body_node.start_byte()..body_node.end_byte()];
-                    if delegation_re.is_match(code_in_body) {
-                        is_delegated = true;
-                    }
-                }
+                    bypass_re.is_match(code_in_body)
+                } else {
+                    false
+                };
 
-                if !is_delegated {
-                    advisories.push(self.new_advisory(
-                        &node,
-                        context,
-                        format!(
-                            "Function body has no reachable path containing '{}'.",
-                            re.as_str()
-                        ),
-                    ));
+                if !is_bypassed {
+                    let mut is_delegated = false;
+                    if let Some(delegation_re) = &self.body_may_delegate_via {
+                        let code_in_body =
+                            &context.source_code[body_node.start_byte()..body_node.end_byte()];
+                        if delegation_re.is_match(code_in_body) {
+                            is_delegated = true;
+                        }
+                    }
+
+                    if !is_delegated {
+                        advisories.push(self.new_advisory(
+                            &node,
+                            context,
+                            format!(
+                                "Function body has no reachable path containing '{}'.",
+                                re.as_str()
+                            ),
+                        ));
+                    }
                 }
             }
         }
@@ -353,7 +364,9 @@ impl CoreRuleIr {
                     ));
                 }
             }
-        } else if let Some(re) = &self.must_not_contain {
+        } else if self.body_must_contain.is_none()
+            && let Some(re) = &self.must_not_contain
+        {
             let body_node = node.child_by_field_name("body").unwrap_or(node);
             let checker =
                 crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
@@ -503,7 +516,17 @@ impl CoreRuleIr {
             }
             advisories.extend(findings);
         } else {
-            let analyzer = DataFlowAnalyzer::new(context, top);
+            let max_depth = self.taint_max_depth.unwrap_or(5);
+            let analyzer = DataFlowAnalyzer::with_depth(
+                context,
+                context.source_code,
+                context.tree,
+                context.file_path,
+                context.file_id,
+                top,
+                0,
+                max_depth,
+            );
             let mut registry = TaintRegistry::default();
             analyzer.discover_symbols(&mut registry);
             let target_node = node.child_by_field_name("body").unwrap_or(node);
@@ -622,7 +645,7 @@ impl CoreRuleIr {
             );
             for byte in input.bytes() {
                 hash ^= u64::from(byte);
-                hash = hash.wrapping_mul(0x10_0000_01b3);
+                hash = hash.wrapping_mul(0x100_0000_01b3);
             }
             format!("{hash:016x}")
         };
@@ -818,7 +841,7 @@ impl ProjectRuleIr {
             );
             for byte in input.bytes() {
                 hash ^= u64::from(byte);
-                hash = hash.wrapping_mul(0x10_0000_01b3);
+                hash = hash.wrapping_mul(0x100_0000_01b3);
             }
             format!("{hash:016x}")
         };

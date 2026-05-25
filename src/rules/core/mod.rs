@@ -72,6 +72,8 @@ pub struct CoreRule {
     pub skip_if_parent: Option<String>,
     #[serde(default)]
     pub body_query: Option<String>,
+    #[serde(default)]
+    pub taint_max_depth: Option<usize>,
 }
 
 impl GenSenseRule for CoreRule {

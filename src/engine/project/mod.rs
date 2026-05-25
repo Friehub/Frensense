@@ -36,6 +36,7 @@ pub struct Engine {
     extra_rule_dirs: Vec<PathBuf>,
     no_builtin_rules: bool,
     isolate_rules: bool,
+    severity_filter: Option<crate::Severity>,
     language_filter: Option<Vec<&'static str>>,
     file_cache: cache::FileCache,
     cache_root: Option<PathBuf>,
@@ -56,6 +57,7 @@ impl Engine {
             extra_rule_dirs: Vec::new(),
             no_builtin_rules: false,
             isolate_rules: false,
+            severity_filter: None,
             language_filter: None,
             file_cache: cache::FileCache::default(),
             cache_root: None,
@@ -124,6 +126,10 @@ impl Engine {
 
     pub const fn set_isolate_rules(&mut self, val: bool) {
         self.isolate_rules = val;
+    }
+
+    pub const fn set_severity_filter(&mut self, severity: Option<crate::Severity>) {
+        self.severity_filter = severity;
     }
 
     pub fn set_language_filter(&mut self, extensions: &[&'static str]) {
@@ -233,8 +239,10 @@ impl Engine {
                 .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
         }
 
-        let all_advisories =
+        let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+
+        Self::boost_overlap_confidence(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
@@ -282,6 +290,7 @@ impl Engine {
             tag_filter: &self.enabled_tags,
             suite: self.suite,
             env: self.environment,
+            severity_filter: self.severity_filter,
         };
 
         let result = self.auditor.audit(&opts)?;
@@ -304,7 +313,34 @@ impl Engine {
             }
         }
 
+        // Cross-rule confidence boost
+        Self::boost_overlap_confidence(&mut advisories);
+
         Ok(advisories)
+    }
+
+    /// Boosts confidence when multiple rules fire on the same file+line.
+    /// +0.10 per overlapping rule (cap +0.30, max 1.0).
+    fn boost_overlap_confidence(advisories: &mut [Advisory]) {
+        let overlap_counts: HashMap<(u32, u32), usize> = {
+            let mut counts: HashMap<(u32, u32), HashSet<&str>> = HashMap::new();
+            for adv in &*advisories {
+                counts
+                    .entry((adv.file_id.0, adv.line))
+                    .or_default()
+                    .insert(&adv.rule_id);
+            }
+            counts.into_iter().map(|(k, v)| (k, v.len())).collect()
+        };
+
+        for adv in advisories {
+            if let Some(&count) = overlap_counts.get(&(adv.file_id.0, adv.line)) {
+                let extra = count.saturating_sub(1);
+                #[allow(clippy::cast_precision_loss)]
+                let boost = (extra as f32 * 0.10).min(0.30);
+                adv.confidence = (adv.confidence + boost).min(1.0);
+            }
+        }
     }
 
     /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
@@ -379,6 +415,8 @@ impl Engine {
                 }
             }
         }
+
+        Self::boost_overlap_confidence(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
@@ -519,6 +557,7 @@ impl Engine {
                     tag_filter: &self.enabled_tags,
                     suite: self.suite,
                     env: self.environment,
+                    severity_filter: self.severity_filter,
                 };
                 let result = self.auditor.audit(&opts)?;
 

@@ -59,6 +59,7 @@ impl ParserRegistry {
             "ts" | "tsx" => Some(
                 r"
                 (function_declaration name: (identifier) @name)
+                (method_definition name: (property_identifier) @name)
                 (class_declaration name: (type_identifier) @name)
                 (interface_declaration name: (type_identifier) @name)
                 (enum_declaration name: (identifier) @name)
