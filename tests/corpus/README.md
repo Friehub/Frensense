@@ -104,7 +104,6 @@ Commit the updated baseline alongside the engine change so CI stays green.
 | `RUST_TOKIO_SELECT_ELSE` | 6 |
 | `RUST_CLONE_IN_LOOP` | 6 |
 | `RUST_MUTEX_POISONING_UNHANDLED` | 4 |
-| `RUST_SQL_COLUMN_MUST_EXIST_IN_PRISMA` | 4 |
 | `RUST_HOST_INTERACTION` | 1 |
 
 ## CI Integration
