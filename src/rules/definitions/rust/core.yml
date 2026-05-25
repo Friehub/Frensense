@@ -300,3 +300,24 @@ rules:
   confidence: 0.90
   precision: very-high
 
+- id: RUST_LOCK_SLEEP
+  target_ext: rs
+  on_node: function_item
+  if_matches: \block\b
+  temporal:
+    sequence: ["^lock$", "^sleep$"]
+    behavior: must_not_follow
+  observation: Holding a lock while calling thread::sleep() can cause deadlocks and
+    convoying.
+  impact: A sleeping thread holding a mutex prevents all other threads from acquiring
+    the lock, leading to severe contention or deadlock.
+  improvement: Release the lock guard before calling blocking operations or use
+    async-aware synchronization primitives.
+  name: Lock Held During Sleep
+  severity: Warning
+  category: Concurrency
+  tags: [concurrency, deadlock, mutex]
+  confidence: 0.85
+  precision: high
+  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
+

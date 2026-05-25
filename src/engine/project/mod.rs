@@ -228,6 +228,11 @@ impl Engine {
             }
         }
 
+        for snap in &snapshots {
+            self.auditor
+                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
+        }
+
         let all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
 
@@ -262,6 +267,8 @@ impl Engine {
         for sym in symbols {
             registry.insert(sym);
         }
+        self.auditor
+            .discover_events(path, content, &tree, &mut registry)?;
 
         let opts = AuditOptions {
             file_id: id,
@@ -333,6 +340,11 @@ impl Engine {
             for (caller, callee) in &snap.edges {
                 symbols.add_call_edge(&snap.path, caller, callee);
             }
+        }
+
+        for snap in &snapshots {
+            self.auditor
+                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
         }
 
         let mut file_trees = HashMap::new();

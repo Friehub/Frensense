@@ -127,7 +127,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
             }
         }
 
-        if current_step < sequence.len() {
+        if current_step > 0 && current_step < sequence.len() {
             let mut adv = rule.new_advisory(
                 scope,
                 self.context,

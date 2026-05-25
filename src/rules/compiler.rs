@@ -246,3 +246,74 @@ impl ProjectRuleCompiler {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_yaml_file_rule_compilation() {
+        let content = std::fs::read_to_string("src/rules/definitions/rust/core.yml")
+            .expect("YAML file should exist");
+        let wrapper: crate::engine::auditor::common::RulesWrapper =
+            serde_yaml::from_str(&content).expect("YAML should parse");
+        let rule = wrapper
+            .rules
+            .iter()
+            .find(|r| r.metadata.id == "RUST_LOCK_SLEEP");
+        let rule = rule.expect("RUST_LOCK_SLEEP should be in core.yml");
+        #[cfg(feature = "temporal")]
+        assert!(
+            rule.temporal.is_some(),
+            "RUST_LOCK_SLEEP should have temporal config"
+        );
+        let compiled = crate::rules::compiler::RuleCompiler::compile(rule.clone());
+        assert!(
+            compiled.is_ok(),
+            "RUST_LOCK_SLEEP should compile: {:?}",
+            compiled.err()
+        );
+    }
+
+    #[test]
+    fn test_temporal_rule_compilation() {
+        let yaml = r#"
+rules:
+- id: RUST_LOCK_SLEEP_TEST
+  target_ext: rs
+  on_node: function_item
+  if_matches: lock
+  temporal:
+    sequence: ["^lock$", "^sleep$"]
+    behavior: must_not_follow
+  observation: test
+  impact: test
+  improvement: test
+  name: test
+  severity: Warning
+  category: Concurrency
+  tags: []
+  confidence: 0.85
+  precision: high
+"#;
+        let wrapper: crate::engine::auditor::common::RulesWrapper =
+            serde_yaml::from_str(yaml).expect("test YAML should parse");
+        assert_eq!(wrapper.rules.len(), 1);
+        let rule = &wrapper.rules[0];
+        assert_eq!(rule.metadata.id, "RUST_LOCK_SLEEP_TEST");
+        #[cfg(feature = "temporal")]
+        assert!(
+            rule.temporal.is_some(),
+            "temporal field should be Some when feature is enabled"
+        );
+        #[cfg(not(feature = "temporal"))]
+        assert!(
+            rule.temporal.is_none(),
+            "temporal field should be None when feature is disabled"
+        );
+        let compiled = crate::rules::compiler::RuleCompiler::compile(rule.clone());
+        assert!(
+            compiled.is_ok(),
+            "Rule compilation failed: {:?}",
+            compiled.err()
+        );
+    }
+}

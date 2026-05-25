@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md` superseded by `GAP_ANALYSIS.md`.
 - **10 Solidity rules and feature**: Dead code — `solidity` feature not compiled, no tree-sitter support.
 
+### Added
+- **RUST_LOCK_SLEEP temporal rule**: Detects `lock()` followed by `sleep()` in the same scope (deadlock risk). First rule to use the YAML `temporal:` field and the event-based `TemporalAnalyzer`.
+- **Event discovery wired to audit flow**: `discover_events()` was defined but never called. Now invoked in all three audit paths (`run_detailed`, `run_files`, `run_content`), enabling temporal analysis.
+- **MustFollow bug fix**: Previously fired on every scope even when no events matched the sequence.
+
 ### [0.3.0] - 2026-05-21
 
 ### Changed (Breaking)
