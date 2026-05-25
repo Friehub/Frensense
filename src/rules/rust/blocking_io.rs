@@ -5,6 +5,40 @@ use std::borrow::Cow;
 use std::sync::OnceLock;
 use tree_sitter::Node;
 
+fn is_inside_spawn_blocking(node: Node, source: &[u8]) -> bool {
+    let known_wrappers = ["spawn_blocking", "asyncify", "blocking::unblock"];
+    let mut current = node;
+    loop {
+        current = match current.parent() {
+            Some(p) => p,
+            None => return false,
+        };
+        if current.kind() == "closure_expression" {
+            // Walk up: closure_expression → arguments → call_expression
+            if let Some(args) = current.parent()
+                && args.kind() == "arguments"
+                && let Some(call) = args.parent()
+                && call.kind() == "call_expression"
+                && let Some(func) = call.child_by_field_name("function")
+            {
+                let name = if func.kind() == "identifier" || func.kind() == "scoped_identifier" {
+                    func.utf8_text(source).ok()
+                } else if func.kind() == "field_expression" {
+                    func.child_by_field_name("property")
+                        .and_then(|p| p.utf8_text(source).ok())
+                } else {
+                    None
+                };
+                if let Some(name) = name {
+                    if known_wrappers.iter().any(|w| name.contains(w)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub struct BlockingIoDetector;
 
 static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
@@ -56,6 +90,11 @@ impl GenSenseRule for BlockingIoDetector {
             return Vec::new();
         }
 
+        // Skip if this call is inside a closure passed to spawn_blocking/asyncify
+        if is_inside_spawn_blocking(node, context.source_code.as_bytes()) {
+            return Vec::new();
+        }
+
         if super::is_in_async_scope(node, context.source_code)
             && let Some(func) = node.child_by_field_name("function")
         {
@@ -71,7 +110,11 @@ impl GenSenseRule for BlockingIoDetector {
                 "TcpListener::bind",
             ];
 
-            if blocking_patterns.iter().any(|p| code.contains(p)) {
+            let non_blocking_exceptions = ["DirBuilder", "DirBuilderExt", "OpenOptions"];
+
+            if blocking_patterns.iter().any(|p| code.contains(p))
+                && !non_blocking_exceptions.iter().any(|p| code.contains(p))
+            {
                 advisories.push(self.new_advisory(
                     &node,
                     context,
