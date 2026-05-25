@@ -33,23 +33,6 @@ rules:
   precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
-- id: RUST_STD_OUTPUT
-  target_ext: rs
-  observation: We observed the use of println! or eprintln! in library code.
-  impact: Direct standard output from libraries can interfere with the host application's
-    logging strategy.
-  improvement: We recommend using the 'log' or 'tracing' crates for more flexible
-    and integrated output management.
-  on_node: macro_invocation
-  if_matches: (println!|eprintln!)
-  name: Rust Std Output
-  severity: Warning
-  tags: []
-  category: Quality
-  confidence: 0.90
-  precision: very-high
-  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
-
 - id: RUST_ALLOCATION_IN_LOG
   target_ext: rs
   observation: We noticed 'format!' being used inside a logging macro.
@@ -81,23 +64,6 @@ rules:
   category: Performance
   confidence: 0.80
   precision: high
-  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
-
-- id: RUST_CONSTRUCTOR_BLOAT
-  target_ext: rs
-  observation: It looks like this constructor has quite a few arguments.
-  impact: Constructors with many arguments can be tricky to read and maintain.
-  improvement: A Builder pattern or a dedicated 'Config' struct could make this much
-    cleaner!
-  on_node: function_item
-  if_matches: fn new\s*\(
-  max_lines: 30
-  name: Rust Constructor Bloat
-  severity: Warning
-  tags: []
-  category: Maintainability
-  confidence: 0.65
-  precision: medium
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
 
 - id: RUST_SILENT_FAILURE
@@ -169,24 +135,6 @@ rules:
   confidence: 0.90
   precision: very-high
   exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
-
-- id: RUST_OVER_GENERAL_VARIABLE
-  target_ext: rs
-  observation: 'Semantic Smell: Over-generic variable naming detected.'
-  impact: Names like 'info', 'data', or 'item' are hallmark AI scaffolding and hide
-    the semantic intent of the data.
-  improvement: Rename the variable to match its domain purpose (e.g., 'peer_info',
-    'payload_data').
-  on_node: let_declaration
-  if_matches: 'let (mut )? (info|data|val|item|element) :'
-  name: Rust Over General Variable
-  severity: Warning
-  tags: []
-  category: Quality
-  confidence: 0.55
-  precision: medium
-  exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
-
 
 - id: RUST_UNCHECKED_IO
   target_ext: rs

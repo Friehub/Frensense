@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 use gensense::engine::project::Engine;
-use std::fmt::Write;
 use std::path::Path;
 
 fn run_test(rule_id: &str, content: &str, expected_count: usize, ext: &str) {
@@ -99,22 +98,6 @@ fn test_rust_panic_in_lib() {
         0,
         "rs",
     );
-}
-
-#[test]
-fn test_ts_god_function() {
-    let rule_id = "TS_GOD_FUNCTION";
-
-    // Positive (101 lines)
-    let mut big_func = "function big() {\n".to_string();
-    for i in 0..100 {
-        let _ = writeln!(big_func, "  console.log({i});");
-    }
-    big_func.push('}');
-    run_test(rule_id, &big_func, 1, "ts");
-
-    // Negative (10 lines)
-    run_test(rule_id, "function small() { console.log(1); }", 0, "ts");
 }
 
 #[test]
@@ -218,4 +201,12 @@ fn test_ts_tautological_assert() {
 
     // Negative: non-expect chain
     run_test(rule_id, "const x = foo().bar();", 0, "ts");
+}
+
+#[test]
+fn test_rust_csa_validate_unconditional() {
+    let rule_id = "RUST_CSA_VALIDATE_UNCONDITIONAL";
+
+    // Positive: validate function with no rejection path
+    run_test(rule_id, "fn validate_user() -> bool { true }", 1, "rs");
 }

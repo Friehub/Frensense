@@ -200,7 +200,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                             fingerprint: String::new(),
                             auto_fixable: false,
                             requires_human: true,
-                        tags: meta.tags.iter().map(ToString::to_string).collect(),
+                            tags: meta.tags.iter().map(ToString::to_string).collect(),
                         });
                     }
                 }

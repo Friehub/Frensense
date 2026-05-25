@@ -6,7 +6,6 @@ pub mod graph;
 pub mod reachability;
 pub mod registry;
 pub mod symbols;
-pub mod temporal;
 
 pub use data_flow::{DataFlowAnalyzer, TaintRegistry};
 pub use graph::{EdgeKind, SemanticGraph};

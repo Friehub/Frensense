@@ -584,8 +584,10 @@ impl CoreRuleIr {
                     }
                 }
                 FlowConstraint::Temporal { sequence, behavior } => {
-                    let analyzer = crate::semantics::temporal::TemporalAnalyzer::new(context);
-                    advisories.extend(analyzer.check_temporal(node, sequence, behavior, self));
+                    #[cfg(feature = "temporal")]
+                    advisories.extend(crate::temporal::handler::check_temporal(
+                        node, context, sequence, behavior, self,
+                    ));
                 }
             }
         }

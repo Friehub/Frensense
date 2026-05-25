@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased] — v0.3.1
+
+### Added
+- **Rule quality pipeline**: Every rule now carries a `precision` tier (`very-high | high | medium | low`), letting users choose a rule suite via `--suite {default|extended|all}`. `default` runs only `very-high` rules (battle-tested, near-zero false positives). `extended` adds `high` rules (well-tested, occasional FP). `all` runs every rule (current behavior, unchanged as default).
+- **`--suite` CLI flag**: `gensense --suite default path/` filters to high-confidence findings only. Backward compatible — existing invocations without `--suite` behave identically.
+- **Historical self-scan benchmark**: `scripts/historical-benchmark.sh` scans a target repo at every tagged version with the current gensense binary and outputs a CSV showing how advisory counts evolved over time. Documented in `BENCHMARK.md`.
+- **Native TypeScript rule `TS_TAUTOLOGICAL_ASSERT`**: Detects `expect(x).toBe(x)`, `expect(true).toBeTruthy()`, `expect(null).toBeNull()` via AST walk. Registered under `#[cfg(feature = "typescript")]`. 7 test cases.
+- **`temporal` feature flag**: New Cargo feature gates `TemporalAnalyzer`, `TemporalConfig`, and all temporal compilation/execution paths. On by default. Allows `cargo build --no-default-features` to exclude temporal analysis.
+- **Feature ownership map**: `FEATURE_MAP.md` documents exactly which files each differentiator (temporal, schema_contract, mcp, csa) owns.
+- **Gap analysis → build plan**: `GAP_ANALYSIS.md` restructured into 6 priority-ordered phases (P0–P5) with tickable checkboxes, aligned to v0.4.0 plan.
+
+### Changed
+- **Precision assigned to all 75 rules**: 6 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 65 YAML rules tiered by confidence score (39 `very-high`, 10 `high`, 10 `medium`, 6 `low`). 25 `solidity`/`jumia` rules default to `low` (unvalidated).
+- **Consolidated single-binaries into unified crate**: `cargo install gensense` now produces both `gensense` (CLI) and `gensense-mcp` (MCP server) binaries. Removed separate `gensense-cli` and `gensense-mcp` workspace crates.
+- **MCP filter params**: Added `language` (file extension matching) and `rules` (rule_id set) parameters to `gensense_audit` tool, applied server-side via `filter_advisories` after scan.
+- **Clippy pedantic compliance**: All ~35 `clippy::pedantic` violations fixed. The four `-A` flags removed from CI and pre-commit hook.
+- **Temporal analyzer moved to dedicated folder**: `src/temporal/` consolidates `TemporalAnalyzer`, `TemporalConfig`, and handler delegation. Scattered call sites in `ir.rs` and `compiler.rs` reduced to 1-line delegations. Old `src/semantics/temporal.rs` removed.
+- **License headers**: `// SPDX-License-Identifier: MIT` added to 13 unattributed files. Solidity rule changed from proprietary to MIT. Codebase is now 100% MIT-consistent.
+- **Shared `RulesWrapper`**: Extracted duplicated `RulesWrapper + check_version()` into `src/engine/auditor/common.rs`.
+- **Shared `is_in_async_scope`**: Extracted duplicated helper into `src/rules/rust/mod.rs`.
+
+### Fixed
+- **MCP tests**: `test_mcp_language_filter` and `test_mcp_rules_filter` verify server-side filtering works correctly. 36/36 MCP tests pass.
+- **Binary file crash**: `collect_files` now filters to supported extensions via `ParserRegistry::is_supported`, preventing `"stream did not contain valid UTF-8"` panic on binary files (`.term`, `.idx`, `.store`, etc.).
+- **Macro test**: `test_cli_json_output` updated for consolidated crate structure.
+- **Pre-commit hook**: Now runs full test suite (`cargo test`) instead of `cargo test --lib --bins`.
+- **File extension**: `research/sparse_spectral_enginev2.rs` renamed to `.md`.
+- **Package.json**: Removed non-existent `index.js` from `files` array.
+
+### Removed
+- **14 style/noise YAML rules**: Removed low-value rules that caused false positives. Self-audit findings dropped from 186 to 69.
+- **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md` superseded by `GAP_ANALYSIS.md`.
+
 ### [0.3.0] - 2026-05-21
 
 ### Changed (Breaking)

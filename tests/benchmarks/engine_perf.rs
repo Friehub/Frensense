@@ -28,8 +28,7 @@ use std::time::Duration;
 fn apply_quick_mode(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
     if std::env::var("GENSENSE_BENCH_QUICK")
         .ok()
-        .map(|v| v == "1" || v == "true")
-        .unwrap_or(false)
+        .is_some_and(|v| v == "1" || v == "true")
     {
         group.sample_size(10);
         group.measurement_time(Duration::from_secs(5));

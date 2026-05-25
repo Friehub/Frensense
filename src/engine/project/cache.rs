@@ -45,7 +45,7 @@ impl FileCache {
 
         // Invalidate if the language filter changed
         let current_filter: Option<Vec<String>> =
-            language_filter.map(|f| f.iter().map(|s| s.to_string()).collect());
+            language_filter.map(|f| f.iter().map(ToString::to_string).collect());
         if cached.language_filter != current_filter {
             return Self {
                 files: HashMap::new(),
@@ -67,7 +67,7 @@ impl FileCache {
         let cache_path = dir.join("cache.json");
         let wrapper = CacheFile {
             version: Self::CURRENT_VERSION,
-            language_filter: language_filter.map(|f| f.iter().map(|s| s.to_string()).collect()),
+            language_filter: language_filter.map(|f| f.iter().map(ToString::to_string).collect()),
             files: self.files.clone(),
         };
         if let Ok(content) = serde_json::to_string_pretty(&wrapper) {

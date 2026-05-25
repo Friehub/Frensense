@@ -21,6 +21,8 @@ pub mod patcher;
 pub mod reporter;
 pub mod rules;
 pub mod semantics;
+#[cfg(feature = "temporal")]
+pub mod temporal;
 
 pub use crate::engine::Engine;
 #[cfg(feature = "fingerprinting")]

@@ -13,20 +13,6 @@ rules:
   tags: []
   category: Security
   precision: low
-- id: SOL_PRAGMA_STABILITY
-  target_ext: sol
-  observation: We noticed a floating pragma (e.g., ^0.8.0) in the contract header.
-  impact: Floating pragmas can lead to non-deterministic builds if different compiler
-    versions are used across environments.
-  improvement: We recommend locking the pragma to a specific compiler version for
-    consistent, verifiable deployments.
-  on_node: (pragma_directive) @node
-  if_matches: \^
-  name: Sol Pragma Stability
-  severity: Warning
-  tags: []
-  category: Stability
-  precision: low
 - id: SOL_ACCESS_CONTROL_SETTER
   target_ext: sol
   observation: We observed a state mutation in a function that may be missing access
@@ -57,34 +43,6 @@ rules:
   severity: Warning
   tags: []
   category: Quality
-  precision: low
-- id: SOL_MISSING_EVENT_INDEX
-  target_ext: sol
-  observation: We noticed an event parameter that is not 'indexed'.
-  impact: Missing 'indexed' attributes on critical event parameters (like addresses)
-    makes it difficult to filter and search for events off-chain.
-  improvement: Consider adding the 'indexed' keyword to parameters that are frequently
-    used for filtering (e.g., event Transfer(address indexed from, ...)).
-  on_node: (event_definition) @node
-  must_not_contain: \(address [a-zA-Z0-9_]+\)
-  name: Sol Missing Event Index
-  severity: Warning
-  tags: []
-  category: Quality
-  precision: low
-- id: SOL_HARDCODED_ADDRESS
-  target_ext: sol
-  observation: We observed a hardcoded hexadecimal address literal.
-  impact: Hardcoding addresses (other than the zero address) makes the contract inflexible
-    and prone to errors during multi-chain deployment or upgrades.
-  improvement: We suggest passing addresses through the constructor or using a Registry/Factory
-    pattern for better flexibility.
-  on_node: (number_literal) @node
-  if_matches: 0x[a-fA-A0-9]{40}
-  name: Sol Hardcoded Address
-  severity: Warning
-  tags: []
-  category: Security
   precision: low
 - id: SOL_TX_ORIGIN
   target_ext: sol

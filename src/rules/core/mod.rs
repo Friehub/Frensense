@@ -3,16 +3,12 @@
 pub mod helpers;
 pub mod project;
 
+#[cfg(feature = "temporal")]
+use crate::temporal::TemporalConfig;
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
 use helpers::serde_regex_opt;
 use regex::Regex;
 use tree_sitter::Node;
-
-#[derive(Debug, serde::Deserialize, Clone)]
-pub struct TemporalConfig {
-    pub sequence: Vec<String>,
-    pub behavior: String,
-}
 
 /// Generic Declarative Rule: Configurable via YAML.
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -51,6 +47,7 @@ pub struct CoreRule {
     pub forbidden_source_pattern: Option<Regex>,
     #[serde(default, with = "serde_regex_opt")]
     pub forbidden_sink_pattern: Option<Regex>,
+    #[cfg(feature = "temporal")]
     #[serde(default)]
     pub temporal: Option<TemporalConfig>,
     #[serde(default, with = "serde_regex_opt")]

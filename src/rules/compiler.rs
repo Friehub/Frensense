@@ -68,31 +68,9 @@ impl RuleCompiler {
             });
         }
 
+        #[cfg(feature = "temporal")]
         if let Some(temp) = dsl.temporal {
-            let mut sequence = Vec::new();
-            for p in temp.sequence {
-                sequence.push(
-                    regex::Regex::new(&p)
-                        .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
-                );
-            }
-
-            let behavior = match temp.behavior.as_str() {
-                "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
-                "forbidden_between" => {
-                    if sequence.len() == 2 {
-                        crate::rules::ir::TemporalBehavior::ForbiddenBetween(
-                            sequence[0].clone(),
-                            sequence[1].clone(),
-                        )
-                    } else {
-                        return Err(crate::GenSenseError::Pattern(
-                            "forbidden_between requires exactly 2 elements in sequence".to_string(),
-                        ));
-                    }
-                }
-                _ => crate::rules::ir::TemporalBehavior::MustFollow,
-            };
+            let (sequence, behavior) = crate::temporal::handler::compile_temporal_config(temp)?;
             flow_constraints.push(FlowConstraint::Temporal { sequence, behavior });
         }
 

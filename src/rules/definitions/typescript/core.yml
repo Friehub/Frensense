@@ -80,21 +80,6 @@ rules:
   confidence: 0.90
   precision: very-high
 
-- id: TS_NON_NULL_ASSERTION
-  target_ext: ts
-  observation: We noticed a non-null assertion (!) being used.
-  impact: 'Non-null assertions bypass TypeScript''s safety checks and can lead to
-    runtime ''TypeError: Cannot read property of null'' errors.'
-  improvement: Consider using optional chaining (?.) or an explicit null check for
-    better runtime safety.
-  on_node: (non_null_expression) @node
-  name: Ts Non Null Assertion
-  severity: Warning
-  tags: []
-  category: Quality
-  confidence: 0.90
-  precision: very-high
-
 - id: TS_REACT_HOOK_DEPS
   target_ext: tsx
   observation: I noticed a 'useEffect' hook with an empty dependency array [].

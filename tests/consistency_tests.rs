@@ -69,7 +69,7 @@ fn test_temporal_consistency_rust_deadlock() {
         file_trees: &HashMap::new(),
     };
 
-    let ast_analyzer = gensense::semantics::temporal::TemporalAnalyzer::new(&ctx);
+    let ast_analyzer = gensense::temporal::TemporalAnalyzer::new(&ctx);
     let sequence = vec![
         regex::Regex::new("lock").unwrap(),
         regex::Regex::new(r"\.await").unwrap(),
