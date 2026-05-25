@@ -233,6 +233,15 @@ struct CliOptions {
     min_confidence: f32,
     language_filter: Option<String>,
     suite: gensense::Suite,
+    jaccard_threshold: Option<f64>,
+    confidence_boost_rate: Option<f32>,
+    confidence_boost_max: Option<f32>,
+    max_source_lines: Option<usize>,
+    ngram_window_size: Option<usize>,
+    min_ngram_count: Option<usize>,
+    taint_confidence_interprocedural: Option<f32>,
+    taint_confidence_intraprocedural: Option<f32>,
+    default_taint_max_depth: Option<usize>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -252,6 +261,15 @@ fn parse_options(args: &[String]) -> CliOptions {
         min_confidence: 0.0,
         language_filter: None,
         suite: gensense::Suite::All,
+        jaccard_threshold: None,
+        confidence_boost_rate: None,
+        confidence_boost_max: None,
+        max_source_lines: None,
+        ngram_window_size: None,
+        min_ngram_count: None,
+        taint_confidence_interprocedural: None,
+        taint_confidence_intraprocedural: None,
+        default_taint_max_depth: None,
     };
 
     let mut i = 2;
@@ -348,6 +366,90 @@ fn parse_options(args: &[String]) -> CliOptions {
                             std::process::exit(1);
                         }
                     };
+                    i += 1;
+                }
+            }
+            "--jaccard-threshold" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.jaccard_threshold = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --jaccard-threshold value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--confidence-boost-rate" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.confidence_boost_rate = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --confidence-boost-rate value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--confidence-boost-max" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.confidence_boost_max = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --confidence-boost-max value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--max-source-lines" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.max_source_lines = Some(val.parse::<usize>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --max-source-lines value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--ngram-window" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.ngram_window_size = Some(val.parse::<usize>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --ngram-window value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--min-ngram-count" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.min_ngram_count = Some(val.parse::<usize>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --min-ngram-count value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--taint-conf-inter" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.taint_confidence_interprocedural =
+                        Some(val.parse::<f32>().unwrap_or_else(|_| {
+                            eprintln!("Error: Invalid --taint-conf-inter value '{val}'");
+                            std::process::exit(1);
+                        }));
+                    i += 1;
+                }
+            }
+            "--taint-conf-intra" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.taint_confidence_intraprocedural =
+                        Some(val.parse::<f32>().unwrap_or_else(|_| {
+                            eprintln!("Error: Invalid --taint-conf-intra value '{val}'");
+                            std::process::exit(1);
+                        }));
+                    i += 1;
+                }
+            }
+            "--taint-max-depth" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.default_taint_max_depth =
+                        Some(val.parse::<usize>().unwrap_or_else(|_| {
+                            eprintln!("Error: Invalid --taint-max-depth value '{val}'");
+                            std::process::exit(1);
+                        }));
                     i += 1;
                 }
             }
@@ -492,6 +594,7 @@ fn compare_baseline(filtered_advisories: &[gensense::Advisory], path: &str) -> R
     Ok(regression_detected)
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
@@ -509,6 +612,34 @@ fn main() -> Result<()> {
     engine.set_no_builtin_rules(options.no_builtin);
     engine.set_suite(options.suite);
     engine.set_severity_filter(options.severity_filter);
+
+    if let Some(val) = options.jaccard_threshold {
+        engine.set_jaccard_threshold(val);
+    }
+    if let Some(val) = options.confidence_boost_rate {
+        engine.set_confidence_boost_rate(val);
+    }
+    if let Some(val) = options.confidence_boost_max {
+        engine.set_confidence_boost_max(val);
+    }
+    if let Some(val) = options.max_source_lines {
+        engine.set_max_source_lines(val);
+    }
+    if let Some(val) = options.ngram_window_size {
+        engine.set_ngram_window_size(val);
+    }
+    if let Some(val) = options.min_ngram_count {
+        engine.set_min_ngram_count(val);
+    }
+    if let Some(val) = options.taint_confidence_interprocedural {
+        engine.set_taint_confidence_interprocedural(val);
+    }
+    if let Some(val) = options.taint_confidence_intraprocedural {
+        engine.set_taint_confidence_intraprocedural(val);
+    }
+    if let Some(val) = options.default_taint_max_depth {
+        engine.set_default_taint_max_depth(val);
+    }
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = gensense::parser::ParserRegistry::extensions_for(lang_arg) {

@@ -169,7 +169,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             current_file_id: context.file_id,
             root,
             depth: 0,
-            max_depth: 5,
+            max_depth: context.default_taint_max_depth,
             visited: RefCell::new(HashSet::new()),
         }
     }

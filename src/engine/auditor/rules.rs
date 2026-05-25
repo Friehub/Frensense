@@ -104,7 +104,9 @@ impl GenSenseAuditor {
         }
 
         // Language-agnostic file-level rules
-        rules.push(Box::new(crate::rules::global::file_length::LongFile));
+        rules.push(Box::new(crate::rules::global::file_length::LongFile::new(
+            500,
+        )));
 
         let yaml_rules_loaded = Self::load_yaml_rules_from_disk(&mut rules, &mut project_rules);
 

@@ -229,6 +229,10 @@ pub struct GenSenseContext<'a> {
             Vec<crate::semantics::data_flow::normalization::SemanticOp>,
         ),
     >,
+    pub taint_confidence_interprocedural: f32,
+    pub taint_confidence_intraprocedural: f32,
+    pub default_taint_max_depth: usize,
+    pub ngram_window_size: usize,
 }
 
 /// Core Trait: Represents a high-precision semantic `GenSense` rule.

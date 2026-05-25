@@ -40,6 +40,17 @@ pub struct Engine {
     language_filter: Option<Vec<&'static str>>,
     file_cache: cache::FileCache,
     cache_root: Option<PathBuf>,
+
+    // Tunable parameters
+    jaccard_threshold: f64,
+    confidence_boost_rate: f32,
+    confidence_boost_max: f32,
+    max_source_lines: Option<usize>,
+    ngram_window_size: usize,
+    min_ngram_count: usize,
+    taint_confidence_interprocedural: f32,
+    taint_confidence_intraprocedural: f32,
+    default_taint_max_depth: usize,
 }
 
 impl Engine {
@@ -61,7 +72,52 @@ impl Engine {
             language_filter: None,
             file_cache: cache::FileCache::default(),
             cache_root: None,
+            jaccard_threshold: 0.8,
+            confidence_boost_rate: 0.10,
+            confidence_boost_max: 0.30,
+            max_source_lines: None,
+            ngram_window_size: 5,
+            min_ngram_count: 3,
+            taint_confidence_interprocedural: 0.80,
+            taint_confidence_intraprocedural: 0.90,
+            default_taint_max_depth: 5,
         }
+    }
+
+    pub const fn set_jaccard_threshold(&mut self, val: f64) {
+        self.jaccard_threshold = val;
+    }
+
+    pub const fn set_confidence_boost_rate(&mut self, val: f32) {
+        self.confidence_boost_rate = val;
+    }
+
+    pub const fn set_confidence_boost_max(&mut self, val: f32) {
+        self.confidence_boost_max = val;
+    }
+
+    pub const fn set_max_source_lines(&mut self, val: usize) {
+        self.max_source_lines = Some(val);
+    }
+
+    pub const fn set_ngram_window_size(&mut self, val: usize) {
+        self.ngram_window_size = val;
+    }
+
+    pub const fn set_min_ngram_count(&mut self, val: usize) {
+        self.min_ngram_count = val;
+    }
+
+    pub const fn set_taint_confidence_interprocedural(&mut self, val: f32) {
+        self.taint_confidence_interprocedural = val;
+    }
+
+    pub const fn set_taint_confidence_intraprocedural(&mut self, val: f32) {
+        self.taint_confidence_intraprocedural = val;
+    }
+
+    pub const fn set_default_taint_max_depth(&mut self, val: usize) {
+        self.default_taint_max_depth = val;
     }
 
     pub const fn set_min_confidence(&mut self, val: f32) {
@@ -242,7 +298,7 @@ impl Engine {
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
 
-        Self::boost_overlap_confidence(&mut all_advisories);
+        self.boost_overlap_confidence(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
@@ -291,6 +347,10 @@ impl Engine {
             suite: self.suite,
             env: self.environment,
             severity_filter: self.severity_filter,
+            ngram_window_size: self.ngram_window_size,
+            taint_confidence_interprocedural: self.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
+            default_taint_max_depth: self.default_taint_max_depth,
         };
 
         let result = self.auditor.audit(&opts)?;
@@ -314,14 +374,14 @@ impl Engine {
         }
 
         // Cross-rule confidence boost
-        Self::boost_overlap_confidence(&mut advisories);
+        self.boost_overlap_confidence(&mut advisories);
 
         Ok(advisories)
     }
 
     /// Boosts confidence when multiple rules fire on the same file+line.
-    /// +0.10 per overlapping rule (cap +0.30, max 1.0).
-    fn boost_overlap_confidence(advisories: &mut [Advisory]) {
+    /// Uses `confidence_boost_rate` per overlapping rule (cap `confidence_boost_max`, max 1.0).
+    fn boost_overlap_confidence(&self, advisories: &mut [Advisory]) {
         let overlap_counts: HashMap<(u32, u32), usize> = {
             let mut counts: HashMap<(u32, u32), HashSet<&str>> = HashMap::new();
             for adv in &*advisories {
@@ -337,7 +397,8 @@ impl Engine {
             if let Some(&count) = overlap_counts.get(&(adv.file_id.0, adv.line)) {
                 let extra = count.saturating_sub(1);
                 #[allow(clippy::cast_precision_loss)]
-                let boost = (extra as f32 * 0.10).min(0.30);
+                let boost =
+                    (extra as f32 * self.confidence_boost_rate).min(self.confidence_boost_max);
                 adv.confidence = (adv.confidence + boost).min(1.0);
             }
         }
@@ -416,7 +477,7 @@ impl Engine {
             }
         }
 
-        Self::boost_overlap_confidence(&mut all_advisories);
+        self.boost_overlap_confidence(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
@@ -443,11 +504,33 @@ impl Engine {
                 self.project_rules
                     .retain(|r| !disabled_set.contains(r.metadata().id.as_ref()));
             }
+
+            if let Some(max_lines) = self.max_source_lines {
+                self.auditor.remove_rule("FILE_TOO_LONG");
+                self.auditor
+                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
+                        max_lines,
+                    )));
+            }
         } else if !self.extra_rule_dirs.is_empty() {
             let (user_rules, user_project_rules) =
                 crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
             self.auditor.add_rules(user_rules);
             self.project_rules.extend(user_project_rules);
+
+            if let Some(max_lines) = self.max_source_lines {
+                self.auditor.remove_rule("FILE_TOO_LONG");
+                self.auditor
+                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
+                        max_lines,
+                    )));
+            }
+        } else if let Some(max_lines) = self.max_source_lines {
+            self.auditor.remove_rule("FILE_TOO_LONG");
+            self.auditor
+                .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
+                    max_lines,
+                )));
         }
 
         let suppress_file = root.join(".gensense-suppress.yml");
@@ -558,6 +641,10 @@ impl Engine {
                     suite: self.suite,
                     env: self.environment,
                     severity_filter: self.severity_filter,
+                    ngram_window_size: self.ngram_window_size,
+                    taint_confidence_interprocedural: self.taint_confidence_interprocedural,
+                    taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
+                    default_taint_max_depth: self.default_taint_max_depth,
                 };
                 let result = self.auditor.audit(&opts)?;
 

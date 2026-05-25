@@ -278,7 +278,11 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     advisory.file_path = self.current_file_path.display().to_string();
 
                     // Differentiate confidence
-                    let confidence = if self.depth > 0 { 0.80 } else { 0.90 };
+                    let confidence = if self.depth > 0 {
+                        self.context.taint_confidence_interprocedural
+                    } else {
+                        self.context.taint_confidence_intraprocedural
+                    };
 
                     advisories.push(rule.with_confidence(advisory, confidence));
                 }
@@ -301,6 +305,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 semantic_ops: def_ops,
                 taint_cache: self.context.taint_cache,
                 file_trees: self.context.file_trees,
+                taint_confidence_interprocedural: self.context.taint_confidence_interprocedural,
+                taint_confidence_intraprocedural: self.context.taint_confidence_intraprocedural,
+                default_taint_max_depth: self.context.default_taint_max_depth,
+                ngram_window_size: self.context.ngram_window_size,
             };
 
             let sub_analyzer = DataFlowAnalyzer::with_depth(
@@ -552,6 +560,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     semantic_ops: def_ops,
                     taint_cache: self.context.taint_cache,
                     file_trees: self.context.file_trees,
+                    taint_confidence_interprocedural: self.context.taint_confidence_interprocedural,
+                    taint_confidence_intraprocedural: self.context.taint_confidence_intraprocedural,
+                    default_taint_max_depth: self.context.default_taint_max_depth,
+                    ngram_window_size: self.context.ngram_window_size,
                 };
 
                 let sub_analyzer = DataFlowAnalyzer::with_depth(

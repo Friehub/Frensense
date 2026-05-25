@@ -67,6 +67,10 @@ fn test_temporal_consistency_rust_deadlock() {
         semantic_ops: &ops,
         taint_cache: &tc,
         file_trees: &HashMap::new(),
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let ast_analyzer = gensense::temporal::TemporalAnalyzer::new(&ctx);

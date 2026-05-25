@@ -1,8 +1,15 @@
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
 
-const MAX_SOURCE_LINES: usize = 500;
+pub struct LongFile {
+    pub max_lines: usize,
+}
 
-pub struct LongFile;
+impl LongFile {
+    #[must_use]
+    pub fn new(max_lines: usize) -> Self {
+        Self { max_lines }
+    }
+}
 
 impl GenSenseRule for LongFile {
     fn metadata(&self) -> &RuleMetadata {
@@ -41,7 +48,7 @@ impl GenSenseRule for LongFile {
 
     fn file_check(&self, context: &GenSenseContext<'_>) -> Vec<Advisory> {
         let line_count = context.source_code.lines().count();
-        if line_count > MAX_SOURCE_LINES {
+        if line_count > self.max_lines {
             let meta = self.metadata();
             return vec![Advisory {
                 rule_id: meta.id.to_string(),
@@ -50,7 +57,8 @@ impl GenSenseRule for LongFile {
                 severity: meta.severity,
                 confidence: meta.confidence,
                 observation: format!(
-                    "File length ({line_count} lines) exceeds threshold of {MAX_SOURCE_LINES}."
+                    "File length ({line_count} lines) exceeds threshold of {}.",
+                    self.max_lines
                 ),
                 impact: meta.impact.to_string(),
                 improvement: meta.improvement.to_string(),
