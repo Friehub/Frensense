@@ -65,6 +65,7 @@ tests/fixtures/scratch/
 !BENCHMARK.md
 !V0_3_1_ISSUES.md
 !V0_3_1_REPORT.md
+!GAP_ANALYSIS.md
 !V0_4_0_PROJECT_MEMORY.md
 !friehub-gensense-article.md
 !docs/**/*.md
