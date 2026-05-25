@@ -273,7 +273,7 @@ rules:
   target_ext: rs
   on_node: function_item
   if_matches: async fn
-  must_not_contain: tokio::task::spawn_blocking
+  must_not_contain: tokio::task::spawn_blocking|asyncify
   body_must_contain_any_of: std::fs::|std::net::TcpStream::connect|thread::sleep
   observation: Blocking stdlib call detected inside an async function.
   impact: Blocking calls on async executor threads stall all tasks scheduled on that thread.

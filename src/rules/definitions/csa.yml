@@ -40,6 +40,7 @@ rules:
     if_name_matches: "\\b(validate|verify)"
     body_must_contain: "return\\s+(false|None|Err)|panic!|Result::Err"
     body_may_delegate_via: "safeParse|validate|verify|check|assert"
+    exclude_scope: 'tests/|tests-build/|#\[(cfg\(test\)|test)\]'
     observation: "This validator function appears to have no rejection path."
     impact: "Validators that always succeed allow invalid data to propagate."
     improvement: "Ensure the function returns false, Option::None, or Result::Err for invalid input."
