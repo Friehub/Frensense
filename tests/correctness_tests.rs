@@ -61,6 +61,7 @@ fn test_taint_through_destructuring() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &HashMap::new(),

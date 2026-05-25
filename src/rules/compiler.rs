@@ -74,6 +74,74 @@ impl RuleCompiler {
             flow_constraints.push(FlowConstraint::Temporal { sequence, behavior });
         }
 
+        // Composite: across_boundary wraps taint constraints.
+        if let Some(boundary) = dsl.across_boundary {
+            let boundary_re = regex::Regex::new(&boundary)
+                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+            // Find the last taint constraint and wrap it.
+            let taint_idx = flow_constraints.iter().rposition(|c| {
+                matches!(
+                    c,
+                    FlowConstraint::TaintForbidden { .. } | FlowConstraint::TaintReached { .. }
+                )
+            });
+            if let Some(idx) = taint_idx {
+                let taint = flow_constraints.remove(idx);
+                flow_constraints.push(FlowConstraint::Across {
+                    constraint: Box::new(taint),
+                    boundary_re,
+                });
+            }
+        }
+
+        // Composite: all_of
+        if let Some(sub_rules) = dsl.all_of {
+            let mut sub_constraints = Vec::new();
+            for sub in sub_rules {
+                let compiled = Self::compile(sub)?;
+                sub_constraints.extend(compiled.flow_constraints);
+            }
+            if !sub_constraints.is_empty() {
+                flow_constraints.push(FlowConstraint::AllOf(sub_constraints));
+            }
+        }
+
+        // Composite: any_of
+        if let Some(sub_rules) = dsl.any_of {
+            let mut sub_constraints = Vec::new();
+            for sub in sub_rules {
+                let compiled = Self::compile(sub)?;
+                sub_constraints.extend(compiled.flow_constraints);
+            }
+            if !sub_constraints.is_empty() {
+                flow_constraints.push(FlowConstraint::AnyOf(sub_constraints));
+            }
+        }
+
+        // Composite: not
+        if let Some(sub) = dsl.not {
+            let compiled = Self::compile(*sub)?;
+            for c in compiled.flow_constraints {
+                flow_constraints.push(FlowConstraint::Not(Box::new(c)));
+            }
+        }
+
+        // Composite: without
+        if let (Some(constraint), Some(exclusion)) = (dsl.without_constraint, dsl.without_exclusion)
+        {
+            let compiled_primary = Self::compile(*constraint)?;
+            let compiled_exclusion = Self::compile(*exclusion)?;
+            if let (Some(p), Some(e)) = (
+                compiled_primary.flow_constraints.into_iter().next(),
+                compiled_exclusion.flow_constraints.into_iter().next(),
+            ) {
+                flow_constraints.push(FlowConstraint::Without {
+                    constraint: Box::new(p),
+                    exclusion: Box::new(e),
+                });
+            }
+        }
+
         let use_query = dsl.use_query.unwrap_or_else(|| {
             // Default heuristic if not explicitly specified
             dsl.on_node.contains('(') || (!dsl.on_node.contains('|') && dsl.on_node.contains(' '))

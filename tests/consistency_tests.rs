@@ -64,6 +64,7 @@ fn test_temporal_consistency_rust_deadlock() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &tc,
         file_trees: &HashMap::new(),

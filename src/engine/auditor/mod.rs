@@ -44,6 +44,7 @@ pub struct AuditOptions<'a> {
     pub tree: &'a tree_sitter::Tree,
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub symbols: &'a SymbolRegistry,
+    pub graph: &'a crate::semantics::graph::SemanticGraph,
     pub file_trees: &'a std::collections::HashMap<
         String,
         (
@@ -181,6 +182,7 @@ impl GenSenseAuditor {
                 source_code: opts.content,
                 tree: opts.tree,
                 symbols: opts.symbols,
+                graph: opts.graph,
                 semantic_ops: opts.semantic_ops,
                 taint_cache: &taint_cache,
                 file_trees: opts.file_trees,
@@ -219,6 +221,7 @@ impl GenSenseAuditor {
             source_code: opts.content,
             tree: opts.tree,
             symbols: opts.symbols,
+            graph: opts.graph,
             semantic_ops: opts.semantic_ops,
             taint_cache: &taint_cache,
             file_trees: opts.file_trees,
@@ -289,6 +292,7 @@ impl GenSenseAuditor {
             source_code: opts.content,
             tree: opts.tree,
             symbols: opts.symbols,
+            graph: opts.graph,
             semantic_ops: opts.semantic_ops,
             taint_cache: &taint_cache,
             file_trees: opts.file_trees,

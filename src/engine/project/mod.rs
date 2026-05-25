@@ -296,7 +296,7 @@ impl Engine {
         }
 
         let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
         self.boost_overlap_confidence(&mut all_advisories);
 
@@ -341,6 +341,7 @@ impl Engine {
             tree: &tree,
             semantic_ops: &semantic_ops,
             symbols: &registry,
+            graph: registry.graph(),
             file_trees: &file_trees,
             category_filter: &self.enabled_categories,
             tag_filter: &self.enabled_tags,
@@ -458,7 +459,7 @@ impl Engine {
         }
 
         let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
         for rule in &self.project_rules {
             let project_advisories = rule.check_project(&symbols, &self.source_registry);
@@ -608,7 +609,7 @@ impl Engine {
         &self,
         file_ids: &[(FileId, PathBuf)],
         snapshot_map: &HashMap<FileId, &FileSnapshot>,
-        symbols: &SymbolRegistry,
+        symbols: &mut SymbolRegistry,
         file_trees: &HashMap<
             String,
             (
@@ -635,6 +636,7 @@ impl Engine {
                     tree: &snap.tree,
                     semantic_ops: &snap.semantic_ops,
                     symbols,
+                    graph: symbols.graph(),
                     file_trees,
                     category_filter: &self.enabled_categories,
                     tag_filter: &self.enabled_tags,
@@ -649,6 +651,21 @@ impl Engine {
                 let result = self.auditor.audit(&opts)?;
 
                 let advisories = result.advisories;
+
+                // Record taint flows in the graph for cross-cutting queries.
+                // Materialize edges for each taint-related advisory.
+                for adv in &advisories {
+                    if let Some(ref sym) = adv.enclosing_symbol {
+                        let graph = symbols.graph_mut();
+                        graph.record_taint_flow(crate::semantics::graph::TaintFlowRecord {
+                            function_name: sym.clone(),
+                            file_path: adv.file_path.clone(),
+                            source_pattern: String::new(),
+                            sink_pattern: String::new(),
+                            rule_id: adv.rule_id.clone(),
+                        });
+                    }
+                }
 
                 Ok(ScanResult {
                     advisories,

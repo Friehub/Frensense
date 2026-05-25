@@ -219,6 +219,7 @@ pub struct GenSenseContext<'a> {
     pub source_code: &'a str,
     pub tree: &'a tree_sitter::Tree,
     pub symbols: &'a SymbolRegistry,
+    pub graph: &'a crate::semantics::graph::SemanticGraph,
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub taint_cache: &'a TaintCache,
     pub file_trees: &'a HashMap<
