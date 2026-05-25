@@ -206,3 +206,19 @@ rules:
   category: Reliability
   confidence: 0.90
   precision: very-high
+
+- id: TS_OBJECT_SPREAD_OVERRIDE_SECURITY
+  target_ext: ts|js|tsx|jsx
+  on_node: object
+  if_matches: '\.\.\..*(isAdmin|role|permissions|scopes|isRoot|isSuperuser|isStaff|isOperator)|(isAdmin|role|permissions|scopes|isRoot|isSuperuser|isStaff|isOperator).*\.\.\.'
+  observation: Object spread may override a security-related property.
+  impact: If the spread source is user-controlled, the security property (e.g., isAdmin,
+    role) can be overwritten, enabling privilege escalation.
+  improvement: Validate or sanitize the spread source, or explicitly check the security
+    property after the spread.
+  name: TS Object Spread Override Security
+  severity: Warning
+  category: Security
+  tags: [security, prototype-pollution, express]
+  confidence: 0.65
+  precision: high

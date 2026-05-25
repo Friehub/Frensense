@@ -337,6 +337,27 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     ) {
         let v_kind = v_node.kind();
         if v_kind == "object" || v_kind == "object_expression" || v_kind == "struct_expression" {
+            // First pass: resolve taint on spread_element children.
+            // If any spread source is tainted, explicit properties become overwritable.
+            let mut spread_origin: Option<super::TaintOrigin> = None;
+            {
+                let mut cursor = v_node.walk();
+                for prop in v_node.children(&mut cursor) {
+                    if prop.kind() == "spread_element" {
+                        // The spread expression is the first named child (skipping `...` syntax).
+                        if let Some(val) = prop.named_child(0) {
+                            if let Some(origin) = self
+                                .resolve_taint(val, source_re, sink_re, rule, registry, advisories)
+                            {
+                                spread_origin = Some(origin);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Second pass: process explicit properties.
             let mut cursor = v_node.walk();
             for prop in v_node.children(&mut cursor) {
                 if prop.kind() == "pair"
@@ -355,6 +376,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                             self.resolve_taint(v, source_re, sink_re, rule, registry, advisories)
                         {
                             registry.taint_field(name, key_name, prop_origin);
+                        } else if let Some(ref origin) = spread_origin {
+                            // Spread element may override this explicit property.
+                            registry.taint_field(name, key_name, origin.clone());
                         }
                     }
                 }
