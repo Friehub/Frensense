@@ -12,9 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Historical self-scan benchmark**: `scripts/historical-benchmark.sh` scans a target repo at every tagged version with the current gensense binary and outputs a CSV showing how advisory counts evolved over time. Documented in `BENCHMARK.md`.
 
 ### Changed
-- **Precision assigned to all 75 rules**: 6 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 65 YAML rules tiered by confidence score (39 `very-high`, 10 `high`, 10 `medium`, 6 `low`). 25 `solidity`/`jumia` rules default to `low` (unvalidated).
-
-### Changed
 - **Consolidated single-binaries into unified crate**: `cargo install gensense` now produces both `gensense` (CLI) and `gensense-mcp` (MCP server) binaries. Removed separate `gensense-cli` and `gensense-mcp` workspace crates.
 - **MCP filter params**: Added `language` (file extension matching) and `rules` (rule_id set) parameters to `gensense_audit` tool, applied server-side via `filter_advisories` after scan.
 - **Clippy pedantic compliance**: All ~35 `clippy::pedantic` violations fixed. The four `-A` flags removed from CI and pre-commit hook.
@@ -40,7 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Temporal analyzer moved to dedicated folder**: `src/temporal/` consolidates `TemporalAnalyzer`, `TemporalConfig`, and handler delegation. Scattered call sites in `ir.rs` and `compiler.rs` reduced to 1-line delegations. Old `src/semantics/temporal.rs` removed.
-- **Precision assigned to all 75 rules**: 6 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 65 YAML rules tiered by confidence score (39 `very-high`, 10 `high`, 10 `medium`, 6 `low`). 25 `solidity`/`jumia` rules default to `low` (unvalidated).
+- **Precision assigned to all 60 rules**: 10 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 48 YAML rules tiered by confidence score (39 `very-high`, 9 `high`).
+
+### Removed
+- **14 style/noise YAML rules**: Self-audit findings dropped from 186 to 69.
+- **10 Solidity rules and `solidity` feature**: Dead code — feature not compiled, no tree-sitter support. Includes 7 core, 2 security, 2 CSA rules.
+- **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md`.
 
 ## [0.2.2] - 2026-05-14
 

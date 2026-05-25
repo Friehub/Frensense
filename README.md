@@ -38,7 +38,7 @@ None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. Gen
 | Rust | Stable |
 | TypeScript / JavaScript | Stable |
 | YAML | Stable (rule files) |
-| Solidity | Beta (enable with `--features solidity`) |
+
 
 ---
 

@@ -114,7 +114,7 @@ All three steps are necessary.
 | Rust | Stable | `rust` |
 | TypeScript / JavaScript | Stable | `typescript` |
 | YAML | Stable | built-in |
-| Solidity | Disabled | `solidity` (version mismatch) |
+
 
 ---
 

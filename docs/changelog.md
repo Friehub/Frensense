@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - **14 style/noise YAML rules**: Removed low-value rules that caused false positives. Self-audit findings dropped from 186 to 69.
 - **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md` superseded by `GAP_ANALYSIS.md`.
+- **10 Solidity rules and feature**: Dead code — `solidity` feature not compiled, no tree-sitter support.
 
 ### [0.3.0] - 2026-05-21
 

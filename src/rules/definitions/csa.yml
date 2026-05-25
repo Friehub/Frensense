@@ -1,20 +1,4 @@
 rules:
-  # Rule 1: Validators
-  - id: "SOL_CSA_VALIDATE_UNCONDITIONAL"
-    name: "Validator With No Rejection Path (Solidity)"
-    category: "Architecture"
-    severity: Critical
-    target_ext: "sol"
-    on_node: "function_definition"
-    if_name_matches: "\\b(validate|verify|check)_"
-    body_must_contain: "revert|require\\(|Error"
-    observation: "This validator function appears to have no rejection path."
-    impact: "Validators that always succeed allow invalid data to propagate."
-    improvement: "Ensure the function uses 'require' or 'revert' for invalid input."
-    tags: ["csa", "ai-risk", "security"]
-    confidence: 0.85
-    precision: very-high
-
   - id: "TS_CSA_VALIDATE_UNCONDITIONAL"
     name: "Validator With No Rejection Path (TS/JS)"
     category: "Architecture"
@@ -44,22 +28,6 @@ rules:
     observation: "This validator function appears to have no rejection path."
     impact: "Validators that always succeed allow invalid data to propagate."
     improvement: "Ensure the function returns false, Option::None, or Result::Err for invalid input."
-    tags: ["csa", "ai-risk", "security"]
-    confidence: 0.85
-    precision: very-high
-
-  # Rule 2: Sanitizers
-  - id: "SOL_CSA_SANITIZE_PASSTHROUGH"
-    name: "Sanitizer Returning Unmodified Input (Solidity)"
-    category: "Architecture"
-    severity: Critical
-    target_ext: "sol"
-    on_node: "function_definition"
-    if_name_matches: "\\b(sanitize|escape|clean)_"
-    body_must_contain: "encodePacked|keccak256|abi\\.encode"
-    observation: "This sanitizer function appears to return input without any transformation."
-    impact: "Passthrough sanitizers leave the system vulnerable to injection attacks."
-    improvement: "Implement proper input transformation logic."
     tags: ["csa", "ai-risk", "security"]
     confidence: 0.85
     precision: very-high

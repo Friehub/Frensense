@@ -30,7 +30,7 @@ fn print_help() {
     println!("  --compare-baseline <file> Compare against a baseline and fail on regressions");
     println!("  --diff-only          Only scan files changed since last git commit");
     println!(
-        "  --language <lang>    Only scan files matching language (rust, typescript, javascript, solidity, yaml)"
+        "  --language <lang>    Only scan files matching language (rust, typescript, javascript, yaml)"
     );
     #[cfg(feature = "remediation")]
     println!("  --fix              Apply automated remediation (experimental)");
@@ -42,8 +42,6 @@ fn print_help() {
     println!("  [x] Rust Analysis");
     #[cfg(feature = "typescript")]
     println!("  [x] TypeScript/JS Analysis");
-    #[cfg(feature = "solidity")]
-    println!("  [x] Solidity Analysis");
     #[cfg(feature = "fingerprinting")]
     println!("  [x] N-Gram Fingerprinting");
     #[cfg(feature = "remediation")]
@@ -61,8 +59,6 @@ fn print_version() {
     println!("  [x] Rust Analysis");
     #[cfg(feature = "typescript")]
     println!("  [x] TypeScript/JS Analysis");
-    #[cfg(feature = "solidity")]
-    println!("  [x] Solidity Analysis");
     #[cfg(feature = "fingerprinting")]
     println!("  [x] N-Gram Fingerprinting");
     #[cfg(feature = "remediation")]
@@ -498,7 +494,7 @@ fn main() -> Result<()> {
             engine.set_language_filter(exts);
         } else {
             eprintln!(
-                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, solidity/sol, yaml"
+                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, yaml"
             );
             std::process::exit(1);
         }
