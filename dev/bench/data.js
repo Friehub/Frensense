@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779763067479,
+  "lastUpdate": 1779764440541,
   "repoUrl": "https://github.com/Friehub/gensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -2143,6 +2143,204 @@ window.BENCHMARK_DATA = {
             "name": "post_process_ngrams/pairwise_comparison/500",
             "value": 36476973.5,
             "range": "139240.22977799177",
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": false,
+          "id": "82eb8dbbf63b295267a37702206c425b6a7250dd",
+          "message": "V0.3.1 tasks (#39)\n\n* fix: bump self-audit threshold 165→175\n\n* fix: remove file-cache skip from full scan path\n\ncollect_and_snapshot_files() was skipping files whose blake3 hash\nmatched the previous run's cache, causing audit() (including Phase 3\nfile_check for LONG_FILE) to never be called for cached files. This\nmade both --json and text output return 0 advisories on subsequent\nruns, making JSON appear broken.\n\nThe cache is still maintained and used by run_files() for diff-only\nmode where skipping unchanged files is intentional.\n\n* fix: move corpus targets out of tests/ path so exclude_scope doesn't block them\n\nAll Rust rules in core.yml use exclude_scope='tests/|...' which matched\nany file path containing tests/. Corpus fixtures under tests/corpus/targets/\nwere silently skipped, making positive fixtures like RUST_CLONE_IN_LOOP\nappear as 'not currently firing'.\n\n- Move tests/corpus/targets/ -> corpus/targets/\n- Rename test() -> clone_in_loop_case() in the positive fixture\n- Update CI workflow and README paths\n- Regenerate baseline (8 findings, up from 4)\n\n* fix: invalidate file cache when language filter changes (BUG-3)\n\n* feat: add GENSENSE_BENCH_QUICK env var for fast CI benchmarks (MED-01)\n\n* feat: add native TypeScript rule TS_TAUTOLOGICAL_ASSERT (IMP-1)\n\n* fix: uncomment NAPI integration test assertions (IMP-2)\n\n* fix: tighten NAPI version check to exact crate version (0.3.1)\n\n* docs: add deferred --severity pre-filter item to v0.4.0 project memory\n\n* refactor: move temporal analyzer to dedicated src/temporal/ folder behind feature flag\n\n- New src/temporal/ folder with analyzer.rs, config.rs, handler.rs, mod.rs\n- Added 'temporal' Cargo feature flag (on by default)\n- Call sites in ir.rs and compiler.rs reduced to 1-line delegations\n- Deleted src/semantics/temporal.rs\n\n- CSA regex narrowed: \\b(validate|verify|check) -> \\b(validate|verify)\n- Suppression paths changed from **/*.rs to src/**/*.rs\n- Removed 14 style/noise YAML rules (self-audit 186 -> 69)\n- 6 new CSA corpus fixtures and 3 test functions\n\n- CHANGELOG.md and docs/changelog.md synced for unreleased v0.3.1\n- Removed superseded bug documents (V0_3_1_ISSUES.md, V0_3_1_REPORT.md, AUDIT_V0.3.0_REPORT.md)\n- Added FEATURE_MAP.md with file ownership for each differentiator\n- Restructured GAP_ANALYSIS.md as phased build plan (P0-P5)\n\n* remove RUST_SQL_COLUMN_MUST_EXIST_IN_PRISMA rule\n\nThis rule fires on any double-quoted camelCase identifier in Rust source\n(including #[doc] strings) when no Prisma schema is found. False positives\noutweigh the value for the general case.\n\nRemoved from cross-layer-contracts.yml, test YAML, assertion, and corpus README.\n\n* fix: filter spawn_blocking wrappers and builder excludes in ASYNC_BLOCKING_IO\n\n- Skip blocking calls inside closures passed to spawn_blocking/asyncify\n  (tokio wraps std::fs calls in asyncify() — was producing 19 false positives)\n- Exclude DirBuilder, DirBuilderExt, OpenOptions from matching (non-I/O constructors)\n  (was producing 2 false positives on builder/setter calls)\n- 21 → 0 false positives on tokio/src\n\n* fix: add asyncify exclusion to BLOCKING_IN_ASYNC and exclude_scope to CSA_VALIDATE\n\n- RUST_BLOCKING_IN_ASYNC: add asyncify to must_not_contain pattern\n  (tokio uses asyncify() instead of spawn_blocking() — eliminates 18 FP on tokio/src/fs/)\n- RUST_CSA_VALIDATE_UNCONDITIONAL: add exclude_scope to skip test files\n  (was firing on src/sync/tests/ — test code is not production code)\n- Total tokio/src findings: 653 → 611\n\n* remove Solidity rules, feature flag, and all source references\n\n- Deleted solidity/core.yml (7 rules) and solidity/security.yml (2 rules)\n- Removed SOL_CSA_VALIDATE_UNCONDITIONAL and SOL_CSA_SANITIZE_PASSTHROUGH from csa.yml\n- Removed tree-sitter-solidity dep and solidity feature from Cargo.toml\n- Cleaned up parser.rs, gensense.rs, gensense-mcp.rs, README.md, docs/guide.md\n- Solidty not in default features and was dead code (not compiled in binary)\n- Updated precision count from 75 to 60 rules across changelogs\n\n* wire temporal analyzer: RUST_LOCK_SLEEP rule + event discovery + MustFollow fix\n\n- Created RUST_LOCK_SLEEP (must_not_follow: lock → sleep) — detects\n  holding a mutex while calling thread::sleep(), a classic deadlock pattern.\n- Called discover_events() in run_detailed, run_files, and run_content.\n  Previously defined but never called — temporal analysis always returned\n  empty because the SymbolRegistry had no TemporalEvent entries.\n- Fixed MustFollow bug: check_must_follow now requires current_step > 0\n  before firing, preventing false positives on scopes where no event in\n  the sequence is present.\n- Added compile tests for the on-disk YAML rule.\n\n* detect object spread overriding security properties\n\n- Fix propagate_object_taint: add two-pass detection of spread_element\n  children. First pass resolves taint on each spread source; if the spread\n  is tainted, the second pass marks every explicit property in the object as\n  overwritable via taint_field. Previously spread_element was silently\n  ignored, so explicit security properties like isAdmin: false were marked\n  safe even when ...prefs (user-controlled) could override them.\n\n- New YAML rule TS_OBJECT_SPREAD_OVERRIDE_SECURITY: heuristic regex check\n  on object literals that contain both a spread element and a security\n  property name (isAdmin, role, permissions, scopes, etc.). Catches the\n  prototype-pollution-to-privilege-escalation pattern without requiring\n  full taint tracking.\n\n* track GAP_ANALYSIS.md (was gitignored by *.md)\n\n* fix: correct FNV-1a prime, TS symbol query, paper discrepancies, and YAML rule loading\n\n- Fix FNV-1a prime constant in ir.rs (was missing a zero digit)\n- Add method_definition to TS symbol extraction query\n- Fix GENSENSE_PAPER.md: BFS->DFS, Suite enum values, benchmark file counts,\n  GenSenseEnvironment variants, CI threshold, rule loading priority, --category\n- Fix TS YAML rule loading (duplicate keys in core.yml)\n- Fix must_not_contain bypass to use full body text\n- Fix is_rule_enabled signature with severity_filter parameter\n- Add TS_UNHANDLED_ASYNC_REJECTION, RUST_MISSING_AWAIT, RUST_DISCARDED_RESULT rules\n- Remove deprecated TS rule tests (SQL_INJECTION, PATH_TRAVERSAL, OPEN_REDIRECT)\n\n* feat: expose all tuning parameters via Engine + CLI flags\n\n* feat: SPG foundation — graph in context, taint edges, algebraic combinators\n\n* docs(CAPABILITIES): add SPG capabilities — graph in context, taint edges, algebraic combinators (57 total)\n\n* docs(GAP_ANALYSIS): add SPG Phase 6 — graph in context, taint edges, algebraic combinators\n\n* v0.3.1: CLI rule modification, CSA delegation test, docs update\n\nCLI:\n  - --disable-rule <id> suppresses specific rules (repeatable)\n  - --override-severity <RULE_ID>:<level> changes severity (repeatable)\n  - --help rewritten with all 21 flags in categorized sections + 10 examples\n  - gensense with no path defaults to current directory\n\nDocs:\n  - README rewritten: 357->250 lines, v0.3.1 features, deduped suppression\n  - VitePress: index, guide, extending, authoring, changelog all updated\n  - extending.md: new CSA and Algebraic Flow Combinators sections\n  - Removed all 'parallel via Rayon' lies (Rayon was removed in v0.3.0)\n  - Fixed '17 rules support auto-fix' lie (only 1 YAML rule has fix_pattern)\n\nTests:\n  - CSA delegation suppression test (body_may_delegate_via)\n  - All 16 test suites green\n\nEngine:\n  - Engine stores disabled_rule_ids + severity_overrides\n  - Merged with config file values (CLI wins on conflict)\n  - Applied in initialize_auditor_and_config and all audit paths\n\n* chore: remove demo.cast from tracking, add to gitignore\n\n* chore: add .semgrepignore to exclude test fixtures from scans\n\n* fix: clear file cache between baseline emit/compare steps in CI\n\n* chore: raise benchmark alert threshold to 125% to account for SPG/CSA/temporal overhead\n\n---------\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-05-26T02:46:53Z",
+          "tree_id": "d8a76cfcea20c7d90a87aec6176a0346a3a243ef",
+          "url": "https://github.com/Friehub/gensense/commit/82eb8dbbf63b295267a37702206c425b6a7250dd"
+        },
+        "date": 1779764439839,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "scan_throughput/rust_clean_service",
+            "value": 9678895.42857143,
+            "range": "26880.172922782323",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/rust_service_with_violations",
+            "value": 9271236.5,
+            "range": "54086.83553976593",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_clean_service",
+            "value": 10517029.5,
+            "range": "131967.95335709956",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_service_with_violations",
+            "value": 11342279.583333332,
+            "range": "58736.16315722189",
+            "unit": "ns"
+          },
+          {
+            "name": "scan_throughput/ts_mixed_real_world",
+            "value": 13557096.4,
+            "range": "125570.13911068495",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/10",
+            "value": 60855549.3,
+            "range": "278415.37341714127",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/50",
+            "value": 633631557.5,
+            "range": "2164315.7501757145",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/100",
+            "value": 1267969876.5,
+            "range": "5018794.390198588",
+            "unit": "ns"
+          },
+          {
+            "name": "project_scale/files_scanned/200",
+            "value": 2584711265,
+            "range": "7086203.699594736",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/5",
+            "value": 9230890.92857143,
+            "range": "66050.99372736005",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/20",
+            "value": 9588665.642857142,
+            "range": "54451.66103328957",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/50",
+            "value": 10670498.416666668,
+            "range": "52105.1112249512",
+            "unit": "ns"
+          },
+          {
+            "name": "taint_analysis/chain_depth/100",
+            "value": 12621870.9,
+            "range": "67594.10495996558",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_model_names_20_models",
+            "value": 24578.463188834154,
+            "range": "43.52995767661451",
+            "unit": "ns"
+          },
+          {
+            "name": "schema_contract/extract_field_names_20_models",
+            "value": 30724.21076190476,
+            "range": "545.1499725489249",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/compile_all_builtin_rules",
+            "value": 7833056.714285715,
+            "range": "13447.07586126678",
+            "unit": "ns"
+          },
+          {
+            "name": "rule_compilation/engine_cold_start",
+            "value": 98.48773005978168,
+            "range": "0.13065681868646314",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/1000",
+            "value": 48.07610810169761,
+            "range": "0.07383889924847195",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/1000",
+            "value": 49.960922128528374,
+            "range": "0.041304979199782495",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/10000",
+            "value": 48.056980360973384,
+            "range": "0.06700255312957347",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/10000",
+            "value": 49.26104235112529,
+            "range": "0.02976310157538405",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/start/100000",
+            "value": 49.5154349229566,
+            "range": "0.0686040416051104",
+            "unit": "ns"
+          },
+          {
+            "name": "symbol_registry/find_function_at/middle/100000",
+            "value": 49.579212881722356,
+            "range": "0.0509010364534673",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_identity",
+            "value": 46.36542563407044,
+            "range": "0.2795466792891358",
+            "unit": "ns"
+          },
+          {
+            "name": "fingerprinting/advisory_fuzzy_identity",
+            "value": 62.962127670772404,
+            "range": "0.14237184980258555",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/10",
+            "value": 28254.745516717325,
+            "range": "28.7358559157193",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/50",
+            "value": 458205.8331409332,
+            "range": "723.0547723757335",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/200",
+            "value": 5787452.833333334,
+            "range": "5683.299899100107",
+            "unit": "ns"
+          },
+          {
+            "name": "post_process_ngrams/pairwise_comparison/500",
+            "value": 33206929.25,
+            "range": "150185.89473366737",
             "unit": "ns"
           }
         ]
