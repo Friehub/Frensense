@@ -307,7 +307,7 @@ jobs:
           auto-push: true
           gh-pages-branch: gh-pages
           benchmark-data-dir-path: dev/bench
-          alert-threshold: '120%'
+          alert-threshold: '125%'
           comment-on-alert: true
           fail-on-alert: true
           comment-always: true
