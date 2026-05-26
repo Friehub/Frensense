@@ -51,6 +51,10 @@ pub struct Engine {
     taint_confidence_interprocedural: f32,
     taint_confidence_intraprocedural: f32,
     default_taint_max_depth: usize,
+
+    // CLI-driven rule overrides (merged with config file)
+    disabled_rule_ids: Vec<String>,
+    severity_overrides: HashMap<String, crate::Severity>,
 }
 
 impl Engine {
@@ -81,6 +85,8 @@ impl Engine {
             taint_confidence_interprocedural: 0.80,
             taint_confidence_intraprocedural: 0.90,
             default_taint_max_depth: 5,
+            disabled_rule_ids: Vec::new(),
+            severity_overrides: HashMap::new(),
         }
     }
 
@@ -118,6 +124,15 @@ impl Engine {
 
     pub const fn set_default_taint_max_depth(&mut self, val: usize) {
         self.default_taint_max_depth = val;
+    }
+
+    pub fn add_disabled_rule(&mut self, rule_id: &str) {
+        self.disabled_rule_ids.push(rule_id.to_string());
+    }
+
+    pub fn add_severity_override(&mut self, rule_id: &str, severity: crate::Severity) {
+        self.severity_overrides
+            .insert(rule_id.to_string(), severity);
     }
 
     pub const fn set_min_confidence(&mut self, val: f32) {
@@ -366,11 +381,14 @@ impl Engine {
             }
         }
 
-        if let Some(overrides) = &config.severity_override {
-            for adv in &mut advisories {
-                if let Some(sev) = overrides.get(&adv.rule_id) {
-                    adv.severity = *sev;
-                }
+        // Merge config + CLI severity overrides (CLI wins)
+        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
+        for (rule_id, sev) in &self.severity_overrides {
+            merged_overrides.insert(rule_id.clone(), *sev);
+        }
+        for adv in &mut advisories {
+            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
+                adv.severity = *sev;
             }
         }
 
@@ -470,11 +488,14 @@ impl Engine {
             }
         }
 
-        if let Some(overrides) = &config.severity_override {
-            for adv in &mut all_advisories {
-                if let Some(sev) = overrides.get(&adv.rule_id) {
-                    adv.severity = *sev;
-                }
+        // Merge config + CLI severity overrides (CLI wins)
+        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
+        for (rule_id, sev) in &self.severity_overrides {
+            merged_overrides.insert(rule_id.clone(), *sev);
+        }
+        for adv in &mut all_advisories {
+            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
+                adv.severity = *sev;
             }
         }
 
@@ -497,9 +518,16 @@ impl Engine {
             self.auditor.set_rules(rules);
             self.project_rules = project_rules;
 
+            let mut disabled_set: HashSet<&str> = HashSet::new();
             if let Some(disabled) = &config.disabled_rules {
-                let disabled_set: HashSet<&str> =
-                    disabled.iter().map(std::string::String::as_str).collect();
+                for id in disabled {
+                    disabled_set.insert(id.as_str());
+                }
+            }
+            for id in &self.disabled_rule_ids {
+                disabled_set.insert(id.as_str());
+            }
+            if !disabled_set.is_empty() {
                 self.auditor
                     .retain_rules(|r| !disabled_set.contains(r.id()));
                 self.project_rules

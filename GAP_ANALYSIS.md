@@ -119,21 +119,21 @@ A project-global profile flags test files as anomalous (they have different conv
 
 ### 2a. CSA Rule Test Coverage
 
-6 corpus fixtures exist for 3 of 7 CSA rules. 1 automated test function. 4 rules have zero coverage.
+All CSA rules now have corpus fixtures, automated tests, and suppression tests.
 
 | Rule | Fixture | Test | Status |
 |------|---------|------|--------|
 | `RUST_CSA_VALIDATE_UNCONDITIONAL` | ✅ | ✅ | Done |
-| `TS_CSA_VALIDATE_UNCONDITIONAL` | ✅ | ❌ | ⚠️ |
-| `TS_CSA_AUTH_NO_REJECTION` | ✅ | ❌ | ⚠️ |
-| `SOL_CSA_VALIDATE_UNCONDITIONAL` | ❌ | ❌ | ❌ |
-| `SOL_CSA_SANITIZE_PASSTHROUGH` | ❌ | ❌ | ❌ |
-| `TS_CSA_SANITIZE_PASSTHROUGH` | ❌ | ❌ | ❌ |
-| `TS_CSA_FIND_NEVER_EMPTY` | ❌ | ❌ | ❌ |
+| `TS_CSA_VALIDATE_UNCONDITIONAL` | ✅ | ✅ | Done |
+| `TS_CSA_AUTH_NO_REJECTION` | ✅ | ✅ | Done |
+| `TS_CSA_SANITIZE_PASSTHROUGH` | ✅ | ✅ | Done |
+| `TS_CSA_FIND_NEVER_EMPTY` | ✅ | ✅ | Done |
 
-- [ ] **Add corpus fixtures** (positive + negative pairs) for all 4 uncovered rules
-- [ ] **Add `run_test()` calls** in `tests/rule_tests.rs` for all 7 rules
-- [ ] **Test `body_may_delegate_via`** suppression paths
+> **Note:** `SOL_*` (Solidity) rules were removed from the codebase in commit f527355. No coverage needed.
+
+- [x] **Corpus fixtures** — all TS/RS CSA rules have positive + negative fixture pairs
+- [x] **`run_test()` calls** — all 5 CSA rules test both positive and negative paths
+- [x] **`body_may_delegate_via`** — delegation suppression test added for `TS_CSA_VALIDATE_UNCONDITIONAL`
 
 ### 2b. Fix `deadlock_guard.rs` Byte-Scan
 
@@ -153,7 +153,7 @@ The `TemporalAnalyzer` at `src/semantics/temporal.rs` has three behaviors, zero 
 - [x] **`RUST_CONNECTION_LEAK`** — `MustFollow`: `get_connection`/`acquire` not followed by `close`/`release`/`drop`
 - [x] **`RUST_NETWORK_IN_TXN`** — `ForbiddenBetween`: `fetch`/`http` between `begin_transaction` and `commit`/`rollback`
 - [x] **`RUST_MUTATE_AFTER_RESPONSE`** — `MustNotFollow`: `write`/`modify` after `send_response`/`reply`/`commit`
-- [ ] **Tests** — corpus fixtures + `run_test()` for all three
+- [x] **Tests** — corpus fixtures + `run_test()` for all three temporal rules
 
 ---
 
@@ -352,7 +352,7 @@ Before SPG, a rule could not ask "does this taint path cross an await?" — tain
 |----------|-------|-----------|------------------|
 | **P0** | Taint soundness | ~2h | `taint_max_depth`, visited-set, match arm returns |
 | **P1** | Style profile (v0.4 core) | ~8.5h | Richer fingerprints, `ProjectProfile`, `STYLE_ANOMALY`, CLI flags |
-| **P2** | Rule hardening | ~6h | CSA coverage (4 rules), deadlock_guard fix, 3 temporal rules |
+| **P2** | Rule hardening | ~2h ✅ | CSA coverage (4 rules), deadlock_guard fix, 3 temporal rules, delegation suppression |
 | **P3** | Advanced constraints | ~19h | `AtomicSection`, SRI baselines, `--severity` pre-filter |
 | **P4** | Advanced analysis | ~12h | MinHash/LSH, Datalog closure, taint entropy |
 | **P5** | Developer experience | ~6h | Rule wizard, `gensense test-rule` |

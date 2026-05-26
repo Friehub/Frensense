@@ -14,7 +14,8 @@ You can link these schemas in your IDE (e.g., VS Code via the YAML extension) to
 
 | Version | Description | Schema Link |
 |---------|-------------|-------------|
-| **v0.3.0** | **Latest.** Supports SRI, CSA project rules, and auto-remediation. | [v0.3.0 Schema](./schema/gensense-v3.schema.json) |
+| **v0.3.1** | **Latest.** Adds SPG graph context, algebraic flow combinators, CSA body analysis (`body_must_contain`, `body_may_delegate_via`), and 6 tuning parameters. | [v0.3.1 Schema](./schema/gensense-v3.schema.json) |
+| **v0.3.0** | SRI, CSA project rules, auto-remediation. | [v0.3.0 Schema](./schema/gensense-v3.schema.json) |
 | **v0.2.2** | Legacy diagnostic-only format. | [v0.2.2 Schema](./schema/gensense-v2.schema.json) |
 
 ### Integrating with VS Code
@@ -51,5 +52,6 @@ To enable IntelliSense for your custom rules, add the following to your `.vscode
 
 | Version | Changes |
 | :--- | :--- |
+| **0.3.1** | Added `body_must_contain`, `body_may_delegate_via` for CSA body analysis. Added 6 algebraic flow combinator fields: `across_boundary`, `all_of`, `any_of`, `not`, `without_constraint`, `without_exclusion`, `chain_source`, `chain_through`, `chain_sink`. Added tuning fields: `max_source_lines`, `ngram_window_size`, `min_ngram_count`, `taint_confidence_interprocedural`, `taint_confidence_intraprocedural`, `default_taint_max_depth`. |
 | **0.3.0** | Added `version` field. Renamed `domain` → `category` (backward compat alias kept). Added `schema_contract` block. Added `auto_fixable`, `requires_human` fields. |
 | **0.2.2** | Baseline format. `domain` field for categorization. No `version` field. |

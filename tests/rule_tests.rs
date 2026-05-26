@@ -274,6 +274,24 @@ fn test_ts_csa_find_never_empty() {
 }
 
 #[test]
+fn test_ts_csa_validate_unconditional_delegate() {
+    // body_may_delegate_via: functions delegating to safeParse/validate/verify/check/assert
+    // should NOT fire because delegation is acknowledged.
+    run_test(
+        "TS_CSA_VALIDATE_UNCONDITIONAL",
+        "function validateInput(input: any) { return safeParse(input); }",
+        0,
+        "ts",
+    );
+    run_test(
+        "TS_CSA_VALIDATE_UNCONDITIONAL",
+        "function checkAuth(token: string) { return validate(token); }",
+        0,
+        "ts",
+    );
+}
+
+#[test]
 fn test_rust_connection_leak() {
     let rule_id = "RUST_CONNECTION_LEAK";
 
