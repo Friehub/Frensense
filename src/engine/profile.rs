@@ -70,6 +70,7 @@ fn dir_prefix(path: &str) -> String {
 
 impl ProjectProfile {
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn learn(fingerprints: &[FunctionFingerprint]) -> Self {
         let mut profile = ProjectProfile::default();
 
@@ -203,6 +204,7 @@ impl ProjectProfile {
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     pub fn style_surprise(&self, fp: &FunctionFingerprint) -> StyleSurpriseResult {
         let Some(lang_profile) = self.languages.get(&fp.language) else {
             return StyleSurpriseResult {
@@ -351,6 +353,7 @@ impl ProjectProfile {
     }
 
     #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn file_profile_surprise(&self, fp: &FunctionFingerprint) -> f64 {
         let Some(lang_profile) = self.languages.get(&fp.language) else {
             return 1.0;

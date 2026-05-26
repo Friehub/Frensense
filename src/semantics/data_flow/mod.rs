@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
+pub mod handlers;
 pub mod lookup;
 pub mod normalization;
+pub mod resolve;
 pub mod tracking;
 
 use crate::FileId;

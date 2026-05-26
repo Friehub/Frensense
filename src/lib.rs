@@ -2,14 +2,7 @@
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::missing_errors_doc,
-    clippy::regex_creation_in_loops
-)]
+#![allow(clippy::too_many_arguments, clippy::regex_creation_in_loops)]
 
 use include_dir::{Dir, include_dir};
 use std::borrow::Cow;
@@ -22,7 +15,9 @@ use tree_sitter::Node;
 pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/rules/definitions");
 pub const GENSENSE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub mod cli;
 pub mod engine;
+pub mod mcp;
 pub mod parser;
 pub mod patcher;
 pub mod reporter;

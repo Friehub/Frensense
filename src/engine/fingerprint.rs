@@ -226,6 +226,7 @@ pub fn extract_fingerprints(
                 name_segments,
                 structural_markers: collect_structural_markers(body, source_code),
                 type_usages: collect_type_usages(body, source_code),
+                #[allow(clippy::cast_precision_loss)]
                 comment_density: if total_bytes > 0 {
                     comment_bytes as f64 / total_bytes as f64
                 } else {
