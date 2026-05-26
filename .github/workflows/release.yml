@@ -43,10 +43,13 @@ jobs:
         id: check
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ github.event.inputs.tag }}"
-            if [[ -z "$TAG" ]]; then
-              TAG="v$(node -p "require('./package.json').version")"
+            RAW="${{ github.event.inputs.tag }}"
+            if [[ -z "$RAW" ]]; then
+              RAW="$(node -p "require('./package.json').version")"
             fi
+            # Normalize: strip existing v prefix, then add it back
+            RAW="${RAW#v}"
+            TAG="v$RAW"
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "tag_name=$TAG" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
