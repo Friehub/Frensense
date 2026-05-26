@@ -11,6 +11,9 @@ Verified 2026-05-24 against commit `ae315d6`. Phases ordered by dependency — e
 | `body_must_contain` uses AST `ReachabilityChecker` (not raw regex) | `src/rules/ir.rs:291-316` — fixed in v0.3.1 commit `6f4274a` |
 | Advisory agent fields (`confidence`, `auto_fixable`, `requires_human`) | `src/lib.rs:110,125,126` — present in `Advisory` struct |
 | Native TypeScript `TS_TAUTOLOGICAL_ASSERT` rule | `src/rules/typescript/ts_tautological_assert.rs` — registered, 7 test cases |
+| `SemanticGraph` exposed to all rules via `GenSenseContext` | `src/lib.rs:219`, commit `e1d3e1c` |
+| Taint flow materialized as `TaintFlow` graph edges | `src/semantics/graph.rs:22-275`, commit `e1d3e1c` |
+| Algebraic constraint combinators (`AllOf`, `Across`, `Without`, etc.) | `src/rules/ir.rs:36-52` + `FlowEvaluator`, commit `e1d3e1c` |
 
 ---
 
@@ -186,7 +189,18 @@ Deferred from v0.3.x. Push `--severity` into the rule dispatcher so rules below 
 
 - [x] **Rule dispatcher filter** — skip rules below severity threshold before evaluation
 
+### 3d. Algebraic Constraint Combinators ✅ (Completed in SPG Phase 6c)
+
+**Completed 2026-05-26** — `across_boundary`, `all_of`, `any_of`, `not`, `without_constraint`/`without_exclusion` YAML fields. `FlowEvaluator` with recursive constraint tree evaluation. No new analysis engine needed — composes existing `FlowConstraint` leaves.
+
+- [x] `FlowConstraint::Across`, `AllOf`, `AnyOf`, `Not`, `Without`, `Chain` variants (`src/rules/ir.rs:36-52`)
+- [x] `FlowEvaluator` (`src/rules/ir.rs:1203-1345`)
+- [x] YAML fields on `CoreRule` (`src/rules/core/mod.rs:78-89`)
+- [x] Compilation in `RuleCompiler` (`src/rules/compiler.rs:78-133`)
+
 ---
+
+
 
 ## Phase 4 — Advanced Analysis Algorithms
 
@@ -269,6 +283,58 @@ Differentiators (unique to GenSense, not gaps): **CSA**, **schema/DB drift**, **
 
 ---
 
+## Phase 6 — SPG (Semantic Program Graph) Foundation ✅ (Completed)
+
+**Completed 2026-05-26 at commit `e1d3e1c`.** Three-layer change that enables cross-cutting queries across analysis subsystems.
+
+### Phase 6a. Graph Exposed to All Rule Types
+
+`&SemanticGraph` was added to `GenSenseContext` and `AuditOptions`. Previously only `ProjectRule` implementations could access the graph. Now every `GenSenseRule::check()` receives it.
+
+- [x] `graph: &'a SemanticGraph` in `GenSenseContext` (`src/lib.rs:219`)
+- [x] `graph: &'a SemanticGraph` in `AuditOptions` (`src/engine/auditor/mod.rs:45`)
+- [x] Wired through all 3 construction sites in `auditor.audit()`, plus 2 in `tracking.rs`
+
+### Phase 6b. Taint as Queryable Graph Edges
+
+Instead of taint living ephemerally in a `TaintRegistry` HashMap (unreachable after each rule check), taint flows are now materialized as first-class `TaintFlow` edges on the `SemanticGraph`. After each file audit, the Engine iterates taint-related advisories and calls `graph.record_taint_flow()`.
+
+- [x] `TaintFlow` edge kind (`src/semantics/graph.rs:22`)
+- [x] `TaintFlowRecord { function_name, file_path, source_pattern, sink_pattern, rule_id }` (`src/semantics/graph.rs:27-32`)
+- [x] `record_taint_flow()`, `has_taint_flow()`, `taint_flows_for()`, `taint_flows()` methods (`src/semantics/graph.rs:244-275`)
+- [x] Post-audit materialization in `perform_parallel_audit` (`src/engine/project/mod.rs:654-667`)
+
+Now queryable: `graph.has_taint_flow("validateInput", "src/handler.ts")` from any rule.
+
+### Phase 6c. Algebraic Constraint Combinators (no Datalog)
+
+Added combinatorial `FlowConstraint` variants that compose existing leaf constraints. A `FlowEvaluator` recursively evaluates constraint trees.
+
+**New variants on `FlowConstraint`** (`src/rules/ir.rs:36-52`):
+
+| Variant | Meaning | YAML Field |
+|---------|---------|-----------|
+| `AllOf(Vec<FlowConstraint>)` | All sub-constraints must match (AND) | `all_of: [...]` |
+| `AnyOf(Vec<FlowConstraint>)` | At least one matches (OR) | `any_of: [...]` |
+| `Not(Box<FlowConstraint>)` | Negation — fires when sub-constraint doesn't match | `not: { ... }` |
+| `Across { constraint, boundary_re }` | Sub-constraint must cross a temporal/structural boundary | `across_boundary: "\\.await"` |
+| `Without { constraint, exclusion }` | Primary matches, exclusion doesn't | `without_constraint` + `without_exclusion` |
+| `Chain { source, through, sink }` | Source reaches sink AND passes through intermediate | (future YAML for 7b) |
+
+**`FlowEvaluator`** (`src/rules/ir.rs:1203-1345`): Recursive tree-walking evaluator. `AllOf` short-circuits on first miss. `Across` checks temporal events in the enclosing function scope. `Without` checks primary then exclusion.
+
+**How this differs from Datalog (CodeQL):** No query language. Fixed typed predicates + 5 combinators kept within a known-decidable boundary (per Rice's Theorem thesis in §2 of the paper). Users express compositions via YAML fields, not QL.
+
+### Key Benefit
+
+Before SPG, a rule could not ask "does this taint path cross an await?" — taint and temporal analysis were separate subsystems with no intersection. After SPG, the `Across` combinator does exactly that: `forbidden_source_pattern + forbidden_sink_pattern + across_boundary: "\\.await"` in a single YAML rule.
+
+### Files Changed
+
+`src/semantics/graph.rs`, `src/lib.rs`, `src/engine/auditor/mod.rs`, `src/engine/project/mod.rs`, `src/rules/ir.rs`, `src/rules/core/mod.rs`, `src/rules/compiler.rs`, `src/semantics/data_flow/tracking.rs` + 3 test files. 485 insertions, 3 deletions across 11 files.
+
+---
+
 ## v0.5.0+ (Planned, Outside v0.4 Scope)
 
 | Feature | Est. Time | Description |
@@ -290,4 +356,5 @@ Differentiators (unique to GenSense, not gaps): **CSA**, **schema/DB drift**, **
 | **P3** | Advanced constraints | ~19h | `AtomicSection`, SRI baselines, `--severity` pre-filter |
 | **P4** | Advanced analysis | ~12h | MinHash/LSH, Datalog closure, taint entropy |
 | **P5** | Developer experience | ~6h | Rule wizard, `gensense test-rule` |
+| **P6** | **SPG (done)** | — | Graph in context, taint edges, algebraic combinators |
 | **v0.5** | Future | ~17+8h | AI hallucination, secrets, perf patterns, taint lifetime |
