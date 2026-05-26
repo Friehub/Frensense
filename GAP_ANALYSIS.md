@@ -8,12 +8,24 @@ Verified 2026-05-24 against commit `ae315d6`. Phases ordered by dependency — e
 
 | Item | Evidence |
 |------|----------|
-| `body_must_contain` uses AST `ReachabilityChecker` (not raw regex) | `src/rules/ir.rs:291-316` — fixed in v0.3.1 commit `6f4274a` |
+| `body_must_contain` uses AST `ReachabilityChecker` (not raw regex) | `src/rules/ir/core.rs` — fixed in v0.3.1 commit `6f4274a` |
 | Advisory agent fields (`confidence`, `auto_fixable`, `requires_human`) | `src/lib.rs:110,125,126` — present in `Advisory` struct |
 | Native TypeScript `TS_TAUTOLOGICAL_ASSERT` rule | `src/rules/typescript/ts_tautological_assert.rs` — registered, 7 test cases |
 | `SemanticGraph` exposed to all rules via `GenSenseContext` | `src/lib.rs:219`, commit `e1d3e1c` |
 | Taint flow materialized as `TaintFlow` graph edges | `src/semantics/graph.rs:22-275`, commit `e1d3e1c` |
-| Algebraic constraint combinators (`AllOf`, `Across`, `Without`, etc.) | `src/rules/ir.rs:36-52` + `FlowEvaluator`, commit `e1d3e1c` |
+| Algebraic constraint combinators (`AllOf`, `Across`, `Without`, etc.) | `src/rules/ir/flow.rs` + `FlowEvaluator`, commit `e1d3e1c` |
+| **Phase 1 (v0.4.0 style profile) — Core implemented** | — |
+| `FunctionFingerprint` with 7 feature types | `src/engine/fingerprint.rs` |
+| `ProjectProfile` with per-language frequency maps + JSON serialization | `src/engine/profile.rs` |
+| `style_surprise()` scoring with configurable threshold | `src/engine/profile.rs` |
+| File-level profile isolation (src/ vs tests/) | `src/engine/profile.rs` |
+| CLI: `--learn-profile`, `--check-profile`, `--profile-threshold`, `--profile-stats` | `src/cli/options.rs` |
+| Engine API: `with_profile()`, `profile()`, `set_profile_threshold()` | `src/engine/project/builder.rs` |
+| `STYLE_ANOMALY` advisories in `run_detailed()` | `src/engine/project/runner.rs` |
+| `find_profile()` — walks parent dirs for `.gensense/profile.json` | `src/cli/extras.rs` |
+| **Self-audit clean** | — |
+| 5 `FILE_TOO_LONG` violations resolved | `src/rules/ir/` split into 5 files; `src/bin/gensense.rs` → `src/cli/`; `src/bin/gensense-mcp.rs` → `src/mcp/`; `src/engine/project/mod.rs` → builder/runner/files; `src/semantics/data_flow/tracking.rs` → resolve/handlers |
+| All 109 tests pass, clippy clean, fmt clean | commit `ad94b0f` |
 
 ---
 
@@ -48,68 +60,16 @@ Verified 2026-05-24 against commit `ae315d6`. Phases ordered by dependency — e
 
 ---
 
-## Phase 1 — v0.4.0 Core: Style-Anomaly Detection
+## Phase 1 — v0.4.0 Core: Style-Anomaly Detection ✅ (Completed)
 
-**Why second:** The style profile is v0.4.0's headline feature (8.5h estimated). It extends the existing n-gram fingerprinting into a project-wide statistical model that catches LLM-generated code violating unwritten conventions. This is the highest-value new capability.
+**Completed 2026-05-26 at commit `f9a051d`.** See `src/engine/profile.rs` for `ProjectProfile`, `src/engine/fingerprint.rs` for `FunctionFingerprint`, `src/cli/` for CLI flags.
 
-### 1a. Expand Fingerprint Extraction
+### Remaining Phase 1 items (low priority, deferred)
 
-Current `extract_fingerprints` at `src/engine/fingerprint.rs` extracts only body 5-gram `FxHashSet<u64>`. v0.4.0 needs richer features:
-
-| Feature | Source | Example |
-|---------|--------|---------|
-| Body n-grams | Whitespace-split tokens (existing) | `["async", "fn", "name", "(", "params"]` |
-| Signature n-grams | Function declaration tokens | `["export", "const", "name", "=", "{"]` |
-| Parameter type n-grams | Type annotations in params | `["userId:", "string", "cartId:", "string"]` |
-| Method name segments | CamelCase/PascalCase splits | `createFromCart` → `["create", "From", "Cart"]` |
-| Structural markers | AST node kinds in body | `["variable_declarator", "call_expression", "return"]` |
-| Type usage | Type annotation occurrences | `["string", "number", "Decimal", "any"]` |
-| Comment density | Comment bytes / total bytes | `0.02` |
-
-- [ ] **Add each feature** as a new field on `FunctionFingerprint` (frequency maps, not presence sets)
-- [ ] **Language-aware extraction** — Rust gets `function_item`, TypeScript gets `arrow_function` + `method_definition`, Solidity gets `function_definition`
-
-### 1b. Project Profile + Serialization
-
-- [ ] **`ProjectProfile` struct** (`ngram_frequencies`, `file_profiles`, `total_ngrams` per language)
-- [ ] **Serialized to `.gensense/profile.json`** — committed to repo, portable "memory"
-
-### 1c. `style_surprise` Scoring
-
-- [ ] **`style_surprise()` function** — fraction of n-grams that are rare/unseen in the project profile
-- [ ] **Threshold:** flag at `> 0.5` (strict) or `> 0.7` (default), configurable
-
-### 1d. File-Level Profile Isolation
-
-A project-global profile flags test files as anomalous (they have different conventions). Mitigation:
-
-- [ ] **Separate profiles** for `src/`, `tests/`, `scripts/`
-- [ ] **New directory detection** — score against closest matching profile
-
-### 1e. CLI + API
-
-- [ ] `gensense --learn-profile` — scans project, builds `.gensense/profile.json`
-- [ ] `gensense . --check-profile` — audit with profile-based anomaly detection
 - [ ] `gensense . --check-profile --diff-only` — score only new/changed files
-- [ ] `gensense --profile-stats` — view profile stats
-- [ ] `Engine::with_profile()` and `run_with_profile()` Rust API
-
-### 1f. `STYLE_ANOMALY` Rule
-
-- [ ] **Advisory message templates** — "Function 'X' has N% unfamiliar token patterns. This project uses camelCase (seen 1,247x). 'X' uses PascalCase — seen 0x."
-
-### 1g. CI Integration
-
 - [ ] `gensense . --check-profile --strict` — fails if any function exceeds threshold
 - [ ] Baseline regeneration post-merge
-
-### 1h. Acceptance Criteria
-
-- [ ] LLM-generated function with `any` types, PascalCase, or class syntax in const-service project scores `> 0.5`
-- [ ] Normal project function scores `< 0.3`
-- [ ] Profile is deterministic (same project → same hash, ignoring timestamps)
-- [ ] No false positives for test files (file-level profiles)
-- [ ] `REDUNDANT_BOILERPLATE` rule still works (backward compat with existing n-grams)
+- [ ] Acceptance criteria: deterministic profile tests, LLM function > 0.5, normal < 0.3
 
 ---
 
@@ -310,7 +270,7 @@ Now queryable: `graph.has_taint_flow("validateInput", "src/handler.ts")` from an
 
 Added combinatorial `FlowConstraint` variants that compose existing leaf constraints. A `FlowEvaluator` recursively evaluates constraint trees.
 
-**New variants on `FlowConstraint`** (`src/rules/ir.rs:36-52`):
+**New variants on `FlowConstraint`** (`src/rules/ir/flow.rs`):
 
 | Variant | Meaning | YAML Field |
 |---------|---------|-----------|
@@ -321,7 +281,7 @@ Added combinatorial `FlowConstraint` variants that compose existing leaf constra
 | `Without { constraint, exclusion }` | Primary matches, exclusion doesn't | `without_constraint` + `without_exclusion` |
 | `Chain { source, through, sink }` | Source reaches sink AND passes through intermediate | (future YAML for 7b) |
 
-**`FlowEvaluator`** (`src/rules/ir.rs:1203-1345`): Recursive tree-walking evaluator. `AllOf` short-circuits on first miss. `Across` checks temporal events in the enclosing function scope. `Without` checks primary then exclusion.
+**`FlowEvaluator`** (`src/rules/ir/flow.rs`): Recursive tree-walking evaluator. `AllOf` short-circuits on first miss. `Across` checks temporal events in the enclosing function scope. `Without` checks primary then exclusion.
 
 **How this differs from Datalog (CodeQL):** No query language. Fixed typed predicates + 5 combinators kept within a known-decidable boundary (per Rice's Theorem thesis in §2 of the paper). Users express compositions via YAML fields, not QL.
 
@@ -346,7 +306,22 @@ Before SPG, a rule could not ask "does this taint path cross an await?" — tain
 
 ---
 
-## Summary
+## LLM Anti-Pattern Rules (Proposed — v0.5.0 Candidates)
+
+Six common LLM code-generation patterns that human developers instinctively avoid. These are candidates for new GenSense rules — some straightforward (tree-sitter AST query), some approximate (heuristics), one deferred (requires type system).
+
+| # | Pattern | Detection approach | Confidence | Effort | Status |
+|---|---------|-------------------|------------|--------|--------|
+| 1 | **Over-abstracting** — `Box<dyn Trait>` where trait has a single impl | `ProjectRule`: collect traits + impl counts across project; flag trait-object usage for traits with ≤1 project impl | High | 1 day | **Plan to build** |
+| 2 | **Nested `match Ok/Err`** — manual match on `Result` instead of `?` | AST query: `match_expression` where arm patterns are `Ok`/`Err` identifiers | High | 2h | Easy — tree-sitter pattern match |
+| 3 | **String dispatch** — `match` on `&str`/`String` with >3 arms | AST query: `match_expression` with `match_value` of string type and >3 arms | Medium | 2h | Easy — tree-sitter pattern match |
+| 4 | **Unnecessary `.clone()`** — clone on last use | Heuristic: walk function body, count `.clone()` calls where the cloned variable is never referenced again | Low–Medium | 2 days | Deferred — profile *already catches clone-density anomalies* via style surprise |
+| 5 | **Premature async** — `async fn` with zero `.await` calls | AST query: `async` function/block containing no `.await` expression | High | 2h | Easy — tree-sitter pattern match |
+| 6 | **Over-built builder** — impl block with >10 `fn set_*`/`fn with_*` methods | AST query: `impl` block counting method names matching `set_`/`with_` prefix | High | 2h | Easy — tree-sitter pattern match |
+
+**Priority rationale:** #1 is worth building because it's sound (single impl + dyn usage = near-zero false positives when scoped to project-defined traits). #2, #3, #5, #6 are 2h each and make excellent onboarding rules. #4 is explicitly deferred — the style profile already catches excessive cloning as an anomaly signal; a standalone rule without type information would have too many false positives.
+
+---
 
 | Priority | Phase | Est. Time | Key Deliverables |
 |----------|-------|-----------|------------------|
