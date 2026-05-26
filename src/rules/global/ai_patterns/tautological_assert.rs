@@ -9,7 +9,7 @@ impl GenSenseRule for TautologicalAssert {
     fn metadata(&self) -> &crate::RuleMetadata {
         static META: std::sync::LazyLock<crate::RuleMetadata> = std::sync::LazyLock::new(|| {
             crate::RuleMetadata {
-                id: "AI_TAUTOLOGICAL_ASSERT".into(),
+                id: "RUST_TAUTOLOGICAL_ASSERT".into(),
                 name: "Tautological Assertion".into(),
                 severity: crate::Severity::Warning,
                 observation: "A tautological assertion was detected (e.g., assert!(true) or assert_eq!(x, x)).".into(),

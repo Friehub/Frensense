@@ -568,6 +568,14 @@ Improvement: const users = await prisma.user.findMany({
 
 ---
 
+## Deferred from v0.3.x
+
+| Item | Description |
+|------|-------------|
+| `--severity` pre-filter | Push `--severity` flag into the rule dispatcher so rules below the threshold are never evaluated (not just post-filtered). Currently every rule runs on every file, then non-matching severities are thrown away. Required for the "fast critical-only scan" pre-commit hook use case. |
+
+---
+
 ### v0.5.0 Effort Summary
 
 | Feature | Time |

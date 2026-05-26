@@ -29,17 +29,21 @@ async function runTest() {
 
     console.log(`Audited content. Found ${advisories.length} findings.`); console.log("Findings:", advisories);
     
-    // 3. Verify specific findings (RUST_UNWRAP_SAFETY)
-    /*
-    const lockIo = advisories.find(a => a.ruleId === 'RUST_UNWRAP_SAFETY');
-    if (lockIo) {
-      console.log(`SUCCESS: Found ${lockIo.ruleId}`);
-      console.log(`   Observation: ${lockIo.observation}`);
+    // 3. Verify at least one finding was produced (catches broken NAPI builds)
+    if (advisories.length === 0) {
+      console.error('❌ FAILURE: No advisories returned from auditContent. Engine may be broken.');
+      process.exit(1);
+    }
+
+    // 4. Verify specific findings (RUST_UNWRAP_SAFETY)
+    const safety = advisories.find(a => a.ruleId === 'RUST_UNWRAP_SAFETY');
+    if (safety) {
+      console.log(`SUCCESS: Found ${safety.ruleId}`);
+      console.log(`   Observation: ${safety.observation}`);
     } else {
       console.error('❌ FAILURE: RUST_UNWRAP_SAFETY not found in advisories.');
       process.exit(1);
     }
-    */
 
     // 4. Verify tag-based findings
     advisories.forEach(a => {
@@ -62,10 +66,12 @@ async function runTest() {
     // 7. Version check
     console.log('\n--- Testing Version API ---');
     console.log(`Engine Version: ${engine.version}`);
-    // Support v0.3.x and ensure it follows semantic versioning format
-    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
-    if (!semverRegex.test(engine.version) || !engine.version.startsWith('0.3')) {
-      throw new Error(`Invalid or unexpected version reported: ${engine.version}`);
+    const expectedVersion = '0.3.1';
+    if (engine.version !== expectedVersion) {
+      throw new Error(
+        `Version mismatch: engine reports "${engine.version}", expected "${expectedVersion}". ` +
+        'The NAPI binary may need to be rebuilt from the current crate version.'
+      );
     }
 
     // 8. Test auditProject (Cross-file rules)

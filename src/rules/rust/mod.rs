@@ -8,6 +8,30 @@ pub mod fake_async;
 pub mod timeout_guard;
 pub mod tracing_guard;
 
+pub(crate) fn is_inside_cfg_test_module(node: tree_sitter::Node, source: &str) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "mod_item" {
+            let mut prev = parent.prev_sibling();
+            while let Some(sib) = prev {
+                if sib.kind() == "attribute_item" {
+                    let text = &source[sib.start_byte()..sib.end_byte()];
+                    if text.contains("#[cfg(test)]") || text.contains("#[test]") {
+                        return true;
+                    }
+                    break;
+                }
+                if sib.kind() != "line_comment" && sib.kind() != "block_comment" {
+                    break;
+                }
+                prev = sib.prev_sibling();
+            }
+        }
+        current = parent;
+    }
+    false
+}
+
 pub(crate) fn is_excluded_test_scope(
     node: tree_sitter::Node,
     context: &crate::GenSenseContext,
@@ -23,6 +47,9 @@ pub(crate) fn is_excluded_test_scope(
             return true;
         }
         current = ancestor.parent();
+    }
+    if is_inside_cfg_test_module(node, context.source_code) {
+        return true;
     }
     false
 }

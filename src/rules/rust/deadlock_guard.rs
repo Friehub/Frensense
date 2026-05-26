@@ -30,62 +30,131 @@ impl GenSenseRule for DeadlockGuard {
     }
 
     fn query(&self) -> Option<&str> {
-        Some("(await_expression) @await")
+        Some("(function_item) @node")
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
-        let mut advisories = Vec::new();
+        let source = context.source_code;
+        let Some(body) = node.child_by_field_name("body") else {
+            return Vec::new();
+        };
 
-        if let Some(parent_fn) = Self::find_parent_function(node)
-            && Self::has_mutex_lock(parent_fn, node, context.source_code)
-        {
-            advisories.push(
-                self.new_advisory(
-                    &node,
-                    context,
-                    "Potential async deadlock detected: Mutex guard held across .await point."
-                        .to_string(),
-                ),
-            );
+        let header = &source[node.start_byte()..body.start_byte()];
+        if !header.contains("async") {
+            return Vec::new();
+        }
+
+        let mut locks: Vec<Node<'a>> = Vec::new();
+        let mut awaits: Vec<Node<'a>> = Vec::new();
+        collect_locks_and_awaits(body, source, &mut locks, &mut awaits);
+
+        if locks.is_empty() || awaits.is_empty() {
+            return Vec::new();
+        }
+
+        locks.sort_by_key(tree_sitter::Node::start_byte);
+        awaits.sort_by_key(tree_sitter::Node::start_byte);
+
+        let meta = self.metadata();
+        let file_path = context.file_path.to_string_lossy().to_string();
+        let file_id = context.file_id;
+        let mut advisories = Vec::new();
+        let mut last_flagged_line: Option<u32> = None;
+
+        for lock_node in &locks {
+            let block_end = enclosing_block_end(*lock_node);
+            let lock_line = (lock_node.start_position().row + 1) as u32;
+
+            for await_node in &awaits {
+                let await_start = await_node.start_byte();
+                let await_line = (await_node.start_position().row + 1) as u32;
+
+                if await_start <= lock_node.start_byte() {
+                    continue;
+                }
+
+                if await_start >= block_end {
+                    break;
+                }
+
+                if last_flagged_line == Some(await_line) {
+                    continue;
+                }
+
+                last_flagged_line = Some(await_line);
+
+                advisories.push(Advisory {
+                    rule_id: meta.id.to_string(),
+                    file_id,
+                    file_path: file_path.clone(),
+                    severity: meta.severity,
+                    confidence: 0.92,
+                    observation: format!(
+                        "Potential deadlock: Mutex guard locked at line {lock_line} is still held across .await at line {await_line}.",
+                    ),
+                    impact: meta.impact.to_string(),
+                    improvement: meta.improvement.to_string(),
+                    line: await_line,
+                    column: (await_node.start_position().column + 1) as u32,
+                    start_byte: 0,
+                    end_byte: 0,
+                    original_content: source[await_node.start_byte()..await_node.end_byte()].to_string(),
+                    proposed_replacement: None,
+                    proposed_import: None,
+                    enclosing_symbol: None,
+                    fingerprint: String::new(),
+                    auto_fixable: false,
+                    requires_human: true,
+                    tags: meta.tags.iter().map(ToString::to_string).collect(),
+                });
+            }
         }
 
         advisories
     }
 }
 
-impl DeadlockGuard {
-    fn find_parent_function(node: Node<'_>) -> Option<Node<'_>> {
-        let mut current = node;
-        while let Some(parent) = current.parent() {
-            match parent.kind() {
-                "function_item" | "closure_expression" | "block" => return Some(parent),
-                _ => current = parent,
-            }
+fn collect_locks_and_awaits<'a>(
+    node: Node<'a>,
+    source: &'a str,
+    locks: &mut Vec<Node<'a>>,
+    awaits: &mut Vec<Node<'a>>,
+) {
+    if node.kind() == "await_expression" {
+        awaits.push(node);
+    } else if node.kind() == "call_expression" {
+        if let Some(parent) = node.parent()
+            && parent.kind() == "await_expression"
+        {
+            return;
         }
-        None
-    }
-
-    fn has_mutex_lock(scope: Node, await_node: Node, source: &str) -> bool {
-        let await_start = await_node.start_byte();
-        scan_for_lock(scope, await_start, source)
-    }
-}
-
-fn scan_for_lock(node: Node, before_byte: usize, source: &str) -> bool {
-    if node.kind() == "call_expression"
-        && let Some(f) = node.child_by_field_name("function")
-    {
-        let code = &source[f.start_byte()..f.end_byte()];
-        if code.contains(".lock") && f.start_byte() < before_byte {
-            return true;
+        if let Some(func) = node.child_by_field_name("function")
+            && let Some(field) = func.child_by_field_name("field")
+            && &source[field.start_byte()..field.end_byte()] == "lock"
+        {
+            locks.push(node);
         }
     }
 
     let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.start_byte() < before_byte && scan_for_lock(child, before_byte, source) {
-            return true;
+    if cursor.goto_first_child() {
+        loop {
+            collect_locks_and_awaits(cursor.node(), source, locks, awaits);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
         }
     }
-    false
+}
+
+fn enclosing_block_end(node: Node) -> usize {
+    let mut current = node;
+    loop {
+        match current.parent() {
+            Some(p) if p.kind() == "block" => return p.end_byte(),
+            Some(p) => current = p,
+            None => return node.end_byte(),
+        }
+    }
 }

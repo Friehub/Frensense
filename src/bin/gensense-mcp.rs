@@ -141,7 +141,7 @@ fn tool_definition() -> Value {
                 },
                 "language": {
                     "type": "string",
-                    "description": "Filter by language extension (rust, typescript, solidity)"
+                    "description": "Filter by language extension (rust, typescript)"
                 },
                 "rules": {
                     "type": "array",

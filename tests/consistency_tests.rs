@@ -64,12 +64,17 @@ fn test_temporal_consistency_rust_deadlock() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &tc,
         file_trees: &HashMap::new(),
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
-    let ast_analyzer = gensense::semantics::temporal::TemporalAnalyzer::new(&ctx);
+    let ast_analyzer = gensense::temporal::TemporalAnalyzer::new(&ctx);
     let sequence = vec![
         regex::Regex::new("lock").unwrap(),
         regex::Regex::new(r"\.await").unwrap(),

@@ -15,7 +15,7 @@ POSITIVE_TESTS = [
     },
     {
         "file": "tests/correctness/samples/positive/secret_leak.rs",
-        "expected_rule": "SECRET_LEAK_DETECTION"
+        "expected_rule": "RUST_SECRET_LEAK"
     }
 ]
 

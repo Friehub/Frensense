@@ -21,6 +21,8 @@ pub mod patcher;
 pub mod reporter;
 pub mod rules;
 pub mod semantics;
+#[cfg(feature = "temporal")]
+pub mod temporal;
 
 pub use crate::engine::Engine;
 #[cfg(feature = "fingerprinting")]
@@ -40,6 +42,18 @@ pub enum Severity {
     Critical,
     Warning,
     Info,
+}
+
+impl Severity {
+    #[must_use]
+    pub fn meets_threshold(&self, threshold: Severity) -> bool {
+        match (self, threshold) {
+            (Severity::Critical, _)
+            | (Severity::Info, Severity::Info)
+            | (Severity::Warning, Severity::Warning | Severity::Info) => true,
+            (Severity::Warning, Severity::Critical) | (Severity::Info, _) => false,
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
@@ -205,6 +219,7 @@ pub struct GenSenseContext<'a> {
     pub source_code: &'a str,
     pub tree: &'a tree_sitter::Tree,
     pub symbols: &'a SymbolRegistry,
+    pub graph: &'a crate::semantics::graph::SemanticGraph,
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub taint_cache: &'a TaintCache,
     pub file_trees: &'a HashMap<
@@ -215,6 +230,10 @@ pub struct GenSenseContext<'a> {
             Vec<crate::semantics::data_flow::normalization::SemanticOp>,
         ),
     >,
+    pub taint_confidence_interprocedural: f32,
+    pub taint_confidence_intraprocedural: f32,
+    pub default_taint_max_depth: usize,
+    pub ngram_window_size: usize,
 }
 
 /// Core Trait: Represents a high-precision semantic `GenSense` rule.

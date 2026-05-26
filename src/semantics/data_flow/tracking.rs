@@ -278,7 +278,11 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     advisory.file_path = self.current_file_path.display().to_string();
 
                     // Differentiate confidence
-                    let confidence = if self.depth > 0 { 0.80 } else { 0.90 };
+                    let confidence = if self.depth > 0 {
+                        self.context.taint_confidence_interprocedural
+                    } else {
+                        self.context.taint_confidence_intraprocedural
+                    };
 
                     advisories.push(rule.with_confidence(advisory, confidence));
                 }
@@ -298,9 +302,14 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 source_code: def_source,
                 tree: def_tree,
                 symbols: self.context.symbols,
+                graph: self.context.graph,
                 semantic_ops: def_ops,
                 taint_cache: self.context.taint_cache,
                 file_trees: self.context.file_trees,
+                taint_confidence_interprocedural: self.context.taint_confidence_interprocedural,
+                taint_confidence_intraprocedural: self.context.taint_confidence_intraprocedural,
+                default_taint_max_depth: self.context.default_taint_max_depth,
+                ngram_window_size: self.context.ngram_window_size,
             };
 
             let sub_analyzer = DataFlowAnalyzer::with_depth(
@@ -337,6 +346,26 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     ) {
         let v_kind = v_node.kind();
         if v_kind == "object" || v_kind == "object_expression" || v_kind == "struct_expression" {
+            // First pass: resolve taint on spread_element children.
+            // If any spread source is tainted, explicit properties become overwritable.
+            let mut spread_origin: Option<super::TaintOrigin> = None;
+            {
+                let mut cursor = v_node.walk();
+                for prop in v_node.children(&mut cursor) {
+                    if prop.kind() == "spread_element" {
+                        // The spread expression is the first named child (skipping `...` syntax).
+                        if let Some(val) = prop.named_child(0)
+                            && let Some(origin) = self
+                                .resolve_taint(val, source_re, sink_re, rule, registry, advisories)
+                        {
+                            spread_origin = Some(origin);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Second pass: process explicit properties.
             let mut cursor = v_node.walk();
             for prop in v_node.children(&mut cursor) {
                 if prop.kind() == "pair"
@@ -355,6 +384,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                             self.resolve_taint(v, source_re, sink_re, rule, registry, advisories)
                         {
                             registry.taint_field(name, key_name, prop_origin);
+                        } else if let Some(ref origin) = spread_origin {
+                            // Spread element may override this explicit property.
+                            registry.taint_field(name, key_name, origin.clone());
                         }
                     }
                 }
@@ -506,48 +538,65 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         if self.depth < self.max_depth
             && let Some((def_node, def_source, def_tree, def_id, def_path, def_ops)) =
                 self.find_definition(fn_name, registry)
-            && let Some(mut next_registry) = self.map_params(def_node, def_source, &tainted_args)
-            && let Some(body) = def_node.child_by_field_name("body")
         {
-            let new_context = crate::GenSenseContext {
-                file_id: def_id,
-                file_path: def_path,
-                source_code: def_source,
-                tree: def_tree,
-                symbols: self.context.symbols,
-                semantic_ops: def_ops,
-                taint_cache: self.context.taint_cache,
-                file_trees: self.context.file_trees,
-            };
-
-            let sub_analyzer = DataFlowAnalyzer::with_depth(
-                &new_context,
-                def_source,
-                def_tree,
-                def_path,
-                def_id,
-                body,
-                self.depth + 1,
-                self.max_depth,
+            let def_key = (
+                def_path.to_string_lossy().to_string(),
+                def_node.start_byte(),
             );
+            let mut visited = self.visited.borrow_mut();
+            if !visited.insert(def_key) {
+                return None;
+            }
+            drop(visited);
 
-            sub_analyzer.discover_symbols(&mut next_registry);
+            if let Some(mut next_registry) = self.map_params(def_node, def_source, &tainted_args)
+                && let Some(body) = def_node.child_by_field_name("body")
+            {
+                let new_context = crate::GenSenseContext {
+                    file_id: def_id,
+                    file_path: def_path,
+                    source_code: def_source,
+                    tree: def_tree,
+                    symbols: self.context.symbols,
+                    graph: self.context.graph,
+                    semantic_ops: def_ops,
+                    taint_cache: self.context.taint_cache,
+                    file_trees: self.context.file_trees,
+                    taint_confidence_interprocedural: self.context.taint_confidence_interprocedural,
+                    taint_confidence_intraprocedural: self.context.taint_confidence_intraprocedural,
+                    default_taint_max_depth: self.context.default_taint_max_depth,
+                    ngram_window_size: self.context.ngram_window_size,
+                };
 
-            let sub_advisories =
-                sub_analyzer.analyze_block(body, source_re, sink_re, rule, &mut next_registry);
-            advisories.extend(sub_advisories);
+                let sub_analyzer = DataFlowAnalyzer::with_depth(
+                    &new_context,
+                    def_source,
+                    def_tree,
+                    def_path,
+                    def_id,
+                    body,
+                    self.depth + 1,
+                    self.max_depth,
+                );
 
-            let return_nodes = get_callee_returns(body);
-            for ret_node in return_nodes {
-                if let Some(ret_origin) = sub_analyzer.resolve_taint(
-                    ret_node,
-                    source_re,
-                    sink_re,
-                    rule,
-                    &next_registry,
-                    advisories,
-                ) {
-                    return Some(ret_origin);
+                sub_analyzer.discover_symbols(&mut next_registry);
+
+                let sub_advisories =
+                    sub_analyzer.analyze_block(body, source_re, sink_re, rule, &mut next_registry);
+                advisories.extend(sub_advisories);
+
+                let return_nodes = get_callee_returns(body);
+                for ret_node in return_nodes {
+                    if let Some(ret_origin) = sub_analyzer.resolve_taint(
+                        ret_node,
+                        source_re,
+                        sink_re,
+                        rule,
+                        &next_registry,
+                        advisories,
+                    ) {
+                        return Some(ret_origin);
+                    }
                 }
             }
         }
@@ -586,6 +635,24 @@ fn find_returns<'a>(node: Node<'a>, returns: &mut Vec<Node<'a>>) {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 find_returns(child, returns);
+            }
+        }
+        "if_expression" => {
+            if let Some(consequence) = node.child_by_field_name("consequence") {
+                returns.push(consequence);
+            }
+            if let Some(alternative) = node.child_by_field_name("alternative") {
+                returns.push(alternative);
+            }
+        }
+        "match_expression" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "match_arm"
+                    && let Some(value) = child.child_by_field_name("value")
+                {
+                    returns.push(value);
+                }
             }
         }
         "function_declaration" | "function_item" | "arrow_function" | "method_definition" => {}

@@ -28,7 +28,6 @@ path = "src/bin/gensense-mcp.rs"
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
-tree-sitter-solidity = { version = "1.2", optional = true }
 tree-sitter-yaml = "0.7"
 tree-sitter-javascript = { version = "0.23", optional = true }
 thiserror = "1.0"
@@ -48,12 +47,12 @@ rustc-hash = "1.1"
 blake3 = "1.5"
 
 [features]
-default = ["rust", "typescript", "fingerprinting", "remediation"]
+default = ["rust", "typescript", "fingerprinting", "remediation", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-solidity = ["dep:tree-sitter-solidity"]
 fingerprinting = []
 remediation = ["dep:diff"]
+temporal = []
 
 [dev-dependencies]
 tempfile = "3"

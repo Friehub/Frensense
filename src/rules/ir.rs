@@ -29,6 +29,28 @@ pub enum FlowConstraint {
     },
     /// Asserts scope-level invariants (e.g. within transaction).
     ScopeConstraint { pattern: Regex, invert: bool },
+    /// All sub-constraints must match.
+    AllOf(Vec<FlowConstraint>),
+    /// At least one sub-constraint matches.
+    AnyOf(Vec<FlowConstraint>),
+    /// Negation: fires when the sub-constraint does NOT match.
+    Not(Box<FlowConstraint>),
+    /// Sub-constraint must cross a boundary matching `boundary_re`.
+    Across {
+        constraint: Box<FlowConstraint>,
+        boundary_re: Regex,
+    },
+    /// Fires when `constraint` matches but `exclusion` does not.
+    Without {
+        constraint: Box<FlowConstraint>,
+        exclusion: Box<FlowConstraint>,
+    },
+    /// Fires when `source` reaches `sink` AND passes through `through`.
+    Chain {
+        source: Box<FlowConstraint>,
+        through: Box<FlowConstraint>,
+        sink: Box<FlowConstraint>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +88,7 @@ pub struct CoreRuleIr {
     pub exclude_scope: Option<Regex>,
     pub skip_if_parent: Option<String>,
     pub body_query: Option<String>,
+    pub taint_max_depth: Option<usize>,
 }
 
 impl GenSenseRule for CoreRuleIr {
@@ -97,6 +120,32 @@ impl GenSenseRule for CoreRuleIr {
                     return Vec::new();
                 }
                 current = ancestor.parent();
+            }
+        }
+
+        // AST-level check for #[cfg(test)] mod { ... } blocks where the
+        // attribute is a sibling of the mod_item (invisible to the regex
+        // text-walk above).
+        {
+            let mut cur = node;
+            while let Some(parent) = cur.parent() {
+                if parent.kind() == "mod_item" {
+                    let mut prev = parent.prev_sibling();
+                    while let Some(sib) = prev {
+                        if sib.kind() == "attribute_item" {
+                            let text = &context.source_code[sib.start_byte()..sib.end_byte()];
+                            if text.contains("#[cfg(test)]") || text.contains("#[test]") {
+                                return Vec::new();
+                            }
+                            break;
+                        }
+                        if sib.kind() != "line_comment" && sib.kind() != "block_comment" {
+                            break;
+                        }
+                        prev = sib.prev_sibling();
+                    }
+                }
+                cur = parent;
             }
         }
 
@@ -267,24 +316,34 @@ impl CoreRuleIr {
             let checker =
                 crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
             if !checker.any_reachable_path_contains(body_node, re) {
-                let mut is_delegated = false;
-                if let Some(delegation_re) = &self.body_may_delegate_via {
+                let is_bypassed = if let Some(bypass_re) = &self.must_not_contain {
                     let code_in_body =
                         &context.source_code[body_node.start_byte()..body_node.end_byte()];
-                    if delegation_re.is_match(code_in_body) {
-                        is_delegated = true;
-                    }
-                }
+                    bypass_re.is_match(code_in_body)
+                } else {
+                    false
+                };
 
-                if !is_delegated {
-                    advisories.push(self.new_advisory(
-                        &node,
-                        context,
-                        format!(
-                            "Function body has no reachable path containing '{}'.",
-                            re.as_str()
-                        ),
-                    ));
+                if !is_bypassed {
+                    let mut is_delegated = false;
+                    if let Some(delegation_re) = &self.body_may_delegate_via {
+                        let code_in_body =
+                            &context.source_code[body_node.start_byte()..body_node.end_byte()];
+                        if delegation_re.is_match(code_in_body) {
+                            is_delegated = true;
+                        }
+                    }
+
+                    if !is_delegated {
+                        advisories.push(self.new_advisory(
+                            &node,
+                            context,
+                            format!(
+                                "Function body has no reachable path containing '{}'.",
+                                re.as_str()
+                            ),
+                        ));
+                    }
                 }
             }
         }
@@ -327,7 +386,9 @@ impl CoreRuleIr {
                     ));
                 }
             }
-        } else if let Some(re) = &self.must_not_contain {
+        } else if self.body_must_contain.is_none()
+            && let Some(re) = &self.must_not_contain
+        {
             let body_node = node.child_by_field_name("body").unwrap_or(node);
             let checker =
                 crate::semantics::reachability::ReachabilityChecker::new(context.source_code);
@@ -477,7 +538,17 @@ impl CoreRuleIr {
             }
             advisories.extend(findings);
         } else {
-            let analyzer = DataFlowAnalyzer::new(context, top);
+            let max_depth = self.taint_max_depth.unwrap_or(5);
+            let analyzer = DataFlowAnalyzer::with_depth(
+                context,
+                context.source_code,
+                context.tree,
+                context.file_path,
+                context.file_id,
+                top,
+                0,
+                max_depth,
+            );
             let mut registry = TaintRegistry::default();
             analyzer.discover_symbols(&mut registry);
             let target_node = node.child_by_field_name("body").unwrap_or(node);
@@ -512,6 +583,7 @@ impl CoreRuleIr {
 
         for constraint in &self.flow_constraints {
             match constraint {
+                // Leaves — dispatch directly
                 FlowConstraint::TaintReached { source, sink } => {
                     self.evaluate_taint_constraint(
                         node,
@@ -558,8 +630,28 @@ impl CoreRuleIr {
                     }
                 }
                 FlowConstraint::Temporal { sequence, behavior } => {
-                    let analyzer = crate::semantics::temporal::TemporalAnalyzer::new(context);
-                    advisories.extend(analyzer.check_temporal(node, sequence, behavior, self));
+                    #[cfg(feature = "temporal")]
+                    advisories.extend(crate::temporal::handler::check_temporal(
+                        node, context, sequence, behavior, self,
+                    ));
+                }
+                // Composite constraints — dispatch to FlowEvaluator
+                FlowConstraint::AllOf(_)
+                | FlowConstraint::AnyOf(_)
+                | FlowConstraint::Not(_)
+                | FlowConstraint::Across { .. }
+                | FlowConstraint::Without { .. }
+                | FlowConstraint::Chain { .. } => {
+                    let results = FlowEvaluator::evaluate(
+                        constraint,
+                        node,
+                        context,
+                        top,
+                        self,
+                        &file_path,
+                        func_or_node_line,
+                    );
+                    advisories.extend(results);
                 }
             }
         }
@@ -594,7 +686,7 @@ impl CoreRuleIr {
             );
             for byte in input.bytes() {
                 hash ^= u64::from(byte);
-                hash = hash.wrapping_mul(0x10_0000_01b3);
+                hash = hash.wrapping_mul(0x100_0000_01b3);
             }
             format!("{hash:016x}")
         };
@@ -790,7 +882,7 @@ impl ProjectRuleIr {
             );
             for byte in input.bytes() {
                 hash ^= u64::from(byte);
-                hash = hash.wrapping_mul(0x10_0000_01b3);
+                hash = hash.wrapping_mul(0x100_0000_01b3);
             }
             format!("{hash:016x}")
         };
@@ -1104,6 +1196,271 @@ impl ProjectRuleIr {
         }
 
         advisories
+    }
+}
+
+/// Evaluates a tree of flow constraints using a recursive walk.
+/// Each leaf constraint delegates to the appropriate analysis subsystem.
+/// Combinators (`AllOf`, `AnyOf`, `Not`, etc.) recurse into children.
+pub struct FlowEvaluator;
+
+impl FlowEvaluator {
+    /// Evaluate a single flow constraint against the given node and context.
+    /// Returns advisories if the constraint is violated (or satisfied, for Not).
+    #[allow(clippy::too_many_lines)]
+    #[must_use]
+    pub fn evaluate<'a>(
+        constraint: &FlowConstraint,
+        node: Node<'a>,
+        context: &'a GenSenseContext<'a>,
+        top: Node<'a>,
+        rule: &CoreRuleIr,
+        file_path: &str,
+        func_or_node_line: usize,
+    ) -> Vec<Advisory> {
+        match constraint {
+            FlowConstraint::AllOf(sub) => {
+                let mut all_advisories = Vec::new();
+                for sub_c in sub {
+                    let results = Self::evaluate(
+                        sub_c,
+                        node,
+                        context,
+                        top,
+                        rule,
+                        file_path,
+                        func_or_node_line,
+                    );
+                    if results.is_empty() {
+                        // AllOf short-circuits: if any sub-constraint doesn't fire, no advisory.
+                        return Vec::new();
+                    }
+                    all_advisories.extend(results);
+                }
+                all_advisories
+            }
+            FlowConstraint::AnyOf(sub) => {
+                // AnyOf fires if any sub-constraint fires.
+                // Return advisories from the first matching one.
+                for sub_c in sub {
+                    let results = Self::evaluate(
+                        sub_c,
+                        node,
+                        context,
+                        top,
+                        rule,
+                        file_path,
+                        func_or_node_line,
+                    );
+                    if !results.is_empty() {
+                        return results;
+                    }
+                }
+                Vec::new()
+            }
+            FlowConstraint::Not(sub) => {
+                let results =
+                    Self::evaluate(sub, node, context, top, rule, file_path, func_or_node_line);
+                if results.is_empty() {
+                    // Sub-constraint did NOT match — Not fires.
+                    vec![rule.new_advisory(
+                        &node,
+                        context,
+                        "Negated constraint matched: rule should not have this pattern".to_string(),
+                    )]
+                } else {
+                    Vec::new()
+                }
+            }
+            FlowConstraint::Across {
+                constraint,
+                boundary_re,
+            } => {
+                let results = Self::evaluate(
+                    constraint,
+                    node,
+                    context,
+                    top,
+                    rule,
+                    file_path,
+                    func_or_node_line,
+                );
+                if results.is_empty() {
+                    return Vec::new();
+                }
+                // Check if the taint path crosses the boundary.
+                // Walk the temporal events in the enclosing function.
+                let func_name = context
+                    .symbols
+                    .find_function_at(file_path, node.start_position().row + 1);
+                if let Some(func_id) = func_name {
+                    let events = context.symbols.graph().ordered_events_in_scope(func_id);
+                    let crosses_boundary = events.iter().any(|ev| {
+                        boundary_re.is_match(&ev.label)
+                            || boundary_re.is_match(&format!("{:?}", ev.event_type))
+                    });
+                    if crosses_boundary {
+                        return results;
+                    }
+                }
+                Vec::new()
+            }
+            FlowConstraint::Without {
+                constraint,
+                exclusion,
+            } => {
+                let primary = Self::evaluate(
+                    constraint,
+                    node,
+                    context,
+                    top,
+                    rule,
+                    file_path,
+                    func_or_node_line,
+                );
+                if primary.is_empty() {
+                    return Vec::new();
+                }
+                let excluded = Self::evaluate(
+                    exclusion,
+                    node,
+                    context,
+                    top,
+                    rule,
+                    file_path,
+                    func_or_node_line,
+                );
+                if excluded.is_empty() {
+                    // Primary matched, exclusion did not — fire.
+                    primary
+                } else {
+                    Vec::new()
+                }
+            }
+            FlowConstraint::Chain {
+                source,
+                through,
+                sink,
+            } => {
+                // Evaluates: source reaches sink AND passes through through.
+                let source_results = Self::evaluate(
+                    source,
+                    node,
+                    context,
+                    top,
+                    rule,
+                    file_path,
+                    func_or_node_line,
+                );
+                if source_results.is_empty() {
+                    return Vec::new();
+                }
+                let sink_results =
+                    Self::evaluate(sink, node, context, top, rule, file_path, func_or_node_line);
+                if sink_results.is_empty() {
+                    return Vec::new();
+                }
+                let through_results = Self::evaluate(
+                    through,
+                    node,
+                    context,
+                    top,
+                    rule,
+                    file_path,
+                    func_or_node_line,
+                );
+                if through_results.is_empty() {
+                    return Vec::new();
+                }
+                // All three matched — chain satisfied.
+                source_results
+            }
+            // Leaves — evaluate_leaf handles dispatch
+            FlowConstraint::TaintReached { .. }
+            | FlowConstraint::TaintForbidden { .. }
+            | FlowConstraint::Temporal { .. }
+            | FlowConstraint::ScopeConstraint { .. } => {
+                let mut leaf_results = Vec::new();
+                Self::evaluate_leaf(
+                    constraint,
+                    node,
+                    context,
+                    top,
+                    rule,
+                    file_path,
+                    func_or_node_line,
+                    &mut leaf_results,
+                );
+                leaf_results
+            }
+        }
+    }
+
+    /// Evaluate a leaf constraint directly, dispatching to the appropriate subsystem.
+    pub fn evaluate_leaf<'a>(
+        constraint: &FlowConstraint,
+        node: Node<'a>,
+        context: &'a GenSenseContext<'a>,
+        top: Node<'a>,
+        rule: &CoreRuleIr,
+        file_path: &str,
+        func_or_node_line: usize,
+        advisories: &mut Vec<Advisory>,
+    ) {
+        match constraint {
+            FlowConstraint::TaintReached { source, sink } => {
+                rule.evaluate_taint_constraint(
+                    node,
+                    context,
+                    top,
+                    source,
+                    sink,
+                    "reached",
+                    file_path,
+                    func_or_node_line,
+                    advisories,
+                );
+            }
+            FlowConstraint::TaintForbidden { source, sink } => {
+                rule.evaluate_taint_constraint(
+                    node,
+                    context,
+                    top,
+                    source,
+                    sink,
+                    "forbidden",
+                    file_path,
+                    func_or_node_line,
+                    advisories,
+                );
+            }
+            FlowConstraint::Temporal { sequence, behavior } => {
+                #[cfg(feature = "temporal")]
+                advisories.extend(crate::temporal::handler::check_temporal(
+                    node, context, sequence, behavior, rule,
+                ));
+            }
+            FlowConstraint::ScopeConstraint { pattern, invert } => {
+                let mut current = node.parent();
+                let mut matched = false;
+                while let Some(p) = current {
+                    if pattern.is_match(p.kind()) {
+                        matched = true;
+                        break;
+                    }
+                    current = p.parent();
+                }
+                let should_fire = if *invert { !matched } else { matched };
+                if should_fire {
+                    advisories.push(rule.new_advisory(
+                        &node,
+                        context,
+                        rule.metadata.observation.to_string(),
+                    ));
+                }
+            }
+            _ => {}
+        }
     }
 }
 

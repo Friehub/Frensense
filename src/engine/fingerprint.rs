@@ -24,6 +24,7 @@ pub fn extract_fingerprints(
     source_code: &str,
     path: &Path,
     fingerprints: &mut Vec<FunctionFingerprint>,
+    window_size: usize,
 ) {
     let mut cursor = root.walk();
     loop {
@@ -53,11 +54,11 @@ pub fn extract_fingerprints(
                 .filter(|t| !t.is_empty() && !t.starts_with("//"))
                 .collect();
 
-            if tokens.len() >= 5 {
+            if tokens.len() >= window_size {
                 let mut ngram_hashes = FxHashSet::default();
-                for i in 0..=(tokens.len().saturating_sub(5)) {
+                for i in 0..=(tokens.len().saturating_sub(window_size)) {
                     let mut hasher = FxHasher::default();
-                    tokens[i..i + 5].hash(&mut hasher);
+                    tokens[i..i + window_size].hash(&mut hasher);
                     ngram_hashes.insert(hasher.finish());
                 }
 

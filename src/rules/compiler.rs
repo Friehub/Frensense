@@ -68,32 +68,78 @@ impl RuleCompiler {
             });
         }
 
+        #[cfg(feature = "temporal")]
         if let Some(temp) = dsl.temporal {
-            let mut sequence = Vec::new();
-            for p in temp.sequence {
-                sequence.push(
-                    regex::Regex::new(&p)
-                        .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
-                );
-            }
-
-            let behavior = match temp.behavior.as_str() {
-                "must_not_follow" => crate::rules::ir::TemporalBehavior::MustNotFollow,
-                "forbidden_between" => {
-                    if sequence.len() == 2 {
-                        crate::rules::ir::TemporalBehavior::ForbiddenBetween(
-                            sequence[0].clone(),
-                            sequence[1].clone(),
-                        )
-                    } else {
-                        return Err(crate::GenSenseError::Pattern(
-                            "forbidden_between requires exactly 2 elements in sequence".to_string(),
-                        ));
-                    }
-                }
-                _ => crate::rules::ir::TemporalBehavior::MustFollow,
-            };
+            let (sequence, behavior) = crate::temporal::handler::compile_temporal_config(temp)?;
             flow_constraints.push(FlowConstraint::Temporal { sequence, behavior });
+        }
+
+        // Composite: across_boundary wraps taint constraints.
+        if let Some(boundary) = dsl.across_boundary {
+            let boundary_re = regex::Regex::new(&boundary)
+                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+            // Find the last taint constraint and wrap it.
+            let taint_idx = flow_constraints.iter().rposition(|c| {
+                matches!(
+                    c,
+                    FlowConstraint::TaintForbidden { .. } | FlowConstraint::TaintReached { .. }
+                )
+            });
+            if let Some(idx) = taint_idx {
+                let taint = flow_constraints.remove(idx);
+                flow_constraints.push(FlowConstraint::Across {
+                    constraint: Box::new(taint),
+                    boundary_re,
+                });
+            }
+        }
+
+        // Composite: all_of
+        if let Some(sub_rules) = dsl.all_of {
+            let mut sub_constraints = Vec::new();
+            for sub in sub_rules {
+                let compiled = Self::compile(sub)?;
+                sub_constraints.extend(compiled.flow_constraints);
+            }
+            if !sub_constraints.is_empty() {
+                flow_constraints.push(FlowConstraint::AllOf(sub_constraints));
+            }
+        }
+
+        // Composite: any_of
+        if let Some(sub_rules) = dsl.any_of {
+            let mut sub_constraints = Vec::new();
+            for sub in sub_rules {
+                let compiled = Self::compile(sub)?;
+                sub_constraints.extend(compiled.flow_constraints);
+            }
+            if !sub_constraints.is_empty() {
+                flow_constraints.push(FlowConstraint::AnyOf(sub_constraints));
+            }
+        }
+
+        // Composite: not
+        if let Some(sub) = dsl.not {
+            let compiled = Self::compile(*sub)?;
+            for c in compiled.flow_constraints {
+                flow_constraints.push(FlowConstraint::Not(Box::new(c)));
+            }
+        }
+
+        // Composite: without
+        if let (Some(constraint), Some(exclusion)) = (dsl.without_constraint, dsl.without_exclusion)
+        {
+            let compiled_primary = Self::compile(*constraint)?;
+            let compiled_exclusion = Self::compile(*exclusion)?;
+            if let (Some(p), Some(e)) = (
+                compiled_primary.flow_constraints.into_iter().next(),
+                compiled_exclusion.flow_constraints.into_iter().next(),
+            ) {
+                flow_constraints.push(FlowConstraint::Without {
+                    constraint: Box::new(p),
+                    exclusion: Box::new(e),
+                });
+            }
         }
 
         let use_query = dsl.use_query.unwrap_or_else(|| {
@@ -151,6 +197,7 @@ impl RuleCompiler {
             exclude_scope,
             skip_if_parent: dsl.skip_if_parent,
             body_query: dsl.body_query,
+            taint_max_depth: dsl.taint_max_depth,
         })
     }
 }
@@ -266,5 +313,76 @@ impl ProjectRuleCompiler {
             metadata: dsl.metadata,
             constraints,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_yaml_file_rule_compilation() {
+        let content = std::fs::read_to_string("src/rules/definitions/rust/core.yml")
+            .expect("YAML file should exist");
+        let wrapper: crate::engine::auditor::common::RulesWrapper =
+            serde_yaml::from_str(&content).expect("YAML should parse");
+        let rule = wrapper
+            .rules
+            .iter()
+            .find(|r| r.metadata.id == "RUST_LOCK_SLEEP");
+        let rule = rule.expect("RUST_LOCK_SLEEP should be in core.yml");
+        #[cfg(feature = "temporal")]
+        assert!(
+            rule.temporal.is_some(),
+            "RUST_LOCK_SLEEP should have temporal config"
+        );
+        let compiled = crate::rules::compiler::RuleCompiler::compile(rule.clone());
+        assert!(
+            compiled.is_ok(),
+            "RUST_LOCK_SLEEP should compile: {:?}",
+            compiled.err()
+        );
+    }
+
+    #[test]
+    fn test_temporal_rule_compilation() {
+        let yaml = r#"
+rules:
+- id: RUST_LOCK_SLEEP_TEST
+  target_ext: rs
+  on_node: function_item
+  if_matches: lock
+  temporal:
+    sequence: ["^lock$", "^sleep$"]
+    behavior: must_not_follow
+  observation: test
+  impact: test
+  improvement: test
+  name: test
+  severity: Warning
+  category: Concurrency
+  tags: []
+  confidence: 0.85
+  precision: high
+"#;
+        let wrapper: crate::engine::auditor::common::RulesWrapper =
+            serde_yaml::from_str(yaml).expect("test YAML should parse");
+        assert_eq!(wrapper.rules.len(), 1);
+        let rule = &wrapper.rules[0];
+        assert_eq!(rule.metadata.id, "RUST_LOCK_SLEEP_TEST");
+        #[cfg(feature = "temporal")]
+        assert!(
+            rule.temporal.is_some(),
+            "temporal field should be Some when feature is enabled"
+        );
+        #[cfg(not(feature = "temporal"))]
+        assert!(
+            rule.temporal.is_none(),
+            "temporal field should be None when feature is disabled"
+        );
+        let compiled = crate::rules::compiler::RuleCompiler::compile(rule.clone());
+        assert!(
+            compiled.is_ok(),
+            "Rule compilation failed: {:?}",
+            compiled.err()
+        );
     }
 }

@@ -7,11 +7,11 @@ Detects regressions (new false positives, lost true positives) by fixing ground-
 ### Tier 1: Curated Targets (CI-gated)
 
 ```
-tests/corpus/targets/          ← hand-crafted source files
-tests/corpus/baselines/targets.json  ← expected advisories
+corpus/targets/          ← hand-crafted source files
+corpus/baselines/targets.json  ← expected advisories
 ```
 
-**CI runs**: `gensense tests/corpus/targets --json --compare-baseline tests/corpus/baselines/targets.json`
+**CI runs**: `gensense corpus/targets --json --compare-baseline corpus/baselines/targets.json`
 
 12 files (6 rules × positive/negative). The baseline contains 4 findings — only the positive variants that currently fire. Negative variants exist to document "should stay silent."
 
@@ -22,13 +22,13 @@ The CI step **fails** if:
 ### Tier 2: Real-repo Baselines (reference)
 
 ```
-tests/corpus/baselines/tokio-1.52.3.json  ← 680 findings, 14 rules
+corpus/baselines/tokio-1.52.3.json  ← 680 findings, 14 rules
 ```
 
 Not CI-gated (requires `/tmp/tokio` at the same path). Used for manual drift analysis:
 ```bash
 # After engine changes, compare against the reference
-gensense /tmp/tokio/tokio --json --compare-baseline tests/corpus/baselines/tokio-1.52.3.json
+gensense /tmp/tokio/tokio --json --compare-baseline corpus/baselines/tokio-1.52.3.json
 ```
 
 ## How Matching Works
@@ -46,10 +46,10 @@ When the engine intentionally changes behavior (new rule, rule relaxation, FP fi
 
 ```bash
 # Regenerate targets baseline
-cargo build && ./target/debug/gensense tests/corpus/targets \
-  --json --emit-baseline tests/corpus/baselines/targets.json
+cargo build && ./target/debug/gensense corpus/targets \
+  --json --emit-baseline corpus/baselines/targets.json
 # Manually verify the diff:
-git diff tests/corpus/baselines/targets.json
+git diff corpus/baselines/targets.json
 ```
 
 For tokio, same command against `/tmp/tokio/tokio`.
@@ -60,8 +60,8 @@ Commit the updated baseline alongside the engine change so CI stays green.
 
 ### Adding a target pair
 
-1. Create `tests/corpus/targets/<rule>_positive.<ext>` with code that MUST trigger the rule
-2. Create `tests/corpus/targets/<rule>_negative.<ext>` with similar code that MUST NOT trigger
+1. Create `corpus/targets/<rule>_positive.<ext>` with code that MUST trigger the rule
+2. Create `corpus/targets/<rule>_negative.<ext>` with similar code that MUST NOT trigger
 3. Regenerate the targets baseline (see above)
 4. Verify the baseline includes the finding for the positive file
 5. Commit both source files and the updated baseline
@@ -69,26 +69,24 @@ Commit the updated baseline alongside the engine change so CI stays green.
 ### Adding a real-repo baseline
 
 1. Clone the repo to a stable path (e.g., `/tmp/tokio`)
-2. Run `gensense <path> --json --emit-baseline tests/corpus/baselines/<repo>-<version>.json`
+2. Run `gensense <path> --json --emit-baseline corpus/baselines/<repo>-<version>.json`
 3. Document: version, scan date, command used, environment
 4. Commit
 
 ## Current Coverage
 
-### Targets baseline (4 findings across 4 rules)
+### Targets baseline (8 findings across 7 rules)
 
 | Rule | Positive file | Baseline count |
 |------|--------------|----------------|
+| `RUST_CLONE_IN_LOOP` | `rust_clone_in_loop_positive.rs` | 1 |
+| `RUST_PANIC_IN_LIB` | `rust_panic_in_lib_positive.rs` | 1 |
 | `TS_UNAWAITED_TEST_ASSERTION` | `ts_unawaited_assertion_positive.ts` | 1 |
 | `TS_GOD_FUNCTION` | `ts_god_function_positive.ts` | 1 |
 | `TS_SSRF_VULNERABILITY` | `ts_ssrf_positive.ts` | 1 |
 | `RUST_BLOCKING_IN_ASYNC` | `rust_async_blocking_io_positive.rs` | 1 |
-
-**Documented but not currently firing** (fixture files exist, no baseline entry):
-| Rule | Positive file |
-|------|--------------|
-| `RUST_PANIC_IN_LIB` | `rust_panic_in_lib_positive.rs` |
-| `RUST_CLONE_IN_LOOP` | `rust_clone_in_loop_positive.rs` |
+| `RUST_ASYNC_BLOCKING_IO` | `rust_async_blocking_io_positive.rs` | 1 |
+| `RUST_STD_OUTPUT` | `rust_clone_in_loop_negative.rs` | 1 |
 
 ### Tokio baseline (680 findings across 14 rules)
 
@@ -106,7 +104,6 @@ Commit the updated baseline alongside the engine change so CI stays green.
 | `RUST_TOKIO_SELECT_ELSE` | 6 |
 | `RUST_CLONE_IN_LOOP` | 6 |
 | `RUST_MUTEX_POISONING_UNHANDLED` | 4 |
-| `RUST_SQL_COLUMN_MUST_EXIST_IN_PRISMA` | 4 |
 | `RUST_HOST_INTERACTION` | 1 |
 
 ## CI Integration

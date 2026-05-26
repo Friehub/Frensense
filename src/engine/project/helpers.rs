@@ -106,7 +106,7 @@ impl Engine {
             }
         }
 
-        let threshold = 0.8;
+        let threshold = self.jaccard_threshold;
         let mut advisories = Vec::new();
         let mut compared = std::collections::HashSet::new();
 
@@ -119,7 +119,7 @@ impl Engine {
             let f2 = &fingerprints[j];
 
             // Skip functions with trivial n-gram sets
-            if ngram_sizes[i] < 3 || ngram_sizes[j] < 3 {
+            if ngram_sizes[i] < self.min_ngram_count || ngram_sizes[j] < self.min_ngram_count {
                 continue;
             }
 
