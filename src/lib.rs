@@ -2,7 +2,14 @@
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
-#![allow(clippy::too_many_arguments, clippy::regex_creation_in_loops)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::missing_errors_doc,
+    clippy::regex_creation_in_loops
+)]
 
 use include_dir::{Dir, include_dir};
 use std::borrow::Cow;

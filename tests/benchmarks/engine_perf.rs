@@ -685,7 +685,7 @@ fn pascal_case(s: &str) -> String {
 // Particularly important before v0.4.0 when the style-baseline adds more features.
 
 fn bench_post_process_ngrams(c: &mut Criterion) {
-    use rustc_hash::FxHasher;
+    use rustc_hash::{FxHashSet, FxHasher};
     use std::hash::{Hash, Hasher};
 
     let mut group = c.benchmark_group("post_process_ngrams");
@@ -725,7 +725,14 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
                 file_path: format!("src/service_{}.rs", i / 10),
                 function_name: format!("fn_{i}"),
                 line: i * 12 + 1,
-                ngram_hashes: hashes,
+                language: "rust".to_string(),
+                ngram_hashes: hashes.clone(),
+                signature_ngrams: FxHashSet::default(),
+                param_type_ngrams: FxHashSet::default(),
+                name_segments: Vec::new(),
+                structural_markers: FxHashSet::default(),
+                type_usages: Vec::new(),
+                comment_density: 0.0,
             });
         }
 

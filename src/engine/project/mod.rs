@@ -55,6 +55,11 @@ pub struct Engine {
     // CLI-driven rule overrides (merged with config file)
     disabled_rule_ids: Vec<String>,
     severity_overrides: HashMap<String, crate::Severity>,
+
+    #[cfg(feature = "fingerprinting")]
+    profile: Option<crate::engine::profile::ProjectProfile>,
+    #[cfg(feature = "fingerprinting")]
+    profile_threshold: f64,
 }
 
 impl Engine {
@@ -87,7 +92,29 @@ impl Engine {
             default_taint_max_depth: 5,
             disabled_rule_ids: Vec::new(),
             severity_overrides: HashMap::new(),
+            #[cfg(feature = "fingerprinting")]
+            profile: None,
+            #[cfg(feature = "fingerprinting")]
+            profile_threshold: 0.7,
         }
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    #[must_use]
+    pub fn with_profile(mut self, profile: crate::engine::profile::ProjectProfile) -> Self {
+        self.profile = Some(profile);
+        self
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    pub const fn set_profile_threshold(&mut self, threshold: f64) {
+        self.profile_threshold = threshold;
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    #[must_use]
+    pub fn profile(&self) -> Option<&crate::engine::profile::ProjectProfile> {
+        self.profile.as_ref()
     }
 
     pub const fn set_jaccard_threshold(&mut self, val: f64) {
@@ -501,6 +528,54 @@ impl Engine {
 
         self.boost_overlap_confidence(&mut all_advisories);
 
+        #[cfg(feature = "fingerprinting")]
+        if let Some(ref profile) = self.profile {
+            let mut all_fingerprints = Vec::new();
+            for snap in &snapshots {
+                let mut fps = Vec::new();
+                crate::engine::fingerprint::extract_fingerprints(
+                    snap.tree.root_node(),
+                    &snap.content,
+                    &snap.path,
+                    &mut fps,
+                    self.ngram_window_size,
+                );
+                all_fingerprints.extend(fps);
+            }
+            for fp in &all_fingerprints {
+                let result = profile.style_surprise(fp);
+                if result.score > self.profile_threshold {
+                    let line = u32::try_from(fp.line).unwrap_or(u32::MAX);
+                    all_advisories.push(Advisory {
+                        rule_id: "STYLE_ANOMALY".to_string(),
+                        file_id: FileId(0),
+                        file_path: fp.file_path.clone(),
+                        severity: crate::Severity::Warning,
+                        confidence: result.score as f32,
+                        observation: format!(
+                            "Style Anomaly: '{}' has {:.0}% unfamiliar patterns.",
+                            fp.function_name,
+                            result.score * 100.0
+                        ),
+                        impact: "LLM-generated code often violates project conventions — wrong casing, unfamiliar boilerplate, or types never used in this codebase.".to_string(),
+                        improvement: "Review the function against project patterns. Consider using established conventions.".to_string(),
+                        line,
+                        column: 0,
+                        start_byte: 0,
+                        end_byte: 0,
+                        original_content: fp.function_name.clone(),
+                        proposed_replacement: None,
+                        proposed_import: None,
+                        enclosing_symbol: Some(fp.function_name.clone()),
+                        fingerprint: String::new(),
+                        auto_fixable: false,
+                        requires_human: true,
+                        tags: vec![],
+                    });
+                }
+            }
+        }
+
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
     }
@@ -714,7 +789,7 @@ impl Engine {
         Ok(all_advisories)
     }
 
-    fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -> Vec<PathBuf> {
+    pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -> Vec<PathBuf> {
         if root.is_file() {
             return vec![root.to_path_buf()];
         }

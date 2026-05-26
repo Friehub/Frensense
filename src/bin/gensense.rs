@@ -50,6 +50,14 @@ fn print_help() {
     println!("  --strict            Exit with code 1 if any findings match filter");
     println!("  --emit-baseline <file>   Save current findings as a baseline");
     println!("  --compare-baseline <file>  Compare findings against a baseline");
+    println!();
+    println!("Style Profile (v0.4.0):");
+    println!("  --learn-profile     Build a project style profile from current codebase");
+    println!("  --check-profile     Check code against learned profile for style anomalies");
+    println!(
+        "  --profile-threshold <0-1>  Surprise threshold for anomaly detection (default: 0.7)"
+    );
+    println!("  --profile-stats     Display profile statistics");
     #[cfg(feature = "remediation")]
     println!("  --fix               Apply automated remediation (experimental)");
     #[cfg(feature = "remediation")]
@@ -282,6 +290,14 @@ struct CliOptions {
     default_taint_max_depth: Option<usize>,
     disabled_rules: Vec<String>,
     severity_overrides: Vec<(String, Severity)>,
+    #[cfg(feature = "fingerprinting")]
+    learn_profile: bool,
+    #[cfg(feature = "fingerprinting")]
+    check_profile: bool,
+    #[cfg(feature = "fingerprinting")]
+    profile_threshold: Option<f64>,
+    #[cfg(feature = "fingerprinting")]
+    profile_stats: bool,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -312,9 +328,17 @@ fn parse_options(args: &[String]) -> CliOptions {
         default_taint_max_depth: None,
         disabled_rules: Vec::new(),
         severity_overrides: Vec::new(),
+        #[cfg(feature = "fingerprinting")]
+        learn_profile: false,
+        #[cfg(feature = "fingerprinting")]
+        check_profile: false,
+        #[cfg(feature = "fingerprinting")]
+        profile_threshold: None,
+        #[cfg(feature = "fingerprinting")]
+        profile_stats: false,
     };
 
-    let mut i = 2;
+    let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
             "--json" => options.format = "json".to_string(),
@@ -525,6 +549,22 @@ fn parse_options(args: &[String]) -> CliOptions {
                     i += 1;
                 }
             }
+            #[cfg(feature = "fingerprinting")]
+            "--learn-profile" => options.learn_profile = true,
+            #[cfg(feature = "fingerprinting")]
+            "--check-profile" => options.check_profile = true,
+            #[cfg(feature = "fingerprinting")]
+            "--profile-threshold" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.profile_threshold = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --profile-threshold value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            #[cfg(feature = "fingerprinting")]
+            "--profile-stats" => options.profile_stats = true,
             _ => {}
         }
         i += 1;
@@ -729,6 +769,84 @@ fn main() -> Result<()> {
             );
             std::process::exit(1);
         }
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    if options.learn_profile {
+        let mut all_fingerprints = Vec::new();
+        let files = Engine::collect_files(&input_path, None);
+        let wsize = options.ngram_window_size.unwrap_or(5);
+        for p in &files {
+            if let Ok(content) = std::fs::read_to_string(p) {
+                let mut fps = Vec::new();
+                if let Ok((_language, tree)) = engine.auditor().parse_source(p, &content) {
+                    gensense::engine::fingerprint::extract_fingerprints(
+                        tree.root_node(),
+                        &content,
+                        p,
+                        &mut fps,
+                        wsize,
+                    );
+                    all_fingerprints.extend(fps);
+                }
+            }
+        }
+        let profile = gensense::engine::profile::ProjectProfile::learn(&all_fingerprints);
+        let profile_dir = if input_path.is_file() {
+            input_path.parent().unwrap_or(&input_path)
+        } else {
+            &input_path
+        };
+        let profile_path = profile_dir.join(".gensense").join("profile.json");
+        profile.save(&profile_path)?;
+        println!(
+            "[OK] Profile learned and saved to {}",
+            profile_path.display()
+        );
+        if options.profile_stats {
+            print_profile_stats(&profile);
+        }
+        return Ok(());
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    if options.check_profile {
+        let profile_path = find_profile(&input_path)
+            .unwrap_or_else(|| input_path.join(".gensense").join("profile.json"));
+        if !profile_path.exists() {
+            eprintln!(
+                "Error: No profile found at {}. Run `gensense --learn-profile` first.",
+                profile_path.display()
+            );
+            std::process::exit(1);
+        }
+        let profile = gensense::engine::profile::ProjectProfile::load(&profile_path)
+            .map_err(|e| gensense::GenSenseError::Config(format!("Failed to load profile: {e}")))?;
+        if let Some(threshold) = options.profile_threshold {
+            engine.set_profile_threshold(threshold);
+        }
+        engine = engine.with_profile(profile);
+        if options.profile_stats {
+            if let Some(profile) = engine.profile() {
+                print_profile_stats(profile);
+            }
+        }
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    if options.profile_stats && !options.learn_profile && !options.check_profile {
+        let profile_path = find_profile(&input_path)
+            .unwrap_or_else(|| input_path.join(".gensense").join("profile.json"));
+        if profile_path.exists() {
+            let profile =
+                gensense::engine::profile::ProjectProfile::load(&profile_path).map_err(|e| {
+                    gensense::GenSenseError::Config(format!("Failed to load profile: {e}"))
+                })?;
+            print_profile_stats(&profile);
+        } else {
+            eprintln!("No profile found at {}.", profile_path.display());
+        }
+        return Ok(());
     }
 
     let mut filtered_advisories = if options.diff_only {
@@ -958,5 +1076,42 @@ fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path:
         println!(
             "\n[DONE] {fixed_count} fixed, {skipped_count} skipped (context mismatch), 0 conflicts."
         );
+    }
+}
+
+#[cfg(feature = "fingerprinting")]
+fn find_profile(path: &Path) -> Option<PathBuf> {
+    let mut current = Some(path);
+    while let Some(p) = current {
+        let candidate = p.join(".gensense").join("profile.json");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        current = p.parent();
+    }
+    None
+}
+
+#[cfg(feature = "fingerprinting")]
+fn print_profile_stats(profile: &gensense::engine::profile::ProjectProfile) {
+    println!("\n=== Profile Statistics ===");
+    println!("Version: {}", profile.version);
+    println!("Threshold: {:.2}", profile.threshold);
+    for (lang, lp) in &profile.languages {
+        println!("\n  Language: {lang}");
+        println!("    Functions profiled: {}", lp.total_functions);
+        println!("    Total n-grams: {}", lp.total_ngrams);
+        println!("    Unique body n-grams: {}", lp.body_ngram_freq.len());
+        println!(
+            "    Unique signature n-grams: {}",
+            lp.signature_ngram_freq.len()
+        );
+        println!("    Unique name segments: {}", lp.name_segment_freq.len());
+        println!(
+            "    Unique structural markers: {}",
+            lp.structural_marker_freq.len()
+        );
+        println!("    Unique type usages: {}", lp.type_usage_freq.len());
+        println!("    File sub-profiles: {}", lp.file_profiles.len());
     }
 }
