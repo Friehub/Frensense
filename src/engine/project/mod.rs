@@ -36,9 +36,25 @@ pub struct Engine {
     extra_rule_dirs: Vec<PathBuf>,
     no_builtin_rules: bool,
     isolate_rules: bool,
+    severity_filter: Option<crate::Severity>,
     language_filter: Option<Vec<&'static str>>,
     file_cache: cache::FileCache,
     cache_root: Option<PathBuf>,
+
+    // Tunable parameters
+    jaccard_threshold: f64,
+    confidence_boost_rate: f32,
+    confidence_boost_max: f32,
+    max_source_lines: Option<usize>,
+    ngram_window_size: usize,
+    min_ngram_count: usize,
+    taint_confidence_interprocedural: f32,
+    taint_confidence_intraprocedural: f32,
+    default_taint_max_depth: usize,
+
+    // CLI-driven rule overrides (merged with config file)
+    disabled_rule_ids: Vec<String>,
+    severity_overrides: HashMap<String, crate::Severity>,
 }
 
 impl Engine {
@@ -56,10 +72,67 @@ impl Engine {
             extra_rule_dirs: Vec::new(),
             no_builtin_rules: false,
             isolate_rules: false,
+            severity_filter: None,
             language_filter: None,
             file_cache: cache::FileCache::default(),
             cache_root: None,
+            jaccard_threshold: 0.8,
+            confidence_boost_rate: 0.10,
+            confidence_boost_max: 0.30,
+            max_source_lines: None,
+            ngram_window_size: 5,
+            min_ngram_count: 3,
+            taint_confidence_interprocedural: 0.80,
+            taint_confidence_intraprocedural: 0.90,
+            default_taint_max_depth: 5,
+            disabled_rule_ids: Vec::new(),
+            severity_overrides: HashMap::new(),
         }
+    }
+
+    pub const fn set_jaccard_threshold(&mut self, val: f64) {
+        self.jaccard_threshold = val;
+    }
+
+    pub const fn set_confidence_boost_rate(&mut self, val: f32) {
+        self.confidence_boost_rate = val;
+    }
+
+    pub const fn set_confidence_boost_max(&mut self, val: f32) {
+        self.confidence_boost_max = val;
+    }
+
+    pub const fn set_max_source_lines(&mut self, val: usize) {
+        self.max_source_lines = Some(val);
+    }
+
+    pub const fn set_ngram_window_size(&mut self, val: usize) {
+        self.ngram_window_size = val;
+    }
+
+    pub const fn set_min_ngram_count(&mut self, val: usize) {
+        self.min_ngram_count = val;
+    }
+
+    pub const fn set_taint_confidence_interprocedural(&mut self, val: f32) {
+        self.taint_confidence_interprocedural = val;
+    }
+
+    pub const fn set_taint_confidence_intraprocedural(&mut self, val: f32) {
+        self.taint_confidence_intraprocedural = val;
+    }
+
+    pub const fn set_default_taint_max_depth(&mut self, val: usize) {
+        self.default_taint_max_depth = val;
+    }
+
+    pub fn add_disabled_rule(&mut self, rule_id: &str) {
+        self.disabled_rule_ids.push(rule_id.to_string());
+    }
+
+    pub fn add_severity_override(&mut self, rule_id: &str, severity: crate::Severity) {
+        self.severity_overrides
+            .insert(rule_id.to_string(), severity);
     }
 
     pub const fn set_min_confidence(&mut self, val: f32) {
@@ -126,6 +199,10 @@ impl Engine {
         self.isolate_rules = val;
     }
 
+    pub const fn set_severity_filter(&mut self, severity: Option<crate::Severity>) {
+        self.severity_filter = severity;
+    }
+
     pub fn set_language_filter(&mut self, extensions: &[&'static str]) {
         self.language_filter = Some(extensions.to_vec());
     }
@@ -154,7 +231,7 @@ impl Engine {
     /// Returns an error if file reading, parsing, or auditing fails.
     pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
         let _config = self.initialize_auditor_and_config(root);
-        self.file_cache = cache::FileCache::load(root);
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
 
         let mut snapshots = Vec::new();
         for p in files {
@@ -228,10 +305,17 @@ impl Engine {
             }
         }
 
-        let all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+        for snap in &snapshots {
+            self.auditor
+                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
+        }
 
-        self.file_cache.save(root);
+        let mut all_advisories =
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
+
+        self.boost_overlap_confidence(&mut all_advisories);
+
+        self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
     }
 
@@ -262,6 +346,8 @@ impl Engine {
         for sym in symbols {
             registry.insert(sym);
         }
+        self.auditor
+            .discover_events(path, content, &tree, &mut registry)?;
 
         let opts = AuditOptions {
             file_id: id,
@@ -270,11 +356,17 @@ impl Engine {
             tree: &tree,
             semantic_ops: &semantic_ops,
             symbols: &registry,
+            graph: registry.graph(),
             file_trees: &file_trees,
             category_filter: &self.enabled_categories,
             tag_filter: &self.enabled_tags,
             suite: self.suite,
             env: self.environment,
+            severity_filter: self.severity_filter,
+            ngram_window_size: self.ngram_window_size,
+            taint_confidence_interprocedural: self.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
+            default_taint_max_depth: self.default_taint_max_depth,
         };
 
         let result = self.auditor.audit(&opts)?;
@@ -289,15 +381,46 @@ impl Engine {
             }
         }
 
-        if let Some(overrides) = &config.severity_override {
-            for adv in &mut advisories {
-                if let Some(sev) = overrides.get(&adv.rule_id) {
-                    adv.severity = *sev;
-                }
+        // Merge config + CLI severity overrides (CLI wins)
+        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
+        for (rule_id, sev) in &self.severity_overrides {
+            merged_overrides.insert(rule_id.clone(), *sev);
+        }
+        for adv in &mut advisories {
+            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
+                adv.severity = *sev;
             }
         }
 
+        // Cross-rule confidence boost
+        self.boost_overlap_confidence(&mut advisories);
+
         Ok(advisories)
+    }
+
+    /// Boosts confidence when multiple rules fire on the same file+line.
+    /// Uses `confidence_boost_rate` per overlapping rule (cap `confidence_boost_max`, max 1.0).
+    fn boost_overlap_confidence(&self, advisories: &mut [Advisory]) {
+        let overlap_counts: HashMap<(u32, u32), usize> = {
+            let mut counts: HashMap<(u32, u32), HashSet<&str>> = HashMap::new();
+            for adv in &*advisories {
+                counts
+                    .entry((adv.file_id.0, adv.line))
+                    .or_default()
+                    .insert(&adv.rule_id);
+            }
+            counts.into_iter().map(|(k, v)| (k, v.len())).collect()
+        };
+
+        for adv in advisories {
+            if let Some(&count) = overlap_counts.get(&(adv.file_id.0, adv.line)) {
+                let extra = count.saturating_sub(1);
+                #[allow(clippy::cast_precision_loss)]
+                let boost =
+                    (extra as f32 * self.confidence_boost_rate).min(self.confidence_boost_max);
+                adv.confidence = (adv.confidence + boost).min(1.0);
+            }
+        }
     }
 
     /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
@@ -311,7 +434,7 @@ impl Engine {
                 format!("path does not exist: {}", root.display()),
             )));
         }
-        self.file_cache = cache::FileCache::load(root);
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
         self.cache_root = Some(root.to_path_buf());
 
         let config = self.initialize_auditor_and_config(root);
@@ -335,6 +458,11 @@ impl Engine {
             }
         }
 
+        for snap in &snapshots {
+            self.auditor
+                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
+        }
+
         let mut file_trees = HashMap::new();
         for snap in &snapshots {
             let path_str = snap.path.to_string_lossy().to_string();
@@ -349,7 +477,7 @@ impl Engine {
         }
 
         let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &symbols, &file_trees)?;
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
         for rule in &self.project_rules {
             let project_advisories = rule.check_project(&symbols, &self.source_registry);
@@ -360,15 +488,20 @@ impl Engine {
             }
         }
 
-        if let Some(overrides) = &config.severity_override {
-            for adv in &mut all_advisories {
-                if let Some(sev) = overrides.get(&adv.rule_id) {
-                    adv.severity = *sev;
-                }
+        // Merge config + CLI severity overrides (CLI wins)
+        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
+        for (rule_id, sev) in &self.severity_overrides {
+            merged_overrides.insert(rule_id.clone(), *sev);
+        }
+        for adv in &mut all_advisories {
+            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
+                adv.severity = *sev;
             }
         }
 
-        self.file_cache.save(root);
+        self.boost_overlap_confidence(&mut all_advisories);
+
+        self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
     }
 
@@ -385,19 +518,48 @@ impl Engine {
             self.auditor.set_rules(rules);
             self.project_rules = project_rules;
 
+            let mut disabled_set: HashSet<&str> = HashSet::new();
             if let Some(disabled) = &config.disabled_rules {
-                let disabled_set: HashSet<&str> =
-                    disabled.iter().map(std::string::String::as_str).collect();
+                for id in disabled {
+                    disabled_set.insert(id.as_str());
+                }
+            }
+            for id in &self.disabled_rule_ids {
+                disabled_set.insert(id.as_str());
+            }
+            if !disabled_set.is_empty() {
                 self.auditor
                     .retain_rules(|r| !disabled_set.contains(r.id()));
                 self.project_rules
                     .retain(|r| !disabled_set.contains(r.metadata().id.as_ref()));
+            }
+
+            if let Some(max_lines) = self.max_source_lines {
+                self.auditor.remove_rule("FILE_TOO_LONG");
+                self.auditor
+                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
+                        max_lines,
+                    )));
             }
         } else if !self.extra_rule_dirs.is_empty() {
             let (user_rules, user_project_rules) =
                 crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
             self.auditor.add_rules(user_rules);
             self.project_rules.extend(user_project_rules);
+
+            if let Some(max_lines) = self.max_source_lines {
+                self.auditor.remove_rule("FILE_TOO_LONG");
+                self.auditor
+                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
+                        max_lines,
+                    )));
+            }
+        } else if let Some(max_lines) = self.max_source_lines {
+            self.auditor.remove_rule("FILE_TOO_LONG");
+            self.auditor
+                .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
+                    max_lines,
+                )));
         }
 
         let suppress_file = root.join(".gensense-suppress.yml");
@@ -423,6 +585,22 @@ impl Engine {
             };
             let id = self.source_registry.register(&p, content.clone());
             let auditor = &self.auditor;
+            if self.file_cache.is_unchanged(&p, &content) {
+                // Cache hit: skip heavy symbol/edge work but still parse tree
+                // so Phases 1-3 (combined-query, walk-tree, file-level) can run.
+                if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
+                    snapshots.push(FileSnapshot {
+                        id,
+                        path: p,
+                        content,
+                        tree,
+                        symbols: Vec::new(),
+                        edges: Vec::new(),
+                        semantic_ops: Vec::new(),
+                    });
+                }
+                continue;
+            }
             match auditor.parse_source(&p, &content) {
                 Ok((language, tree)) => {
                     let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree);
@@ -459,7 +637,7 @@ impl Engine {
         &self,
         file_ids: &[(FileId, PathBuf)],
         snapshot_map: &HashMap<FileId, &FileSnapshot>,
-        symbols: &SymbolRegistry,
+        symbols: &mut SymbolRegistry,
         file_trees: &HashMap<
             String,
             (
@@ -486,15 +664,36 @@ impl Engine {
                     tree: &snap.tree,
                     semantic_ops: &snap.semantic_ops,
                     symbols,
+                    graph: symbols.graph(),
                     file_trees,
                     category_filter: &self.enabled_categories,
                     tag_filter: &self.enabled_tags,
                     suite: self.suite,
                     env: self.environment,
+                    severity_filter: self.severity_filter,
+                    ngram_window_size: self.ngram_window_size,
+                    taint_confidence_interprocedural: self.taint_confidence_interprocedural,
+                    taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
+                    default_taint_max_depth: self.default_taint_max_depth,
                 };
                 let result = self.auditor.audit(&opts)?;
 
                 let advisories = result.advisories;
+
+                // Record taint flows in the graph for cross-cutting queries.
+                // Materialize edges for each taint-related advisory.
+                for adv in &advisories {
+                    if let Some(ref sym) = adv.enclosing_symbol {
+                        let graph = symbols.graph_mut();
+                        graph.record_taint_flow(crate::semantics::graph::TaintFlowRecord {
+                            function_name: sym.clone(),
+                            file_path: adv.file_path.clone(),
+                            source_pattern: String::new(),
+                            sink_pattern: String::new(),
+                            rule_id: adv.rule_id.clone(),
+                        });
+                    }
+                }
 
                 Ok(ScanResult {
                     advisories,

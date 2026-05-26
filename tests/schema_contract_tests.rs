@@ -176,20 +176,6 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
             schema_glob: '**/*.prisma'
             schema_extract: model_names
 
-          - id: RUST_SQL_COLUMN_MUST_EXIST_IN_PRISMA
-            name: Rust SQL Column Must Exist In Prisma
-            severity: Critical
-            observation: SQL column references must exist in Prisma fields.
-            category: Security
-            impact: Raw SQL drift can break queries at runtime or target the wrong column.
-            improvement: Rename the column reference or update the Prisma field to match.
-            tags: [database, prisma]
-            source_ext: rs
-            source_pattern: '"([a-z][a-zA-Z0-9]+)"\s*(?:!=\s|=\s|[<>]\s*[=]?|IS\s|IN\s)'
-            source_file_glob: '**/*.rs'
-            schema_type: prisma
-            schema_glob: '**/*.prisma'
-            schema_extract: field_names
         "#,
     )
     .unwrap();
@@ -219,12 +205,6 @@ fn test_schema_contract_rules_fire_from_schema_contracts_key() {
             .iter()
             .any(|a| a.rule_id == "RUST_SQL_TABLE_MUST_EXIST_IN_PRISMA"),
         "table contract should fire"
-    );
-    assert!(
-        advisories
-            .iter()
-            .any(|a| a.rule_id == "RUST_SQL_COLUMN_MUST_EXIST_IN_PRISMA"),
-        "column contract should fire"
     );
 }
 

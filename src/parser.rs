@@ -10,7 +10,6 @@ const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
     (&["rust"], &["rs"]),
     (&["typescript", "ts"], &["ts", "tsx"]),
     (&["javascript", "js"], &["js", "jsx"]),
-    (&["solidity", "sol"], &["sol"]),
     (&["yaml", "yml"], &["yml", "yaml"]),
 ];
 
@@ -33,8 +32,6 @@ impl ParserRegistry {
             "ts" | "tsx" => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
-            #[cfg(feature = "solidity")]
-            "sol" => Ok(tree_sitter_solidity::LANGUAGE.into()),
             "yml" | "yaml" => Ok(tree_sitter_yaml::LANGUAGE.into()),
             _ => Err(GenSenseError::Config(format!(
                 "Unsupported file extension or feature not enabled: {ext}"
@@ -62,6 +59,7 @@ impl ParserRegistry {
             "ts" | "tsx" => Some(
                 r"
                 (function_declaration name: (identifier) @name)
+                (method_definition name: (property_identifier) @name)
                 (class_declaration name: (type_identifier) @name)
                 (interface_declaration name: (type_identifier) @name)
                 (enum_declaration name: (identifier) @name)
@@ -75,17 +73,6 @@ impl ParserRegistry {
                 (class_declaration name: (identifier) @name)
                 (variable_declarator name: (identifier) @name)
                 (lexical_declaration (variable_declarator name: (identifier) @name))
-            ",
-            ),
-            #[cfg(feature = "solidity")]
-            "sol" => Some(
-                r"
-                (contract_declaration name: (identifier) @name)
-                (interface_declaration name: (identifier) @name)
-                (library_declaration name: (identifier) @name)
-                (function_definition name: (identifier) @name)
-                (struct_definition name: (identifier) @name)
-                (enum_definition name: (identifier) @name)
             ",
             ),
             _ => None,
@@ -108,12 +95,6 @@ impl ParserRegistry {
                 (call_expression function: (member_expression property: (property_identifier) @call))
             ",
             ),
-            #[cfg(feature = "solidity")]
-            "sol" => Some(
-                r"
-                (function_call (identifier) @call)
-            ",
-            ),
             _ => None,
         }
     }
@@ -122,7 +103,6 @@ impl ParserRegistry {
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
         matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")
-            || (cfg!(feature = "solidity") && ext == "sol")
     }
 
     /// Look up file extensions for a language name as passed via `--language`.
@@ -130,9 +110,6 @@ impl ParserRegistry {
     #[must_use]
     pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {
         let lower = name.to_lowercase();
-        if !cfg!(feature = "solidity") && (lower == "solidity" || lower == "sol") {
-            return None;
-        }
         LANGUAGE_EXTENSIONS
             .iter()
             .find(|(names, _)| names.contains(&lower.as_str()))

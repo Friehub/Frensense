@@ -17,6 +17,20 @@ pub enum EdgeKind {
     SequentiallyFollows,
     InScope,
     Parameter,
+    /// Taint flow from a source variable or function to a sink.
+    /// Edge weight is not directly used; taint metadata is stored
+    /// in the parallel `taint_flows` map on `SemanticGraph`.
+    TaintFlow,
+}
+
+/// A record of a taint flow found during analysis.
+#[derive(Debug, Clone)]
+pub struct TaintFlowRecord {
+    pub function_name: String,
+    pub file_path: String,
+    pub source_pattern: String,
+    pub sink_pattern: String,
+    pub rule_id: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +66,7 @@ pub struct SemanticNodeId(pub(crate) NodeIndex);
 pub struct SemanticGraph {
     graph: DiGraph<SemanticNode, EdgeKind>,
     name_index: HashMap<String, Vec<NodeIndex>>,
+    taint_flows: Vec<TaintFlowRecord>,
 }
 
 impl SemanticGraph {
@@ -222,6 +237,49 @@ impl SemanticGraph {
             }
         }
         events
+    }
+
+    /// Records a taint flow finding and optionally materializes it as a `TaintFlow` edge.
+    pub fn record_taint_flow(&mut self, record: TaintFlowRecord) {
+        let func_name = record.function_name.clone();
+        let file_path = record.file_path.clone();
+        self.taint_flows.push(record);
+
+        // Materialize as a TaintFlow edge from the function node to itself
+        if let Some(node_id) = self.name_index.get(&func_name).and_then(|indices| {
+            indices.iter().find(|&&idx| {
+                if let Some(SemanticNode::Declaration(s)) = self.graph.node_weight(idx) {
+                    s.file_path == file_path
+                } else {
+                    false
+                }
+            })
+        }) {
+            self.graph.add_edge(*node_id, *node_id, EdgeKind::TaintFlow);
+        }
+    }
+
+    /// Returns all recorded taint flows.
+    #[must_use]
+    pub fn taint_flows(&self) -> &[TaintFlowRecord] {
+        &self.taint_flows
+    }
+
+    /// Returns true if the given function has any taint flow recorded.
+    #[must_use]
+    pub fn has_taint_flow(&self, func_name: &str, file_path: &str) -> bool {
+        self.taint_flows
+            .iter()
+            .any(|r| r.function_name == func_name && r.file_path == file_path)
+    }
+
+    /// Returns all taint flows for a given function.
+    #[must_use]
+    pub fn taint_flows_for(&self, func_name: &str, file_path: &str) -> Vec<&TaintFlowRecord> {
+        self.taint_flows
+            .iter()
+            .filter(|r| r.function_name == func_name && r.file_path == file_path)
+            .collect()
     }
 
     #[must_use]

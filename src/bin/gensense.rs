@@ -14,36 +14,73 @@ fn print_help() {
     println!("Analyzes Rust, TypeScript, JavaScript, and YAML codebases for bugs,");
     println!("anti-patterns, security risks, and SQL drift — with AST-level precision.");
     println!();
-    println!("Usage: gensense <path> [options]");
-    println!("\nOptions:");
-    println!("  --version          Display version and features");
-    println!("  --list-rules       Display the active rules catalog");
-    println!("  --generate-docs    Generate RULES.md documentation");
-    println!("  --debug <file>     Anonymized AST debug dump");
-    println!("  --severity <level> Filter findings by severity (critical, warning, info)");
-    println!("  --min-confidence <0.0-1.0> Filter findings by confidence score (default: 0.0)");
-    println!("  --tag <name>       Enable an optional diagnostic tag (e.g., sbom, governance)");
-    println!("  --strict           Exit with code 1 if any findings match filter");
-    println!("  --json             Output findings as JSON");
-    println!("  --sarif            Output findings in SARIF format");
-    println!("  --emit-baseline <file> Capture current advisories to a baseline file");
-    println!("  --compare-baseline <file> Compare against a baseline and fail on regressions");
-    println!("  --diff-only          Only scan files changed since last git commit");
-    println!(
-        "  --language <lang>    Only scan files matching language (rust, typescript, javascript, solidity, yaml)"
-    );
+    println!("Usage: gensense [path] [options]");
+    println!();
+    println!("Arguments:");
+    println!("  path                File or directory to scan (default: current directory)");
+    println!();
+    println!("Analysis Options:");
+    println!("  --language <lang>   Language filter: rust, typescript, javascript, yaml");
+    println!("  --diff-only         Only scan files changed since the last git commit");
+    println!("  --severity <level>  Minimum severity: critical, warning, info");
+    println!("  --tag <name>        Enable optional diagnostic tag (e.g., sbom, governance)");
+    println!("  --suite <name>      Rule precision tier: default, extended, all");
+    println!("  --no-builtin-rules  Disable built-in rules (use only custom --rules-dir)");
+    println!("  --rules-dir <dir>   Load custom rules from a directory");
+    println!("  --disable-rule <id> Disable a specific rule by ID (repeatable)");
+    println!("  --override-severity <RULE_ID>:<level>  Override severity for a rule");
+    println!("                      Level: critical, warning, info (repeatable)");
+    println!();
+    println!("Confidence & Tuning:");
+    println!("  --confidence <tier>      Preset: high (≥0.85), medium (≥0.60), low (≥0.30), any");
+    println!("  --min-confidence <0-1>   Raw confidence threshold (default: 0.0)");
+    println!("  --jaccard-threshold <0-1>  Similarity threshold for duplicate detection");
+    println!("  --confidence-boost-rate <0-1>  Boost rate for overlapping findings");
+    println!("  --confidence-boost-max <0-1>   Maximum confidence boost");
+    println!("  --max-source-lines <N>   Limit source lines for analysis");
+    println!("  --ngram-window <N>       Fingerprint n-gram window size");
+    println!("  --min-ngram-count <N>    Minimum n-gram count threshold");
+    println!("  --taint-conf-inter <0-1> Interprocedural taint confidence threshold");
+    println!("  --taint-conf-intra <0-1> Intraprocedural taint confidence threshold");
+    println!("  --taint-max-depth <N>    Maximum taint propagation depth");
+    println!();
+    println!("Output Options:");
+    println!("  --json              Output findings as JSON");
+    println!("  --sarif             Output findings in SARIF format");
+    println!("  --strict            Exit with code 1 if any findings match filter");
+    println!("  --emit-baseline <file>   Save current findings as a baseline");
+    println!("  --compare-baseline <file>  Compare findings against a baseline");
     #[cfg(feature = "remediation")]
-    println!("  --fix              Apply automated remediation (experimental)");
+    println!("  --fix               Apply automated remediation (experimental)");
     #[cfg(feature = "remediation")]
-    println!("  --diff             Show unified diff of proposed changes");
-
-    println!("\nFeatures Enabled:");
+    println!("  --diff              Show unified diff of proposed changes");
+    println!();
+    println!("Development:");
+    println!("  --version           Display version and enabled features");
+    println!("  --list-rules        List all active rules and their severities");
+    println!("  --generate-docs     Generate RULES.md documentation file");
+    println!("  --debug <file>      Dump anonymized AST for a source file");
+    println!("  test-rule <rule.yml> --fixture <file> --expect-finding <id>");
+    println!("                      Test a custom rule against a fixture file");
+    println!("                      Optional: --expect-line <N>");
+    println!();
+    println!("Examples:");
+    println!("  gensense                            Scan current directory");
+    println!("  gensense src/                       Scan a specific directory");
+    println!("  gensense main.rs                    Scan a single file");
+    println!("  gensense --language rust .           Scan Rust files only");
+    println!("  gensense --diff-only --strict        Check changed files, fail on any finding");
+    println!("  gensense --json --suite extended     Export extended scan as JSON");
+    println!("  gensense --disable-rule RUST_STD_OUTPUT .    Disable a specific rule");
+    println!("  gensense --override-severity FILE_TOO_LONG:info .  Change rule severity");
+    println!("  gensense --emit-baseline baseline.json   Save baseline");
+    println!("  gensense --compare-baseline baseline.json  Check for regressions");
+    println!();
+    println!("Features Enabled:");
     #[cfg(feature = "rust")]
     println!("  [x] Rust Analysis");
     #[cfg(feature = "typescript")]
     println!("  [x] TypeScript/JS Analysis");
-    #[cfg(feature = "solidity")]
-    println!("  [x] Solidity Analysis");
     #[cfg(feature = "fingerprinting")]
     println!("  [x] N-Gram Fingerprinting");
     #[cfg(feature = "remediation")]
@@ -61,8 +98,6 @@ fn print_version() {
     println!("  [x] Rust Analysis");
     #[cfg(feature = "typescript")]
     println!("  [x] TypeScript/JS Analysis");
-    #[cfg(feature = "solidity")]
-    println!("  [x] Solidity Analysis");
     #[cfg(feature = "fingerprinting")]
     println!("  [x] N-Gram Fingerprinting");
     #[cfg(feature = "remediation")]
@@ -206,7 +241,9 @@ fn handle_debug_ast(file_path: &str) -> Result<()> {
 }
 
 fn handle_list_rules() -> Result<()> {
-    let engine = Engine::new();
+    let (rules, _project_rules) = gensense::engine::auditor::GenSenseAuditor::default_rules();
+    let mut engine = Engine::new();
+    engine.set_rules(rules);
     let catalog = engine.list_rules();
     println!("GenSense: Active Rules Catalog");
     println!("{:->100}", "");
@@ -234,6 +271,17 @@ struct CliOptions {
     min_confidence: f32,
     language_filter: Option<String>,
     suite: gensense::Suite,
+    jaccard_threshold: Option<f64>,
+    confidence_boost_rate: Option<f32>,
+    confidence_boost_max: Option<f32>,
+    max_source_lines: Option<usize>,
+    ngram_window_size: Option<usize>,
+    min_ngram_count: Option<usize>,
+    taint_confidence_interprocedural: Option<f32>,
+    taint_confidence_intraprocedural: Option<f32>,
+    default_taint_max_depth: Option<usize>,
+    disabled_rules: Vec<String>,
+    severity_overrides: Vec<(String, Severity)>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -253,6 +301,17 @@ fn parse_options(args: &[String]) -> CliOptions {
         min_confidence: 0.0,
         language_filter: None,
         suite: gensense::Suite::All,
+        jaccard_threshold: None,
+        confidence_boost_rate: None,
+        confidence_boost_max: None,
+        max_source_lines: None,
+        ngram_window_size: None,
+        min_ngram_count: None,
+        taint_confidence_interprocedural: None,
+        taint_confidence_intraprocedural: None,
+        default_taint_max_depth: None,
+        disabled_rules: Vec::new(),
+        severity_overrides: Vec::new(),
     };
 
     let mut i = 2;
@@ -272,6 +331,23 @@ fn parse_options(args: &[String]) -> CliOptions {
                     if let Ok(c) = val.parse::<f32>() {
                         options.min_confidence = c;
                     }
+                    i += 1;
+                }
+            }
+            "--confidence" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.min_confidence = match val.to_lowercase().as_str() {
+                        "high" => 0.85,
+                        "medium" => 0.60,
+                        "low" => 0.30,
+                        "any" => 0.0,
+                        _ => {
+                            eprintln!(
+                                "Error: Unknown confidence tier '{val}'. Valid: high, medium, low, any"
+                            );
+                            std::process::exit(1);
+                        }
+                    };
                     i += 1;
                 }
             }
@@ -332,6 +408,120 @@ fn parse_options(args: &[String]) -> CliOptions {
                             std::process::exit(1);
                         }
                     };
+                    i += 1;
+                }
+            }
+            "--jaccard-threshold" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.jaccard_threshold = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --jaccard-threshold value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--confidence-boost-rate" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.confidence_boost_rate = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --confidence-boost-rate value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--confidence-boost-max" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.confidence_boost_max = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --confidence-boost-max value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--max-source-lines" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.max_source_lines = Some(val.parse::<usize>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --max-source-lines value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--ngram-window" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.ngram_window_size = Some(val.parse::<usize>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --ngram-window value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--min-ngram-count" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.min_ngram_count = Some(val.parse::<usize>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --min-ngram-count value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--taint-conf-inter" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.taint_confidence_interprocedural =
+                        Some(val.parse::<f32>().unwrap_or_else(|_| {
+                            eprintln!("Error: Invalid --taint-conf-inter value '{val}'");
+                            std::process::exit(1);
+                        }));
+                    i += 1;
+                }
+            }
+            "--taint-conf-intra" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.taint_confidence_intraprocedural =
+                        Some(val.parse::<f32>().unwrap_or_else(|_| {
+                            eprintln!("Error: Invalid --taint-conf-intra value '{val}'");
+                            std::process::exit(1);
+                        }));
+                    i += 1;
+                }
+            }
+            "--taint-max-depth" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.default_taint_max_depth =
+                        Some(val.parse::<usize>().unwrap_or_else(|_| {
+                            eprintln!("Error: Invalid --taint-max-depth value '{val}'");
+                            std::process::exit(1);
+                        }));
+                    i += 1;
+                }
+            }
+            "--disable-rule" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.disabled_rules.push(val.clone());
+                    i += 1;
+                }
+            }
+            "--override-severity" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Some((rule_id, level)) = val.split_once(':') {
+                        let severity = match level.to_lowercase().as_str() {
+                            "critical" => gensense::Severity::Critical,
+                            "warning" => gensense::Severity::Warning,
+                            "info" => gensense::Severity::Info,
+                            _ => {
+                                eprintln!(
+                                    "Error: Unknown severity level '{level}' in --override-severity. Valid: critical, warning, info"
+                                );
+                                std::process::exit(1);
+                            }
+                        };
+                        options
+                            .severity_overrides
+                            .push((rule_id.to_string(), severity));
+                    } else {
+                        eprintln!("Error: --override-severity requires format <RULE_ID>:<level>");
+                        std::process::exit(1);
+                    }
                     i += 1;
                 }
             }
@@ -476,6 +666,7 @@ fn compare_baseline(filtered_advisories: &[gensense::Advisory], path: &str) -> R
     Ok(regression_detected)
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
@@ -492,13 +683,49 @@ fn main() -> Result<()> {
     }
     engine.set_no_builtin_rules(options.no_builtin);
     engine.set_suite(options.suite);
+    engine.set_severity_filter(options.severity_filter);
+
+    if let Some(val) = options.jaccard_threshold {
+        engine.set_jaccard_threshold(val);
+    }
+    if let Some(val) = options.confidence_boost_rate {
+        engine.set_confidence_boost_rate(val);
+    }
+    if let Some(val) = options.confidence_boost_max {
+        engine.set_confidence_boost_max(val);
+    }
+    if let Some(val) = options.max_source_lines {
+        engine.set_max_source_lines(val);
+    }
+    if let Some(val) = options.ngram_window_size {
+        engine.set_ngram_window_size(val);
+    }
+    if let Some(val) = options.min_ngram_count {
+        engine.set_min_ngram_count(val);
+    }
+    if let Some(val) = options.taint_confidence_interprocedural {
+        engine.set_taint_confidence_interprocedural(val);
+    }
+    if let Some(val) = options.taint_confidence_intraprocedural {
+        engine.set_taint_confidence_intraprocedural(val);
+    }
+    if let Some(val) = options.default_taint_max_depth {
+        engine.set_default_taint_max_depth(val);
+    }
+
+    for rule_id in &options.disabled_rules {
+        engine.add_disabled_rule(rule_id);
+    }
+    for (rule_id, severity) in &options.severity_overrides {
+        engine.add_severity_override(rule_id, *severity);
+    }
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = gensense::parser::ParserRegistry::extensions_for(lang_arg) {
             engine.set_language_filter(exts);
         } else {
             eprintln!(
-                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, solidity/sol, yaml"
+                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, yaml"
             );
             std::process::exit(1);
         }
@@ -630,10 +857,8 @@ fn get_input_path(args: &[String]) -> PathBuf {
     let input_path_str = match args.get(1) {
         Some(path) if !path.starts_with("--") => path.clone(),
         _ => {
-            eprintln!("Usage: gensense <path> [options]");
-            eprintln!();
-            eprintln!("Run 'gensense --help' for more information");
-            std::process::exit(1);
+            // Default to current directory when no path is given
+            return std::env::current_dir().expect("Failed to get current directory");
         }
     };
     let input_path_buf = std::env::current_dir()
@@ -642,7 +867,12 @@ fn get_input_path(args: &[String]) -> PathBuf {
     if input_path_buf.exists() {
         input_path_buf.canonicalize().unwrap_or(input_path_buf)
     } else {
-        input_path_buf
+        eprintln!(
+            "Error: path '{input_path_str}' does not exist — specify a valid file or directory"
+        );
+        eprintln!();
+        eprintln!("Run 'gensense --help' for usage information");
+        std::process::exit(1);
     }
 }
 
@@ -661,8 +891,10 @@ fn apply_filters(advisories: &mut Vec<Advisory>, options: &CliOptions, engine: &
         });
     }
 
+    // Post-filter: severity threshold (redundant if pre-filter is active, but catches
+    // any rules that bypass the pre-filter, e.g. direct API users)
     if let Some(filter) = options.severity_filter {
-        advisories.retain(|a| a.severity == filter);
+        advisories.retain(|a| a.severity.meets_threshold(filter));
     }
 }
 

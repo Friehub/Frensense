@@ -17,18 +17,18 @@ hero:
       link: "/extending"
 
 features:
-  - title: Semantic Diagnostics
-    details: Analyzes the Abstract Syntax Tree (AST) to identify logical flaws, security vulnerabilities, and architectural anti-patterns that compile cleanly but fail at runtime.
-  - title: AI Pattern Detection
-    details: Built to catch bugs that AI coding assistants introduce — placeholder panics, tautological assertions, silent error swallowing, and confidence theatre.
+  - title: Semantic Program Graph
+    details: SPG exposes a cross-file symbol graph with call edges, temporal event chains, and taint flow edges to every rule — enabling algebraic query composition without Datalog.
+  - title: CSA Body Analysis
+    details: Contextual Structural Analysis checks function bodies for required patterns (body_must_contain) and delegation suppression (body_may_delegate_via) — catches validation gaps, missing auth, and sanitizer passthrough.
   - title: Extensible Rule Engine
     details: Ship custom YAML rules without recompiling. Drop a .yml file in .gensense/rules/ and the engine picks it up automatically at startup.
-  - title: Temporal Analysis
-    details: Detects event-ordering violations inside async functions — mutex locks held across await points, channels sent without releasing guards, and more.
+  - title: Temporal & Taint Analysis
+    details: Detects event-ordering violations (mutex locks held across await, connection leaks) and tracks data flow from sensitive sources to unsafe sinks across function boundaries.
   - title: Native Performance
-    details: Built in Rust with parallel rule execution via Rayon. Scans a 50-file project in under 5 seconds on standard hardware.
+    details: Built in Rust with optimized single-pass rule execution. Scans a 50-file project in under 5 seconds on standard hardware.
   - title: CI/CD Ready
-    details: JSON, SARIF, and strict-mode output. Integrates with GitHub Actions, pre-commit hooks, and VS Code task runners with a single command.
+    details: JSON, SARIF, strict-mode, diff-only, baseline comparison, and suite selection. Integrates with GitHub Actions, pre-commit hooks, and VS Code.
 ---
 
 ## Who Uses GenSense

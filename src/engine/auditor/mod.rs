@@ -44,6 +44,7 @@ pub struct AuditOptions<'a> {
     pub tree: &'a tree_sitter::Tree,
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub symbols: &'a SymbolRegistry,
+    pub graph: &'a crate::semantics::graph::SemanticGraph,
     pub file_trees: &'a std::collections::HashMap<
         String,
         (
@@ -56,6 +57,11 @@ pub struct AuditOptions<'a> {
     pub tag_filter: &'a HashSet<String>,
     pub suite: crate::Suite,
     pub env: crate::GenSenseEnvironment,
+    pub severity_filter: Option<crate::Severity>,
+    pub ngram_window_size: usize,
+    pub taint_confidence_interprocedural: f32,
+    pub taint_confidence_intraprocedural: f32,
+    pub default_taint_max_depth: usize,
 }
 
 impl GenSenseAuditor {
@@ -119,6 +125,26 @@ impl GenSenseAuditor {
         self.combined_queries.borrow_mut().clear();
     }
 
+    /// Remove the first rule with the given ID. Returns `true` if removed.
+    pub fn remove_rule(&mut self, id: &str) -> bool {
+        let before = self.rules.len();
+        self.rules.retain(|r| r.id() != id);
+        let removed = self.rules.len() < before;
+        if removed {
+            self.rule_index = Self::build_rule_index(&self.rules);
+            self.combined_queries.borrow_mut().clear();
+        }
+        removed
+    }
+
+    /// Append a single rule.
+    pub fn add_rule(&mut self, rule: Box<dyn GenSenseRule>) {
+        self.rule_index
+            .insert(rule.id().to_string(), self.rules.len());
+        self.rules.push(rule);
+        self.combined_queries.borrow_mut().clear();
+    }
+
     /// Performs a security audit on a single file.
     ///
     /// # Example
@@ -156,9 +182,14 @@ impl GenSenseAuditor {
                 source_code: opts.content,
                 tree: opts.tree,
                 symbols: opts.symbols,
+                graph: opts.graph,
                 semantic_ops: opts.semantic_ops,
                 taint_cache: &taint_cache,
                 file_trees: opts.file_trees,
+                taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
+                taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
+                default_taint_max_depth: opts.default_taint_max_depth,
+                ngram_window_size: opts.ngram_window_size,
             };
             for rule in &self.rules {
                 if !self.is_rule_enabled(
@@ -167,6 +198,7 @@ impl GenSenseAuditor {
                     opts.tag_filter,
                     opts.suite,
                     opts.env,
+                    opts.severity_filter,
                 ) {
                     continue;
                 }
@@ -189,9 +221,14 @@ impl GenSenseAuditor {
             source_code: opts.content,
             tree: opts.tree,
             symbols: opts.symbols,
+            graph: opts.graph,
             semantic_ops: opts.semantic_ops,
             taint_cache: &taint_cache,
             file_trees: opts.file_trees,
+            taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
+            default_taint_max_depth: opts.default_taint_max_depth,
+            ngram_window_size: opts.ngram_window_size,
         };
         for rule in &self.rules {
             if !self.is_rule_enabled(
@@ -200,6 +237,7 @@ impl GenSenseAuditor {
                 opts.tag_filter,
                 opts.suite,
                 opts.env,
+                opts.severity_filter,
             ) {
                 continue;
             }
@@ -212,6 +250,7 @@ impl GenSenseAuditor {
             opts.content,
             opts.path,
             &mut fingerprints,
+            opts.ngram_window_size,
         );
 
         Ok(ScanResult {
@@ -253,9 +292,14 @@ impl GenSenseAuditor {
             source_code: opts.content,
             tree: opts.tree,
             symbols: opts.symbols,
+            graph: opts.graph,
             semantic_ops: opts.semantic_ops,
             taint_cache: &taint_cache,
             file_trees: opts.file_trees,
+            taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
+            default_taint_max_depth: opts.default_taint_max_depth,
+            ngram_window_size: opts.ngram_window_size,
         };
 
         let capture_names = combined_query.capture_names();
@@ -291,6 +335,7 @@ impl GenSenseAuditor {
                     opts.tag_filter,
                     opts.suite,
                     opts.env,
+                    opts.severity_filter,
                 ) {
                     continue;
                 }

@@ -61,9 +61,14 @@ fn test_taint_through_destructuring() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &HashMap::new(),
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());

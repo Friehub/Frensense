@@ -114,7 +114,7 @@ All three steps are necessary.
 | Rust | Stable | `rust` |
 | TypeScript / JavaScript | Stable | `typescript` |
 | YAML | Stable | built-in |
-| Solidity | Disabled | `solidity` (version mismatch) |
+
 
 ---
 
@@ -136,7 +136,7 @@ npm install --save-dev @friehub/gensense
 
 ```toml
 [dependencies]
-gensense = "0.3.0"
+gensense = "0.3.1"
 ```
 
 ---
@@ -161,12 +161,48 @@ gensense src/main.rs
 gensense . --severity critical
 ```
 
+### Filter by Confidence
+
+```bash
+gensense . --confidence high       # ≥0.85
+gensense . --min-confidence 0.75   # raw threshold
+```
+
+### Rule Suites
+
+```bash
+gensense . --suite default     # battle-tested rules only
+gensense . --suite extended    # well-tested rules
+gensense . --suite all         # every rule (default)
+```
+
+### Diff-Only Mode (CI)
+
+```bash
+gensense . --diff-only           # scan files changed since last commit
+gensense . --diff-only --strict  # fail on any finding in changed files
+```
+
+### Baseline Comparison
+
+```bash
+gensense . --emit-baseline baseline.json     # save current findings
+gensense . --compare-baseline baseline.json  # detect regressions
+```
+
 ### Enable a Diagnostic Tag
 
 Tags activate optional rule groups. Available tags: `security`, `reliability`, `observability`, `governance`, `sbom`.
 
 ```bash
 gensense . --tag security
+```
+
+### Tuning Parameters
+
+```bash
+gensense . --taint-max-depth 10 --ngram-window 5
+gensense . --taint-conf-inter 0.85 --taint-conf-intra 0.75
 ```
 
 ### View the Active Rule Catalog

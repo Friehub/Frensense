@@ -56,9 +56,14 @@ fn test_path_interning_stability() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &file_trees,
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
@@ -101,9 +106,14 @@ fn test_parameter_destructuring_taint() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &HashMap::new(),
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
@@ -159,9 +169,14 @@ fn test_method_chain_taint_propagation() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &HashMap::new(),
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
@@ -236,9 +251,14 @@ fn test_return_value_taint_propagation() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &file_trees,
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
@@ -381,9 +401,14 @@ fn test_object_aliasing_field_taint_propagation() {
         source_code: content,
         tree: &tree,
         symbols: &registry,
+        graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &HashMap::new(),
+        taint_confidence_interprocedural: 0.80,
+        taint_confidence_intraprocedural: 0.90,
+        default_taint_max_depth: 5,
+        ngram_window_size: 5,
     };
 
     let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());

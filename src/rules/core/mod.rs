@@ -3,16 +3,12 @@
 pub mod helpers;
 pub mod project;
 
+#[cfg(feature = "temporal")]
+use crate::temporal::TemporalConfig;
 use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
 use helpers::serde_regex_opt;
 use regex::Regex;
 use tree_sitter::Node;
-
-#[derive(Debug, serde::Deserialize, Clone)]
-pub struct TemporalConfig {
-    pub sequence: Vec<String>,
-    pub behavior: String,
-}
 
 /// Generic Declarative Rule: Configurable via YAML.
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -51,6 +47,7 @@ pub struct CoreRule {
     pub forbidden_source_pattern: Option<Regex>,
     #[serde(default, with = "serde_regex_opt")]
     pub forbidden_sink_pattern: Option<Regex>,
+    #[cfg(feature = "temporal")]
     #[serde(default)]
     pub temporal: Option<TemporalConfig>,
     #[serde(default, with = "serde_regex_opt")]
@@ -75,6 +72,27 @@ pub struct CoreRule {
     pub skip_if_parent: Option<String>,
     #[serde(default)]
     pub body_query: Option<String>,
+    #[serde(default)]
+    pub taint_max_depth: Option<usize>,
+    /// Composite constraint: shorthand for "taint forbidden path that must cross a boundary".
+    /// Syntax: `across_boundary: "pattern"` combined with `forbidden_source_pattern`/`forbidden_sink_pattern`.
+    #[serde(default)]
+    pub across_boundary: Option<String>,
+    /// Composite constraint: `all_of` wraps multiple sub-constraints that must all fire.
+    /// Each element is itself a complete `CoreRule` (only constraint fields used).
+    #[serde(default)]
+    pub all_of: Option<Vec<CoreRule>>,
+    /// Composite constraint: `any_of` fires if at least one sub-constraint fires.
+    #[serde(default)]
+    pub any_of: Option<Vec<CoreRule>>,
+    /// Composite constraint: not fires when the sub-constraint does NOT fire.
+    #[serde(default)]
+    pub not: Option<Box<CoreRule>>,
+    /// Composite constraint: without fires when `constraint` fires but `without` does not.
+    #[serde(default)]
+    pub without_constraint: Option<Box<CoreRule>>,
+    #[serde(default)]
+    pub without_exclusion: Option<Box<CoreRule>>,
 }
 
 impl GenSenseRule for CoreRule {

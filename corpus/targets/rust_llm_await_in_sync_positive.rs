@@ -1,0 +1,3 @@
+fn handle() {
+    future.await;
+}
