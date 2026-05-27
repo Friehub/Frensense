@@ -64,7 +64,7 @@ jobs:
         run: cargo clippy --all-features -- -W clippy::pedantic -D warnings
 
       - name: Install MSRV 1.88
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.100.0
       - name: cargo check with MSRV
         run: cargo check --all-features
       - name: Restore stable toolchain
