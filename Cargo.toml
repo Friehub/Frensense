@@ -1,3 +1,7 @@
+[workspace]
+members = ["gensense-engine"]
+resolver = "2"
+
 [package]
 name = "gensense"
 version = "0.4.0"
@@ -25,6 +29,7 @@ name = "gensense-mcp"
 path = "src/bin/gensense-mcp.rs"
 
 [dependencies]
+gensense-engine = { path = "gensense-engine" }
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
@@ -50,7 +55,8 @@ blake3 = "1.5"
 default = ["rust", "typescript", "fingerprinting", "remediation", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-fingerprinting = []
+c_lang = ["gensense-engine/c_lang"]
+fingerprinting = ["gensense-engine/serialize"]
 remediation = ["dep:diff"]
 temporal = []
 

@@ -7,7 +7,7 @@
 use include_dir::{Dir, include_dir};
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use thiserror::Error;
 use tree_sitter::Node;
@@ -213,7 +213,43 @@ impl std::hash::Hash for Advisory {
     }
 }
 
-pub type TaintCache = RefCell<HashMap<(String, String, String, String, usize), Vec<Advisory>>>;
+const TAINT_CACHE_MAX: usize = 1024;
+
+pub struct TaintCache {
+    inner: RefCell<HashMap<(String, String, String, String, usize), Vec<Advisory>>>,
+    order: RefCell<VecDeque<(String, String, String, String, usize)>>,
+}
+
+impl TaintCache {
+    pub fn new() -> Self {
+        Self {
+            inner: RefCell::new(HashMap::new()),
+            order: RefCell::new(VecDeque::new()),
+        }
+    }
+
+    pub fn get(&self, key: &(String, String, String, String, usize)) -> Option<Vec<Advisory>> {
+        self.inner.borrow().get(key).cloned()
+    }
+
+    pub fn insert(&self, key: (String, String, String, String, usize), value: Vec<Advisory>) {
+        let mut inner = self.inner.borrow_mut();
+        let mut order = self.order.borrow_mut();
+        if inner.len() >= TAINT_CACHE_MAX {
+            if let Some(oldest) = order.pop_front() {
+                inner.remove(&oldest);
+            }
+        }
+        order.push_back(key.clone());
+        inner.insert(key, value);
+    }
+}
+
+impl Default for TaintCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 pub struct GenSenseContext<'a> {
     pub file_id: FileId,

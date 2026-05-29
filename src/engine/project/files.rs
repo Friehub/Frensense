@@ -49,7 +49,8 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Result<Vec
             Ok(c) => c,
             Err(e) => {
                 engine.file_cache.remove(&p);
-                return Err(crate::GenSenseError::Io(e));
+                tracing::warn!("skipping unreadable file {}: {e}", p.display());
+                continue;
             }
         };
         let id = engine.source_registry.register(&p, content.clone());
@@ -86,14 +87,12 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Result<Vec
                     });
                 } else {
                     engine.file_cache.remove(&p);
-                    return Err(crate::GenSenseError::Io(std::io::Error::other(
-                        "symbol or edge discovery failed",
-                    )));
+                    tracing::warn!("symbol or edge discovery failed for {}", p.display());
                 }
             }
             Err(e) => {
                 engine.file_cache.remove(&p);
-                return Err(e);
+                tracing::warn!("skipping unparseable file {}: {e}", p.display());
             }
         }
     }

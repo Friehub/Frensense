@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 
+pub mod atomic_section;
+pub mod cfg;
 pub mod data_flow;
 pub mod fingerprint;
 pub mod graph;
+pub mod minhash;
 pub mod parser;
+pub mod pattern;
 pub mod profile;
 pub mod reachability;
+pub mod secrets;
+pub mod slice;
 pub mod symbols;
+pub mod temporal;
 
 use std::collections::HashMap;
 use std::path::Path;

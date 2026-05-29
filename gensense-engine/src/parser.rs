@@ -29,7 +29,10 @@ impl ParserRegistry {
             "ts" | "tsx" => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
-            "yml" | "yaml" => Ok(tree_sitter_yaml::LANGUAGE.into()),
+            // YAML tree-sitter parsing not available in engine; YAML is consumer-side via serde_yaml
+            "yml" | "yaml" => Err(GenSenseError::Config(format!(
+                "YAML tree-sitter parsing not available in the engine (use consumer crate). Extension: {ext}"
+            ))),
             _ => Err(GenSenseError::Config(format!(
                 "Unsupported file extension or feature not enabled: {ext}"
             ))),

@@ -3,10 +3,8 @@
 use gensense::engine::auditor::GenSenseAuditor;
 use gensense::semantics::SymbolRegistry;
 use gensense::{
-    Advisory, FileId, GenSenseContext, GenSenseRule, Precision, RuleMetadata, Severity,
+    Advisory, FileId, GenSenseContext, GenSenseRule, Precision, RuleMetadata, Severity, TaintCache,
 };
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::Parser;
 
@@ -55,7 +53,7 @@ fn test_temporal_consistency_rust_deadlock() {
         .discover_events(path, content, &tree, &mut registry)
         .unwrap();
 
-    let tc = RefCell::new(HashMap::new());
+    let tc = TaintCache::new();
     let ops = auditor.extract_semantic_ops(path, content, &tree);
 
     let ctx = GenSenseContext {
@@ -67,7 +65,7 @@ fn test_temporal_consistency_rust_deadlock() {
         graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &tc,
-        file_trees: &HashMap::new(),
+        file_trees: &std::collections::HashMap::new(),
         taint_confidence_interprocedural: 0.80,
         taint_confidence_intraprocedural: 0.90,
         default_taint_max_depth: 5,

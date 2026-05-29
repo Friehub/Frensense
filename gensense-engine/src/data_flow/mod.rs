@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
+pub mod cross_file;
 pub mod normalization;
+pub mod taint;
 
 use std::collections::HashMap;
 use tree_sitter::Node;

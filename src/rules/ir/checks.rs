@@ -108,13 +108,11 @@ impl CoreRuleIr {
                     return false;
                 }
 
-                let import = self.inject_import.as_ref().map(|import_template| {
+                let import = self.inject_import.as_ref().and_then(|import_template| {
                     let mut import_stmt = String::new();
-                    let caps = fix_re
-                        .captures(code)
-                        .expect("Regex captures should not fail since we just checked them");
+                    let caps = fix_re.captures(code)?;
                     caps.expand(import_template, &mut import_stmt);
-                    import_stmt
+                    Some(import_stmt)
                 });
 
                 advisories.push(self.new_remediated_advisory(
@@ -387,10 +385,7 @@ impl CoreRuleIr {
             func_or_node_line,
         );
 
-        let cached_findings = {
-            let cache = context.taint_cache.borrow();
-            cache.get(&constraint_cache_key).cloned()
-        };
+        let cached_findings = context.taint_cache.get(&constraint_cache_key);
 
         if let Some(mut findings) = cached_findings {
             for a in &mut findings {
@@ -419,8 +414,7 @@ impl CoreRuleIr {
             let target_node = node.child_by_field_name("body").unwrap_or(node);
             let findings = analyzer.analyze_block(target_node, source, sink, self, &mut registry);
 
-            let mut cache = context.taint_cache.borrow_mut();
-            cache.insert(constraint_cache_key, findings.clone());
+            context.taint_cache.insert(constraint_cache_key, findings.clone());
 
             advisories.extend(findings);
         }
