@@ -7,7 +7,7 @@ all: fmt check audit test
 ## Quality & Safety
 check:
 	@echo "[CHECK] Running semantic lints (Clippy)..."
-	cargo clippy --all-targets --features full -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 
 fmt:
 	@echo "[FMT] Enforcing style (rustfmt)..."
@@ -22,11 +22,11 @@ audit:
 ## Correctness
 test:
 	@echo "[TEST] Running full regression suite (excludes node feature — requires Node.js runtime)..."
-	cargo test --features full
+	cargo test --all-features
 
 test-update:
 	@echo "[TEST] Updating snapshots..."
-	UPDATE_SNAPSHOTS=1 cargo test --features full
+	UPDATE_SNAPSHOTS=1 cargo test --all-features
 
 ## Setup
 setup:

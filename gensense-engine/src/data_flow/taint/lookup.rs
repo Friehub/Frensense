@@ -41,7 +41,7 @@ impl TaintLookup {
     }
 
     pub fn tainted_vars(&self) -> Vec<&str> {
-        self.taint_map.keys().map(|s| s.as_str()).collect()
+        self.taint_map.keys().map(String::as_str).collect()
     }
 
     pub fn taint_sources_for_call(&self, function_name: &str) -> Vec<TaintOrigin> {

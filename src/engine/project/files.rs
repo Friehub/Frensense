@@ -41,7 +41,7 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
         .collect()
 }
 
-pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Result<Vec<FileSnapshot>> {
+pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSnapshot> {
     let files = collect_files(root, engine.language_filter.as_ref());
     let mut snapshots = Vec::new();
     for p in files {
@@ -96,7 +96,7 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Result<Vec
             }
         }
     }
-    Ok(snapshots)
+    snapshots
 }
 
 pub(crate) fn parallel_audit_impl(

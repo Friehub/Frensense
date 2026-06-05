@@ -212,7 +212,7 @@ impl TemporalAnalyzer {
     }
 
     fn last_event(&self) -> Option<SemanticNodeId> {
-        self.graph.all_symbols().last().and_then(|_| None)
+        self.graph.all_symbols().last().and(None)
     }
 
     pub fn graph(&self) -> &SemanticGraph {

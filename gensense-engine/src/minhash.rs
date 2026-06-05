@@ -14,6 +14,7 @@ fn sha1_hash(value: u64, seed: u64) -> u64 {
     hasher.finish()
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn minhash_signature(hashes: &FxHashSet<u64>, num_hashes: usize) -> Vec<u64> {
     if hashes.is_empty() {
         return vec![0u64; num_hashes];
@@ -35,6 +36,7 @@ pub fn minhash_signature(hashes: &FxHashSet<u64>, num_hashes: usize) -> Vec<u64>
     signature
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn jaccard_similarity(a: &FxHashSet<u64>, b: &FxHashSet<u64>) -> f64 {
     let intersection = a.intersection(b).count();
     let union = a.union(b).count();
@@ -77,6 +79,7 @@ impl LSHIndex {
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub fn insert(&mut self, signature: &[u64], item_id: u64) {
         for band in 0..self.num_bands {
             let start = band * self.rows_per_band;
@@ -93,6 +96,7 @@ impl LSHIndex {
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub fn query(&self, signature: &[u64]) -> Vec<u64> {
         let mut candidates = FxHashSet::default();
         for band in 0..self.num_bands {
@@ -118,12 +122,14 @@ impl LSHIndex {
     }
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn similarity_score(hashes_a: &FxHashSet<u64>, hashes_b: &FxHashSet<u64>) -> f64 {
     let sig_a = minhash_signature(hashes_a, DEFAULT_NUM_HASHES);
     let sig_b = minhash_signature(hashes_b, DEFAULT_NUM_HASHES);
     signature_similarity(&sig_a, &sig_b)
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn approximate_jaccard(hashes_a: &FxHashSet<u64>, hashes_b: &FxHashSet<u64>) -> f64 {
     similarity_score(hashes_a, hashes_b)
 }
@@ -134,11 +140,11 @@ pub fn hash_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
     }
     let mut hashes = FxHashSet::default();
     for i in 0..=(tokens.len().saturating_sub(window_size)) {
-        let mut hasher = FxHasher::default();
+        let mut state = FxHasher::default();
         for token in &tokens[i..i + window_size] {
-            token.hash(&mut hasher);
+            token.hash(&mut state);
         }
-        hashes.insert(hasher.finish());
+        hashes.insert(state.finish());
     }
     hashes
 }

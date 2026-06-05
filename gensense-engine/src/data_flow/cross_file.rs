@@ -119,7 +119,7 @@ impl CrossFileTaintResolver {
 
     pub fn all_taint_paths(&self, max_depth: usize) -> Vec<CrossFileTaint> {
         let mut results = Vec::new();
-        for (sink_key, _) in &self.call_graph {
+        for sink_key in self.call_graph.keys() {
             if let Some(idx) = sink_key.find(':') {
                 let sink_file = &sink_key[..idx];
                 let sink_symbol = &sink_key[idx + 1..];
@@ -133,14 +133,14 @@ impl CrossFileTaintResolver {
     pub fn callers_of(&self, symbol_key: &str) -> Vec<&str> {
         self.reverse_call_graph
             .get(symbol_key)
-            .map(|v| v.iter().map(|s| s.as_str()).collect())
+            .map(|v| v.iter().map(String::as_str).collect())
             .unwrap_or_default()
     }
 
     pub fn callees_of(&self, symbol_key: &str) -> Vec<&str> {
         self.call_graph
             .get(symbol_key)
-            .map(|v| v.iter().map(|s| s.as_str()).collect())
+            .map(|v| v.iter().map(String::as_str).collect())
             .unwrap_or_default()
     }
 }

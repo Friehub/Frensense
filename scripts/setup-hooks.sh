@@ -13,7 +13,7 @@ if [ ! -d ".git" ]; then
 fi
 
 echo "[LINK] Linking $HOOK_SOURCE to $HOOK_TARGET..."
-cp "$HOOK_SOURCE" "$HOOK_TARGET"
-chmod +x "$HOOK_TARGET"
+ln -sf --relative "$HOOK_SOURCE" "$HOOK_TARGET"
+chmod +x "$HOOK_SOURCE"
 
 echo "[SUCCESS] Git hooks installed successfully."

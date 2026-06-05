@@ -84,6 +84,7 @@ impl<'a> ControlFlowGraph<'a> {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlowGraph<'a> {
     let mut blocks: Vec<BasicBlock<'a>> = Vec::new();
     let mut label_index: HashMap<String, usize> = HashMap::new();
@@ -252,7 +253,7 @@ pub fn compute_dominators(cfg: &mut ControlFlowGraph) {
     let all_blocks: HashSet<usize> = (0..n).collect();
     for i in 0..n {
         if i != cfg.entry {
-            cfg.blocks[i].dominators = all_blocks.clone();
+            cfg.blocks[i].dominators.clone_from(&all_blocks);
         }
     }
 

@@ -70,7 +70,7 @@ impl SemanticExtractor {
                     let func = node.child_by_field_name("function");
                     let args_node = node.child_by_field_name("arguments");
                     let name = func
-                        .and_then(|f| Some(source[f.start_byte()..f.end_byte()].to_string()))
+                        .map(|f| source[f.start_byte()..f.end_byte()].to_string())
                         .unwrap_or_default();
                     let args = args_node
                         .map(|a| {
@@ -142,7 +142,7 @@ impl SemanticExtractor {
                     let func = node.child_by_field_name("function");
                     let args_node = node.child_by_field_name("arguments");
                     let name = func
-                        .and_then(|f| Some(source[f.start_byte()..f.end_byte()].to_string()))
+                        .map(|f| source[f.start_byte()..f.end_byte()].to_string())
                         .unwrap_or_default();
                     let args = args_node
                         .map(|a| {

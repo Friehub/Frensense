@@ -85,11 +85,7 @@ impl PatternMatcher {
         let mut cursor = node.walk();
         let mut matched_children = 0;
 
-        loop {
-            if !cursor.goto_first_child() {
-                break;
-            }
-
+        if cursor.goto_first_child() {
             loop {
                 let child = cursor.node();
                 if child_idx < pattern.children.len() {
@@ -103,7 +99,6 @@ impl PatternMatcher {
                     break;
                 }
             }
-            break;
         }
 
         matched_children > 0

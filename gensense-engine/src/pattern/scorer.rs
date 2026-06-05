@@ -17,7 +17,7 @@ pub struct ScoredPattern {
     pub avg_score: f64,
     pub structural_similarity: f64,
     pub canonical_form: Option<CanonicalForm>,
-    pub _minhash_similarity: f64,
+    pub minhash_similarity: f64,
     pub final_score: f64,
 }
 
@@ -45,7 +45,7 @@ impl PatternScorer {
                 avg_score,
                 structural_similarity: 0.0,
                 canonical_form: canonical.clone(),
-                _minhash_similarity: 0.0,
+                minhash_similarity: 0.0,
                 final_score: 0.0,
             });
         }
@@ -55,7 +55,7 @@ impl PatternScorer {
                 if let (Some(cf_i), Some(cf_j)) =
                     (&scored[i].canonical_form, &scored[j].canonical_form)
                 {
-                    scored[i].structural_similarity = cf_i.structural_similarity(&cf_j);
+                    scored[i].structural_similarity = cf_i.structural_similarity(cf_j);
                     scored[j].structural_similarity = scored[i].structural_similarity;
                 }
             }

@@ -49,14 +49,14 @@ impl AtomicSectionAnalyzer {
     }
 
     pub fn analyze(&mut self, root: Node, source: &str, file_path: &Path) {
-        let mut events = self.collect_events(root, source, file_path);
+        let mut events = Self::collect_events(root, source, file_path);
         events.sort_by_key(|e| e.line);
 
         self.find_sections(&events);
         self.detect_toctou(&events);
     }
 
-    fn collect_events(&self, root: Node, source: &str, _file_path: &Path) -> Vec<AtomicEvent> {
+    fn collect_events(root: Node, source: &str, _file_path: &Path) -> Vec<AtomicEvent> {
         let mut events = Vec::new();
         let mut cursor = root.walk();
 
@@ -208,7 +208,7 @@ impl AtomicSectionAnalyzer {
             }
         }
 
-        for (_var, lock_events) in &sections_by_var {
+        for lock_events in sections_by_var.values() {
             if lock_events.len() >= 2 {
                 for pair in lock_events.windows(2) {
                     if let [first, second] = pair {

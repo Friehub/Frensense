@@ -37,6 +37,7 @@ impl SecretScanner {
         Self::default()
     }
 
+    #[must_use]
     pub fn with_entropy_threshold(mut self, threshold: f64) -> Self {
         self.entropy_threshold = threshold;
         self

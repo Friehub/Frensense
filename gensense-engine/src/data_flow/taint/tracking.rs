@@ -10,9 +10,11 @@ use crate::data_flow::TaintRegistry;
 pub struct TaintTracker<'a> {
     registry: TaintRegistry<'a>,
     source: &'a str,
+    #[allow(dead_code)]
     ext: &'a str,
     taint_sources: Vec<(&'a str, TaintOrigin)>,
     taint_sinks: Vec<&'a str>,
+    #[allow(dead_code)]
     file_path: &'a Path,
 }
 
@@ -63,7 +65,7 @@ impl<'a> TaintTracker<'a> {
                 let source = self.source;
                 let registry = &mut self.registry;
                 let taint_sources = &self.taint_sources;
-                if let Some(text) = node.utf8_text(source.as_bytes()).ok() {
+                if let Ok(text) = node.utf8_text(source.as_bytes()) {
                     for &(pattern, ref origin) in taint_sources {
                         if text.contains(pattern) {
                             for i in 0..node.child_count() {
@@ -189,43 +191,36 @@ impl<'a> TaintTracker<'a> {
     }
 
     fn propagate_assignments(&mut self, root: Node<'a>) {
-        let mut changed = true;
-        let mut iterations = 0;
-        while changed && iterations < 10 {
-            changed = false;
-            iterations += 1;
-            let mut cursor = root.walk();
-            loop {
-                let node = cursor.node();
-                let kind = node.kind();
-                if kind == "assignment_expression" || kind == "assignment" {
-                    if let (Some(left), Some(right)) = (
-                        node.child_by_field_name("left"),
-                        node.child_by_field_name("right"),
+        let mut cursor = root.walk();
+        loop {
+            let node = cursor.node();
+            let kind = node.kind();
+            if kind == "assignment_expression" || kind == "assignment" {
+                if let (Some(left), Some(right)) = (
+                    node.child_by_field_name("left"),
+                    node.child_by_field_name("right"),
+                ) {
+                    if let (Ok(left_text), Ok(right_text)) = (
+                        left.utf8_text(self.source.as_bytes()),
+                        right.utf8_text(self.source.as_bytes()),
                     ) {
-                        if let (Ok(left_text), Ok(right_text)) = (
-                            left.utf8_text(self.source.as_bytes()),
-                            right.utf8_text(self.source.as_bytes()),
-                        ) {
-                            if self.registry.is_tainted(right_text) && !self.registry.is_tainted(left_text) {
-                                if let Some(origin) = self.registry.get_origin(right_text) {
-                                    self.registry.taint(left_text, origin);
-                                    changed = true;
-                                }
+                        if self.registry.is_tainted(right_text) && !self.registry.is_tainted(left_text) {
+                            if let Some(origin) = self.registry.get_origin(right_text) {
+                                self.registry.taint(left_text, origin);
                             }
                         }
                     }
                 }
-                if cursor.goto_first_child() {
-                    continue;
+            }
+            if cursor.goto_first_child() {
+                continue;
+            }
+            loop {
+                if cursor.goto_next_sibling() {
+                    break;
                 }
-                loop {
-                    if cursor.goto_next_sibling() {
-                        break;
-                    }
-                    if !cursor.goto_parent() {
-                        return;
-                    }
+                if !cursor.goto_parent() {
+                    return;
                 }
             }
         }

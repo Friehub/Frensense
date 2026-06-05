@@ -230,7 +230,7 @@ impl SymbolRegistry {
                 if query.capture_names()[capture.index as usize] == "call" {
                     let node = capture.node;
                     let name = &source[node.start_byte()..node.end_byte()];
-                    self.add_call_edge(file_path, &name, &name);
+                    self.add_call_edge(file_path, name, name);
                 }
             }
         }

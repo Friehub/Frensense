@@ -130,11 +130,10 @@ fn main() -> Result<()> {
             engine.set_profile_threshold(threshold);
         }
         engine = engine.with_profile(profile);
-        if options.profile_stats {
-            if let Some(profile) = engine.profile() {
+        if options.profile_stats
+            && let Some(profile) = engine.profile() {
                 print_profile_stats(profile);
             }
-        }
     }
 
     #[cfg(feature = "fingerprinting")]

@@ -64,10 +64,10 @@ fn find_var_name(node: Node, source: &str) -> Option<String> {
     match node.kind() {
         "identifier" | "variable_declarator" => {
             let name = &source[node.start_byte()..node.end_byte()];
-            if !name.is_empty() {
-                Some(name.to_string())
-            } else {
+            if name.is_empty() {
                 None
+            } else {
+                Some(name.to_string())
             }
         }
         "shorthand_property_identifier_pattern" | "assignment_pattern" => {
@@ -81,6 +81,7 @@ fn find_var_name(node: Node, source: &str) -> Option<String> {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn scan_node_def_uses<'a>(
     node: Node<'a>,
     block_id: usize,
@@ -229,7 +230,7 @@ fn scan_block_def_uses<'a>(
 fn compute_reaching_defs(cfg: &ControlFlowGraph, chains: &mut DefUseChain) {
     let n = cfg.blocks.len();
     for i in 0..n {
-        chains.reaching_defs.entry(i).or_insert_with(HashSet::new);
+        chains.reaching_defs.entry(i).or_default();
     }
 
     let mut changed = true;
@@ -263,7 +264,7 @@ fn compute_reaching_defs(cfg: &ControlFlowGraph, chains: &mut DefUseChain) {
                     chains
                         .definitions
                         .get(idx)
-                        .map_or(true, |d| !def_names.contains(d.name.as_str()))
+                        .is_none_or(|d| !def_names.contains(d.name.as_str()))
                 })
                 .collect();
             new_rd.extend(&block_defs);

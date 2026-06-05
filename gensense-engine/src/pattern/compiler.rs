@@ -54,9 +54,7 @@ impl PatternCompiler {
             }
             break;
         }
-        while cursor.goto_parent() {
-            break;
-        }
+        let _ = cursor.goto_parent();
 
         let text = if children.is_empty() {
             Some(source[node.start_byte()..node.end_byte()].to_string())

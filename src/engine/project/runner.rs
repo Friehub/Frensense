@@ -238,7 +238,7 @@ impl Engine {
         self.cache_root = Some(root.to_path_buf());
 
         let config = self.initialize_auditor_and_config(root);
-        let snapshots = self.collect_and_snapshot_files(root)?;
+        let snapshots = self.collect_and_snapshot_files(root);
 
         let mut symbols = SymbolRegistry::new();
         let mut file_ids = Vec::new();
@@ -424,7 +424,7 @@ impl Engine {
         config
     }
 
-    fn collect_and_snapshot_files(&mut self, root: &Path) -> Result<Vec<FileSnapshot>> {
+    fn collect_and_snapshot_files(&mut self, root: &Path) -> Vec<FileSnapshot> {
         super::files::collect_files_impl(self, root)
     }
 

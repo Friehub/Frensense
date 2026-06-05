@@ -2,7 +2,12 @@
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
-#![allow(clippy::too_many_arguments, clippy::regex_creation_in_loops)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::regex_creation_in_loops,
+    clippy::must_use_candidate,
+    clippy::cast_precision_loss
+)]
 
 use include_dir::{Dir, include_dir};
 use std::borrow::Cow;
@@ -33,11 +38,7 @@ pub use crate::engine::auditor::{GenSenseAuditor, ScanResult};
 
 use crate::semantics::SymbolRegistry;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct FileId(pub u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct ScopeId(pub u64);
+pub use gensense_engine::{FileId, ScopeId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
@@ -213,11 +214,14 @@ impl std::hash::Hash for Advisory {
     }
 }
 
+type TaintCacheKey = (String, String, String, String, usize);
+type TaintCacheMap = HashMap<TaintCacheKey, Vec<Advisory>>;
+
 const TAINT_CACHE_MAX: usize = 1024;
 
 pub struct TaintCache {
-    inner: RefCell<HashMap<(String, String, String, String, usize), Vec<Advisory>>>,
-    order: RefCell<VecDeque<(String, String, String, String, usize)>>,
+    inner: RefCell<TaintCacheMap>,
+    order: RefCell<VecDeque<TaintCacheKey>>,
 }
 
 impl TaintCache {
@@ -228,18 +232,17 @@ impl TaintCache {
         }
     }
 
-    pub fn get(&self, key: &(String, String, String, String, usize)) -> Option<Vec<Advisory>> {
+    pub fn get(&self, key: &TaintCacheKey) -> Option<Vec<Advisory>> {
         self.inner.borrow().get(key).cloned()
     }
 
-    pub fn insert(&self, key: (String, String, String, String, usize), value: Vec<Advisory>) {
+    pub fn insert(&self, key: TaintCacheKey, value: Vec<Advisory>) {
         let mut inner = self.inner.borrow_mut();
         let mut order = self.order.borrow_mut();
-        if inner.len() >= TAINT_CACHE_MAX {
-            if let Some(oldest) = order.pop_front() {
+        if inner.len() >= TAINT_CACHE_MAX
+            && let Some(oldest) = order.pop_front() {
                 inner.remove(&oldest);
             }
-        }
         order.push_back(key.clone());
         inner.insert(key, value);
     }

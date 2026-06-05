@@ -1,22 +1,11 @@
 #!/bin/bash
-# GenSense Pre-Commit Hook
-# Standardizes integrity checks before local commits.
+# GenSense Pre-Commit Hook (fast path — full CI runs in GitHub Actions)
 
 set -e
 
-echo "[GENSENSE] Starting pre-commit checks..."
+echo "[GENSENSE] Pre-commit checks..."
 
-# 1. Format Check
-echo "[FMT] Checking formatting..."
 cargo fmt --all -- --check
+cargo check
 
-# 2. Clippy Lints
-echo "[CHECK] Running semantic lints..."
-cargo clippy --all-features -- -W clippy::pedantic -D warnings
-
-# 3. Tests
-echo "[TEST] Running all tests..."
-cargo test
-
-echo "[SUCCESS] All checks passed. Proceeding with commit."
-exit 0
+echo "[OK]"

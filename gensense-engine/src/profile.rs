@@ -162,6 +162,7 @@ impl ProjectProfile {
         profile
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn style_surprise(&self, fp: &FunctionFingerprint) -> StyleSurpriseResult {
         let Some(lang_profile) = self.languages.get(&fp.language) else {
             return StyleSurpriseResult {

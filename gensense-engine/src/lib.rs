@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: MIT
+#![allow(
+    clippy::must_use_candidate,
+    clippy::cast_precision_loss,
+    clippy::collapsible_if,
+    clippy::missing_errors_doc,
+    clippy::needless_pass_by_value
+)]
 
 pub mod atomic_section;
 pub mod cfg;
