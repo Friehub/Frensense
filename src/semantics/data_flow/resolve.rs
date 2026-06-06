@@ -80,6 +80,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 ngram_window_size: self.context.ngram_window_size,
             };
 
+            let tracker = self.alias_tracker.borrow().clone();
             let sub_analyzer = if let Some(engine) = self.data_flow_engine {
                 DataFlowAnalyzer::with_depth_and_engine(
                     &new_context,
@@ -91,6 +92,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     self.depth + 1,
                     self.max_depth,
                     engine,
+                    tracker,
                 )
             } else {
                 DataFlowAnalyzer::with_depth(
@@ -103,6 +105,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     self.depth + 1,
                     self.max_depth,
                 )
+                .with_alias_tracker(tracker)
             };
             advisories.extend(sub_analyzer.analyze_block(
                 body,
@@ -213,11 +216,14 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         let prop_name = &self.current_source
                             [property_node.start_byte()..property_node.end_byte()];
 
-                        if let Some(origin) = registry.get_field_origin(obj_name, prop_name) {
+                        if let Some(origin) =
+                            self.alias_tracker.borrow().get_field_origin_with_aliases(obj_name, prop_name, registry)
+                        {
                             return Some(origin);
                         }
 
-                        if let Some(origin) = registry.get_origin(obj_name) {
+                        if let Some(origin) = self.alias_tracker.borrow().get_origin_with_aliases(obj_name, registry)
+                        {
                             return Some(origin);
                         }
                     }
@@ -350,6 +356,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     ngram_window_size: self.context.ngram_window_size,
                 };
 
+                let tracker = self.alias_tracker.borrow().clone();
                 let sub_analyzer = if let Some(engine) = self.data_flow_engine {
                     DataFlowAnalyzer::with_depth_and_engine(
                         &new_context,
@@ -361,6 +368,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         self.depth + 1,
                         self.max_depth,
                         engine,
+                        tracker,
                     )
                 } else {
                     DataFlowAnalyzer::with_depth(
@@ -373,6 +381,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         self.depth + 1,
                         self.max_depth,
                     )
+                    .with_alias_tracker(tracker)
                 };
 
                 sub_analyzer.discover_symbols(&mut next_registry);

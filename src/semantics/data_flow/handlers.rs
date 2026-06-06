@@ -17,6 +17,25 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             .unwrap_or_else(|| self.current_tree.root_node())
     }
 
+    fn record_alias_if_assign(&self, target: &str, value_node: Node<'a>) {
+        let val_code = &self.current_source[value_node.start_byte()..value_node.end_byte()];
+        if val_code == target {
+            return;
+        }
+        let trimmed = val_code.trim();
+        if !trimmed.is_empty()
+            && !trimmed.contains(' ')
+            && !trimmed.contains('(')
+            && !trimmed.contains('+')
+            && !trimmed.contains('-')
+            && !trimmed.contains('*')
+            && !trimmed.contains('/')
+            && !trimmed.contains('.')
+        {
+            self.alias_tracker.borrow_mut().record_alias(target, trimmed);
+        }
+    }
+
     pub(super) fn process_binding(
         &self,
         name: &'a str,
@@ -34,6 +53,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             let v_node = self.node_at(value_range);
             registry.register_symbol(name, v_node.start_byte(), v_node.end_byte());
             let val_code = &self.current_source[v_node.start_byte()..v_node.end_byte()];
+
+            self.record_alias_if_assign(name, v_node);
 
             let origin = if source_re.is_match(name) || source_re.is_match(val_code) {
                 Some(TaintOrigin::UserInput)
@@ -71,6 +92,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         {
             let v_node = self.node_at(value_range);
             let val_code = &self.current_source[v_node.start_byte()..v_node.end_byte()];
+
+            self.record_alias_if_assign(target, v_node);
 
             let origin = if source_re.is_match(target) || source_re.is_match(val_code) {
                 Some(TaintOrigin::UserInput)
@@ -146,7 +169,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 body_node,
                 self.depth + 1,
                 self.max_depth,
-            );
+            )
+            .with_alias_tracker(self.alias_tracker.borrow().clone());
             let sub_advisories =
                 sub_analyzer.analyze_block(body_node, source_re, sink_re, rule, registry);
             registry.pop_scope();

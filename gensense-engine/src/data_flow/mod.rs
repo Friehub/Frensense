@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+pub mod alias;
 pub mod cross_file;
 pub mod engine;
 pub mod normalization;
 pub mod taint;
 
+pub use alias::AliasTracker;
 pub use engine::DataFlowEngine;
 pub use engine::FunctionTaintSummary;
 

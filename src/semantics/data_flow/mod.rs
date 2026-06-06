@@ -27,11 +27,15 @@ pub struct DataFlowAnalyzer<'a, 'ctx> {
     pub(crate) max_depth: usize,
     pub(crate) visited: RefCell<HashSet<(String, usize)>>,
     pub(crate) data_flow_engine: Option<&'ctx gensense_engine::data_flow::DataFlowEngine>,
+    pub(crate) alias_tracker: RefCell<gensense_engine::data_flow::AliasTracker>,
 }
 
 impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
     #[must_use]
-    pub fn new(context: &'ctx GenSenseContext<'a>, root: Node<'a>) -> Self {
+    pub fn new(
+        context: &'ctx GenSenseContext<'a>,
+        root: Node<'a>,
+    ) -> Self {
         Self {
             context,
             current_source: context.source_code,
@@ -43,12 +47,22 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             max_depth: context.default_taint_max_depth,
             visited: RefCell::new(HashSet::new()),
             data_flow_engine: None,
+            alias_tracker: RefCell::new(gensense_engine::data_flow::AliasTracker::new()),
         }
     }
 
     #[must_use]
     pub fn with_engine(mut self, engine: &'ctx gensense_engine::data_flow::DataFlowEngine) -> Self {
         self.data_flow_engine = Some(engine);
+        self
+    }
+
+    #[must_use]
+    pub fn with_alias_tracker(
+        mut self,
+        tracker: gensense_engine::data_flow::AliasTracker,
+    ) -> Self {
+        self.alias_tracker = RefCell::new(tracker);
         self
     }
 
@@ -75,6 +89,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             max_depth,
             visited: RefCell::new(HashSet::new()),
             data_flow_engine: None,
+            alias_tracker: RefCell::new(gensense_engine::data_flow::AliasTracker::new()),
         }
     }
 
@@ -90,6 +105,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
         depth: usize,
         max_depth: usize,
         engine: &'ctx gensense_engine::data_flow::DataFlowEngine,
+        alias_tracker: gensense_engine::data_flow::AliasTracker,
     ) -> Self {
         Self {
             context,
@@ -102,6 +118,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             max_depth,
             visited: RefCell::new(HashSet::new()),
             data_flow_engine: Some(engine),
+            alias_tracker: RefCell::new(alias_tracker),
         }
     }
 }
