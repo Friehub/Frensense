@@ -111,12 +111,23 @@ impl PatternMatcher {
         _source: &str,
     ) -> bool {
         if let Some(ref kind) = constraint.kind {
-            if !captures.iter().any(|(_, _)| false) {
-                if !captures.is_empty() {
+            if !captures.iter().any(|(name, _)| name == kind) {
+                return false;
+            }
+        }
+        if let Some(ref field) = constraint.field {
+            if !captures.iter().any(|(name, _)| name == field) {
+                return false;
+            }
+        }
+        if let Some(ref text) = constraint.text {
+            if !captures.iter().any(|(name, range)| {
+                if name == text {
                     return true;
                 }
-            }
-            if !captures.iter().any(|(name, _)| name == kind) {
+                let _ = range;
+                false
+            }) {
                 return false;
             }
         }

@@ -77,6 +77,7 @@ pub struct TemporalAnalyzer {
     graph: SemanticGraph,
     rules: Vec<TemporalRule>,
     violations: Vec<TemporalEvent>,
+    last_event_id: Option<SemanticNodeId>,
 }
 
 impl TemporalAnalyzer {
@@ -142,12 +143,15 @@ impl TemporalAnalyzer {
 
     pub fn analyze(&mut self, events: &[TemporalEvent], file_path: &str) -> Vec<TemporalEvent> {
         self.violations.clear();
+        self.last_event_id = None;
 
         for event in events {
             let node_id = self.graph.add_event(event.clone());
-            if let Some(prev) = self.last_event() {
-                self.graph.add_edge(prev, node_id, EdgeKind::SequentiallyFollows);
+            if let Some(prev) = self.last_event_id {
+                self.graph
+                    .add_edge(prev, node_id, EdgeKind::SequentiallyFollows);
             }
+            self.last_event_id = Some(node_id);
         }
 
         for rule in &self.rules {
@@ -209,10 +213,6 @@ impl TemporalAnalyzer {
 
     pub fn violations(&self) -> &[TemporalEvent] {
         &self.violations
-    }
-
-    fn last_event(&self) -> Option<SemanticNodeId> {
-        self.graph.all_symbols().last().and(None)
     }
 
     pub fn graph(&self) -> &SemanticGraph {

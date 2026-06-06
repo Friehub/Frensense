@@ -71,8 +71,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 self.current_file_path.to_str()?,
             )
         } else {
-            let (_path, (tree, src, ops)) = self.context.file_trees.get_key_value(&resolved.file_path)?;
-            (tree, src.as_str(), ops.as_slice(), _path.as_str())
+            let (path, (tree, src, ops)) = self.context.file_trees.get_key_value(&resolved.file_path)?;
+            (tree, src.as_str(), ops.as_slice(), path.as_str())
         };
 
         let resolved_path = Path::new(path_key);
@@ -85,8 +85,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             .context
             .symbols
             .find_at(name, &resolved.file_path, 0)
-            .map(|s| s.file_id)
-            .unwrap_or(self.context.file_id);
+            .map_or(self.context.file_id, |s| s.file_id);
 
         Some((node, src_ref, tree_ref, file_id, resolved_path, ops_ref))
     }

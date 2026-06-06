@@ -41,20 +41,15 @@ impl PatternCompiler {
     fn compile_node_inner(node: Node, source: &str, wildcard: bool) -> PatternNode {
         let mut children = Vec::new();
         let mut cursor = node.walk();
-        loop {
-            if cursor.goto_first_child() {
-                let child = cursor.node();
-                children.push(Self::compile_node_inner(child, source, false));
-                continue;
+        if cursor.goto_first_child() {
+            loop {
+                children.push(Self::compile_node_inner(cursor.node(), source, false));
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
             }
-            if cursor.goto_next_sibling() {
-                let sibling = cursor.node();
-                children.push(Self::compile_node_inner(sibling, source, false));
-                continue;
-            }
-            break;
         }
-        let _ = cursor.goto_parent();
+        // cursor goes out of scope here; no need for goto_parent
 
         let text = if children.is_empty() {
             Some(source[node.start_byte()..node.end_byte()].to_string())
