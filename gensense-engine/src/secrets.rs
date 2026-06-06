@@ -149,7 +149,7 @@ impl SecretScanner {
     }
 
     pub fn scan_tree(&self, root: Node, source: &str, file_path: &Path) -> Vec<SecretMatch> {
-        let mut results = self.scan_source(source, file_path);
+        let mut results = Vec::new();
 
         let mut cursor = root.walk();
         loop {

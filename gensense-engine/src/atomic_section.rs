@@ -162,18 +162,20 @@ impl AtomicSectionAnalyzer {
                     lock_stack.push((i, event));
                 }
                 AtomicOp::Unlock => {
-                    if let Some((start_idx, start_event)) = lock_stack.pop() {
-                        if start_event.target == event.target {
-                            let section_events: Vec<AtomicEvent> = events[start_idx..=i].to_vec();
-                            self.sections.push(AtomicSection {
-                                start_event: start_event.clone(),
-                                end_event: event.clone(),
-                                lock_var: event.target.clone(),
-                                events: section_events,
-                                is_complete: true,
-                                span: (start_event.line, event.line),
-                            });
-                        }
+                    if let Some(pos) = lock_stack
+                        .iter()
+                        .rposition(|(_, e)| e.target == event.target)
+                    {
+                        let (start_idx, start_event) = lock_stack.remove(pos);
+                        let section_events: Vec<AtomicEvent> = events[start_idx..=i].to_vec();
+                        self.sections.push(AtomicSection {
+                            start_event: start_event.clone(),
+                            end_event: event.clone(),
+                            lock_var: event.target.clone(),
+                            events: section_events,
+                            is_complete: true,
+                            span: (start_event.line, event.line),
+                        });
                     }
                 }
                 _ => {}

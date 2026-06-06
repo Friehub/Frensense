@@ -97,7 +97,7 @@ pub type Result<T> = std::result::Result<T, GenSenseError>;
 ///
 /// # Errors
 /// Returns an error if the language is unsupported or the source cannot be parsed.
-pub fn analyze_file(source: &str, language: &str, file_path: &Path) -> Result<AnalysisResult> {
+pub fn analyze_file(source: &str, language: &str, file_path: &Path, file_id: FileId) -> Result<AnalysisResult> {
     let lang = parser::ParserRegistry::get_language_by_name(language)?;
     let mut ts_parser = tree_sitter::Parser::new();
     ts_parser
@@ -118,7 +118,6 @@ pub fn analyze_file(source: &str, language: &str, file_path: &Path) -> Result<An
     fingerprint::extract_fingerprints(root, source, file_path, &mut functions, 5);
 
     let mut symbols = symbols::SymbolRegistry::new();
-    let file_id = FileId(0);
     if let Some(sym_query) = parser_registry.get_symbol_query_by_ext(ext) {
         symbols.extract_from_tree(&tree, source, file_path, file_id, sym_query);
     }
@@ -152,7 +151,7 @@ pub fn analyze_project(
     let mut results = HashMap::new();
     let mut all_fingerprints = Vec::new();
 
-    for (path_str, source) in files {
+    for (idx, (path_str, source)) in files.into_iter().enumerate() {
         let path = Path::new(&path_str);
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         let language = match ext {
@@ -167,7 +166,8 @@ pub fn analyze_project(
             continue;
         }
 
-        let result = analyze_file(&source, language, path)?;
+        let file_id = FileId(u32::try_from(idx).unwrap_or(u32::MAX));
+        let result = analyze_file(&source, language, path, file_id)?;
         all_fingerprints.extend(result.functions.clone());
         results.insert(path_str, result);
     }
