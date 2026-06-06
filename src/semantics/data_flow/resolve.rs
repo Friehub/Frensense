@@ -80,16 +80,30 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 ngram_window_size: self.context.ngram_window_size,
             };
 
-            let sub_analyzer = DataFlowAnalyzer::with_depth(
-                &new_context,
-                def_source,
-                def_tree,
-                def_path,
-                def_id,
-                body,
-                self.depth + 1,
-                self.max_depth,
-            );
+            let sub_analyzer = if let Some(engine) = self.data_flow_engine {
+                DataFlowAnalyzer::with_depth_and_engine(
+                    &new_context,
+                    def_source,
+                    def_tree,
+                    def_path,
+                    def_id,
+                    body,
+                    self.depth + 1,
+                    self.max_depth,
+                    engine,
+                )
+            } else {
+                DataFlowAnalyzer::with_depth(
+                    &new_context,
+                    def_source,
+                    def_tree,
+                    def_path,
+                    def_id,
+                    body,
+                    self.depth + 1,
+                    self.max_depth,
+                )
+            };
             advisories.extend(sub_analyzer.analyze_block(
                 body,
                 source_re,
@@ -336,16 +350,30 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     ngram_window_size: self.context.ngram_window_size,
                 };
 
-                let sub_analyzer = DataFlowAnalyzer::with_depth(
-                    &new_context,
-                    def_source,
-                    def_tree,
-                    def_path,
-                    def_id,
-                    body,
-                    self.depth + 1,
-                    self.max_depth,
-                );
+                let sub_analyzer = if let Some(engine) = self.data_flow_engine {
+                    DataFlowAnalyzer::with_depth_and_engine(
+                        &new_context,
+                        def_source,
+                        def_tree,
+                        def_path,
+                        def_id,
+                        body,
+                        self.depth + 1,
+                        self.max_depth,
+                        engine,
+                    )
+                } else {
+                    DataFlowAnalyzer::with_depth(
+                        &new_context,
+                        def_source,
+                        def_tree,
+                        def_path,
+                        def_id,
+                        body,
+                        self.depth + 1,
+                        self.max_depth,
+                    )
+                };
 
                 sub_analyzer.discover_symbols(&mut next_registry);
 

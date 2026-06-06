@@ -13,6 +13,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 registry.register_symbol(name, value_range.start_byte, value_range.end_byte);
             }
         }
+        if let Some(engine) = self.data_flow_engine {
+            let fp = self.current_file_path.to_string_lossy();
+            engine.seed_registry_from_globals(&fp, registry);
+        }
     }
 
     pub fn analyze_block(

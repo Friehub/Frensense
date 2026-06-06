@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 pub mod cross_file;
+pub mod engine;
 pub mod normalization;
 pub mod taint;
+
+pub use engine::DataFlowEngine;
+pub use engine::FunctionTaintSummary;
 
 use std::collections::HashMap;
 
