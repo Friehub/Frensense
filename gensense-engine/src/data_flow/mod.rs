@@ -4,11 +4,16 @@ pub mod alias;
 pub mod cross_file;
 pub mod engine;
 pub mod normalization;
+pub mod resolver;
 pub mod taint;
 
 pub use alias::AliasTracker;
 pub use engine::DataFlowEngine;
 pub use engine::FunctionTaintSummary;
+pub use resolver::ResolvedFunction;
+pub use resolver::SymbolEntry;
+pub use resolver::map_call_args_to_params;
+pub use resolver::resolve_fn_definition;
 
 use std::collections::HashMap;
 
