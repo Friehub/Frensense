@@ -43,6 +43,7 @@ pub struct CoreRuleIr {
     pub skip_if_parent: Option<String>,
     pub body_query: Option<String>,
     pub taint_max_depth: Option<usize>,
+    pub sanitize_pattern: Option<Regex>,
 }
 
 impl GenSenseRule for CoreRuleIr {

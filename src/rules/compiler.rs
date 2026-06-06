@@ -198,6 +198,7 @@ impl RuleCompiler {
             skip_if_parent: dsl.skip_if_parent,
             body_query: dsl.body_query,
             taint_max_depth: dsl.taint_max_depth,
+            sanitize_pattern: None,
         })
     }
 }

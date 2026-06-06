@@ -399,7 +399,7 @@ impl CoreRuleIr {
             advisories.extend(findings);
         } else {
             let max_depth = self.taint_max_depth.unwrap_or(5);
-            let analyzer = DataFlowAnalyzer::with_depth(
+            let mut analyzer = DataFlowAnalyzer::with_depth(
                 context,
                 context.source_code,
                 context.tree,
@@ -409,6 +409,9 @@ impl CoreRuleIr {
                 0,
                 max_depth,
             );
+            if let Some(ref re) = self.sanitize_pattern {
+                analyzer = analyzer.with_sanitizers(re.clone());
+            }
             let mut registry = TaintRegistry::default();
             analyzer.discover_symbols(&mut registry);
             let target_node = node.child_by_field_name("body").unwrap_or(node);

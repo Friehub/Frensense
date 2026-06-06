@@ -81,7 +81,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             };
 
             let tracker = self.alias_tracker.borrow().clone();
-            let sub_analyzer = if let Some(engine) = self.data_flow_engine {
+            let mut sub_analyzer = if let Some(engine) = self.data_flow_engine {
                 DataFlowAnalyzer::with_depth_and_engine(
                     &new_context,
                     def_source,
@@ -107,6 +107,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 )
                 .with_alias_tracker(tracker)
             };
+            if let Some(ref re) = self.sanitize_re {
+                sub_analyzer = sub_analyzer.with_sanitizers(re.clone());
+            }
+
             advisories.extend(sub_analyzer.analyze_block(
                 body,
                 source_re,
@@ -288,6 +292,12 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             return Some(TaintOrigin::UserInput);
         }
 
+        if let Some(ref sanitize_re) = self.sanitize_re {
+            if sanitize_re.is_match(fn_name) {
+                return None;
+            }
+        }
+
         // Extract argument nodes
         let mut args = Vec::new();
         if let Some(args_list) = call_node.child_by_field_name("arguments") {
@@ -357,7 +367,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 };
 
                 let tracker = self.alias_tracker.borrow().clone();
-                let sub_analyzer = if let Some(engine) = self.data_flow_engine {
+                let mut sub_analyzer = if let Some(engine) = self.data_flow_engine {
                     DataFlowAnalyzer::with_depth_and_engine(
                         &new_context,
                         def_source,
@@ -383,6 +393,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     )
                     .with_alias_tracker(tracker)
                 };
+                if let Some(ref re) = self.sanitize_re {
+                    sub_analyzer = sub_analyzer.with_sanitizers(re.clone());
+                }
 
                 sub_analyzer.discover_symbols(&mut next_registry);
 

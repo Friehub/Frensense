@@ -8,6 +8,7 @@ pub mod tracking;
 
 use crate::FileId;
 use crate::GenSenseContext;
+use regex::Regex;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::Path;
@@ -28,14 +29,12 @@ pub struct DataFlowAnalyzer<'a, 'ctx> {
     pub(crate) visited: RefCell<HashSet<(String, usize)>>,
     pub(crate) data_flow_engine: Option<&'ctx gensense_engine::data_flow::DataFlowEngine>,
     pub(crate) alias_tracker: RefCell<gensense_engine::data_flow::AliasTracker>,
+    pub(crate) sanitize_re: Option<Regex>,
 }
 
 impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
     #[must_use]
-    pub fn new(
-        context: &'ctx GenSenseContext<'a>,
-        root: Node<'a>,
-    ) -> Self {
+    pub fn new(context: &'ctx GenSenseContext<'a>, root: Node<'a>) -> Self {
         Self {
             context,
             current_source: context.source_code,
@@ -48,6 +47,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             visited: RefCell::new(HashSet::new()),
             data_flow_engine: None,
             alias_tracker: RefCell::new(gensense_engine::data_flow::AliasTracker::new()),
+            sanitize_re: None,
         }
     }
 
@@ -63,6 +63,12 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
         tracker: gensense_engine::data_flow::AliasTracker,
     ) -> Self {
         self.alias_tracker = RefCell::new(tracker);
+        self
+    }
+
+    #[must_use]
+    pub fn with_sanitizers(mut self, sanitize_re: Regex) -> Self {
+        self.sanitize_re = Some(sanitize_re);
         self
     }
 
@@ -90,6 +96,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             visited: RefCell::new(HashSet::new()),
             data_flow_engine: None,
             alias_tracker: RefCell::new(gensense_engine::data_flow::AliasTracker::new()),
+            sanitize_re: None,
         }
     }
 
@@ -119,6 +126,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             visited: RefCell::new(HashSet::new()),
             data_flow_engine: Some(engine),
             alias_tracker: RefCell::new(alias_tracker),
+            sanitize_re: None,
         }
     }
 }
