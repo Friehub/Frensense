@@ -198,18 +198,151 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     predecessors: vec![current_block],
                 });
                 blocks[current_block].successors.push((exit, CFEdgeKind::Unconditional));
-                return ControlFlowGraph {
+                let mut cfg = ControlFlowGraph {
                     blocks,
                     entry,
                     exit,
                     label_index,
                 };
+                split_statement_blocks(&mut cfg);
+                return cfg;
             }
             if let Some(parent_id) = parent_stack.pop() {
                 current_block = parent_id;
             }
         }
     }
+}
+
+fn is_statement_node(kind: &str) -> bool {
+    matches!(
+        kind,
+        "let_declaration"
+            | "lexical_declaration"
+            | "variable_declaration"
+            | "expression_statement"
+            | "assignment_expression"
+            | "return_statement"
+            | "return_expression"
+            | "call_expression"
+    )
+}
+
+fn collect_statement_nodes<'a>(node: Node<'a>, statements: &mut Vec<Node<'a>>) {
+    let kind = node.kind();
+    if is_statement_node(kind) {
+        statements.push(node);
+        return;
+    }
+
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            collect_statement_nodes(cursor.node(), statements);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+fn split_statement_blocks(cfg: &mut ControlFlowGraph) {
+    let n = cfg.blocks.len();
+    let mut new_blocks: Vec<BasicBlock> = Vec::new();
+    let mut block_map: HashMap<usize, (usize, usize)> = HashMap::new();
+
+    for old_id in 0..n {
+        let block = &cfg.blocks[old_id];
+        if block.kind == "entry"
+            || block.kind == "exit"
+            || block.kind == "branch"
+            || block.kind == "merge"
+            || block.kind == "loop_body"
+            || block.kind == "after_loop"
+            || block.nodes.is_empty()
+        {
+            let new_id = new_blocks.len();
+            let mut b = block.clone();
+            b.id = new_id;
+            new_blocks.push(b);
+            block_map.insert(old_id, (new_id, new_id));
+        } else {
+            let mut statements: Vec<Node> = Vec::new();
+            for &node in &block.nodes {
+                collect_statement_nodes(node, &mut statements);
+            }
+
+            if statements.len() <= 1 {
+                let new_id = new_blocks.len();
+                let mut b = block.clone();
+                b.id = new_id;
+                new_blocks.push(b);
+                block_map.insert(old_id, (new_id, new_id));
+            } else {
+                let first_sub = new_blocks.len();
+                for (i, stmt) in statements.iter().enumerate() {
+                    let sub_id = new_blocks.len();
+                    let mut sub = BasicBlock {
+                        id: sub_id,
+                        start_byte: stmt.start_byte(),
+                        end_byte: stmt.end_byte(),
+                        kind: "statement".to_string(),
+                        nodes: vec![*stmt],
+                        dominators: HashSet::new(),
+                        successors: Vec::new(),
+                        predecessors: Vec::new(),
+                    };
+                    if i > 0 {
+                        sub.predecessors.push(sub_id - 1);
+                    }
+                    if i + 1 < statements.len() {
+                        sub.successors.push((sub_id + 1, CFEdgeKind::Unconditional));
+                    }
+                    new_blocks.push(sub);
+                }
+                let last_sub = new_blocks.len() - 1;
+                block_map.insert(old_id, (first_sub, last_sub));
+            }
+        }
+    }
+
+    let remap = |id: usize| -> Vec<usize> {
+        if let Some(&(first, last)) = block_map.get(&id) {
+            if first == last {
+                vec![first]
+            } else {
+                (first..=last).collect()
+            }
+        } else {
+            vec![id]
+        }
+    };
+
+    for block in &mut new_blocks {
+        let old_preds: Vec<usize> = block.predecessors.clone();
+        block.predecessors.clear();
+        for pred in old_preds {
+            let mapped = remap(pred);
+            block.predecessors.extend(mapped.iter().copied().filter(|m| *m != block.id));
+        }
+
+        let old_succs: Vec<(usize, CFEdgeKind)> = block.successors.drain(..).collect();
+        for (succ, kind) in old_succs {
+            let mapped = remap(succ);
+            for m in mapped {
+                block.successors.push((m, kind));
+            }
+        }
+    }
+
+    for block in &mut new_blocks {
+        block.predecessors.sort();
+        block.predecessors.dedup();
+    }
+
+    cfg.entry = remap(cfg.entry).first().copied().unwrap_or(cfg.entry);
+    cfg.exit = remap(cfg.exit).last().copied().unwrap_or(cfg.exit);
+    cfg.blocks = new_blocks;
 }
 
 pub struct CFGWalkResult {

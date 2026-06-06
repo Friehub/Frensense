@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
-use crate::cfg::{build_cfg, BasicBlock, ControlFlowGraph};
+use crate::cfg::{BasicBlock, ControlFlowGraph};
 
 #[derive(Debug, Clone)]
 pub struct Definition {
@@ -81,44 +81,65 @@ fn find_var_name(node: Node, source: &str) -> Option<String> {
     }
 }
 
-#[allow(clippy::too_many_lines)]
-fn scan_node_def_uses<'a>(
-    node: Node<'a>,
+fn is_identifier(node: Node) -> bool {
+    node.kind() == "identifier"
+}
+
+fn extract_ref_names(node: Node, source: &str, names: &mut Vec<String>) {
+    match node.kind() {
+        "identifier" => {
+            names.push(source[node.start_byte()..node.end_byte()].to_string());
+        }
+        "call_expression" => {
+            if let Some(func) = node.child_by_field_name("function") {
+                extract_ref_names(func, source, names);
+            }
+            if let Some(args) = node.child_by_field_name("arguments") {
+                for i in 0..args.child_count() {
+                    if let Some(arg) = args.child(i) {
+                        extract_ref_names(arg, source, names);
+                    }
+                }
+            }
+        }
+        "member_expression" | "field_expression" => {
+            if let Some(obj) = node.child_by_field_name("object") {
+                extract_ref_names(obj, source, names);
+            }
+        }
+        "binary_expression" => {
+            if let Some(left) = node.child_by_field_name("left") {
+                extract_ref_names(left, source, names);
+            }
+            if let Some(right) = node.child_by_field_name("right") {
+                extract_ref_names(right, source, names);
+            }
+        }
+        "unary_expression" => {
+            if let Some(arg) = node.child_by_field_name("argument") {
+                extract_ref_names(arg, source, names);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn scan_statement_def_uses(
+    node: Node,
     block_id: usize,
-    source: &'a str,
+    source: &str,
     definitions: &mut Vec<Definition>,
     uses: &mut Vec<Use>,
     node_counter: &mut usize,
 ) {
     let kind = node.kind();
+
     match kind {
         "let_declaration" | "lexical_declaration" | "variable_declaration" => {
-            if let Some(value) = node.child_by_field_name("value") {
-                let value_text = source[value.start_byte()..value.end_byte()].to_string();
-                if let Some(pattern) = node.child_by_field_name("pattern") {
-                    if let Some(name) = find_var_name(pattern, source) {
-                        definitions.push(Definition {
-                            name,
-                            block_id,
-                            node: *node_counter,
-                            start_byte: pattern.start_byte(),
-                            end_byte: pattern.end_byte(),
-                        });
-                        *node_counter += 1;
-                        uses.push(Use {
-                            name: value_text,
-                            block_id,
-                            node: *node_counter,
-                            start_byte: value.start_byte(),
-                            end_byte: value.end_byte(),
-                        });
-                        *node_counter += 1;
-                    }
-                }
-            } else if let Some(pattern) = node.child_by_field_name("pattern") {
+            if let Some(pattern) = node.child_by_field_name("pattern") {
                 if let Some(name) = find_var_name(pattern, source) {
                     definitions.push(Definition {
-                        name,
+                        name: name.clone(),
                         block_id,
                         node: *node_counter,
                         start_byte: pattern.start_byte(),
@@ -127,30 +148,47 @@ fn scan_node_def_uses<'a>(
                     *node_counter += 1;
                 }
             }
+            if let Some(value) = node.child_by_field_name("value") {
+                let mut refs = Vec::new();
+                extract_ref_names(value, source, &mut refs);
+                for r in refs {
+                    uses.push(Use {
+                        name: r,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: value.start_byte(),
+                        end_byte: value.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
+            }
         }
         "assignment_expression" | "assignment" => {
-            if let (Some(left), Some(right)) = (
-                node.child_by_field_name("left"),
-                node.child_by_field_name("right"),
-            ) {
-                let left_name = source[left.start_byte()..left.end_byte()].to_string();
-                let right_name = source[right.start_byte()..right.end_byte()].to_string();
-                definitions.push(Definition {
-                    name: left_name,
-                    block_id,
-                    node: *node_counter,
-                    start_byte: left.start_byte(),
-                    end_byte: left.end_byte(),
-                });
-                *node_counter += 1;
-                uses.push(Use {
-                    name: right_name,
-                    block_id,
-                    node: *node_counter,
-                    start_byte: right.start_byte(),
-                    end_byte: right.end_byte(),
-                });
-                *node_counter += 1;
+            if let Some(left) = node.child_by_field_name("left") {
+                if let Some(name) = find_var_name(left, source) {
+                    definitions.push(Definition {
+                        name,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: left.start_byte(),
+                        end_byte: left.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
+            }
+            if let Some(right) = node.child_by_field_name("right") {
+                let mut refs = Vec::new();
+                extract_ref_names(right, source, &mut refs);
+                for r in refs {
+                    uses.push(Use {
+                        name: r,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: right.start_byte(),
+                        end_byte: right.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
             }
         }
         "call_expression" => {
@@ -168,48 +206,75 @@ fn scan_node_def_uses<'a>(
             if let Some(args) = node.child_by_field_name("arguments") {
                 for i in 0..args.child_count() {
                     if let Some(arg) = args.child(i) {
-                        let arg_name = source[arg.start_byte()..arg.end_byte()].to_string();
-                        uses.push(Use {
-                            name: arg_name,
-                            block_id,
-                            node: *node_counter,
-                            start_byte: arg.start_byte(),
-                            end_byte: arg.end_byte(),
-                        });
-                        *node_counter += 1;
+                        if is_identifier(arg) {
+                            let arg_name = source[arg.start_byte()..arg.end_byte()].to_string();
+                            uses.push(Use {
+                                name: arg_name,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: arg.start_byte(),
+                                end_byte: arg.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
                     }
                 }
             }
         }
         "return_statement" | "return_expression" => {
             if let Some(value) = node.child_by_field_name("value") {
-                let value_text = source[value.start_byte()..value.end_byte()].to_string();
-                uses.push(Use {
-                    name: value_text,
-                    block_id,
-                    node: *node_counter,
-                    start_byte: value.start_byte(),
-                    end_byte: value.end_byte(),
-                });
-                *node_counter += 1;
+                let mut refs = Vec::new();
+                extract_ref_names(value, source, &mut refs);
+                for r in refs {
+                    uses.push(Use {
+                        name: r,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: value.start_byte(),
+                        end_byte: value.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
             }
         }
         _ => {}
     }
 
     let mut cursor = node.walk();
-    loop {
-        if cursor.goto_first_child() {
-            scan_node_def_uses(cursor.node(), block_id, source, definitions, uses, node_counter);
-            continue;
-        }
+    if cursor.goto_first_child() {
         loop {
-            if cursor.goto_next_sibling() {
-                scan_node_def_uses(cursor.node(), block_id, source, definitions, uses, node_counter);
+            scan_statement_def_uses(cursor.node(), block_id, source, definitions, uses, node_counter);
+            if !cursor.goto_next_sibling() {
                 break;
             }
-            if !cursor.goto_parent() {
-                return;
+        }
+    }
+}
+fn collect_statements<'a>(node: Node<'a>, statements: &mut Vec<Node<'a>>) {
+    let kind = node.kind();
+    if kind == "block" || kind == "block_expression" || kind == "statement_block" {
+        let mut cursor = node.walk();
+        if cursor.goto_first_child() {
+            loop {
+                let child = cursor.node();
+                let ck = child.kind();
+                if ck != "{" && ck != "}" {
+                    statements.push(child);
+                }
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+        return;
+    }
+
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            collect_statements(cursor.node(), statements);
+            if !cursor.goto_next_sibling() {
+                break;
             }
         }
     }
@@ -222,8 +287,12 @@ fn scan_block_def_uses<'a>(
     uses: &mut Vec<Use>,
     node_counter: &mut usize,
 ) {
+    let mut statements = Vec::new();
     for &node in &block.nodes {
-        scan_node_def_uses(node, block.id, source, definitions, uses, node_counter);
+        collect_statements(node, &mut statements);
+    }
+    for stmt in &statements {
+        scan_statement_def_uses(*stmt, block.id, source, definitions, uses, node_counter);
     }
 }
 
@@ -311,7 +380,7 @@ pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str) -> DefUs
 }
 
 pub fn build_def_use<'a>(root: Node<'a>, source: &'a str, ext: &str) -> DefUseChain {
-    let cfg = build_cfg(root, source, ext);
+    let cfg = crate::cfg::build_cfg(root, source, ext);
     compute_def_use(&cfg, source)
 }
 
@@ -331,5 +400,50 @@ mod tests {
         let chain = build_def_use(root, source, "rs");
         assert!(!chain.definitions.is_empty(), "should have definitions");
         assert!(!chain.uses.is_empty(), "should have uses");
+    }
+
+    #[test]
+    fn test_no_duplicate_uses() {
+        let source = r#"
+fn no_dup() {
+    let x = get_password();
+    store_in_db(x);
+}
+"#;
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let root = tree.root_node();
+        let chain = build_def_use(root, source, "rs");
+
+        let get_password_uses: usize = chain.uses.iter().filter(|u| u.name == "get_password").count();
+        assert!(
+            get_password_uses <= 2,
+            "should not have massive duplication of get_password uses, got {get_password_uses}"
+        );
+    }
+
+    #[test]
+    fn test_def_use_for_reassign() {
+        let source = r#"
+fn reassign() {
+    let x = get_password();
+    x = "safe";
+    store_in_db(x);
+}
+"#;
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let root = tree.root_node();
+        let chain = build_def_use(root, source, "rs");
+
+        let x_defs: Vec<_> = chain.definitions.iter().filter(|d| d.name == "x").collect();
+        assert_eq!(x_defs.len(), 2, "should have two definitions of x");
+        assert!(chain.uses.iter().any(|u| u.name == "x"), "should have use of x");
     }
 }
