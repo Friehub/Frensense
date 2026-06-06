@@ -5,7 +5,6 @@ pub mod normalization;
 pub mod taint;
 
 use std::collections::HashMap;
-use tree_sitter::Node;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TaintOrigin {
@@ -44,46 +43,47 @@ impl From<&str> for TaintOrigin {
 }
 
 #[derive(Debug, Clone)]
-pub struct TaintRegistry<'a> {
-    scopes: Vec<HashMap<&'a str, TaintOrigin>>,
-    symbols: Vec<HashMap<&'a str, Node<'a>>>,
-    field_taint: Vec<HashMap<(&'a str, &'a str), TaintOrigin>>,
+pub struct TaintRegistry {
+    scopes: Vec<HashMap<String, TaintOrigin>>,
+    symbol_ranges: Vec<HashMap<String, (usize, usize)>>,
+    field_taint: Vec<HashMap<(String, String), TaintOrigin>>,
 }
 
-impl Default for TaintRegistry<'_> {
+impl Default for TaintRegistry {
     fn default() -> Self {
         Self {
             scopes: vec![HashMap::new()],
-            symbols: vec![HashMap::new()],
+            symbol_ranges: vec![HashMap::new()],
             field_taint: vec![HashMap::new()],
         }
     }
 }
 
-impl<'a> TaintRegistry<'a> {
+impl TaintRegistry {
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
-        self.symbols.push(HashMap::new());
+        self.symbol_ranges.push(HashMap::new());
         self.field_taint.push(HashMap::new());
     }
 
     pub fn pop_scope(&mut self) {
         if self.scopes.len() > 1 {
             self.scopes.pop();
-            self.symbols.pop();
+            self.symbol_ranges.pop();
             self.field_taint.pop();
         }
     }
 
-    pub fn taint_field(&mut self, var: &'a str, field: &'a str, origin: TaintOrigin) {
+    pub fn taint_field(&mut self, var: &str, field: &str, origin: TaintOrigin) {
         if let Some(scope) = self.field_taint.last_mut() {
-            scope.insert((var, field), origin);
+            scope.insert((var.to_string(), field.to_string()), origin);
         }
     }
 
     pub fn get_field_origin(&self, var: &str, field: &str) -> Option<TaintOrigin> {
+        let key = (var.to_string(), field.to_string());
         for scope in self.field_taint.iter().rev() {
-            if let Some(origin) = scope.get(&(var, field)) {
+            if let Some(origin) = scope.get(&key) {
                 return Some(origin.clone());
             }
         }
@@ -93,7 +93,7 @@ impl<'a> TaintRegistry<'a> {
     pub fn get_any_field_origin(&self, var: &str) -> Option<TaintOrigin> {
         for scope in self.field_taint.iter().rev() {
             for ((v, _), origin) in scope {
-                if *v == var {
+                if v == var {
                     return Some(origin.clone());
                 }
             }
@@ -101,15 +101,15 @@ impl<'a> TaintRegistry<'a> {
         None
     }
 
-    pub fn taint(&mut self, var: &'a str, origin: TaintOrigin) {
+    pub fn taint(&mut self, var: &str, origin: TaintOrigin) {
         if let Some(scope) = self.scopes.last_mut() {
-            scope.insert(var, origin);
+            scope.insert(var.to_string(), origin);
         }
     }
 
-    pub fn register_symbol(&mut self, name: &'a str, node: Node<'a>) {
-        if let Some(scope) = self.symbols.last_mut() {
-            scope.insert(name, node);
+    pub fn register_symbol(&mut self, name: &str, start_byte: usize, end_byte: usize) {
+        if let Some(scope) = self.symbol_ranges.last_mut() {
+            scope.insert(name.to_string(), (start_byte, end_byte));
         }
     }
 
@@ -122,10 +122,10 @@ impl<'a> TaintRegistry<'a> {
         None
     }
 
-    pub fn find_symbol(&self, name: &str) -> Option<Node<'a>> {
-        for scope in self.symbols.iter().rev() {
-            if let Some(node) = scope.get(name) {
-                return Some(*node);
+    pub fn find_symbol_range(&self, name: &str) -> Option<(usize, usize)> {
+        for scope in self.symbol_ranges.iter().rev() {
+            if let Some(range) = scope.get(name) {
+                return Some(*range);
             }
         }
         None

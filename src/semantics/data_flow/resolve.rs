@@ -16,7 +16,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let mut tainted_args = Vec::new();
@@ -109,7 +109,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) {
         let v_kind = v_node.kind();
@@ -168,7 +168,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &TaintRegistry<'a>,
+        registry: &TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) -> Option<TaintOrigin> {
         let mut cursor = node.walk();
@@ -238,7 +238,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &TaintRegistry<'a>,
+        registry: &TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) -> Option<TaintOrigin> {
         // Method chain receiver check

@@ -7,12 +7,10 @@ use regex::Regex;
 use tree_sitter::Node;
 
 impl<'a> DataFlowAnalyzer<'a, '_> {
-    pub fn discover_symbols(&self, registry: &mut TaintRegistry<'a>) {
+    pub fn discover_symbols(&self, registry: &mut TaintRegistry) {
         for op in self.context.semantic_ops {
             if let SemanticOp::Binding { name, value_range } = op {
-                // Register symbol with its range
-                let node = self.node_at(*value_range);
-                registry.register_symbol(name, node);
+                registry.register_symbol(name, value_range.start_byte, value_range.end_byte);
             }
         }
     }
@@ -23,7 +21,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let block_range = super::normalization::Range::from(node);

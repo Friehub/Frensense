@@ -25,14 +25,14 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) {
         if value_range.start_byte >= block_range.start_byte
             && value_range.end_byte <= block_range.end_byte
         {
             let v_node = self.node_at(value_range);
-            registry.register_symbol(name, v_node);
+            registry.register_symbol(name, v_node.start_byte(), v_node.end_byte());
             let val_code = &self.current_source[v_node.start_byte()..v_node.end_byte()];
 
             let origin = if source_re.is_match(name) || source_re.is_match(val_code) {
@@ -63,7 +63,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) {
         if value_range.start_byte >= block_range.start_byte
@@ -102,7 +102,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
     ) -> Option<Vec<Advisory>> {
         if range.start_byte >= block_range.start_byte && range.end_byte <= block_range.end_byte {
             let arg_nodes: Vec<Node> = args.iter().map(|r| self.node_at(*r)).collect();
@@ -129,7 +129,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         source_re: &Regex,
         sink_re: &Regex,
         rule: &dyn GenSenseRule,
-        registry: &mut TaintRegistry<'a>,
+        registry: &mut TaintRegistry,
     ) -> Option<Vec<Advisory>> {
         if body_range.start_byte > block_range.start_byte
             && body_range.end_byte < block_range.end_byte

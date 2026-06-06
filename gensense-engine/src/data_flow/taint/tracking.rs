@@ -1,73 +1,69 @@
 // SPDX-License-Identifier: MIT
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
 use crate::data_flow::TaintOrigin;
 use crate::data_flow::TaintRegistry;
 
 #[derive(Debug, Clone)]
-pub struct TaintTracker<'a> {
-    registry: TaintRegistry<'a>,
-    source: &'a str,
+pub struct TaintTracker {
+    registry: TaintRegistry,
+    source: String,
     #[allow(dead_code)]
-    ext: &'a str,
-    taint_sources: Vec<(&'a str, TaintOrigin)>,
-    taint_sinks: Vec<&'a str>,
+    ext: String,
+    taint_sources: Vec<(String, TaintOrigin)>,
+    taint_sinks: Vec<String>,
     #[allow(dead_code)]
-    file_path: &'a Path,
+    file_path: PathBuf,
 }
 
-impl<'a> TaintTracker<'a> {
-    pub fn new(
-        source: &'a str,
-        ext: &'a str,
-        file_path: &'a Path,
-    ) -> Self {
+impl TaintTracker {
+    pub fn new(source: &str, ext: &str, file_path: &Path) -> Self {
         Self {
             registry: TaintRegistry::default(),
-            source,
-            ext,
+            source: source.to_string(),
+            ext: ext.to_string(),
             taint_sources: Vec::new(),
             taint_sinks: Vec::new(),
-            file_path,
+            file_path: file_path.to_path_buf(),
         }
     }
 
-    pub fn register_taint_source(&mut self, pattern: &'a str, origin: TaintOrigin) {
-        self.taint_sources.push((pattern, origin));
+    pub fn register_taint_source(&mut self, pattern: &str, origin: TaintOrigin) {
+        self.taint_sources.push((pattern.to_string(), origin));
     }
 
-    pub fn register_taint_sink(&mut self, pattern: &'a str) {
-        self.taint_sinks.push(pattern);
+    pub fn register_taint_sink(&mut self, pattern: &str) {
+        self.taint_sinks.push(pattern.to_string());
     }
 
-    pub fn registry(&self) -> &TaintRegistry<'a> {
+    pub fn registry(&self) -> &TaintRegistry {
         &self.registry
     }
 
-    pub fn registry_mut(&mut self) -> &mut TaintRegistry<'a> {
+    pub fn registry_mut(&mut self) -> &mut TaintRegistry {
         &mut self.registry
     }
 
-    pub fn track(&mut self, root: Node<'a>) {
+    pub fn track(&mut self, root: Node) {
         self.walk_and_tag(root);
         self.propagate_assignments(root);
     }
 
-    fn walk_and_tag(&mut self, root: Node<'a>) {
+    fn walk_and_tag(&mut self, root: Node) {
         let mut cursor = root.walk();
         loop {
             let node = cursor.node();
             let kind = node.kind();
 
             {
-                let source = self.source;
+                let source = &self.source;
                 let registry = &mut self.registry;
                 let taint_sources = &self.taint_sources;
                 if let Ok(text) = node.utf8_text(source.as_bytes()) {
-                    for &(pattern, ref origin) in taint_sources {
-                        if text.contains(pattern) {
+                    for (pattern, origin) in taint_sources {
+                        if text.contains(pattern.as_str()) {
                             for i in 0..node.child_count() {
                                 if let Some(child) = node.child(i) {
                                     if let Ok(name) = child.utf8_text(source.as_bytes()) {
@@ -104,10 +100,18 @@ impl<'a> TaintTracker<'a> {
                         if let Some(param) = params.child(i) {
                             if let Some(pattern) = param.child_by_field_name("pattern") {
                                 if let Ok(name) = pattern.utf8_text(self.source.as_bytes()) {
-                                    self.registry.register_symbol(name, param);
+                                    self.registry.register_symbol(
+                                        name,
+                                        pattern.start_byte(),
+                                        pattern.end_byte(),
+                                    );
                                 }
                             } else if let Ok(name) = param.utf8_text(self.source.as_bytes()) {
-                                self.registry.register_symbol(name, param);
+                                self.registry.register_symbol(
+                                    name,
+                                    param.start_byte(),
+                                    param.end_byte(),
+                                );
                             }
                         }
                     }
@@ -137,7 +141,7 @@ impl<'a> TaintTracker<'a> {
         }
     }
 
-    fn tag_from_value(&mut self, target: Node<'a>, value: Node<'a>) {
+    fn tag_from_value(&mut self, target: Node, value: Node) {
         if let Some(field_access) = value.child_by_field_name("object") {
             if let Some(field_name) = value.child_by_field_name("field") {
                 if let (Ok(obj), Ok(field)) = (
@@ -161,8 +165,8 @@ impl<'a> TaintTracker<'a> {
 
         if let Ok(value_text) = value.utf8_text(self.source.as_bytes()) {
             if let Ok(target_name) = target.utf8_text(self.source.as_bytes()) {
-                for &(pattern, ref origin) in &self.taint_sources {
-                    if value_text.contains(pattern) {
+                for (pattern, origin) in &self.taint_sources {
+                    if value_text.contains(pattern.as_str()) {
                         self.registry.taint(target_name, origin.clone());
                         return;
                     }
@@ -190,7 +194,7 @@ impl<'a> TaintTracker<'a> {
         }
     }
 
-    fn propagate_assignments(&mut self, root: Node<'a>) {
+    fn propagate_assignments(&mut self, root: Node) {
         let mut cursor = root.walk();
         loop {
             let node = cursor.node();
@@ -226,11 +230,11 @@ impl<'a> TaintTracker<'a> {
         }
     }
 
-    fn check_sink(&mut self, node: Node<'a>) {
+    fn check_sink(&mut self, node: Node) {
         if let Some(func) = node.child_by_field_name("function") {
             if let Ok(func_name) = func.utf8_text(self.source.as_bytes()) {
                 for sink_pattern in &self.taint_sinks {
-                    if func_name == *sink_pattern || func_name.contains(sink_pattern) {
+                    if func_name == sink_pattern.as_str() || func_name.contains(sink_pattern.as_str()) {
                         if let Some(args) = node.child_by_field_name("arguments") {
                             for i in 0..args.child_count() {
                                 if let Some(arg) = args.child(i) {

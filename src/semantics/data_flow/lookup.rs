@@ -12,7 +12,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     pub fn find_definition(
         &self,
         full_name: &str,
-        registry: &super::TaintRegistry<'a>,
+        registry: &super::TaintRegistry,
     ) -> Option<(
         Node<'a>,
         &'a str,
@@ -25,7 +25,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         let name = full_name.split("::").last().unwrap_or(full_name);
 
         // 1. Check local lexical scopes (Active bindings in TaintRegistry)
-        if let Some(node) = registry.find_symbol(name) {
+        if let Some((start_byte, end_byte)) = registry.find_symbol_range(name)
+            && let Some(node) = self.current_tree.root_node().descendant_for_byte_range(start_byte, end_byte)
+        {
             return Some((
                 node,
                 self.current_source,
@@ -106,7 +108,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         def_node: Node<'a>,
         def_source: &'a str,
         tainted_args: &[(usize, super::TaintOrigin)],
-    ) -> Option<super::TaintRegistry<'a>> {
+    ) -> Option<super::TaintRegistry> {
         let params_node = def_node.child_by_field_name("parameters")?;
         let mut registry = super::TaintRegistry::default();
         let mut cursor = params_node.walk();
