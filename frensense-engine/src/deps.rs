@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HallucinatedImport {
@@ -25,11 +25,26 @@ impl DependencyResolver {
 
     pub fn load_project(&mut self, root: &Path) {
         self.load_cargo_lock(root);
+        self.load_cargo_toml_deps(root);
         self.load_package_json(root);
     }
 
+    fn find_workspace_root(root: &Path) -> Option<PathBuf> {
+        let mut current = root.to_path_buf();
+        for _ in 0..5 {
+            if current.join("Cargo.lock").exists() {
+                return Some(current);
+            }
+            if !current.pop() {
+                break;
+            }
+        }
+        None
+    }
+
     fn load_cargo_lock(&mut self, root: &Path) {
-        let lock_path = root.join("Cargo.lock");
+        let lock_dir = Self::find_workspace_root(root).unwrap_or_else(|| root.to_path_buf());
+        let lock_path = lock_dir.join("Cargo.lock");
         let Ok(content) = fs::read_to_string(&lock_path) else {
             return;
         };
@@ -41,6 +56,62 @@ impl DependencyResolver {
                     .and_then(|s| s.strip_suffix('"'))
                     .unwrap_or("");
                 self.cargo_deps.insert(name.to_string());
+            }
+        }
+    }
+
+    fn load_cargo_toml_deps(&mut self, root: &Path) {
+        let toml_path = root.join("Cargo.toml");
+        let Ok(content) = fs::read_to_string(&toml_path) else {
+            return;
+        };
+
+        let mut in_deps = false;
+        let mut in_dev = false;
+        for line in content.lines() {
+            let trimmed = line.trim();
+
+            if trimmed == "[dependencies]" {
+                in_deps = true; in_dev = false; continue;
+            }
+            if trimmed == "[dev-dependencies]" {
+                in_deps = false; in_dev = true; continue;
+            }
+            if trimmed.starts_with('[') && trimmed.ends_with(']') {
+                in_deps = false; in_dev = false; continue;
+            }
+
+            if trimmed.starts_with("name = \"") {
+                if let Some(s) = trimmed.strip_prefix("name = \"")
+                    .and_then(|s| s.strip_suffix('"')) {
+                    self.cargo_deps.insert(s.to_string());
+                }
+                continue;
+            }
+
+            if in_deps || in_dev {
+                if let Some(name) = extract_dep_name(trimmed) {
+                    self.cargo_deps.insert(name);
+                }
+            }
+        }
+
+        if let Some(workspace_root) = Self::find_workspace_root(root) {
+            if workspace_root != root {
+                let ws_toml = workspace_root.join("Cargo.toml");
+                if let Ok(ws) = fs::read_to_string(&ws_toml) {
+                    let mut in_ws = false;
+                    for line in ws.lines() {
+                        let t = line.trim();
+                        if t == "[workspace.dependencies]" { in_ws = true; continue; }
+                        if t.starts_with('[') && t.ends_with(']') { in_ws = false; continue; }
+                        if in_ws {
+                            if let Some(name) = extract_dep_name(t) {
+                                self.cargo_deps.insert(name);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -145,6 +216,18 @@ fn parse_json_keys(text: &str, set: &mut HashSet<String>) {
             }
         }
     }
+}
+
+fn extract_dep_name(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || trimmed.starts_with('[') || trimmed.starts_with('#') {
+        return None;
+    }
+    let key = trimmed.split('=').next()?.trim();
+    if key.is_empty() || key.contains(' ') || key.contains('"') || key.contains('{') {
+        return None;
+    }
+    Some(key.to_string())
 }
 
 fn extract_rust_crate(line: &str) -> Option<String> {
