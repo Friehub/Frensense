@@ -49,6 +49,7 @@ dirs = "5.0"
 pathdiff = "0.2"
 rustc-hash = "1.1"
 blake3 = "1.5"
+toml = "0.8"
 
 [features]
 default = ["rust", "typescript", "fingerprinting", "remediation", "temporal"]

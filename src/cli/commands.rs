@@ -8,40 +8,27 @@ use crate::Result;
 use std::path::Path;
 
 pub fn print_help() {
-    println!("Frensense - Semantic Code Analysis Engine");
+    println!("Frensense - Example-Driven Code Analysis");
     println!("Version: {}", crate::FRENSENSE_VERSION);
-    println!("Analyzes Rust, TypeScript, JavaScript, and YAML codebases for bugs,");
-    println!("anti-patterns, security risks, and SQL drift — with AST-level precision.");
+    println!("Detects bugs using corpus patterns instead of handwritten rules.");
     println!();
     println!("Usage: frensense [path] [options]");
     println!();
     println!("Arguments:");
     println!("  path                File or directory to scan (default: current directory)");
     println!();
-    println!("Analysis Options:");
+    println!("Detection Options:");
+    println!("  --corpus <dir>      Load detection patterns from corpus directory");
+    println!("  --threshold <0-1>   Corpus match threshold (default: 0.65)");
     println!("  --language <lang>   Language filter: rust, typescript, javascript, yaml");
     println!("  --diff-only         Only scan files changed since the last git commit");
     println!("  --severity <level>  Minimum severity: critical, warning, info");
-    println!("  --tag <name>        Enable optional diagnostic tag (e.g., sbom, governance)");
-    println!("  --suite <name>      Rule precision tier: default, extended, all");
-    println!("  --no-builtin-rules  Disable built-in rules (use only custom --rules-dir)");
-    println!("  --rules-dir <dir>   Load custom rules from a directory");
-    println!("  --disable-rule <id> Disable a specific rule by ID (repeatable)");
-    println!("  --override-severity <RULE_ID>:<level>  Override severity for a rule");
-    println!("                      Level: critical, warning, info (repeatable)");
     println!();
     println!("Confidence & Tuning:");
-    println!("  --confidence <tier>      Preset: high (≥0.85), medium (≥0.60), low (≥0.30), any");
+    println!("  --confidence <tier>      Preset: high (>=0.85), medium (>=0.60), low (>=0.30), any");
     println!("  --min-confidence <0-1>   Raw confidence threshold (default: 0.0)");
     println!("  --jaccard-threshold <0-1>  Similarity threshold for duplicate detection");
-    println!("  --confidence-boost-rate <0-1>  Boost rate for overlapping findings");
-    println!("  --confidence-boost-max <0-1>   Maximum confidence boost");
     println!("  --max-source-lines <N>   Limit source lines for analysis");
-    println!("  --ngram-window <N>       Fingerprint n-gram window size");
-    println!("  --min-ngram-count <N>    Minimum n-gram count threshold");
-    println!("  --taint-conf-inter <0-1> Interprocedural taint confidence threshold");
-    println!("  --taint-conf-intra <0-1> Intraprocedural taint confidence threshold");
-    println!("  --taint-max-depth <N>    Maximum taint propagation depth");
     println!();
     println!("Output Options:");
     println!("  --json              Output findings as JSON");
@@ -49,25 +36,21 @@ pub fn print_help() {
     println!("  --strict            Exit with code 1 if any findings match filter");
     println!("  --emit-baseline <file>   Save current findings as a baseline");
     println!("  --compare-baseline <file>  Compare findings against a baseline");
-    println!();
-    println!("Style Profile (v0.4.0):");
-    println!("  --learn-profile     Build a project style profile from current codebase");
-    println!("  --check-profile     Check code against learned profile for style anomalies");
-    println!(
-        "  --profile-threshold <0-1>  Surprise threshold for anomaly detection (default: 0.7)"
-    );
-    println!("  --profile-stats     Display profile statistics");
     #[cfg(feature = "remediation")]
     println!("  --fix               Apply automated remediation (experimental)");
     #[cfg(feature = "remediation")]
     println!("  --diff              Show unified diff of proposed changes");
     println!();
-    println!("Development:");
+    println!("Style Profile:");
+    println!("  --learn-profile     Build a project style profile from current codebase");
+    println!("  --check-profile     Check code against learned profile for style anomalies");
+    println!("  --profile-threshold <0-1>  Surprise threshold for anomaly detection (default: 0.7)");
+    println!("  --profile-stats     Display profile statistics");
+    println!();
+    println!("Information:");
     println!("  --version           Display version and enabled features");
-    println!("  --list-rules        List all active rules and their severities");
-    println!("  --generate-docs     Generate RULES.md documentation file");
+    println!("  --list-patterns     List loaded corpus patterns and their descriptions");
     println!("  --debug <file>      Dump anonymized AST for a source file");
-    println!("  test-rule <rule.yml> --fixture <file> --expect-finding <id>");
     println!("                      Test a custom rule against a fixture file");
     println!("                      Optional: --expect-line <N>");
     println!();
@@ -118,8 +101,30 @@ struct RulesWrapper {
 }
 
 pub fn handle_list_rules() -> Result<()> {
-    println!("YAML rules have been replaced by corpus-based detection.");
-    println!("Use --corpus <dir> to load detection patterns from corpus/targets/.");
+    println!("YAML rules replaced by corpus-based detection.");
+    println!("Use --list-patterns to see loaded corpus patterns.");
+    Ok(())
+}
+
+pub fn handle_list_patterns(corpus_dir: Option<&str>) -> Result<()> {
+    use frensense_engine::corpus::loader::load_corpus;
+    let dir = corpus_dir.unwrap_or("corpus/targets");
+    let path = std::path::Path::new(dir);
+    if !path.exists() {
+        println!("Corpus directory not found: {dir}");
+        println!("Create one with: mkdir -p corpus/targets/");
+        println!("Then add positive/negative example pairs.");
+        return Ok(());
+    }
+    match load_corpus(path) {
+        Ok(patterns) => {
+            println!("Loaded {} corpus patterns from {dir}:", patterns.len());
+            for p in &patterns {
+                println!("  {}", p.id);
+            }
+        }
+        Err(e) => println!("Error loading corpus: {e}"),
+    }
     Ok(())
 }
 
@@ -171,8 +176,10 @@ pub fn handle_early_args(args: &[String]) -> bool {
         return true;
     }
 
-    if args.contains(&"--list-rules".to_string()) {
-        if let Err(e) = handle_list_rules() {
+    if args.contains(&"--list-rules".to_string()) || args.contains(&"--list-patterns".to_string()) {
+        let corpus_dir = args.iter().position(|a| a == "--corpus")
+            .and_then(|i| args.get(i + 1).map(|s| s.as_str()));
+        if let Err(e) = handle_list_patterns(corpus_dir) {
             eprintln!("Error: {e}");
             std::process::exit(1);
         }

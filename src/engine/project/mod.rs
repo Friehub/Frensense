@@ -101,6 +101,10 @@ impl Engine {
             corpus_dir: None,
         }
     }
+
+    pub fn set_corpus_dir(&mut self, dir: std::path::PathBuf) {
+        self.corpus_dir = Some(dir);
+    }
 }
 
 pub struct ProjectAuditor {

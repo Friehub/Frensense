@@ -64,6 +64,10 @@ fn main() -> Result<()> {
         engine.add_severity_override(rule_id, *severity);
     }
 
+    if let Some(ref corpus_dir) = options.corpus_dir {
+        engine.set_corpus_dir(corpus_dir.clone());
+    }
+
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = frensense::parser::ParserRegistry::extensions_for(lang_arg) {
             engine.set_language_filter(exts);

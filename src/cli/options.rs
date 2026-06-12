@@ -37,6 +37,8 @@ pub struct CliOptions {
     pub profile_threshold: Option<f64>,
     #[cfg(feature = "fingerprinting")]
     pub profile_stats: bool,
+    pub corpus_dir: Option<PathBuf>,
+    pub corpus_threshold: f64,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -75,6 +77,8 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         profile_threshold: None,
         #[cfg(feature = "fingerprinting")]
         profile_stats: false,
+        corpus_dir: None,
+        corpus_threshold: 0.65,
     };
 
     let mut i = 1;
@@ -304,6 +308,20 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             }
             #[cfg(feature = "fingerprinting")]
             "--profile-stats" => options.profile_stats = true,
+            "--corpus" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.corpus_dir = Some(PathBuf::from(val));
+                    i += 1;
+                }
+            }
+            "--threshold" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(t) = val.parse::<f64>() {
+                        options.corpus_threshold = t;
+                    }
+                    i += 1;
+                }
+            }
             _ => {}
         }
         i += 1;

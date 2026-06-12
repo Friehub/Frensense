@@ -438,6 +438,7 @@ impl Engine {
         }
 
         if let Some(ref corpus_dir) = self.corpus_dir {
+            let metadata = load_corpus_metadata(corpus_dir);
             let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(0.60);
             match registry.load_corpus(corpus_dir) {
                 Ok(count) if count > 0 => {
@@ -452,19 +453,46 @@ impl Engine {
                         );
                         for fp in &fps {
                             for m in registry.scan_function(fp) {
+                                let meta = metadata.get(&m.pattern_id);
                                 all_advisories.push(Advisory {
-                                    rule_id: format!("CORPUS_{}", m.pattern_id.to_uppercase()),
+                                    rule_id: meta
+                                        .and_then(|md| md.get("id"))
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            format!("CORPUS_{}", m.pattern_id.to_uppercase())
+                                        }),
                                     file_id: snap.id,
                                     file_path: snap.path.to_string_lossy().to_string(),
-                                    severity: crate::Severity::Warning,
+                                    severity: meta
+                                        .and_then(|md| md.get("severity"))
+                                        .map(|s| match s.to_lowercase().as_str() {
+                                            "critical" => crate::Severity::Critical,
+                                            "warning" => crate::Severity::Warning,
+                                            _ => crate::Severity::Info,
+                                        })
+                                        .unwrap_or(crate::Severity::Warning),
                                     confidence: m.score as f32,
-                                    observation: format!(
-                                        "Corpus pattern: {} (score {:.2}) in '{}'",
-                                        m.pattern_id, m.score, fp.function_name,
-                                    ),
-                                    impact: "Function shape matches a known violation pattern."
-                                        .to_string(),
-                                    improvement: "Review against corpus example.".to_string(),
+                                    observation: meta
+                                        .and_then(|md| md.get("observation"))
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            format!(
+                                                "Corpus pattern: {} (score {:.2}) in '{}'",
+                                                m.pattern_id, m.score, fp.function_name,
+                                            )
+                                        }),
+                                    impact: meta
+                                        .and_then(|md| md.get("impact"))
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            "Function shape matches a known violation pattern."
+                                                .to_string()
+                                        }),
+                                    improvement: meta
+                                        .and_then(|md| md.get("improvement"))
+                                        .cloned()
+                                        .unwrap_or_else(|| "Review against corpus example."
+                                            .to_string()),
                                     line: u32::try_from(fp.line).unwrap_or(u32::MAX),
                                     column: 0,
                                     start_byte: 0,
@@ -570,4 +598,34 @@ impl Engine {
     ) -> Result<Vec<Advisory>> {
         super::files::parallel_audit_impl(self, file_ids, snapshot_map, symbols, file_trees)
     }
+}
+
+fn load_corpus_metadata(corpus_dir: &Path) -> HashMap<String, HashMap<String, String>> {
+    let mut metadata = HashMap::new();
+    let Ok(entries) = std::fs::read_dir(corpus_dir) else {
+        return metadata;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(table) = content.parse::<toml::Table>() else {
+            continue;
+        };
+        let mut map = HashMap::new();
+        for (k, v) in &table {
+            if let Some(s) = v.as_str() {
+                map.insert(k.clone(), s.to_string());
+            }
+        }
+        metadata.insert(stem.to_string(), map);
+    }
+    metadata
 }
