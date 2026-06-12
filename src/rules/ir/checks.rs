@@ -417,11 +417,16 @@ impl CoreRuleIr {
             let target_node = node.child_by_field_name("body").unwrap_or(node);
             let mut findings = analyzer.analyze_block(target_node, source, sink, self, &mut registry);
 
-            apply_cfg_confidence_adjustment(
-                &mut findings,
-                context.source_code,
-                context.file_path,
-            );
+            for adv in &mut findings {
+                let adjusted = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
+                    context.source_code,
+                    context.file_path,
+                    adv.line,
+                    &adv.original_content,
+                    adv.confidence,
+                );
+                adv.confidence = adjusted;
+            }
 
             context.taint_cache.insert(constraint_cache_key, findings.clone());
 
@@ -522,103 +527,4 @@ impl CoreRuleIr {
             }
         }
     }
-}
-
-fn apply_cfg_confidence_adjustment(
-    advisories: &mut [Advisory],
-    source: &str,
-    file_path: &std::path::Path,
-) {
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
-
-    let mut parser = tree_sitter::Parser::new();
-    let lang = ParserRegistry::get_language(file_path);
-    let Ok(lang) = lang else {
-        return;
-    };
-    if parser.set_language(&lang).is_err() {
-        return;
-    }
-    let Some(tree) = parser.parse(source, None) else {
-        return;
-    };
-    let root = tree.root_node();
-
-    let cfg = frensense_engine::cfg::build_cfg(root, source, ext);
-    let def_use = frensense_engine::cfg::def_use::compute_def_use(&cfg, source);
-
-    for adv in advisories {
-        let var_name = extract_sink_var(&adv.original_content);
-        if var_name.is_empty() {
-            continue;
-        }
-
-        let sink_byte = find_line_byte(source, adv.line);
-
-        let reaches_source = def_use.uses.iter().any(|u| {
-            if u.name != var_name {
-                return false;
-            }
-            let sink_dist = if sink_byte > u.start_byte {
-                sink_byte - u.start_byte
-            } else {
-                u.start_byte - sink_byte
-            };
-            if sink_dist > 200 {
-                return false;
-            }
-            let reaching = def_use.defs_reaching(
-                def_use
-                    .uses
-                    .iter()
-                    .position(|x| std::ptr::eq(x, u))
-                    .unwrap_or(usize::MAX),
-            );
-            reaching.iter().any(|d| {
-                d.start_byte <= u.start_byte
-                    && source[d.start_byte..d.end_byte].contains(&var_name)
-            })
-        });
-
-        if !reaches_source {
-            adv.confidence = (adv.confidence * 0.4).max(0.15);
-        }
-    }
-}
-
-fn extract_sink_var(content: &str) -> String {
-    if let Some(paren_idx) = content.find('(') {
-        let args = &content[paren_idx + 1..];
-        if let Some(close_paren) = args.rfind(')') {
-            let inner = &args[..close_paren];
-            for part in inner.split(',') {
-                let trimmed = part.trim();
-                if !trimmed.is_empty()
-                    && !trimmed.starts_with('"')
-                    && !trimmed.starts_with('\'')
-                    && !trimmed.starts_with('&')
-                    && !trimmed.contains(' ')
-                {
-                    return trimmed.to_string();
-                }
-            }
-        }
-    }
-    String::new()
-}
-
-fn find_line_byte(source: &str, target_line: u32) -> usize {
-    let mut line = 1u32;
-    for (i, &b) in source.as_bytes().iter().enumerate() {
-        if line == target_line {
-            return i;
-        }
-        if b == b'\n' {
-            line += 1;
-        }
-    }
-    source.len()
 }

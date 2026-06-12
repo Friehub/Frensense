@@ -114,6 +114,44 @@ impl Engine {
 
         self.boost_overlap_confidence(&mut all_advisories);
 
+        for snap in &snapshots {
+            let mut scanner = frensense_engine::secrets::SecretScanner::new();
+            scanner.add_default_patterns();
+            let secret_matches = scanner.scan_tree(
+                snap.tree.root_node(),
+                &snap.content,
+                &snap.path,
+            );
+            for m in secret_matches {
+                all_advisories.push(crate::Advisory {
+                    rule_id: format!("SECRET_{}", m.pattern_name.to_uppercase().replace(' ', "_")),
+                    file_id: snap.id,
+                    file_path: snap.path.to_string_lossy().to_string(),
+                    severity: crate::Severity::Critical,
+                    confidence: m.confidence as f32,
+                    observation: format!(
+                        "Potential secret found: {} ({})",
+                        m.pattern_name, m.matched_text
+                    ),
+                    impact: "Hardcoded credentials may be exposed in source control.".to_string(),
+                    improvement: "Move secrets to environment variables or a secrets manager."
+                        .to_string(),
+                    line: u32::try_from(m.line).unwrap_or(u32::MAX),
+                    column: u32::try_from(m.column).unwrap_or(u32::MAX),
+                    start_byte: u32::try_from(m.start_byte).unwrap_or(u32::MAX),
+                    end_byte: u32::try_from(m.end_byte).unwrap_or(u32::MAX),
+                    original_content: m.matched_text,
+                    proposed_replacement: None,
+                    proposed_import: None,
+                    enclosing_symbol: None,
+                    fingerprint: String::new(),
+                    auto_fixable: false,
+                    requires_human: true,
+                    tags: vec!["secret".to_string(), "security".to_string()],
+                });
+            }
+        }
+
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
     }
@@ -349,6 +387,52 @@ impl Engine {
                         requires_human: true,
                         tags: vec![],
                     });
+                }
+            }
+
+            for i in 0..all_fingerprints.len() {
+                for j in (i + 1)..all_fingerprints.len() {
+                    let sim = frensense_engine::minhash::approximate_jaccard(
+                        &all_fingerprints[i].ngram_hashes,
+                        &all_fingerprints[j].ngram_hashes,
+                    );
+                    if sim > 0.75 {
+                        let fp_a = &all_fingerprints[i];
+                        let fp_b = &all_fingerprints[j];
+                        all_advisories.push(Advisory {
+                            rule_id: "NEAR_DUPLICATE_FUNCTION".to_string(),
+                            file_id: FileId(0),
+                            file_path: fp_a.file_path.clone(),
+                            severity: crate::Severity::Info,
+                            confidence: sim as f32,
+                            observation: format!(
+                                "Near-duplicate function: '{}' in {} (line {}) is {:.0}% similar to '{}' in {} (line {}).",
+                                fp_a.function_name,
+                                fp_a.file_path,
+                                fp_a.line,
+                                sim * 100.0,
+                                fp_b.function_name,
+                                fp_b.file_path,
+                                fp_b.line,
+                            ),
+                            impact: "Copy-pasted code diverges over time — one copy may lack security fixes."
+                                .to_string(),
+                            improvement: "Consider extracting shared logic into a common function."
+                                .to_string(),
+                            line: u32::try_from(fp_a.line).unwrap_or(u32::MAX),
+                            column: 0,
+                            start_byte: 0,
+                            end_byte: 0,
+                            original_content: fp_a.function_name.clone(),
+                            proposed_replacement: None,
+                            proposed_import: None,
+                            enclosing_symbol: Some(fp_a.function_name.clone()),
+                            fingerprint: String::new(),
+                            auto_fixable: false,
+                            requires_human: true,
+                            tags: vec!["copy-paste".to_string(), "duplicate".to_string()],
+                        });
+                    }
                 }
             }
         }

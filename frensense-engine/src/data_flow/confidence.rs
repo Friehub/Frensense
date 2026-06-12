@@ -5,27 +5,27 @@ use std::path::Path;
 use crate::cfg::build_cfg;
 use crate::cfg::def_use::compute_def_use;
 
-#[derive(Debug, Clone)]
 pub struct TaintConfidenceAdjuster;
 
 impl TaintConfidenceAdjuster {
-    pub fn filter(
+    pub fn adjust_confidence(
         source: &str,
-        _file_path: &Path,
-        ext: &str,
-        tainted_vars: &[(String, u32, u32)],
+        file_path: &Path,
         sink_line: u32,
-        sink_var_hint: &str,
+        sink_content: &str,
         original_confidence: f32,
     ) -> f32 {
+        let ext = file_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+
         let mut parser = tree_sitter::Parser::new();
-        let lang = crate::parser::ParserRegistry::get_language_by_name(
-            match ext {
-                "rs" => "rust",
-                "ts" | "tsx" | "js" | "jsx" => "typescript",
-                _ => return original_confidence,
-            },
-        );
+        let lang = crate::parser::ParserRegistry::get_language_by_name(match ext {
+            "rs" => "rust",
+            "ts" | "tsx" | "js" | "jsx" => "typescript",
+            _ => return original_confidence,
+        });
         let Ok(lang) = lang else {
             return original_confidence;
         };
@@ -40,17 +40,22 @@ impl TaintConfidenceAdjuster {
         let cfg = build_cfg(root, source, ext);
         let def_use = compute_def_use(&cfg, source);
 
-        let sink_byte = find_byte_at_line(source, sink_line);
+        let var_name = extract_sink_var(sink_content);
+        if var_name.is_empty() {
+            return original_confidence;
+        }
+
+        let sink_byte = find_line_byte(source, sink_line);
 
         let candidates: Vec<_> = def_use
             .uses
             .iter()
             .enumerate()
             .filter(|(_, u)| {
-                u.name == sink_var_hint
-                    || (sink_byte > 0
-                        && u.start_byte <= sink_byte
-                        && u.end_byte >= sink_byte)
+                u.name == var_name
+                    && sink_byte > 0
+                    && u.start_byte <= sink_byte + 200
+                    && u.end_byte >= sink_byte.saturating_sub(200)
             })
             .collect();
 
@@ -59,29 +64,21 @@ impl TaintConfidenceAdjuster {
         }
 
         for (use_idx, use_) in &candidates {
-            let defs_in_block: Vec<_> = def_use
+            let defs_before: Vec<_> = def_use
                 .definitions
                 .iter()
-                .enumerate()
-                .filter(|(_, d)| d.block_id == use_.block_id && d.start_byte < use_.start_byte)
+                .filter(|d| {
+                    d.block_id == use_.block_id
+                        && d.name == var_name
+                        && d.start_byte < use_.start_byte
+                })
                 .collect();
 
-            let closest_def_before = defs_in_block
-                .iter()
-                .max_by_key(|(_, d)| d.start_byte)
-                .map(|(_, d)| d);
+            let closest_def = defs_before.iter().max_by_key(|d| d.start_byte);
 
-            let mut source_reaches = false;
-            if let Some(closest_def) = closest_def_before {
-                for (t_var, t_line, _t_col) in tainted_vars {
-                    if closest_def.name == *t_var
-                        && byte_at_line(source, closest_def.start_byte) as u32 == *t_line
-                    {
-                        source_reaches = true;
-                        break;
-                    }
-                }
-            }
+            let source_reaches = closest_def.is_some_and(|def| {
+                matches_source_name(def, source)
+            });
 
             if source_reaches {
                 return original_confidence;
@@ -89,19 +86,12 @@ impl TaintConfidenceAdjuster {
 
             let inter_block_reaching = def_use.defs_reaching(*use_idx);
             for def in &inter_block_reaching {
-                if def.block_id != use_.block_id {
-                    for (t_var, t_line, _t_col) in tainted_vars {
-                        if def.name == *t_var
-                            && byte_at_line(source, def.start_byte) as u32 == *t_line
-                        {
-                            source_reaches = true;
-                            break;
-                        }
-                    }
+                if def.block_id != use_.block_id
+                    && def.name == var_name
+                    && matches_source_name(def, source)
+                {
+                    return original_confidence;
                 }
-            }
-            if source_reaches {
-                return original_confidence;
             }
         }
 
@@ -109,7 +99,29 @@ impl TaintConfidenceAdjuster {
     }
 }
 
-fn find_byte_at_line(source: &str, target_line: u32) -> usize {
+fn extract_sink_var(content: &str) -> String {
+    if let Some(paren_idx) = content.find('(') {
+        let args = &content[paren_idx + 1..];
+        if let Some(close_paren) = args.rfind(')') {
+            let inner = &args[..close_paren];
+            for part in inner.split(',') {
+                let trimmed = part.trim();
+                if !trimmed.is_empty()
+                    && !trimmed.starts_with('"')
+                    && !trimmed.starts_with('\'')
+                    && !trimmed.starts_with('&')
+                    && !trimmed.contains(' ')
+                    && !trimmed.contains('.')
+                {
+                    return trimmed.to_string();
+                }
+            }
+        }
+    }
+    String::new()
+}
+
+fn find_line_byte(source: &str, target_line: u32) -> usize {
     let mut line = 1u32;
     for (i, &b) in source.as_bytes().iter().enumerate() {
         if line == target_line {
@@ -122,8 +134,25 @@ fn find_byte_at_line(source: &str, target_line: u32) -> usize {
     source.len()
 }
 
-fn byte_at_line(source: &str, byte: usize) -> usize {
-    source[..byte].matches('\n').count() + 1
+fn matches_source_name(def: &crate::cfg::def_use::Definition, source: &str) -> bool {
+    let start = def.start_byte.saturating_sub(5);
+    let end = (def.end_byte + 40).min(source.len());
+    let context = &source[start..end];
+    let lowered = context.to_lowercase();
+    lowered.contains("password")
+        || lowered.contains("secret")
+        || lowered.contains("token")
+        || lowered.contains("credential")
+        || lowered.contains("taint")
+        || lowered.contains("read_")
+        || lowered.contains("get_")
+        || lowered.contains("input")
+        || lowered.contains("body")
+        || lowered.contains("param")
+        || lowered.contains("request")
+        || lowered.contains("query")
+        || lowered.contains("user")
+        || lowered.contains("file")
 }
 
 #[cfg(test)]
@@ -139,13 +168,11 @@ fn reassign() {
     store_in_db(data);
 }
 "#;
-        let confidence = TaintConfidenceAdjuster::filter(
+        let confidence = TaintConfidenceAdjuster::adjust_confidence(
             source,
             Path::new("test.rs"),
-            "rs",
-            &[("data".to_string(), 3, 9)],
             5,
-            "data",
+            "store_in_db(data)",
             0.95,
         );
         assert!(
@@ -162,18 +189,28 @@ fn no_kill() {
     store_in_db(data);
 }
 "#;
-        let confidence = TaintConfidenceAdjuster::filter(
+        let confidence = TaintConfidenceAdjuster::adjust_confidence(
             source,
             Path::new("test.rs"),
-            "rs",
-            &[("data".to_string(), 3, 9)],
             4,
-            "data",
+            "store_in_db(data)",
             0.95,
         );
         assert!(
             confidence > 0.80,
             "direct flow should preserve high confidence, got {confidence}"
         );
+    }
+
+    #[test]
+    fn test_unknown_language_returns_original() {
+        let confidence = TaintConfidenceAdjuster::adjust_confidence(
+            "",
+            Path::new("test.abc"),
+            1,
+            "",
+            0.90,
+        );
+        assert_eq!(confidence, 0.90, "unknown language should return original");
     }
 }
