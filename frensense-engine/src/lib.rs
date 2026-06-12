@@ -9,9 +9,11 @@
 
 pub mod atomic_section;
 pub mod cfg;
+pub mod corpus;
 pub mod data_flow;
 pub mod fingerprint;
 pub mod graph;
+pub mod lang;
 pub mod minhash;
 pub mod parser;
 pub mod pattern;

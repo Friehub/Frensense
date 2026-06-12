@@ -5,6 +5,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use tree_sitter::Node;
 
+use crate::lang::{Language, mapper::abstract_kind};
+
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct FunctionFingerprint {
@@ -53,17 +55,17 @@ fn split_name_segments(name: &str) -> Vec<String> {
     segments
 }
 
-fn collect_structural_markers(node: Node<'_>, _source: &str) -> FxHashSet<u64> {
+fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language) -> FxHashSet<u64> {
     let mut markers = FxHashSet::default();
     let mut cursor = node.walk();
     let mut hasher = FxHasher::default();
-    node.kind().hash(&mut hasher);
+    abstract_kind(node.kind(), language).hash(&mut hasher);
     markers.insert(hasher.finish());
     loop {
         if cursor.goto_first_child() {
             let n = cursor.node();
             let mut h = FxHasher::default();
-            n.kind().hash(&mut h);
+            abstract_kind(n.kind(), language).hash(&mut h);
             markers.insert(h.finish());
             continue;
         }
@@ -173,6 +175,14 @@ pub fn extract_fingerprints(
     }
     .to_string();
 
+    let lang: Language = match ext {
+        "rs" => Language::Rust,
+        "ts" | "tsx" => Language::TypeScript,
+        "js" | "jsx" => Language::JavaScript,
+        "c" | "h" => Language::C,
+        _ => return,
+    };
+
     let mut cursor = root.walk();
     loop {
         let node = cursor.node();
@@ -215,7 +225,7 @@ pub fn extract_fingerprints(
                 signature_ngrams: token_ngrams(&sig_tokens, 3.min(sig_tokens.len().max(1))),
                 param_type_ngrams: token_ngrams(&param_types, 2.min(param_types.len().max(1))),
                 name_segments,
-                structural_markers: collect_structural_markers(body, source_code),
+                structural_markers: collect_structural_markers(body, source_code, lang),
                 type_usages: collect_type_usages(body, source_code),
                 comment_density: if total_bytes > 0 {
                     comment_bytes as f64 / total_bytes as f64

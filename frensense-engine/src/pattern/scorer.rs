@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 
-
+use crate::fingerprint::FunctionFingerprint;
+use crate::minhash;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
 use crate::pattern::matcher::MatchResult;
@@ -82,20 +83,87 @@ impl PatternScorer {
             (kind_diversity / (kind_diversity + 10.0)).min(1.0)
         };
 
-        let profile_boost = profiles.and_then(|p| {
-            let key = &pattern.kind;
-            p.get(key).copied()
-        }).unwrap_or(0.5);
+        let profile_boost = profiles
+            .and_then(|p| {
+                let key = &pattern.kind;
+                p.get(key).copied()
+            })
+            .unwrap_or(0.5);
 
         base_score * 0.4 + structural_score * 0.3 + profile_boost * 0.3
+    }
+
+    pub fn score_against_corpus(
+        candidate: &FunctionFingerprint,
+        positive: &FunctionFingerprint,
+        negative: &FunctionFingerprint,
+    ) -> f64 {
+        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
+
+        let sim_to_positive = jaccard(&candidate.ngram_hashes, &positive.ngram_hashes) * 0.35
+            + jaccard(
+                &candidate.structural_markers,
+                &positive.structural_markers,
+            ) * 0.30
+            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.20
+            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.10
+            + type_usage_overlap(candidate, positive) * 0.05;
+
+        let sim_to_negative = jaccard(&candidate.ngram_hashes, &negative.ngram_hashes) * 0.35
+            + jaccard(
+                &candidate.structural_markers,
+                &negative.structural_markers,
+            ) * 0.30
+            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.20
+            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.10
+            + type_usage_overlap(candidate, negative) * 0.05;
+
+        sim_to_positive * (1.0 - sim_to_negative)
+    }
+}
+
+fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
+    if a.type_usages.is_empty() && b.type_usages.is_empty() {
+        return 0.5;
+    }
+    let set_a: std::collections::HashSet<_> = a.type_usages.iter().collect();
+    let set_b: std::collections::HashSet<_> = b.type_usages.iter().collect();
+    let intersection = set_a.intersection(&set_b).count();
+    let union = set_a.union(&set_b).count();
+    if union == 0 {
+        0.0
+    } else {
+        intersection as f64 / union as f64
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fingerprint::extract_fingerprints;
     use crate::pattern::compiler::PatternCompiler;
     use crate::pattern::matcher::PatternMatcher;
+
+    fn make_fingerprint(source: &str, path: &str, ext: &str) -> FunctionFingerprint {
+        let mut parser = tree_sitter::Parser::new();
+        let lang = match ext {
+            "rs" => tree_sitter_rust::LANGUAGE.into(),
+            _ => tree_sitter_rust::LANGUAGE.into(),
+        };
+        parser.set_language(&lang).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut fps = Vec::new();
+        extract_fingerprints(
+            tree.root_node(),
+            source,
+            std::path::Path::new(path),
+            &mut fps,
+            5,
+        );
+        fps.into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("no fingerprint extracted from: {source}"))
+    }
 
     #[test]
     fn test_score_matches_empty() {
@@ -107,7 +175,9 @@ mod tests {
     fn test_score_single_pattern() {
         let source = "let x = 1;";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let node = tree.root_node();
         let pattern = PatternCompiler::compile_node(node, source);
@@ -115,5 +185,26 @@ mod tests {
         let scored = PatternScorer::score_matches(&[(&pattern, matches)]);
         assert_eq!(scored.len(), 1);
         assert!(scored[0].match_count > 0);
+    }
+
+    #[test]
+    fn test_corpus_scoring_identical_to_positive() {
+        let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
+        let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
+        let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
+        let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
+        assert!(score > 0.6, "candidate identical to positive should score high, got {score}");
+    }
+
+    #[test]
+    fn test_corpus_scoring_different() {
+        let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
+        let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
+        let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
+        let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
+        assert!(
+            score < 0.6,
+            "candidate closer to negative should score low"
+        );
     }
 }
