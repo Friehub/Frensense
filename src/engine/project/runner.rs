@@ -437,6 +437,56 @@ impl Engine {
             }
         }
 
+        if let Some(ref corpus_dir) = self.corpus_dir {
+            let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(0.60);
+            match registry.load_corpus(corpus_dir) {
+                Ok(count) if count > 0 => {
+                    for snap in &snapshots {
+                        let mut fps: Vec<frensense_engine::fingerprint::FunctionFingerprint> = Vec::new();
+                        frensense_engine::fingerprint::extract_fingerprints(
+                            snap.tree.root_node(),
+                            &snap.content,
+                            &snap.path,
+                            &mut fps,
+                            self.ngram_window_size,
+                        );
+                        for fp in &fps {
+                            for m in registry.scan_function(fp) {
+                                all_advisories.push(Advisory {
+                                    rule_id: format!("CORPUS_{}", m.pattern_id.to_uppercase()),
+                                    file_id: snap.id,
+                                    file_path: snap.path.to_string_lossy().to_string(),
+                                    severity: crate::Severity::Warning,
+                                    confidence: m.score as f32,
+                                    observation: format!(
+                                        "Corpus pattern: {} (score {:.2}) in '{}'",
+                                        m.pattern_id, m.score, fp.function_name,
+                                    ),
+                                    impact: "Function shape matches a known violation pattern."
+                                        .to_string(),
+                                    improvement: "Review against corpus example.".to_string(),
+                                    line: u32::try_from(fp.line).unwrap_or(u32::MAX),
+                                    column: 0,
+                                    start_byte: 0,
+                                    end_byte: 0,
+                                    original_content: fp.function_name.clone(),
+                                    proposed_replacement: None,
+                                    proposed_import: None,
+                                    enclosing_symbol: Some(fp.function_name.clone()),
+                                    fingerprint: String::new(),
+                                    auto_fixable: false,
+                                    requires_human: true,
+                                    tags: vec!["corpus".to_string(), "pattern".to_string()],
+                                });
+                            }
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => eprintln!("Corpus load error: {e}"),
+            }
+        }
+
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
     }

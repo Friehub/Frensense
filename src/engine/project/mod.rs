@@ -60,6 +60,8 @@ pub struct Engine {
     profile: Option<crate::engine::profile::ProjectProfile>,
     #[cfg(feature = "fingerprinting")]
     profile_threshold: f64,
+
+    corpus_dir: Option<PathBuf>,
 }
 
 impl Engine {
@@ -96,6 +98,7 @@ impl Engine {
             profile: None,
             #[cfg(feature = "fingerprinting")]
             profile_threshold: 0.7,
+            corpus_dir: None,
         }
     }
 }
