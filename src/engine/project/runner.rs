@@ -113,6 +113,7 @@ impl Engine {
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
+        eprintln!("TAINT_DEBUG: run_taint_analysis: starting");
         for rule in crate::engine::taint_rules::security_taint_rules() {
             let source_re = regex::Regex::new(rule.source_re).ok();
             let sink_re = regex::Regex::new(rule.sink_re).ok();
@@ -145,19 +146,24 @@ impl Engine {
                 analyzer.discover_symbols(&mut registry);
 
                 let functions: Vec<tree_sitter::Node> = collect_function_nodes(root);
+                eprintln!("TAINT: rule={} file={} fn_count={} ops_count={}",
+                    rule.id,
+                    snap.path.display(),
+                    functions.len(),
+                    snap.semantic_ops.len(),
+                );
                 for fn_node in &functions {
                     let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
                     let mut findings = analyzer.analyze_block(
                         body,
                         &source,
                         &sink,
-                        &MinimalRule {
-                            id: rule.id,
-                            severity: rule.severity,
-                            observation: rule.observation,
-                            impact: rule.impact,
-                            improvement: rule.improvement,
-                        },
+                    &MinimalRule {
+                        id: rule.id,
+                        severity: rule.severity,
+                        impact: rule.impact,
+                        improvement: rule.improvement,
+                    },
                         &mut registry,
                     );
 
@@ -579,6 +585,8 @@ impl Engine {
             }
         }
 
+        self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
+
         if let Some(ref baseline_path) = self.baseline_path {
             if let Ok(prev) = std::fs::read_to_string(baseline_path) {
                 if let Ok(fingerprints) =
@@ -593,6 +601,76 @@ impl Engine {
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
+    }
+
+    fn run_taint_analysis(
+        &self,
+        snapshots: &[super::FileSnapshot],
+        symbols: &SymbolRegistry,
+        file_trees: &std::collections::HashMap<
+            String,
+            (
+                tree_sitter::Tree,
+                String,
+                Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+            ),
+        >,
+        all_advisories: &mut Vec<Advisory>,
+    ) {
+        for rule in crate::engine::taint_rules::security_taint_rules() {
+            let Some(source) = regex::Regex::new(rule.source_re).ok() else { continue };
+            let Some(sink) = regex::Regex::new(rule.sink_re).ok() else { continue };
+
+            for snap in snapshots {
+                let context = crate::FrensenseContext {
+                    file_id: snap.id,
+                    file_path: &snap.path,
+                    source_code: &snap.content,
+                    tree: &snap.tree,
+                    symbols,
+                    graph: symbols.graph(),
+                    semantic_ops: &snap.semantic_ops,
+                    taint_cache: &crate::TaintCache::new(),
+                    file_trees,
+                    taint_confidence_interprocedural: self.taint_confidence_interprocedural,
+                    taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
+                    default_taint_max_depth: self.default_taint_max_depth,
+                    ngram_window_size: self.ngram_window_size,
+                };
+
+                let root = snap.tree.root_node();
+                let analyzer = crate::semantics::data_flow::DataFlowAnalyzer::new(&context, root);
+                let mut registry = TaintRegistry::default();
+                analyzer.discover_symbols(&mut registry);
+
+                for fn_node in &collect_function_nodes(root) {
+                    let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
+                    let findings = analyzer.analyze_block(
+                        body,
+                        &source,
+                        &sink,
+                        &MinimalRule {
+                            id: rule.id,
+                            severity: rule.severity,
+                            impact: rule.impact,
+                            improvement: rule.improvement,
+                        },
+                        &mut registry,
+                    );
+
+                    for mut adv in findings {
+                        adv.confidence = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
+                            &snap.content,
+                            &snap.path,
+                            adv.line,
+                            &adv.original_content,
+                            adv.confidence,
+                        );
+                        all_advisories.push(adv);
+                    }
+                }
+            }
+        }
     }
 
     fn initialize_auditor_and_config(&mut self, root: &Path) -> config::FrensenseConfig {
@@ -734,15 +812,24 @@ fn collect_function_nodes(node: tree_sitter::Node) -> Vec<tree_sitter::Node> {
 struct MinimalRule {
     id: &'static str,
     severity: crate::Severity,
-    #[allow(dead_code)]
-    observation: &'static str,
     impact: &'static str,
     improvement: &'static str,
 }
 
 impl crate::FrensenseRule for MinimalRule {
     fn metadata(&self) -> &crate::RuleMetadata {
-        unimplemented!("MinimalRule is only used for analyze_block, not metadata")
+        Box::leak(Box::new(crate::RuleMetadata {
+            id: std::borrow::Cow::Borrowed(self.id),
+            name: std::borrow::Cow::Borrowed(self.id),
+            severity: self.severity,
+            observation: std::borrow::Cow::Borrowed(""),
+            impact: std::borrow::Cow::Borrowed(self.impact),
+            improvement: std::borrow::Cow::Borrowed(self.improvement),
+            tags: Vec::new(),
+            category: std::borrow::Cow::Borrowed("security"),
+            confidence: 0.85,
+            precision: crate::Precision::High,
+        }))
     }
 
     fn check<'a>(
@@ -755,54 +842,5 @@ impl crate::FrensenseRule for MinimalRule {
 
     fn applies_to(&self, _extension: &str) -> bool {
         true
-    }
-
-    fn new_advisory(
-        &self,
-        node: &tree_sitter::Node,
-        context: &crate::FrensenseContext,
-        observation: String,
-    ) -> crate::Advisory {
-        crate::Advisory {
-            rule_id: self.id.to_string(),
-            file_id: context.file_id,
-            file_path: context.file_path.to_string_lossy().to_string(),
-            severity: self.severity,
-            confidence: 0.85,
-            observation,
-            impact: self.impact.to_string(),
-            improvement: self.improvement.to_string(),
-            line: u32::try_from(node.start_position().row + 1).unwrap_or(u32::MAX),
-            column: u32::try_from(node.start_position().column + 1).unwrap_or(u32::MAX),
-            start_byte: u32::try_from(node.start_byte()).unwrap_or(u32::MAX),
-            end_byte: u32::try_from(node.end_byte()).unwrap_or(u32::MAX),
-            original_content: context.source_code[node.start_byte()..node.end_byte()].to_string(),
-            proposed_replacement: None,
-            proposed_import: None,
-            enclosing_symbol: None,
-            fingerprint: String::new(),
-            auto_fixable: false,
-            requires_human: false,
-            tags: Vec::new(),
-        }
-    }
-
-    fn new_remediated_advisory(
-        &self,
-        node: &tree_sitter::Node,
-        context: &crate::FrensenseContext,
-        observation: String,
-        replacement: String,
-        import: Option<String>,
-    ) -> crate::Advisory {
-        let mut adv = self.new_advisory(node, context, observation);
-        adv.proposed_replacement = Some(replacement);
-        adv.proposed_import = import;
-        adv
-    }
-
-    fn with_confidence(&self, mut advisory: crate::Advisory, confidence: f32) -> crate::Advisory {
-        advisory.confidence = confidence;
-        advisory
     }
 }
