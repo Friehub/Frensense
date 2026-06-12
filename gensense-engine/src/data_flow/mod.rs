@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod alias;
+pub mod confidence;
 pub mod cross_file;
 pub mod engine;
 pub mod normalization;
