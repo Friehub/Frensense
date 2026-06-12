@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext};
+use crate::{Advisory, FrensenseContext};
 use regex::Regex;
 use tree_sitter::Node;
 
@@ -64,7 +64,7 @@ impl FlowEvaluator {
     pub fn evaluate<'a>(
         constraint: &FlowConstraint,
         node: Node<'a>,
-        context: &'a GenSenseContext<'a>,
+        context: &'a FrensenseContext<'a>,
         top: Node<'a>,
         rule: &CoreRuleIr,
         file_path: &str,
@@ -242,7 +242,7 @@ impl FlowEvaluator {
     pub fn evaluate_leaf<'a>(
         constraint: &FlowConstraint,
         node: Node<'a>,
-        context: &'a GenSenseContext<'a>,
+        context: &'a FrensenseContext<'a>,
         top: Node<'a>,
         rule: &CoreRuleIr,
         file_path: &str,

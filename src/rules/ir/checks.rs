@@ -2,7 +2,7 @@
 
 use crate::parser::ParserRegistry;
 use crate::semantics::data_flow::{DataFlowAnalyzer, TaintRegistry};
-use crate::{Advisory, GenSenseContext};
+use crate::{Advisory, FrensenseContext};
 use tree_sitter::Node;
 
 use super::core::CoreRuleIr;
@@ -17,7 +17,7 @@ impl CoreRuleIr {
     pub(crate) fn new_advisory<'a>(
         &self,
         node: &Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         observation: String,
     ) -> Advisory {
         let rule_id = self.metadata.id.clone().into_owned();
@@ -75,7 +75,7 @@ impl CoreRuleIr {
     pub(super) fn new_remediated_advisory<'a>(
         &self,
         node: &Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         observation: String,
         replacement: String,
         import: Option<String>,
@@ -91,7 +91,7 @@ impl CoreRuleIr {
     pub(super) fn check_regex_matching<'a>(
         &self,
         node: Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         advisories: &mut Vec<Advisory>,
     ) -> bool {
         let code = &context.source_code[node.start_byte()..node.end_byte()];
@@ -145,7 +145,7 @@ impl CoreRuleIr {
     pub(super) fn check_structural_matching<'a>(
         &self,
         node: Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         advisories: &mut Vec<Advisory>,
     ) -> bool {
         if let Some(re) = &self.if_name_matches {
@@ -217,7 +217,7 @@ impl CoreRuleIr {
     pub(super) fn check_content_constraints<'a>(
         &self,
         node: Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         advisories: &mut Vec<Advisory>,
     ) {
         let code = &context.source_code[node.start_byte()..node.end_byte()];
@@ -312,7 +312,7 @@ impl CoreRuleIr {
     pub(super) fn check_metric_constraints<'a>(
         &self,
         node: Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         advisories: &mut Vec<Advisory>,
     ) {
         let node_lines = node.end_position().row - node.start_position().row + 1;
@@ -364,11 +364,11 @@ impl CoreRuleIr {
         }
     }
 
-    // gensense-ignore RUST_LOCK_IO
+    // frensense-ignore RUST_LOCK_IO
     pub(crate) fn evaluate_taint_constraint<'a>(
         &self,
         node: Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         top: Node<'a>,
         source: &regex::Regex,
         sink: &regex::Regex,
@@ -432,7 +432,7 @@ impl CoreRuleIr {
     pub(super) fn check_flow_constraints<'a>(
         &self,
         node: Node<'a>,
-        context: &GenSenseContext<'a>,
+        context: &FrensenseContext<'a>,
         top: Node<'a>,
         advisories: &mut Vec<Advisory>,
     ) {
@@ -547,8 +547,8 @@ fn apply_cfg_confidence_adjustment(
     };
     let root = tree.root_node();
 
-    let cfg = gensense_engine::cfg::build_cfg(root, source, ext);
-    let def_use = gensense_engine::cfg::def_use::compute_def_use(&cfg, source);
+    let cfg = frensense_engine::cfg::build_cfg(root, source, ext);
+    let def_use = frensense_engine::cfg::def_use::compute_def_use(&cfg, source);
 
     for adv in advisories {
         let var_name = extract_sink_var(&adv.original_content);

@@ -2,7 +2,7 @@
 #![allow(clippy::type_complexity)]
 
 use super::common::RulesWrapper;
-use crate::{GenSenseRule, ProjectRule};
+use crate::{FrensenseRule, ProjectRule};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -11,20 +11,20 @@ use walkdir::WalkDir;
 pub fn load_user_rules(
     project_root: &Path,
     extra_dirs: &[PathBuf],
-) -> (Vec<Box<dyn GenSenseRule>>, Vec<Box<dyn ProjectRule>>) {
+) -> (Vec<Box<dyn FrensenseRule>>, Vec<Box<dyn ProjectRule>>) {
     let mut rules = Vec::new();
     let mut project_rules = Vec::new();
     let mut dirs_to_check = Vec::new();
 
-    // 1. Project-local rules: <project_root>/.gensense/rules/
-    let local_rules_dir = project_root.join(".gensense").join("rules");
+    // 1. Project-local rules: <project_root>/.frensense/rules/
+    let local_rules_dir = project_root.join(".frensense").join("rules");
     if local_rules_dir.exists() && local_rules_dir.is_dir() {
         dirs_to_check.push(local_rules_dir);
     }
 
-    // 2. Global user rules: ~/.gensense/rules/
+    // 2. Global user rules: ~/.frensense/rules/
     if let Some(home_dir) = dirs::home_dir() {
-        let global_rules_dir = home_dir.join(".gensense").join("rules");
+        let global_rules_dir = home_dir.join(".frensense").join("rules");
         if global_rules_dir.exists() && global_rules_dir.is_dir() {
             dirs_to_check.push(global_rules_dir);
         }
@@ -57,7 +57,7 @@ pub fn load_user_rules(
                         for rule in wrapper.rules {
                             match crate::rules::compiler::RuleCompiler::compile(rule) {
                                 Ok(compiled) => {
-                                    rules.push(Box::new(compiled) as Box<dyn GenSenseRule>);
+                                    rules.push(Box::new(compiled) as Box<dyn FrensenseRule>);
                                 }
                                 Err(e) => {
                                     tracing::warn!(

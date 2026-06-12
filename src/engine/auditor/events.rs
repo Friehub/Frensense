@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-use super::GenSenseAuditor;
+use super::FrensenseAuditor;
 use crate::semantics::SymbolRegistry;
 use crate::semantics::graph::SemanticNodeId;
 use std::path::Path;
 use tree_sitter::Node;
 
-impl GenSenseAuditor {
+impl FrensenseAuditor {
     pub fn traverse_for_events<'a>(
         &self,
         node: Node<'a>,

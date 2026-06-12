@@ -2,7 +2,7 @@
 
 use super::normalization::SemanticOp;
 use super::{DataFlowAnalyzer, TaintRegistry};
-use crate::{Advisory, GenSenseRule};
+use crate::{Advisory, FrensenseRule};
 use regex::Regex;
 use tree_sitter::Node;
 
@@ -24,7 +24,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();

@@ -1,4 +1,4 @@
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata};
 
 pub struct LongFile {
     pub max_lines: usize,
@@ -11,7 +11,7 @@ impl LongFile {
     }
 }
 
-impl GenSenseRule for LongFile {
+impl FrensenseRule for LongFile {
     fn metadata(&self) -> &RuleMetadata {
         static META: std::sync::LazyLock<RuleMetadata> = std::sync::LazyLock::new(|| {
             RuleMetadata {
@@ -41,12 +41,12 @@ impl GenSenseRule for LongFile {
     fn check<'a>(
         &self,
         _node: tree_sitter::Node<'a>,
-        _context: &GenSenseContext<'a>,
+        _context: &FrensenseContext<'a>,
     ) -> Vec<Advisory> {
         Vec::new()
     }
 
-    fn file_check(&self, context: &GenSenseContext<'_>) -> Vec<Advisory> {
+    fn file_check(&self, context: &FrensenseContext<'_>) -> Vec<Advisory> {
         let line_count = context.source_code.lines().count();
         if line_count > self.max_lines {
             let meta = self.metadata();

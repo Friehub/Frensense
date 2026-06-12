@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata};
 use regex::Regex;
 use tree_sitter::Node;
 
@@ -46,7 +46,7 @@ pub struct CoreRuleIr {
     pub sanitize_pattern: Option<Regex>,
 }
 
-impl GenSenseRule for CoreRuleIr {
+impl FrensenseRule for CoreRuleIr {
     fn metadata(&self) -> &RuleMetadata {
         &self.metadata
     }
@@ -59,7 +59,7 @@ impl GenSenseRule for CoreRuleIr {
         self.match_queries.first().map(|q| q.selector.as_str())
     }
 
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         if let Some(re) = &self.exclude_scope {
@@ -134,7 +134,7 @@ impl GenSenseRule for CoreRuleIr {
         advisories
     }
 
-    fn file_check(&self, context: &GenSenseContext<'_>) -> Vec<Advisory> {
+    fn file_check(&self, context: &FrensenseContext<'_>) -> Vec<Advisory> {
         if let Some(max) = self.max_file_lines {
             let line_count = context.source_code.lines().count();
             if line_count > max {

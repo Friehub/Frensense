@@ -18,7 +18,7 @@ use thiserror::Error;
 use tree_sitter::Node;
 
 pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/rules/definitions");
-pub const GENSENSE_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const FRENSENSE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod cli;
 pub mod engine;
@@ -34,11 +34,11 @@ pub mod temporal;
 pub use crate::engine::Engine;
 #[cfg(feature = "fingerprinting")]
 pub use crate::engine::FunctionFingerprint;
-pub use crate::engine::auditor::{GenSenseAuditor, ScanResult};
+pub use crate::engine::auditor::{FrensenseAuditor, ScanResult};
 
 use crate::semantics::SymbolRegistry;
 
-pub use gensense_engine::{FileId, ScopeId};
+pub use frensense_engine::{FileId, ScopeId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
@@ -60,7 +60,7 @@ impl Severity {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GenSenseEnvironment {
+pub enum FrensenseEnvironment {
     Production,
     Staging,
     Development,
@@ -254,7 +254,7 @@ impl Default for TaintCache {
     }
 }
 
-pub struct GenSenseContext<'a> {
+pub struct FrensenseContext<'a> {
     pub file_id: FileId,
     pub file_path: &'a Path,
     pub source_code: &'a str,
@@ -277,12 +277,12 @@ pub struct GenSenseContext<'a> {
     pub ngram_window_size: usize,
 }
 
-/// Core Trait: Represents a high-precision semantic `GenSense` rule.
-pub trait GenSenseRule: Send + Sync {
+/// Core Trait: Represents a high-precision semantic `Frensense` rule.
+pub trait FrensenseRule: Send + Sync {
     fn metadata(&self) -> &RuleMetadata;
 
     /// The core logic for verifying a finding.
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory>;
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory>;
 
     /// Helper to get rule ID
     fn id(&self) -> &str {
@@ -294,7 +294,7 @@ pub trait GenSenseRule: Send + Sync {
 
     /// File-level check (not per-node). Fires once per file.
     /// Default no-op — override for rules like file-length limits.
-    fn file_check(&self, _context: &GenSenseContext<'_>) -> Vec<Advisory> {
+    fn file_check(&self, _context: &FrensenseContext<'_>) -> Vec<Advisory> {
         Vec::new()
     }
 
@@ -307,7 +307,7 @@ pub trait GenSenseRule: Send + Sync {
     fn new_advisory(
         &self,
         node: &Node,
-        context: &GenSenseContext,
+        context: &FrensenseContext,
         observation: String,
     ) -> Advisory {
         let meta = self.metadata();
@@ -345,7 +345,7 @@ pub trait GenSenseRule: Send + Sync {
     fn new_remediated_advisory(
         &self,
         node: &Node,
-        context: &GenSenseContext,
+        context: &FrensenseContext,
         observation: String,
         replacement: String,
         import: Option<String>,
@@ -376,9 +376,9 @@ pub trait ProjectRule: Send + Sync {
         self.metadata().id.as_ref()
     }
 
-    fn is_enabled_in(&self, env: GenSenseEnvironment) -> bool {
+    fn is_enabled_in(&self, env: FrensenseEnvironment) -> bool {
         let meta = self.metadata();
-        if env == GenSenseEnvironment::Production {
+        if env == FrensenseEnvironment::Production {
             return !meta.tags.iter().any(|t| t == "beta");
         }
         true
@@ -386,7 +386,7 @@ pub trait ProjectRule: Send + Sync {
 }
 
 #[derive(Error, Debug)]
-pub enum GenSenseError {
+pub enum FrensenseError {
     #[error("Parse failure: {0}")]
     ParseFailure(String),
     #[error("Rule configuration error: {0}")]
@@ -401,6 +401,6 @@ pub enum GenSenseError {
     Engine(String),
 }
 
-pub type Result<T> = std::result::Result<T, GenSenseError>;
+pub type Result<T> = std::result::Result<T, FrensenseError>;
 
 // Force cargo recompilation of embedded rules definitions

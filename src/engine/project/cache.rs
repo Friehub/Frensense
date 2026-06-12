@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Content-hash cache stored at `<project_root>/.gensense/cache.json`.
+/// Content-hash cache stored at `<project_root>/.frensense/cache.json`.
 ///
 /// Maps file paths to blake3 hex hashes of their content. On subsequent runs,
 /// files whose hash matches the cache are skipped entirely — no parse, no audit.
@@ -26,12 +26,12 @@ struct CacheFile {
 impl FileCache {
     const CURRENT_VERSION: u32 = 2;
 
-    /// Load cache from `.gensense/cache.json` under the project root.
+    /// Load cache from `.frensense/cache.json` under the project root.
     /// Returns an empty cache if the file doesn't exist, is corrupt, or
     /// was built under a different language filter.
     #[must_use]
     pub fn load(root: &Path, language_filter: Option<&[&str]>) -> Self {
-        let cache_path = root.join(".gensense").join("cache.json");
+        let cache_path = root.join(".frensense").join("cache.json");
         let cached = std::fs::read_to_string(&cache_path)
             .ok()
             .and_then(|s| serde_json::from_str::<CacheFile>(&s).ok())
@@ -57,13 +57,13 @@ impl FileCache {
         }
     }
 
-    /// Save cache to `.gensense/cache.json` under the project root.
-    /// Creates the `.gensense/` directory if it doesn't exist.
+    /// Save cache to `.frensense/cache.json` under the project root.
+    /// Creates the `.frensense/` directory if it doesn't exist.
     pub fn save(&self, root: &Path, language_filter: Option<&[&str]>) {
         if self.files.is_empty() {
             return;
         }
-        let dir = root.join(".gensense");
+        let dir = root.join(".frensense");
         let cache_path = dir.join("cache.json");
         let wrapper = CacheFile {
             version: Self::CURRENT_VERSION,

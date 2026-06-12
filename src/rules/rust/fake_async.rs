@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata, Severity};
 use std::borrow::Cow;
 use std::sync::OnceLock;
 use tree_sitter::Node;
@@ -9,7 +9,7 @@ pub struct FakeAsyncDetector;
 
 static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
-impl GenSenseRule for FakeAsyncDetector {
+impl FrensenseRule for FakeAsyncDetector {
     fn metadata(&self) -> &RuleMetadata {
         METADATA.get_or_init(|| RuleMetadata {
             id: Cow::Borrowed("RUST_FAKE_ASYNC"),
@@ -33,7 +33,7 @@ impl GenSenseRule for FakeAsyncDetector {
         Some("(function_item) @func")
     }
 
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let header_end = node

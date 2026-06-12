@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule};
+use crate::{Advisory, FrensenseContext, FrensenseRule};
 use tree_sitter::Node;
 
 pub struct TautologicalAssert;
 
-impl GenSenseRule for TautologicalAssert {
+impl FrensenseRule for TautologicalAssert {
     fn metadata(&self) -> &crate::RuleMetadata {
         static META: std::sync::LazyLock<crate::RuleMetadata> = std::sync::LazyLock::new(|| {
             crate::RuleMetadata {
@@ -32,7 +32,7 @@ impl GenSenseRule for TautologicalAssert {
         Some("(macro_invocation) @macro")
     }
 
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
 
         let Some(macro_name_node) = node.child(0) else {

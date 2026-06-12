@@ -13,7 +13,7 @@ use std::path::Path;
 
 pub fn tool_definition() -> Value {
     json!({
-        "name": "gensense_audit",
+        "name": "frensense_audit",
         "description": "Run semantic analysis on a file or directory. Returns advisories the agent must resolve before code is considered correct. An empty advisories array and clean=true means the code satisfies all invariants. When stream=true, findings are sent as notifications followed by a final result.",
         "inputSchema": {
             "type": "object",
@@ -128,7 +128,7 @@ pub fn run_audit_streamed(
     let mut engine = Engine::new();
     let rule_count = engine.list_rules().len();
     eprintln!(
-        "gensense-mcp: streaming cwd={:?}, rules={}",
+        "frensense-mcp: streaming cwd={:?}, rules={}",
         std::env::current_dir().ok(),
         rule_count,
     );
@@ -210,7 +210,7 @@ pub fn run_audit(
     let mut engine = Engine::new();
     let rule_count = engine.list_rules().len();
     eprintln!(
-        "gensense-mcp: cwd={:?}, rules={}, threshold={:?}",
+        "frensense-mcp: cwd={:?}, rules={}, threshold={:?}",
         std::env::current_dir().ok(),
         rule_count,
         severity_threshold
@@ -289,7 +289,7 @@ pub fn find_project_root_for_fix(target: &Path) -> std::path::PathBuf {
         root = root.parent().unwrap_or(&root).to_path_buf();
     }
     while root.parent().is_some() {
-        if root.join(".gensense").exists() || root.join(".git").exists() {
+        if root.join(".frensense").exists() || root.join(".git").exists() {
             break;
         }
         root = root.parent().expect("parent").to_path_buf();

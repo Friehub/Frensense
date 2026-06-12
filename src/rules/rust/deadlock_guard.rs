@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata, Severity};
 use std::borrow::Cow;
 use std::sync::OnceLock;
 use tree_sitter::Node;
@@ -9,7 +9,7 @@ pub struct DeadlockGuard;
 
 static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
-impl GenSenseRule for DeadlockGuard {
+impl FrensenseRule for DeadlockGuard {
     fn metadata(&self) -> &RuleMetadata {
         METADATA.get_or_init(|| RuleMetadata {
             id: Cow::Borrowed("RUST_ASYNC_MUTEX_DEADLOCK"),
@@ -34,7 +34,7 @@ impl GenSenseRule for DeadlockGuard {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory> {
         let source = context.source_code;
         let Some(body) = node.child_by_field_name("body") else {
             return Vec::new();

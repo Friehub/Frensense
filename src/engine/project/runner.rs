@@ -2,7 +2,7 @@
 
 use super::Engine;
 use super::{FileSnapshot, cache, config};
-use crate::engine::auditor::{AuditOptions, GenSenseAuditor};
+use crate::engine::auditor::{AuditOptions, FrensenseAuditor};
 use crate::engine::suppression::SuppressConfig;
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
@@ -229,7 +229,7 @@ impl Engine {
     #[allow(clippy::too_many_lines)]
     pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
         if !root.exists() {
-            return Err(crate::GenSenseError::Io(std::io::Error::new(
+            return Err(crate::FrensenseError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("path does not exist: {}", root.display()),
             )));
@@ -357,7 +357,7 @@ impl Engine {
         Ok((all_advisories, symbols))
     }
 
-    fn initialize_auditor_and_config(&mut self, root: &Path) -> config::GenSenseConfig {
+    fn initialize_auditor_and_config(&mut self, root: &Path) -> config::FrensenseConfig {
         let config = config::load_config(root);
 
         if !self.isolate_rules {
@@ -366,7 +366,7 @@ impl Engine {
                 dirs.push(PathBuf::from(config_rules_dir));
             }
             let (rules, project_rules) =
-                GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
+                FrensenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
             self.auditor.set_rules(rules);
             self.project_rules = project_rules;
 
@@ -414,7 +414,7 @@ impl Engine {
                 )));
         }
 
-        let suppress_file = root.join(".gensense-suppress.yml");
+        let suppress_file = root.join(".frensense-suppress.yml");
         if suppress_file.exists()
             && let Ok(content) = std::fs::read_to_string(suppress_file)
             && let Ok(supp_config) = serde_yaml::from_str::<SuppressConfig>(&content)

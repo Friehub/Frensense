@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata, Severity};
 use std::borrow::Cow;
 use std::sync::OnceLock;
 use tree_sitter::Node;
@@ -9,7 +9,7 @@ pub struct TimeoutGuard;
 
 static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
-impl GenSenseRule for TimeoutGuard {
+impl FrensenseRule for TimeoutGuard {
     fn metadata(&self) -> &RuleMetadata {
         METADATA.get_or_init(|| RuleMetadata {
             id: Cow::Borrowed("RUST_ASYNC_MISSING_TIMEOUT"),
@@ -33,7 +33,7 @@ impl GenSenseRule for TimeoutGuard {
         Some("(await_expression) @await")
     }
 
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let code = &context.source_code[node.start_byte()..node.end_byte()];
 

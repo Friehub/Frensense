@@ -17,7 +17,7 @@ pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_p
     }
 
     while project_root.parent().is_some() {
-        if project_root.join(".gensense").exists() || project_root.join(".git").exists() {
+        if project_root.join(".frensense").exists() || project_root.join(".git").exists() {
             break;
         }
         project_root = project_root
@@ -65,7 +65,7 @@ pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_p
 pub fn find_profile(path: &Path) -> Option<PathBuf> {
     let mut current = Some(path);
     while let Some(p) = current {
-        let candidate = p.join(".gensense").join("profile.json");
+        let candidate = p.join(".frensense").join("profile.json");
         if candidate.exists() {
             return Some(candidate);
         }

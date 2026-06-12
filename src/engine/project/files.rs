@@ -117,7 +117,7 @@ pub(crate) fn parallel_audit_impl(
         .iter()
         .map(|(id, p)| {
             let snap = snapshot_map.get(id).ok_or_else(|| {
-                crate::GenSenseError::Engine(format!(
+                crate::FrensenseError::Engine(format!(
                     "Missing snapshot for file ID {} at path {}",
                     id.0,
                     p.display()

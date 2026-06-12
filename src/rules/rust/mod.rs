@@ -34,7 +34,7 @@ pub(crate) fn is_inside_cfg_test_module(node: tree_sitter::Node, source: &str) -
 
 pub(crate) fn is_excluded_test_scope(
     node: tree_sitter::Node,
-    context: &crate::GenSenseContext,
+    context: &crate::FrensenseContext,
 ) -> bool {
     let file_path = context.file_path.to_string_lossy();
     if file_path.contains("tests/") || file_path.contains("tests-build/") {

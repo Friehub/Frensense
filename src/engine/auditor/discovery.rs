@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-use super::GenSenseAuditor;
-use crate::{GenSenseError, Result, parser::ParserRegistry, semantics::SymbolRegistry};
+use super::FrensenseAuditor;
+use crate::{FrensenseError, Result, parser::ParserRegistry, semantics::SymbolRegistry};
 use std::path::Path;
 use tree_sitter::{Node, Query, QueryCursor};
 
-impl GenSenseAuditor {
+impl FrensenseAuditor {
     /// Discovers symbols in a given file.
     ///
     /// # Errors
@@ -22,7 +22,7 @@ impl GenSenseAuditor {
             return Ok(Vec::new());
         };
         let query =
-            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| FrensenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -108,7 +108,7 @@ impl GenSenseAuditor {
             return Ok(Vec::new());
         };
         let query =
-            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| FrensenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());

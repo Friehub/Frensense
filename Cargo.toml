@@ -1,16 +1,16 @@
 [workspace]
-members = ["gensense-engine"]
+members = ["frensense-engine"]
 resolver = "2"
 
 [package]
-name = "gensense"
+name = "frensense"
 version = "0.4.0"
 authors = ["Friehub Developers"]
 edition = "2024"
-description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
-repository = "https://github.com/Friehub/gensense"
-homepage = "https://friehub.github.io/gensense/"
-documentation = "https://friehub.github.io/gensense/"
+description = "Frensense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
+repository = "https://github.com/Friehub/frensense"
+homepage = "https://friehub.github.io/frensense/"
+documentation = "https://friehub.github.io/frensense/"
 license = "MIT"
 categories = ["development-tools::static-analysis", "security"]
 keywords = ["static-analysis", "linter", "security", "code-quality"]
@@ -18,18 +18,18 @@ publish = true
 rust-version = "1.88"
 
 [lib]
-name = "gensense"
+name = "frensense"
 
 [[bin]]
-name = "gensense"
-path = "src/bin/gensense.rs"
+name = "frensense"
+path = "src/bin/frensense.rs"
 
 [[bin]]
-name = "gensense-mcp"
-path = "src/bin/gensense-mcp.rs"
+name = "frensense-mcp"
+path = "src/bin/frensense-mcp.rs"
 
 [dependencies]
-gensense-engine = { path = "gensense-engine" }
+frensense-engine = { path = "frensense-engine" }
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
@@ -55,8 +55,8 @@ blake3 = "1.5"
 default = ["rust", "typescript", "fingerprinting", "remediation", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-c_lang = ["gensense-engine/c_lang"]
-fingerprinting = ["gensense-engine/serialize"]
+c_lang = ["frensense-engine/c_lang"]
+fingerprinting = ["frensense-engine/serialize"]
 remediation = ["dep:diff"]
 temporal = []
 

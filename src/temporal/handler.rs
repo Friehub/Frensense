@@ -3,21 +3,21 @@
 use crate::rules::ir::TemporalBehavior;
 use crate::temporal::analyzer::TemporalAnalyzer;
 use crate::temporal::config::TemporalConfig;
-use crate::{Advisory, GenSenseContext, GenSenseRule};
+use crate::{Advisory, FrensenseContext, FrensenseRule};
 
 /// Compile a `TemporalConfig` (from YAML) into the sequence + behavior
 /// needed to construct a `FlowConstraint::Temporal`.
 ///
 /// # Errors
-/// Returns `GenSenseError::Pattern` if a regex in the sequence is invalid
+/// Returns `FrensenseError::Pattern` if a regex in the sequence is invalid
 /// or if `forbidden_between` does not have exactly 2 elements.
 pub fn compile_temporal_config(
     config: TemporalConfig,
-) -> Result<(Vec<regex::Regex>, TemporalBehavior), crate::GenSenseError> {
+) -> Result<(Vec<regex::Regex>, TemporalBehavior), crate::FrensenseError> {
     let mut sequence = Vec::new();
     for p in config.sequence {
         sequence
-            .push(regex::Regex::new(&p).map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?);
+            .push(regex::Regex::new(&p).map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?);
     }
 
     let behavior = match config.behavior.as_str() {
@@ -26,7 +26,7 @@ pub fn compile_temporal_config(
             if sequence.len() >= 2 {
                 TemporalBehavior::ForbiddenBetween(sequence[0].clone(), sequence[1].clone())
             } else {
-                return Err(crate::GenSenseError::Pattern(
+                return Err(crate::FrensenseError::Pattern(
                     "forbidden_between requires at least 2 elements in sequence (start, end, + forbidden patterns)".to_string(),
                 ));
             }
@@ -41,10 +41,10 @@ pub fn compile_temporal_config(
 /// and return advisories.
 pub fn check_temporal<'a>(
     node: tree_sitter::Node<'a>,
-    context: &GenSenseContext<'a>,
+    context: &FrensenseContext<'a>,
     sequence: &[regex::Regex],
     behavior: &TemporalBehavior,
-    rule: &dyn GenSenseRule,
+    rule: &dyn FrensenseRule,
 ) -> Vec<Advisory> {
     let analyzer = TemporalAnalyzer::new(context);
     analyzer.check_temporal(node, sequence, behavior, rule)

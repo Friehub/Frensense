@@ -14,8 +14,8 @@ pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "gensense-mcp",
-                    "version": crate::GENSENSE_VERSION
+                    "name": "frensense-mcp",
+                    "version": crate::FRENSENSE_VERSION
                 }
             });
             rpc_result(req.id, result)
@@ -36,7 +36,7 @@ pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 
         "tools/call" => {
             let name = req.params.get("name").and_then(Value::as_str).unwrap_or("");
-            if name != "gensense_audit" {
+            if name != "frensense_audit" {
                 return rpc_error(req.id, -32602, format!("unknown tool: {name}"));
             }
 

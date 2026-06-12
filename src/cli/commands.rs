@@ -6,16 +6,16 @@
 use crate::parser::ParserRegistry;
 use crate::rules::compiler::RuleCompiler;
 use crate::rules::core::CoreRule;
-use crate::{Engine, GenSenseAuditor, GenSenseRule, Result};
+use crate::{Engine, FrensenseAuditor, FrensenseRule, Result};
 use std::path::Path;
 
 pub fn print_help() {
-    println!("GenSense - Semantic Code Analysis Engine");
-    println!("Version: {}", crate::GENSENSE_VERSION);
+    println!("Frensense - Semantic Code Analysis Engine");
+    println!("Version: {}", crate::FRENSENSE_VERSION);
     println!("Analyzes Rust, TypeScript, JavaScript, and YAML codebases for bugs,");
     println!("anti-patterns, security risks, and SQL drift — with AST-level precision.");
     println!();
-    println!("Usage: gensense [path] [options]");
+    println!("Usage: frensense [path] [options]");
     println!();
     println!("Arguments:");
     println!("  path                File or directory to scan (default: current directory)");
@@ -74,16 +74,16 @@ pub fn print_help() {
     println!("                      Optional: --expect-line <N>");
     println!();
     println!("Examples:");
-    println!("  gensense                            Scan current directory");
-    println!("  gensense src/                       Scan a specific directory");
-    println!("  gensense main.rs                    Scan a single file");
-    println!("  gensense --language rust .           Scan Rust files only");
-    println!("  gensense --diff-only --strict        Check changed files, fail on any finding");
-    println!("  gensense --json --suite extended     Export extended scan as JSON");
-    println!("  gensense --disable-rule RUST_STD_OUTPUT .    Disable a specific rule");
-    println!("  gensense --override-severity FILE_TOO_LONG:info .  Change rule severity");
-    println!("  gensense --emit-baseline baseline.json   Save baseline");
-    println!("  gensense --compare-baseline baseline.json  Check for regressions");
+    println!("  frensense                            Scan current directory");
+    println!("  frensense src/                       Scan a specific directory");
+    println!("  frensense main.rs                    Scan a single file");
+    println!("  frensense --language rust .           Scan Rust files only");
+    println!("  frensense --diff-only --strict        Check changed files, fail on any finding");
+    println!("  frensense --json --suite extended     Export extended scan as JSON");
+    println!("  frensense --disable-rule RUST_STD_OUTPUT .    Disable a specific rule");
+    println!("  frensense --override-severity FILE_TOO_LONG:info .  Change rule severity");
+    println!("  frensense --emit-baseline baseline.json   Save baseline");
+    println!("  frensense --compare-baseline baseline.json  Check for regressions");
     println!();
     println!("Features Enabled:");
     #[cfg(feature = "rust")]
@@ -98,8 +98,8 @@ pub fn print_help() {
 
 pub fn print_version() {
     println!(
-        "GenSense v{} - Semantic Code Analysis Engine",
-        crate::GENSENSE_VERSION
+        "Frensense v{} - Semantic Code Analysis Engine",
+        crate::FRENSENSE_VERSION
     );
     println!("Ship with confidence. Audit with insight.");
     println!("\nFeatures Enabled:");
@@ -121,7 +121,7 @@ pub struct RulesWrapper {
 pub fn handle_test_rule(args: &[String]) {
     if args.len() < 7 {
         eprintln!(
-            "Usage: gensense test-rule <rule.yml> --fixture <file> --expect-finding <id> [--expect-line <N>]"
+            "Usage: frensense test-rule <rule.yml> --fixture <file> --expect-finding <id> [--expect-line <N>]"
         );
         std::process::exit(1);
     }
@@ -164,7 +164,7 @@ pub fn handle_test_rule(args: &[String]) {
 
     let wrapper: RulesWrapper =
         serde_yaml::from_str(&rule_content).expect("Failed to parse YAML rules");
-    let mut rules: Vec<Box<dyn GenSenseRule>> = Vec::new();
+    let mut rules: Vec<Box<dyn FrensenseRule>> = Vec::new();
     for rule in wrapper.rules {
         match RuleCompiler::compile(rule) {
             Ok(compiled) => rules.push(Box::new(compiled)),
@@ -212,9 +212,9 @@ pub fn handle_generate_docs() -> Result<()> {
     let engine = Engine::new();
     let _ = engine.list_rules();
     let mut doc = String::new();
-    doc.push_str("# GenSense Rule Catalog\n\n");
+    doc.push_str("# Frensense Rule Catalog\n\n");
     doc.push_str(
-        "This catalog lists all semantic rules currently active in the GenSense engine.\n\n",
+        "This catalog lists all semantic rules currently active in the Frensense engine.\n\n",
     );
     doc.push_str("| Rule ID | Severity | Category | Description |\n");
     doc.push_str("| :--- | :--- | :--- | :--- |\n");
@@ -249,11 +249,11 @@ pub fn handle_debug_ast(file_path: &str) -> Result<()> {
 }
 
 pub fn handle_list_rules() -> Result<()> {
-    let (rules, _project_rules) = GenSenseAuditor::default_rules();
+    let (rules, _project_rules) = FrensenseAuditor::default_rules();
     let mut engine = Engine::new();
     engine.set_rules(rules);
     let catalog = engine.list_rules();
-    println!("GenSense: Active Rules Catalog");
+    println!("Frensense: Active Rules Catalog");
     println!("{:->100}", "");
     println!("{:<30} | {:<10} | Description", "Rule ID", "Severity");
     println!("{:->100}", "");

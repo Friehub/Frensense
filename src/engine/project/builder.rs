@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use super::Engine;
-use crate::GenSenseEnvironment;
+use crate::FrensenseEnvironment;
 use std::path::PathBuf;
 
 impl Engine {
@@ -72,16 +72,16 @@ impl Engine {
         self.min_confidence = val;
     }
 
-    pub const fn set_environment(&mut self, env: GenSenseEnvironment) {
+    pub const fn set_environment(&mut self, env: FrensenseEnvironment) {
         self.environment = env;
     }
 
-    pub fn set_rules(&mut self, rules: Vec<Box<dyn crate::GenSenseRule>>) {
+    pub fn set_rules(&mut self, rules: Vec<Box<dyn crate::FrensenseRule>>) {
         self.auditor.set_rules(rules);
     }
 
     #[must_use]
-    pub const fn auditor(&self) -> &crate::GenSenseAuditor {
+    pub const fn auditor(&self) -> &crate::FrensenseAuditor {
         &self.auditor
     }
 

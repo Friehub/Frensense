@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::semantics::SymbolRegistry;
-use crate::{Advisory, GenSenseEnvironment, ProjectRule, SourceRegistry};
+use crate::{Advisory, FrensenseEnvironment, ProjectRule, SourceRegistry};
 
 pub struct ProjectAuditor {
     pub rules: Vec<Box<dyn ProjectRule>>,
@@ -18,7 +18,7 @@ impl ProjectAuditor {
         &self,
         symbols: &SymbolRegistry,
         sources: &SourceRegistry,
-        env: GenSenseEnvironment,
+        env: FrensenseEnvironment,
     ) -> Vec<Advisory> {
         self.rules
             .iter()

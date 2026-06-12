@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata};
 use tree_sitter::Node;
 
 pub struct TemporalAnalyzer<'a, 'ctx> {
-    pub context: &'ctx GenSenseContext<'a>,
+    pub context: &'ctx FrensenseContext<'a>,
 }
 
 impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
     #[must_use]
-    pub const fn new(context: &'ctx GenSenseContext<'a>) -> Self {
+    pub const fn new(context: &'ctx FrensenseContext<'a>) -> Self {
         Self { context }
     }
 
@@ -18,7 +18,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
         scope: Node,
         sequence: &[regex::Regex],
         behavior: &crate::rules::ir::TemporalBehavior,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
     ) -> Vec<Advisory> {
         let file_path = self.context.file_path.to_string_lossy();
         let line = scope.start_position().row + 1;
@@ -118,7 +118,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
         scope: &Node,
         events: &[crate::semantics::graph::TemporalEvent],
         sequence: &[regex::Regex],
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
     ) -> Vec<Advisory> {
         let mut current_step = 0;
         for event in events {

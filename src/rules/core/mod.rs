@@ -5,7 +5,7 @@ pub mod project;
 
 #[cfg(feature = "temporal")]
 use crate::temporal::TemporalConfig;
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata};
 use helpers::serde_regex_opt;
 use regex::Regex;
 use tree_sitter::Node;
@@ -95,7 +95,7 @@ pub struct CoreRule {
     pub without_exclusion: Option<Box<CoreRule>>,
 }
 
-impl GenSenseRule for CoreRule {
+impl FrensenseRule for CoreRule {
     fn metadata(&self) -> &RuleMetadata {
         &self.metadata
     }
@@ -123,7 +123,7 @@ impl GenSenseRule for CoreRule {
         self.target_ext == ext
     }
 
-    fn check<'a>(&self, _node: Node<'a>, _context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, _node: Node<'a>, _context: &FrensenseContext<'a>) -> Vec<Advisory> {
         // CoreRule itself is just a template; it's compiled into CoreRuleIr for execution.
         Vec::new()
     }

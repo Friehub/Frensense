@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{GenSenseError, Result};
+use crate::{FrensenseError, Result};
 use std::path::Path;
 use tree_sitter::Language;
 
@@ -22,7 +22,7 @@ impl ParserRegistry {
     /// Returns an error if the file extension is missing or if the language is not supported.
     pub fn get_language(path: &Path) -> Result<Language> {
         let ext = path.extension().and_then(|s| s.to_str()).ok_or_else(|| {
-            GenSenseError::Config(format!("File has no extension: {}", path.display()))
+            FrensenseError::Config(format!("File has no extension: {}", path.display()))
         })?;
 
         match ext {
@@ -32,10 +32,10 @@ impl ParserRegistry {
             "ts" | "tsx" => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
-            "yml" | "yaml" => Err(GenSenseError::Config(
+            "yml" | "yaml" => Err(FrensenseError::Config(
                 "YAML tree-sitter parsing not available in this build".to_string(),
             )),
-            _ => Err(GenSenseError::Config(format!(
+            _ => Err(FrensenseError::Config(format!(
                 "Unsupported file extension or feature not enabled: {ext}"
             ))),
         }

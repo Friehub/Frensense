@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 #![allow(clippy::type_complexity)]
 
-use super::GenSenseAuditor;
+use super::FrensenseAuditor;
 use super::common::RulesWrapper;
-use crate::{EMBEDDED_RULES_DIR, GenSenseRule, ProjectRule, Suite};
+use crate::{EMBEDDED_RULES_DIR, FrensenseRule, ProjectRule, Suite};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-impl GenSenseAuditor {
+impl FrensenseAuditor {
     pub fn is_rule_enabled(
         &self,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         cat_filter: &HashSet<String>,
         tag_filter: &HashSet<String>,
         suite: Suite,
-        env: crate::GenSenseEnvironment,
+        env: crate::FrensenseEnvironment,
         severity_filter: Option<crate::Severity>,
     ) -> bool {
         let meta = rule.metadata();
@@ -25,7 +25,7 @@ impl GenSenseAuditor {
             return false;
         }
 
-        if env == crate::GenSenseEnvironment::Production && meta.tags.iter().any(|t| t == "beta") {
+        if env == crate::FrensenseEnvironment::Production && meta.tags.iter().any(|t| t == "beta") {
             return false;
         }
 
@@ -72,8 +72,8 @@ impl GenSenseAuditor {
     }
 
     #[must_use]
-    pub fn default_rules() -> (Vec<Box<dyn GenSenseRule>>, Vec<Box<dyn ProjectRule>>) {
-        let mut rules: Vec<Box<dyn GenSenseRule>> = Vec::new();
+    pub fn default_rules() -> (Vec<Box<dyn FrensenseRule>>, Vec<Box<dyn ProjectRule>>) {
+        let mut rules: Vec<Box<dyn FrensenseRule>> = Vec::new();
         let mut project_rules: Vec<Box<dyn ProjectRule>> = Vec::new();
 
         #[cfg(feature = "rust")]
@@ -119,7 +119,7 @@ impl GenSenseAuditor {
     }
 
     fn load_yaml_rules_from_disk(
-        rules: &mut Vec<Box<dyn GenSenseRule>>,
+        rules: &mut Vec<Box<dyn FrensenseRule>>,
         project_rules: &mut Vec<Box<dyn ProjectRule>>,
     ) -> bool {
         let mut yaml_rules_loaded = false;
@@ -153,7 +153,7 @@ impl GenSenseAuditor {
     }
 
     fn load_embedded_yaml_rules(
-        rules: &mut Vec<Box<dyn GenSenseRule>>,
+        rules: &mut Vec<Box<dyn FrensenseRule>>,
         project_rules: &mut Vec<Box<dyn ProjectRule>>,
     ) {
         let mut rule_files = Vec::new();
@@ -195,7 +195,7 @@ impl GenSenseAuditor {
         project_root: &Path,
         extra_dirs: &[PathBuf],
         no_builtin_rules: bool,
-    ) -> (Vec<Box<dyn GenSenseRule>>, Vec<Box<dyn ProjectRule>>) {
+    ) -> (Vec<Box<dyn FrensenseRule>>, Vec<Box<dyn ProjectRule>>) {
         let (mut rules, mut project_rules) = if no_builtin_rules {
             (Vec::new(), Vec::new())
         } else {

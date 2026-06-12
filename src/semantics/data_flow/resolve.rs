@@ -2,7 +2,7 @@
 
 use super::TaintRegistry;
 use super::{DataFlowAnalyzer, TaintOrigin};
-use crate::{Advisory, GenSenseRule};
+use crate::{Advisory, FrensenseRule};
 use regex::Regex;
 use tree_sitter::Node;
 
@@ -15,7 +15,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         call_node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
@@ -64,7 +64,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             && let Some(mut next_registry) = self.map_params(def_node, def_source, &tainted_args)
             && let Some(body) = def_node.child_by_field_name("body")
         {
-            let new_context = crate::GenSenseContext {
+            let new_context = crate::FrensenseContext {
                 file_id: def_id,
                 file_path: def_path,
                 source_code: def_source,
@@ -129,7 +129,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         v_node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) {
@@ -188,7 +188,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) -> Option<TaintOrigin> {
@@ -261,7 +261,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         call_node: Node<'a>,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) -> Option<TaintOrigin> {
@@ -350,7 +350,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             if let Some(mut next_registry) = self.map_params(def_node, def_source, &tainted_args)
                 && let Some(body) = def_node.child_by_field_name("body")
             {
-                let new_context = crate::GenSenseContext {
+                let new_context = crate::FrensenseContext {
                     file_id: def_id,
                     file_path: def_path,
                     source_code: def_source,

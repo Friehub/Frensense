@@ -1,7 +1,7 @@
 #![allow(clippy::missing_errors_doc)]
 use super::options::CliOptions;
 use crate::reporter::Reporter;
-use crate::{Advisory, Engine, GenSenseError, Result};
+use crate::{Advisory, Engine, FrensenseError, Result};
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub fn print_results(
             println!(
                 "{}",
                 serde_json::to_string_pretty(&wrapper)
-                    .map_err(|e| GenSenseError::Config(format!("JSON error: {e}")))?
+                    .map_err(|e| FrensenseError::Config(format!("JSON error: {e}")))?
             );
         }
         "sarif" => {
@@ -42,7 +42,7 @@ pub fn print_results(
             println!(
                 "{}",
                 serde_json::to_string_pretty(&sarif)
-                    .map_err(|e| GenSenseError::Config(format!("JSON error: {e}")))?
+                    .map_err(|e| FrensenseError::Config(format!("JSON error: {e}")))?
             );
         }
         _ => {
@@ -51,8 +51,8 @@ pub fn print_results(
             } else {
                 println!("╔══════════════════════════════════════════════════╗");
                 println!(
-                    "║  GenSense v{}                              ║",
-                    crate::GENSENSE_VERSION
+                    "║  Frensense v{}                              ║",
+                    crate::FRENSENSE_VERSION
                 );
                 println!("║  Semantic Code Analysis Engine                ║");
                 println!("╚══════════════════════════════════════════════════╝");
@@ -80,10 +80,10 @@ pub fn print_results(
 
 pub fn compare_baseline(filtered_advisories: &[Advisory], path: &str) -> Result<bool> {
     let content = std::fs::read_to_string(path)
-        .map_err(|e| GenSenseError::Config(format!("Failed to read baseline: {e}")))?;
+        .map_err(|e| FrensenseError::Config(format!("Failed to read baseline: {e}")))?;
     let baseline: Vec<Advisory> = serde_json::from_str(&content)
         .or_else(|_| serde_yaml::from_str(&content))
-        .map_err(|e| GenSenseError::Config(format!("Failed to parse baseline: {e}")))?;
+        .map_err(|e| FrensenseError::Config(format!("Failed to parse baseline: {e}")))?;
 
     let baseline_fuzzy: HashSet<_> = baseline.iter().map(Advisory::fuzzy_identity).collect();
     let current_fuzzy: HashSet<_> = filtered_advisories
@@ -138,9 +138,9 @@ pub fn compare_baseline(filtered_advisories: &[Advisory], path: &str) -> Result<
 
 pub fn save_baseline(advisories: &[Advisory], path: &str) -> Result<()> {
     let content = serde_json::to_string_pretty(advisories)
-        .map_err(|e| GenSenseError::Config(format!("JSON error: {e}")))?;
+        .map_err(|e| FrensenseError::Config(format!("JSON error: {e}")))?;
     std::fs::write(path, content)
-        .map_err(|e| GenSenseError::Config(format!("Failed to write baseline: {e}")))?;
+        .map_err(|e| FrensenseError::Config(format!("Failed to write baseline: {e}")))?;
     println!("[SUCCESS] Captured baseline to {path}");
     Ok(())
 }

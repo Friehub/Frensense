@@ -9,7 +9,7 @@ pub mod project;
 pub mod source;
 pub mod suppression;
 
-pub use auditor::GenSenseAuditor;
+pub use auditor::FrensenseAuditor;
 #[cfg(feature = "fingerprinting")]
 pub use fingerprint::FunctionFingerprint;
 #[cfg(feature = "fingerprinting")]

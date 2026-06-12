@@ -7,9 +7,9 @@ pub mod files;
 pub mod helpers;
 pub mod runner;
 
-use crate::engine::auditor::GenSenseAuditor;
+use crate::engine::auditor::FrensenseAuditor;
 use crate::semantics::symbols::SymbolRegistry;
-use crate::{Advisory, FileId, GenSenseEnvironment, ProjectRule, SourceRegistry};
+use crate::{Advisory, FileId, FrensenseEnvironment, ProjectRule, SourceRegistry};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -25,11 +25,11 @@ pub struct FileSnapshot {
 }
 
 pub struct Engine {
-    auditor: GenSenseAuditor,
+    auditor: FrensenseAuditor,
     project_rules: Vec<Box<dyn ProjectRule>>,
     source_registry: SourceRegistry,
     min_confidence: f32,
-    environment: GenSenseEnvironment,
+    environment: FrensenseEnvironment,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
     suite: crate::Suite,
@@ -66,11 +66,11 @@ impl Engine {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            auditor: GenSenseAuditor::new(Vec::new()),
+            auditor: FrensenseAuditor::new(Vec::new()),
             project_rules: Vec::new(),
             source_registry: SourceRegistry::new(),
             min_confidence: 0.1,
-            environment: GenSenseEnvironment::Development,
+            environment: FrensenseEnvironment::Development,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
             suite: crate::Suite::All,
@@ -115,7 +115,7 @@ impl ProjectAuditor {
         &self,
         symbols: &SymbolRegistry,
         sources: &SourceRegistry,
-        _env: GenSenseEnvironment,
+        _env: FrensenseEnvironment,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         for rule in &self.rules {

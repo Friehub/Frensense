@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::{Advisory, GenSenseContext, GenSenseRule, RuleMetadata, Severity};
+use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata, Severity};
 use std::borrow::Cow;
 use std::sync::OnceLock;
 use tree_sitter::Node;
@@ -9,7 +9,7 @@ pub struct TautologicalAssert;
 
 static METADATA: OnceLock<RuleMetadata> = OnceLock::new();
 
-impl GenSenseRule for TautologicalAssert {
+impl FrensenseRule for TautologicalAssert {
     fn metadata(&self) -> &RuleMetadata {
         METADATA.get_or_init(|| RuleMetadata {
             id: Cow::Borrowed("TS_TAUTOLOGICAL_ASSERT"),
@@ -33,7 +33,7 @@ impl GenSenseRule for TautologicalAssert {
         Some("(call_expression) @call")
     }
 
-    fn check<'a>(&self, node: Node<'a>, context: &GenSenseContext<'a>) -> Vec<Advisory> {
+    fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory> {
         let Some(func) = node.child_by_field_name("function") else {
             return Vec::new();
         };

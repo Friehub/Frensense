@@ -28,12 +28,12 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             .map(|(k, (t, s, _))| (k.clone(), (s.as_str(), t)))
             .collect();
 
-        let all_sym_entries: Vec<gensense_engine::data_flow::SymbolEntry> = self
+        let all_sym_entries: Vec<frensense_engine::data_flow::SymbolEntry> = self
             .context
             .symbols
             .query_all()
             .into_iter()
-            .map(|s| gensense_engine::data_flow::SymbolEntry {
+            .map(|s| frensense_engine::data_flow::SymbolEntry {
                 name: s.name.clone(),
                 file_path: s.file_path.clone(),
                 start_byte: s.start_byte,
@@ -44,7 +44,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             })
             .collect();
 
-        let resolved = gensense_engine::data_flow::resolve_fn_definition(
+        let resolved = frensense_engine::data_flow::resolve_fn_definition(
             name,
             &self.current_file_path.to_string_lossy(),
             self.root.start_position().row + 1,
@@ -97,6 +97,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         def_source: &'a str,
         tainted_args: &[(usize, super::TaintOrigin)],
     ) -> Option<super::TaintRegistry> {
-        gensense_engine::data_flow::map_call_args_to_params(def_node, def_source, tainted_args)
+        frensense_engine::data_flow::map_call_args_to_params(def_node, def_source, tainted_args)
     }
 }

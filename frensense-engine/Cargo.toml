@@ -1,15 +1,15 @@
 [package]
-name = "gensense-engine"
+name = "frensense-engine"
 version = "0.4.0"
 authors = ["Friehub Developers"]
 edition = "2024"
-description = "GenSense engine core — structural code analysis primitives (fingerprints, profiles, semantic graph, taint, temporal events)"
+description = "Frensense engine core — structural code analysis primitives (fingerprints, profiles, semantic graph, taint, temporal events)"
 license = "MIT"
-repository = "https://github.com/Friehub/gensense"
+repository = "https://github.com/Friehub/frensense"
 rust-version = "1.88"
 
 [lib]
-name = "gensense_engine"
+name = "frensense_engine"
 
 [dependencies]
 tree-sitter = "0.23"
@@ -17,7 +17,6 @@ tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-javascript = { version = "0.23", optional = true }
 tree-sitter-c = { version = "0.23", optional = true }
-# tree-sitter-yaml not at 0.23 yet; YAML parsing is consumer-side via serde_yaml
 rustc-hash = "1.1"
 petgraph = "0.6"
 thiserror = "1.0"

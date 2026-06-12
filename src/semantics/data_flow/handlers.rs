@@ -2,7 +2,7 @@
 
 use super::TaintRegistry;
 use super::{DataFlowAnalyzer, TaintOrigin};
-use crate::{Advisory, GenSenseRule};
+use crate::{Advisory, FrensenseRule};
 use regex::Regex;
 use tree_sitter::Node;
 
@@ -43,7 +43,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         block_range: super::normalization::Range,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) {
@@ -83,7 +83,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         block_range: super::normalization::Range,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
         advisories: &mut Vec<Advisory>,
     ) {
@@ -124,7 +124,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         block_range: super::normalization::Range,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
     ) -> Option<Vec<Advisory>> {
         if range.start_byte >= block_range.start_byte && range.end_byte <= block_range.end_byte {
@@ -151,7 +151,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         block_range: super::normalization::Range,
         source_re: &Regex,
         sink_re: &Regex,
-        rule: &dyn GenSenseRule,
+        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
     ) -> Option<Vec<Advisory>> {
         if body_range.start_byte > block_range.start_byte

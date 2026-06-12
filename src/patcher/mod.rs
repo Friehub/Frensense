@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #[cfg(feature = "remediation")]
-use crate::{Advisory, GenSenseError, Result};
+use crate::{Advisory, FrensenseError, Result};
 #[cfg(feature = "remediation")]
 use diff;
 #[cfg(feature = "remediation")]
@@ -119,7 +119,7 @@ impl PatchManager {
 
         let absolute_path = self.root_dir.join(file_path);
         let content = fs::read_to_string(&absolute_path)
-            .map_err(|e| GenSenseError::Config(format!("Failed to read file for patching: {e}")))?;
+            .map_err(|e| FrensenseError::Config(format!("Failed to read file for patching: {e}")))?;
 
         // Sort advisories back-to-front by start_byte to ensure offset stability
         let mut sorted_advisories = advisories.to_vec();
@@ -139,7 +139,7 @@ impl PatchManager {
                 || end > updated_content.len()
                 || updated_content[start..end] != advisory.original_content
             {
-                return Err(GenSenseError::Config(format!(
+                return Err(FrensenseError::Config(format!(
                     "Patch failed for {}: Context mismatch at byte {}. Expected '{}', found '{}'",
                     file_path.display(),
                     start,
@@ -193,12 +193,12 @@ impl PatchManager {
 
         let tmp_path = absolute_path.with_extension("patch_tmp");
         fs::write(&tmp_path, updated_content).map_err(|e| {
-            GenSenseError::Config(format!("Failed to write temporary patch file: {e}"))
+            FrensenseError::Config(format!("Failed to write temporary patch file: {e}"))
         })?;
 
         // 3. Atomic rename (on Unix, this is atomic).
         fs::rename(&tmp_path, &absolute_path)
-            .map_err(|e| GenSenseError::Config(format!("Failed to apply patch atomically: {e}")))?;
+            .map_err(|e| FrensenseError::Config(format!("Failed to apply patch atomically: {e}")))?;
 
         Ok(())
     }

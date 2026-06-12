@@ -328,7 +328,7 @@ pub fn get_input_path(args: &[String]) -> PathBuf {
             "Error: path '{input_path_str}' does not exist — specify a valid file or directory"
         );
         eprintln!();
-        eprintln!("Run 'gensense --help' for usage information");
+        eprintln!("Run 'frensense --help' for usage information");
         std::process::exit(1);
     }
 }

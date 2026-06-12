@@ -10,7 +10,7 @@ pub trait AnalysisArtifact: Send + Sync {}
 #[derive(Default)]
 pub struct AnalysisRegistry {
     // We use a simplified registry for now, storing Arc<dyn Any> or specialized maps
-    // For GenSense, we primarily care about Taint results and Symbol tables per scope.
+    // For Frensense, we primarily care about Taint results and Symbol tables per scope.
     taint_results: HashMap<(String, ScopeId), Arc<dyn std::any::Any + Send + Sync>>,
 }
 
@@ -41,7 +41,7 @@ impl AnalysisRegistry {
             .or_insert_with(|| Arc::new(compute()));
 
         entry.clone().downcast::<T>().map_err(|_| {
-            crate::GenSenseError::Engine("Type mismatch in AnalysisRegistry".to_string())
+            crate::FrensenseError::Engine("Type mismatch in AnalysisRegistry".to_string())
         })
     }
 }

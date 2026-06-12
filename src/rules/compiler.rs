@@ -3,7 +3,7 @@
 use crate::rules::core::CoreRule;
 use crate::rules::ir::{AstQuery, CoreRuleIr, FlowConstraint};
 
-/// The `GenSense` Rule Compiler.
+/// The `Frensense` Rule Compiler.
 pub struct RuleCompiler;
 
 impl RuleCompiler {
@@ -52,7 +52,7 @@ impl RuleCompiler {
 
         if let Some(scope) = dsl.within_scope {
             let re = regex::Regex::new(&scope)
-                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+                .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?;
             flow_constraints.push(FlowConstraint::ScopeConstraint {
                 pattern: re,
                 invert: false,
@@ -61,7 +61,7 @@ impl RuleCompiler {
 
         if let Some(scope) = dsl.outside_scope {
             let re = regex::Regex::new(&scope)
-                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+                .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?;
             flow_constraints.push(FlowConstraint::ScopeConstraint {
                 pattern: re,
                 invert: true,
@@ -77,7 +77,7 @@ impl RuleCompiler {
         // Composite: across_boundary wraps taint constraints.
         if let Some(boundary) = dsl.across_boundary {
             let boundary_re = regex::Regex::new(&boundary)
-                .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?;
+                .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?;
             // Find the last taint constraint and wrap it.
             let taint_idx = flow_constraints.iter().rposition(|c| {
                 matches!(
@@ -150,7 +150,7 @@ impl RuleCompiler {
         let fix_pattern = if let Some(pat) = dsl.fix_pattern {
             Some(
                 regex::Regex::new(&pat)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
             )
         } else {
             None
@@ -159,7 +159,7 @@ impl RuleCompiler {
         let exclude_scope = if let Some(scope) = dsl.exclude_scope {
             Some(
                 regex::Regex::new(&scope)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
             )
         } else {
             None
@@ -219,40 +219,40 @@ impl ProjectRuleCompiler {
         if let Some(guard) = dsl.must_have_guard {
             constraints.push(ProjectFlowConstraint::MustHaveGuard {
                 source_re: regex::Regex::new(&guard.source_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 guard_re: regex::Regex::new(&guard.guard_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 source_glob: glob::Pattern::new(&guard.source_file_glob)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 guard_glob: glob::Pattern::new(&guard.guard_file_glob)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
             });
         }
 
         if let Some(internal) = dsl.must_be_internal {
             constraints.push(ProjectFlowConstraint::MustBeInternal {
                 re: regex::Regex::new(&internal.pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 glob: glob::Pattern::new(&internal.file_glob)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
             });
         }
 
         if let Some(taint) = dsl.cross_file_taint_free {
             constraints.push(ProjectFlowConstraint::CrossFileTaintFree {
                 source_re: regex::Regex::new(&taint.source_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 sink_re: regex::Regex::new(&taint.sink_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
             });
         }
 
         if let Some(taint) = dsl.global_data_flow {
             constraints.push(ProjectFlowConstraint::GlobalDataFlow {
                 source_pattern: regex::Regex::new(&taint.source_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 sink_pattern: regex::Regex::new(&taint.sink_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
             });
         }
 
@@ -265,35 +265,35 @@ impl ProjectRuleCompiler {
 
         if schema_contract_present {
             let source_pattern = dsl.source_pattern.as_ref().ok_or_else(|| {
-                crate::GenSenseError::Config(
+                crate::FrensenseError::Config(
                     "schema contract rules require source_pattern".to_string(),
                 )
             })?;
             let schema_type = dsl.schema_type.ok_or_else(|| {
-                crate::GenSenseError::Config(
+                crate::FrensenseError::Config(
                     "schema contract rules require schema_type".to_string(),
                 )
             })?;
             let schema_glob = dsl.schema_glob.as_ref().ok_or_else(|| {
-                crate::GenSenseError::Config(
+                crate::FrensenseError::Config(
                     "schema contract rules require schema_glob".to_string(),
                 )
             })?;
             let schema_extract = dsl.schema_extract.ok_or_else(|| {
-                crate::GenSenseError::Config(
+                crate::FrensenseError::Config(
                     "schema contract rules require schema_extract".to_string(),
                 )
             })?;
 
             let source_file_glob = if let Some(glob) = dsl.source_file_glob.as_ref() {
                 glob::Pattern::new(glob)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?
             } else if let Some(source_ext) = dsl.source_ext.as_ref() {
                 let ext = source_ext.trim().trim_start_matches('.');
                 glob::Pattern::new(&format!("**/*.{ext}"))
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?
             } else {
-                return Err(crate::GenSenseError::Config(
+                return Err(crate::FrensenseError::Config(
                     "schema contract rules require either source_file_glob or source_ext"
                         .to_string(),
                 ));
@@ -301,11 +301,11 @@ impl ProjectRuleCompiler {
 
             constraints.push(ProjectFlowConstraint::SchemaContract {
                 source_capture_re: regex::Regex::new(source_pattern)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 source_file_glob,
                 schema_type,
                 schema_file_glob: glob::Pattern::new(schema_glob)
-                    .map_err(|e| crate::GenSenseError::Pattern(e.to_string()))?,
+                    .map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
                 schema_extract,
             });
         }
