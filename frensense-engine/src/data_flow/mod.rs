@@ -7,6 +7,7 @@ pub mod engine;
 pub mod normalization;
 pub mod path_sensitive;
 pub mod resolver;
+pub mod taint_metrics;
 
 pub use alias::AliasTracker;
 pub use engine::DataFlowEngine;

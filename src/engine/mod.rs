@@ -8,6 +8,7 @@ pub mod profile;
 pub mod project;
 pub mod source;
 pub mod suppression;
+pub mod taint_rules;
 
 pub use auditor::FrensenseAuditor;
 #[cfg(feature = "fingerprinting")]
