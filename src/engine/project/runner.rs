@@ -583,6 +583,52 @@ impl Engine {
             }
         }
 
+        let mut dep_resolver = frensense_engine::deps::DependencyResolver::new();
+        dep_resolver.load_project(root);
+        for snap in &snapshots {
+            for hit in dep_resolver.scan_file(&snap.content, &snap.path) {
+                all_advisories.push(Advisory {
+                    rule_id: "AI_HALLUCINATED_IMPORT".to_string(),
+                    file_id: snap.id,
+                    file_path: hit.file_path.clone(),
+                    severity: crate::Severity::Warning,
+                    confidence: 0.70,
+                    observation: format!(
+                        "Import '{}' does not resolve to any known dependency in Cargo.lock or package.json.",
+                        hit.import_name,
+                    ),
+                    impact: "LLMs hallucinate crate names — this import will fail at build time."
+                        .to_string(),
+                    improvement: "Verify the crate name against the project's lockfile."
+                        .to_string(),
+                    line: u32::try_from(hit.line).unwrap_or(u32::MAX),
+                    column: u32::try_from(hit.column).unwrap_or(u32::MAX),
+                    start_byte: 0,
+                    end_byte: 0,
+                    original_content: hit.import_name.clone(),
+                    proposed_replacement: None,
+                    proposed_import: None,
+                    enclosing_symbol: None,
+                    fingerprint: String::new(),
+                    auto_fixable: false,
+                    requires_human: true,
+                    tags: vec!["llm".to_string(), "hallucination".to_string()],
+                });
+            }
+        }
+
+        if let Some(ref baseline_path) = self.baseline_path {
+            if let Ok(prev) = std::fs::read_to_string(baseline_path) {
+                if let Ok(fingerprints) =
+                    serde_json::from_str::<Vec<String>>(&prev)
+                {
+                    let baseline_set: std::collections::HashSet<String> =
+                        fingerprints.into_iter().collect();
+                    all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
+                }
+            }
+        }
+
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok((all_advisories, symbols))
     }

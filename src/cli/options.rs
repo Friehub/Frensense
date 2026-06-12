@@ -39,6 +39,8 @@ pub struct CliOptions {
     pub profile_stats: bool,
     pub corpus_dir: Option<PathBuf>,
     pub corpus_threshold: f64,
+    pub baseline_path: Option<PathBuf>,
+    pub update_baseline: bool,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -79,6 +81,8 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         profile_stats: false,
         corpus_dir: None,
         corpus_threshold: 0.65,
+        baseline_path: None,
+        update_baseline: false,
     };
 
     let mut i = 1;
@@ -322,6 +326,13 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                     i += 1;
                 }
             }
+            "--baseline" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.baseline_path = Some(PathBuf::from(val));
+                    i += 1;
+                }
+            }
+            "--update-baseline" => options.update_baseline = true,
             _ => {}
         }
         i += 1;

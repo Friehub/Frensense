@@ -67,6 +67,9 @@ fn main() -> Result<()> {
     if let Some(ref corpus_dir) = options.corpus_dir {
         engine.set_corpus_dir(corpus_dir.clone());
     }
+    if let Some(ref baseline_path) = options.baseline_path {
+        engine.set_baseline_path(baseline_path.clone());
+    }
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = frensense::parser::ParserRegistry::extensions_for(lang_arg) {

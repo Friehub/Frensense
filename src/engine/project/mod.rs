@@ -62,6 +62,7 @@ pub struct Engine {
     profile_threshold: f64,
 
     corpus_dir: Option<PathBuf>,
+    baseline_path: Option<PathBuf>,
 }
 
 impl Engine {
@@ -99,11 +100,16 @@ impl Engine {
             #[cfg(feature = "fingerprinting")]
             profile_threshold: 0.7,
             corpus_dir: None,
+            baseline_path: None,
         }
     }
 
     pub fn set_corpus_dir(&mut self, dir: std::path::PathBuf) {
         self.corpus_dir = Some(dir);
+    }
+
+    pub fn set_baseline_path(&mut self, path: std::path::PathBuf) {
+        self.baseline_path = Some(path);
     }
 }
 
