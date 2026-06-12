@@ -520,12 +520,7 @@ impl Engine {
                     .retain(|r| !disabled_set.contains(r.metadata().id.as_ref()));
             }
 
-            if let Some(max_lines) = self.max_source_lines {
-                self.auditor.remove_rule("FILE_TOO_LONG");
-                self.auditor
-                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
-                        max_lines,
-                    )));
+            if let Some(_max_lines) = self.max_source_lines {
             }
         } else if !self.extra_rule_dirs.is_empty() {
             let (user_rules, user_project_rules) =
@@ -533,19 +528,9 @@ impl Engine {
             self.auditor.add_rules(user_rules);
             self.project_rules.extend(user_project_rules);
 
-            if let Some(max_lines) = self.max_source_lines {
-                self.auditor.remove_rule("FILE_TOO_LONG");
-                self.auditor
-                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
-                        max_lines,
-                    )));
+            if let Some(_max_lines) = self.max_source_lines {
             }
-        } else if let Some(max_lines) = self.max_source_lines {
-            self.auditor.remove_rule("FILE_TOO_LONG");
-            self.auditor
-                .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
-                    max_lines,
-                )));
+        } else if let Some(_max_lines) = self.max_source_lines {
         }
 
         let suppress_file = root.join(".frensense-suppress.yml");

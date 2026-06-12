@@ -145,6 +145,19 @@ impl FrensenseAuditor {
         self.combined_queries.borrow_mut().clear();
     }
 
+    #[allow(clippy::unused_self, clippy::too_many_arguments)]
+    fn is_rule_enabled(
+        &self,
+        _rule: &dyn FrensenseRule,
+        _category_filter: &std::collections::HashSet<String>,
+        _tag_filter: &std::collections::HashSet<String>,
+        _suite: crate::Suite,
+        _env: crate::FrensenseEnvironment,
+        _severity_filter: Option<crate::Severity>,
+    ) -> bool {
+        true
+    }
+
     /// Performs a security audit on a single file.
     ///
     /// # Example

@@ -9,7 +9,6 @@
     clippy::cast_precision_loss
 )]
 
-use include_dir::{Dir, include_dir};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -17,7 +16,6 @@ use std::path::Path;
 use thiserror::Error;
 use tree_sitter::Node;
 
-pub static EMBEDDED_RULES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/rules/definitions");
 pub const FRENSENSE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod cli;
@@ -26,7 +24,6 @@ pub mod mcp;
 pub mod parser;
 pub mod patcher;
 pub mod reporter;
-pub mod rules;
 pub mod semantics;
 #[cfg(feature = "temporal")]
 pub mod temporal;

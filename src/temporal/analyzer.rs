@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+use crate::temporal::handler::TemporalBehavior;
 use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata};
 use tree_sitter::Node;
 
@@ -17,7 +18,7 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
         &self,
         scope: Node,
         sequence: &[regex::Regex],
-        behavior: &crate::rules::ir::TemporalBehavior,
+        behavior: &TemporalBehavior,
         rule: &dyn FrensenseRule,
     ) -> Vec<Advisory> {
         let file_path = self.context.file_path.to_string_lossy();
@@ -35,13 +36,13 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
         let meta = rule.metadata();
 
         match behavior {
-            crate::rules::ir::TemporalBehavior::MustNotFollow => {
+            TemporalBehavior::MustNotFollow => {
                 self.check_must_not_follow(&events, sequence, meta)
             }
-            crate::rules::ir::TemporalBehavior::MustFollow => {
+            TemporalBehavior::MustFollow => {
                 self.check_must_follow(&scope, &events, sequence, rule)
             }
-            crate::rules::ir::TemporalBehavior::ForbiddenBetween(start_re, end_re) => {
+            TemporalBehavior::ForbiddenBetween(start_re, end_re) => {
                 self.check_forbidden_between(&events, sequence, start_re, end_re, meta)
             }
         }

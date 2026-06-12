@@ -4,9 +4,7 @@
     clippy::must_use_candidate
 )]
 use crate::parser::ParserRegistry;
-use crate::rules::compiler::RuleCompiler;
-use crate::rules::core::CoreRule;
-use crate::{Engine, FrensenseAuditor, FrensenseRule, Result};
+use crate::Result;
 use std::path::Path;
 
 pub fn print_help() {
@@ -114,124 +112,15 @@ pub fn print_version() {
 }
 
 #[derive(serde::Deserialize)]
-pub struct RulesWrapper {
-    pub rules: Vec<CoreRule>,
+struct RulesWrapper {
+    #[serde(default)]
+    rules: Vec<serde_yaml::Value>,
 }
 
-pub fn handle_test_rule(args: &[String]) {
-    if args.len() < 7 {
-        eprintln!(
-            "Usage: frensense test-rule <rule.yml> --fixture <file> --expect-finding <id> [--expect-line <N>]"
-        );
-        std::process::exit(1);
-    }
-    let rule_file_path = args[2].clone();
-
-    let mut fixture = None;
-    let mut expect_id = None;
-    let mut expect_line = None;
-
-    let mut i = 3;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--fixture" => {
-                if let Some(f) = args.get(i + 1) {
-                    fixture = Some(f.clone());
-                    i += 1;
-                }
-            }
-            "--expect-finding" => {
-                if let Some(id) = args.get(i + 1) {
-                    expect_id = Some(id.clone());
-                    i += 1;
-                }
-            }
-            "--expect-line" => {
-                if let Some(line) = args.get(i + 1) {
-                    expect_line = line.parse::<u32>().ok();
-                    i += 1;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-
-    let fixture_path = fixture.expect("Missing --fixture argument");
-    let expected_id = expect_id.expect("Missing --expect-finding argument");
-
-    let rule_content = std::fs::read_to_string(&rule_file_path).expect("Failed to read rule file");
-
-    let wrapper: RulesWrapper =
-        serde_yaml::from_str(&rule_content).expect("Failed to parse YAML rules");
-    let mut rules: Vec<Box<dyn FrensenseRule>> = Vec::new();
-    for rule in wrapper.rules {
-        match RuleCompiler::compile(rule) {
-            Ok(compiled) => rules.push(Box::new(compiled)),
-            Err(e) => {
-                eprintln!("Error compiling rule: {e}");
-                std::process::exit(1);
-            }
-        }
-    }
-
-    let mut engine = Engine::new();
-    engine.set_rules(rules);
-    engine.set_isolate_rules(true);
-
-    let advisories = engine
-        .run(Path::new(&fixture_path))
-        .expect("Analysis failed");
-
-    advisories
-        .iter()
-        .find(|a| a.rule_id == expected_id)
-        .map_or_else(
-            || {
-                println!("[FAIL: Rule not triggered] Expected to find rule {expected_id}");
-                std::process::exit(1);
-            },
-            |finding| {
-                if let Some(expected_line) = expect_line
-                    && finding.line != expected_line
-                {
-                    println!(
-                        "[FAIL: Line mismatch] Expected finding on line {}, but found on line {}",
-                        expected_line, finding.line
-                    );
-                    std::process::exit(1);
-                }
-                println!("[PASS]");
-                std::process::exit(0);
-            },
-        );
-}
-
-pub fn handle_generate_docs() -> Result<()> {
-    use std::fmt::Write;
-    let engine = Engine::new();
-    let _ = engine.list_rules();
-    let mut doc = String::new();
-    doc.push_str("# Frensense Rule Catalog\n\n");
-    doc.push_str(
-        "This catalog lists all semantic rules currently active in the Frensense engine.\n\n",
-    );
-    doc.push_str("| Rule ID | Severity | Category | Description |\n");
-    doc.push_str("| :--- | :--- | :--- | :--- |\n");
-    for rule in engine.auditor().rules() {
-        let meta = rule.metadata();
-        let _ = writeln!(
-            doc,
-            "| `{}` | {:?} | {} | {} |",
-            rule.id(),
-            meta.severity,
-            meta.category,
-            meta.impact
-        );
-    }
-    std::fs::write("RULES.md", doc).expect("Failed to write RULES.md");
-    println!("[SUCCESS] Generated RULES.md");
-    std::process::exit(0);
+pub fn handle_list_rules() -> Result<()> {
+    println!("YAML rules have been replaced by corpus-based detection.");
+    println!("Use --corpus <dir> to load detection patterns from corpus/targets/.");
+    Ok(())
 }
 
 pub fn handle_debug_ast(file_path: &str) -> Result<()> {
@@ -248,19 +137,9 @@ pub fn handle_debug_ast(file_path: &str) -> Result<()> {
     std::process::exit(0);
 }
 
-pub fn handle_list_rules() -> Result<()> {
-    let (rules, _project_rules) = FrensenseAuditor::default_rules();
-    let mut engine = Engine::new();
-    engine.set_rules(rules);
-    let catalog = engine.list_rules();
-    println!("Frensense: Active Rules Catalog");
-    println!("{:->100}", "");
-    println!("{:<30} | {:<10} | Description", "Rule ID", "Severity");
-    println!("{:->100}", "");
-    for (id, name, sev) in catalog {
-        println!("{id:<30} | {sev:<10} | {name}");
-    }
-    std::process::exit(0);
+pub fn handle_generate_docs() -> Result<()> {
+    println!("YAML rules replaced by corpus. No rule docs to generate.");
+    Ok(())
 }
 
 pub fn handle_early_args(args: &[String]) -> bool {
@@ -272,11 +151,6 @@ pub fn handle_early_args(args: &[String]) -> bool {
     if args.contains(&"--version".to_string()) {
         print_version();
         std::process::exit(0);
-    }
-
-    if args.len() > 1 && args[1] == "test-rule" {
-        handle_test_rule(args);
-        return true;
     }
 
     if args.contains(&"--generate-docs".to_string()) {

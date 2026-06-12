@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-use crate::rules::ir::TemporalBehavior;
 use crate::temporal::analyzer::TemporalAnalyzer;
 use crate::temporal::config::TemporalConfig;
 use crate::{Advisory, FrensenseContext, FrensenseRule};
+
+#[derive(Debug, Clone)]
+pub enum TemporalBehavior {
+    MustNotFollow,
+    MustFollow,
+    ForbiddenBetween(regex::Regex, regex::Regex),
+}
 
 /// Compile a `TemporalConfig` (from YAML) into the sequence + behavior
 /// needed to construct a `FlowConstraint::Temporal`.
