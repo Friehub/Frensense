@@ -17,6 +17,7 @@ tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-javascript = { version = "0.23", optional = true }
 tree-sitter-c = { version = "0.23", optional = true }
+tree-sitter-python = { version = "0.23", optional = true }
 rustc-hash = "1.1"
 petgraph = "0.6"
 thiserror = "1.0"
@@ -29,4 +30,5 @@ default = ["rust", "typescript"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 c_lang = ["dep:tree-sitter-c"]
+python = ["dep:tree-sitter-python"]
 serialize = ["dep:serde", "dep:serde_json"]

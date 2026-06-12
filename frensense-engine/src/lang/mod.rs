@@ -9,4 +9,5 @@ pub enum Language {
     TypeScript,
     JavaScript,
     C,
+    Python,
 }

@@ -10,6 +10,7 @@ const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
     (&["rust"], &["rs"]),
     (&["typescript", "ts"], &["ts", "tsx"]),
     (&["javascript", "js"], &["js", "jsx"]),
+    (&["python", "py"], &["py", "pyi"]),
     (&["yaml", "yml"], &["yml", "yaml"]),
 ];
 
@@ -29,6 +30,8 @@ impl ParserRegistry {
             "ts" | "tsx" => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
+            #[cfg(feature = "python")]
+            "py" | "pyi" => Ok(tree_sitter_python::LANGUAGE.into()),
             // YAML tree-sitter parsing not available in engine; YAML is consumer-side via serde_yaml
             "yml" | "yaml" => Err(FrensenseError::Config(format!(
                 "YAML tree-sitter parsing not available in the engine (use consumer crate). Extension: {ext}"
@@ -45,6 +48,7 @@ impl ParserRegistry {
             "rust" => Self::get_language(Path::new("x.rs")),
             "typescript" | "ts" => Self::get_language(Path::new("x.tsx")),
             "javascript" | "js" => Self::get_language(Path::new("x.js")),
+            "python" | "py" => Self::get_language(Path::new("x.py")),
             "yaml" | "yml" => Self::get_language(Path::new("x.yaml")),
             _ => Err(FrensenseError::Config(format!(
                 "Unsupported language: {name}"
@@ -86,6 +90,13 @@ impl ParserRegistry {
                 (lexical_declaration (variable_declarator name: (identifier) @name))
             ",
             ),
+            "py" | "pyi" => Some(
+                r"
+                (function_definition name: (identifier) @name)
+                (class_definition name: (identifier) @name)
+                (assignment left: (identifier) @name)
+            ",
+            ),
             _ => None,
         }
     }
@@ -104,13 +115,19 @@ impl ParserRegistry {
                 (call_expression function: (member_expression property: (property_identifier) @call))
             ",
             ),
+            "py" | "pyi" => Some(
+                r"
+                (call function: (identifier) @call)
+                (call function: (attribute attribute: (identifier) @call))
+            ",
+            ),
             _ => None,
         }
     }
 
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")
+        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml")
     }
 
     pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {

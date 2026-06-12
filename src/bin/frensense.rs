@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             engine.set_language_filter(exts);
         } else {
             eprintln!(
-                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, yaml"
+                "Error: Unknown language '{lang_arg}'. Supported values: rust, typescript/ts, javascript/js, python/py, yaml"
             );
             std::process::exit(1);
         }

@@ -10,6 +10,7 @@ const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
     (&["rust"], &["rs"]),
     (&["typescript", "ts"], &["ts", "tsx"]),
     (&["javascript", "js"], &["js", "jsx"]),
+    (&["python", "py"], &["py", "pyi"]),
     (&["yaml", "yml"], &["yml", "yaml"]),
 ];
 
@@ -32,6 +33,8 @@ impl ParserRegistry {
             "ts" | "tsx" => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
             #[cfg(feature = "typescript")]
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
+            #[cfg(feature = "python")]
+            "py" | "pyi" => Ok(tree_sitter_python::LANGUAGE.into()),
             "yml" | "yaml" => Err(FrensenseError::Config(
                 "YAML tree-sitter parsing not available in this build".to_string(),
             )),
@@ -77,6 +80,13 @@ impl ParserRegistry {
                 (lexical_declaration (variable_declarator name: (identifier) @name))
             ",
             ),
+            "py" | "pyi" => Some(
+                r"
+                (function_definition name: (identifier) @name)
+                (class_definition name: (identifier) @name)
+                (assignment left: (identifier) @name)
+            ",
+            ),
             _ => None,
         }
     }
@@ -97,6 +107,12 @@ impl ParserRegistry {
                 (call_expression function: (member_expression property: (property_identifier) @call))
             ",
             ),
+            "py" | "pyi" => Some(
+                r"
+                (call function: (identifier) @call)
+                (call function: (attribute attribute: (identifier) @call))
+            ",
+            ),
             _ => None,
         }
     }
@@ -104,7 +120,7 @@ impl ParserRegistry {
     #[must_use]
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "yml" | "yaml")
+        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml")
     }
 
     /// Look up file extensions for a language name as passed via `--language`.

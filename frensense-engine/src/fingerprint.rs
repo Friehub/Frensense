@@ -180,6 +180,7 @@ pub fn extract_fingerprints(
         "ts" | "tsx" => Language::TypeScript,
         "js" | "jsx" => Language::JavaScript,
         "c" | "h" => Language::C,
+        "py" | "pyi" => Language::Python,
         _ => return,
     };
 
