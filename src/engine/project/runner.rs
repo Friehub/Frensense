@@ -143,39 +143,35 @@ impl Engine {
                 let analyzer = crate::semantics::data_flow::DataFlowAnalyzer::new(&context, root);
                 let mut registry = TaintRegistry::default();
                 analyzer.discover_symbols(&mut registry);
-                let findings = analyzer.analyze_block(
-                    root,
-                    &source,
-                    &sink,
-                    &MinimalRule {
-                        id: rule.id,
-                        severity: rule.severity,
-                        observation: rule.observation,
-                        impact: rule.impact,
-                        improvement: rule.improvement,
-                    },
-                    &mut registry,
-                );
 
-                let metrics = frensense_engine::data_flow::taint_metrics::TaintMetrics::compute(
-                    &registry,
-                    root,
-                    &snap.content,
-                    "",
-                );
-
-                let _ = metrics;
-
-                for mut adv in findings {
-                    let adjusted = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
-                        &snap.content,
-                        &snap.path,
-                        adv.line,
-                        &adv.original_content,
-                        adv.confidence,
+                let functions: Vec<tree_sitter::Node> = collect_function_nodes(root);
+                for fn_node in &functions {
+                    let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
+                    let mut findings = analyzer.analyze_block(
+                        body,
+                        &source,
+                        &sink,
+                        &MinimalRule {
+                            id: rule.id,
+                            severity: rule.severity,
+                            observation: rule.observation,
+                            impact: rule.impact,
+                            improvement: rule.improvement,
+                        },
+                        &mut registry,
                     );
-                    adv.confidence = adjusted;
-                    all_advisories.push(adv);
+
+                    for mut adv in findings {
+                        let adjusted = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
+                            &snap.content,
+                            &snap.path,
+                            adv.line,
+                            &adv.original_content,
+                            adv.confidence,
+                        );
+                        adv.confidence = adjusted;
+                        all_advisories.push(adv);
+                    }
                 }
             }
         }
@@ -708,6 +704,31 @@ fn load_corpus_metadata(corpus_dir: &Path) -> HashMap<String, HashMap<String, St
         metadata.insert(stem.to_string(), map);
     }
     metadata
+}
+
+fn collect_function_nodes(node: tree_sitter::Node) -> Vec<tree_sitter::Node> {
+    let mut functions = Vec::new();
+    let kind = node.kind();
+    if matches!(
+        kind,
+        "function_item"
+            | "function_declaration"
+            | "method_definition"
+            | "arrow_function"
+            | "function_definition"
+    ) {
+        functions.push(node);
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            functions.extend(collect_function_nodes(cursor.node()));
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    functions
 }
 
 struct MinimalRule {
