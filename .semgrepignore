@@ -1,9 +1,0 @@
-# Test fixtures intentionally contain violations to validate rule detection
-corpus/targets/
-
-# Build artifacts
-target/
-node_modules/
-
-# Git
-.git/

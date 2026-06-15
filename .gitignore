@@ -1,5 +1,6 @@
 # Rust
 target/
+Cargo.lock
 
 # Node.js
 node_modules/
@@ -9,14 +10,14 @@ yarn-error.log*
 
 # Build artifacts (NAPI)
 *.node
-gensense
-gensense.exe
-gensense.d.ts
-gensense.js
+frensense
+frensense.exe
+frensense.d.ts
+frensense.js
 .env
 index.js
 index.d.ts
-bin/gensense.js
+bin/frensense.js
 
 # OS / IDE
 .DS_Store
@@ -58,10 +59,6 @@ TODO.md
 *.log
 
 # Other
-demo.cast
 *.cast
 test-*.js
 tests/list_files_test.rs
-/TODO.md
-/future_improvements.md
-/RULES.md
