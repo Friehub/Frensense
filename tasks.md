@@ -408,6 +408,82 @@ Sources: `frensense_audit_v0.4.0.md`, `CORPUS_CURATION_GUIDE.md`, `CORPUS_BAKING
 
 ---
 
+## Engine Features — Built But Not Wired
+
+### W1 — Wire Temporal Analysis into Findings
+- **Status:** Open
+- **Priority:** High
+- **Engine:** `frensense-engine/src/temporal.rs` — TemporalAnalyzer, TemporalRule, check_must_follow, check_must_not_follow
+- **Problem:** Temporal violations (mutex held across await, missing unlock, blocking in async) are computed but may not emit advisories. The FSA over event sequences runs but results don't reach the user.
+- **Fix:** Wire temporal violations into the advisory output in `runner.rs`. Each violation should produce an Advisory with rule_id, severity, observation, impact, improvement.
+- **Safety:** Add unit tests that verify temporal violations produce findings. Test with real async Rust code.
+
+### W2 — Wire Reachability Analysis as User-Facing Feature
+- **Status:** Open
+- **Priority:** Medium
+- **Engine:** `frensense-engine/src/reachability.rs` — ReachabilityChecker, check_reachability, is_dead_branch
+- **Problem:** Reachability analysis is built and used internally for taint accuracy, but not surfaced as a standalone feature. Dead code paths and unreachable error handlers go undetected.
+- **Fix:** Expose reachability as a finding category: "Dead error branch" (Err handler unreachable), "Unreachable code path" (after return/panic), "Unreachable validation" (check exists but path is dead). Add `--check-reachability` flag.
+- **Safety:** Validate against real codebases with dead code. Confirm no false positives on valid early returns.
+
+### W3 — Wire CFG/Def-Use as User-Facing Feature
+- **Status:** Open
+- **Priority:** Medium
+- **Engine:** `frensense-engine/src/cfg/` — ControlFlowGraph, build_def_use, compute_reaching_defs, dominance_frontier
+- **Problem:** CFG and def-use chains are built and used internally for taint analysis, but not exposed. Common bugs like "variable used before definition" or "variable defined but never used" go undetected.
+- **Fix:** Surface def-use findings: "Variable used before definition" (use with no reaching def), "Variable defined but never used" (def with no uses), "Variable shadowed" (multiple defs in same scope). Add `--check-def-use` flag.
+- **Safety:** Test against real codebases. Confirm no false positives on valid Rust/TypeScript patterns.
+
+### W4 — Wire Cross-File Taint into Findings
+- **Status:** Open
+- **Priority:** High
+- **Engine:** `frensense-engine/src/data_flow/cross_file.rs` — Resolver, register_exposed_taint, resolve_taint, FunctionTaintSummary
+- **Problem:** Cross-file taint resolution is built and tracks taint across file boundaries, but findings may not surface when taint flows from file A through a function to file B's sink.
+- **Fix:** Ensure cross-file taint paths produce findings with file references. "Taint flows from req.body in handlers/login.ts through validate() to db.query in services/user.ts". Include both source and sink file paths in the advisory.
+- **Safety:** Test with multi-file projects. Verify cross-file findings include correct file paths and line numbers.
+
+### W5 — Implement User Rule Loading
+- **Status:** Open
+- **Priority:** High
+- **Engine:** `src/engine/auditor/user_rules.rs` — load_user_rules() currently returns empty vectors
+- **Problem:** `--extra-rule-dirs` flag exists but load_user_rules() always returns empty. Users cannot add custom rules.
+- **Fix:** Implement YAML rule loading in user_rules.rs. Define a minimal rule format: `{id, severity, pattern, message}`. Parse rules from extra directories. Merge with built-in rules.
+- **Safety:** Test with a sample custom rule. Verify it fires alongside built-in rules. Confirm `--disable-rule` works on custom rules.
+
+### W6 — Wire Style Profile into Findings Pipeline
+- **Status:** Open
+- **Priority:** Medium
+- **Engine:** `src/engine/profile.rs` — ProjectProfile, learn(), LanguageProfile, FileProfile
+- **Problem:** Style profile is built and CLI flags exist (--learn-profile, --check-profile, --profile-threshold, --profile-stats), but anomaly detection may not be fully integrated into findings.
+- **Fix:** Wire profile anomalies into advisory output. Functions with unusual n-gram distribution, unexpected naming patterns, or anomalous structural markers should produce findings with "Style anomaly" rule_id and explanation of what makes it unusual.
+- **Safety:** Test on real codebases. Confirm anomalies are real style deviations, not false positives.
+
+### W7 — Enable Dependency Check for Rust
+- **Status:** Open
+- **Priority:** Medium
+- **Engine:** `frensense-engine/src/deps.rs` — DependencyResolver, scan_file, check_rust_import
+- **Problem:** Dependency hallucination detection works for TS/JS (package.json) but is disabled for Rust. LLM-hallucinated crate names go undetected.
+- **Fix:** Add `--check-deps` opt-in flag. When enabled, run `cargo metadata` to get crate list. Verify all `use` statements reference real crates. Report hallucinated imports as findings.
+- **Safety:** Test with code that imports non-existent crates. Verify `cargo metadata` is required and fails gracefully if unavailable.
+
+### W8 — Wire Pattern Canonical Form for Structural Matching
+- **Status:** Open
+- **Priority:** Low
+- **Engine:** `frensense-engine/src/pattern/` — PatternCompiler, PatternMatcher, PatternScorer, CanonicalForm
+- **Problem:** Pattern compiler and matcher are built but the current corpus uses fingerprint-based matching (n-grams). The canonical form module may be unused.
+- **Fix:** Evaluate whether canonical form matching improves detection over n-gram fingerprinting. If yes, integrate as an alternative scoring method. If no, document why and keep n-gram approach.
+- **Safety:** Compare detection results between canonical form and n-gram on the same corpus. Measure precision/recall difference.
+
+### W9 — Surface Atomic Section Detection for C
+- **Status:** Open
+- **Priority:** Low
+- **Engine:** `frensense-engine/src/atomic_section.rs` — AtomicSectionAnalyzer, AtomicOp, has_incomplete_sections
+- **Problem:** TOCTOU/lock-pair detection for C is built but behind `c_lang` feature flag. Not exposed to users.
+- **Fix:** When `c_lang` feature is enabled, wire atomic section findings into advisory output. "Incomplete lock section: lock() at line 10 without matching unlock()" with suggestion to add unlock or use RAII.
+- **Safety:** Test with C code that has lock/unlock mismatches. Verify findings are accurate.
+
+---
+
 ## Corpus Expansion Strategy
 
 Source: `CORPUS_CURATION_GUIDE.md` + `CORPUS_BAKING_STRATEGY.md`
