@@ -50,9 +50,9 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
         let mut fps = Vec::new();
         extract_fingerprints(tree.root_node(), &source, &path, &mut fps, 5);
 
-        let fp = fps.into_iter().next().ok_or_else(|| {
-            format!("no function found in corpus file: {file_name}")
-        })?;
+        let Some(fp) = fps.into_iter().next() else {
+            continue; // Silently skip files with no parseable function
+        };
 
         let pattern_name = extract_pattern_name(file_name);
         let entry = pairs.entry(pattern_name).or_default();
@@ -85,10 +85,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
 }
 
 fn extract_pattern_name(file_name: &str) -> String {
-    let without_ext = file_name
-        .rsplitn(2, '.')
-        .last()
-        .unwrap_or(file_name);
+    let without_ext = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
 
     without_ext
         .trim_end_matches("_positive")
@@ -110,5 +107,126 @@ mod tests {
             extract_pattern_name("ts_command_injection_negative.ts"),
             "ts_command_injection"
         );
+    }
+
+    #[test]
+    fn test_empty_directory_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(patterns.is_empty());
+    }
+
+    #[test]
+    fn test_nonexistent_directory_returns_error() {
+        let result = load_corpus(std::path::Path::new("/nonexistent/path/xyz"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_empty_file_skipped_silently() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("test_positive.ts"), "").unwrap();
+        std::fs::write(dir.path().join("test_negative.ts"), "").unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(patterns.is_empty(), "Empty files should be skipped");
+    }
+
+    #[test]
+    fn test_no_function_body_skipped_silently() {
+        let dir = tempfile::tempdir().unwrap();
+        // Type declaration only — no function body
+        std::fs::write(
+            dir.path().join("test_positive.ts"),
+            "interface Config { host: string; }",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("test_negative.ts"), "type Foo = string;").unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(
+            patterns.is_empty(),
+            "Files without functions should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_bad_syntax_skipped_silently() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("bad_positive.ts"), "fn {{{ broken").unwrap();
+        std::fs::write(dir.path().join("bad_negative.ts"), "fn {{{ broken").unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(
+            patterns.is_empty(),
+            "Files with bad syntax should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_unsupported_extension_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("test_positive.py"), "def foo(): pass").unwrap();
+        std::fs::write(dir.path().join("test_negative.py"), "def bar(): pass").unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(
+            patterns.is_empty(),
+            "Unsupported extensions should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_only_positive_no_warning_no_crash() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("solo_positive.ts"),
+            "function foo() { return 1; }",
+        )
+        .unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(
+            patterns.is_empty(),
+            "Positive-only should not produce a pattern"
+        );
+    }
+
+    #[test]
+    fn test_only_negative_no_warning_no_crash() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("solo_negative.ts"),
+            "function bar() { return 2; }",
+        )
+        .unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(
+            patterns.is_empty(),
+            "Negative-only should not produce a pattern"
+        );
+    }
+
+    #[test]
+    fn test_non_function_files_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        // Files without _positive/_negative in name should be ignored
+        std::fs::write(dir.path().join("readme.md"), "hello").unwrap();
+        std::fs::write(dir.path().join("config.json"), "{}").unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert!(patterns.is_empty());
+    }
+
+    #[test]
+    fn test_valid_pair_loads_correctly() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("rust_foo_positive.rs"),
+            "fn foo() -> i32 { 1 }",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("rust_foo_negative.rs"),
+            "fn foo() -> i32 { 2 }",
+        )
+        .unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].id, "rust_foo");
     }
 }

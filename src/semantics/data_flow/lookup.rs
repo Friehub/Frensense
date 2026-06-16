@@ -71,7 +71,8 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                 self.current_file_path.to_str()?,
             )
         } else {
-            let (path, (tree, src, ops)) = self.context.file_trees.get_key_value(&resolved.file_path)?;
+            let (path, (tree, src, ops)) =
+                self.context.file_trees.get_key_value(&resolved.file_path)?;
             (tree, src.as_str(), ops.as_slice(), path.as_str())
         };
 

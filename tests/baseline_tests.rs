@@ -8,50 +8,40 @@ fn test_sri_line_drift_resilience() {
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    // 1. Create a file with a violation
+    // Taint flow: input() -> code -> eval(code)
     let ts_file = root.join("test.ts");
-    let initial_content = "function test_any() {\n    eval(\"1\");\n}\n";
+    let initial_content = "function handler() {\n    var code = input();\n    eval(code);\n}\n";
     fs::write(&ts_file, initial_content).unwrap();
 
-    // 2. Generate initial baseline
-    let mut engine = gensense::engine::project::Engine::new();
+    let mut engine = frensense::engine::project::Engine::new();
     let advisories = engine.run(root).unwrap();
 
-    println!("DEBUG: Advisories len={}", advisories.len());
+    let taint_adv = advisories
+        .iter()
+        .find(|a| a.rule_id == "TAINT_INPUT_TO_EXEC");
     assert!(
-        !advisories.is_empty(),
-        "Should have found an 'eval' violation"
+        taint_adv.is_some(),
+        "TAINT_INPUT_TO_EXEC must fire on eval(code) where code comes from input(). Got {} advisories",
+        advisories.len()
     );
-    for a in &advisories {
-        println!(
-            "DEBUG: Advisory rule_id={}, enclosing_symbol={:?}",
-            a.rule_id, a.enclosing_symbol
-        );
-    }
-    let baseline_advisory = &advisories[0];
-    assert_eq!(
-        baseline_advisory.enclosing_symbol,
-        Some("test_any".to_string())
-    );
-    assert_eq!(baseline_advisory.line, 2);
-
+    let baseline_advisory = taint_adv.unwrap();
     let baseline_fuzzy = baseline_advisory.fuzzy_identity();
 
-    // 3. Shift the code down with comments
-    let drifted_content = "// Comment\n// Comment\nfunction test_any() {\n    eval(\"1\");\n}\n";
+    // Shift the code down with comments
+    let drifted_content = "// Comment\n// Comment\nfunction handler() {\n    var code = input();\n    eval(code);\n}\n";
     fs::write(&ts_file, drifted_content).unwrap();
 
-    // 4. Run engine again
     let new_advisories = engine.run(root).unwrap();
-    assert!(!new_advisories.is_empty());
-    let drifted_advisory = &new_advisories[0];
+    let drifted_adv = new_advisories
+        .iter()
+        .find(|a| a.rule_id == "TAINT_INPUT_TO_EXEC")
+        .unwrap();
     assert_eq!(
-        drifted_advisory.line, 4,
-        "Violation should have shifted to line 4"
+        drifted_adv.line, 5,
+        "Violation should have shifted to line 5"
     );
 
-    // 5. Verify fuzzy identity matches
-    let drifted_fuzzy = drifted_advisory.fuzzy_identity();
+    let drifted_fuzzy = drifted_adv.fuzzy_identity();
     assert_eq!(
         baseline_fuzzy, drifted_fuzzy,
         "Fuzzy identity must be stable across line shifts"
@@ -64,20 +54,36 @@ fn test_sri_content_change_detection() {
     let root = dir.path();
 
     let ts_file = root.join("test.ts");
-    fs::write(&ts_file, "function test() { eval(\"1\"); }").unwrap();
+    fs::write(
+        &ts_file,
+        "function handler() { var code = input(); eval(code); }",
+    )
+    .unwrap();
 
-    let mut engine = gensense::engine::project::Engine::new();
+    let mut engine = frensense::engine::project::Engine::new();
     let initial_advisories = engine.run(root).unwrap();
-    let initial_fuzzy = initial_advisories[0].fuzzy_identity();
+    let initial_adv = initial_advisories
+        .iter()
+        .find(|a| a.rule_id == "TAINT_INPUT_TO_EXEC")
+        .unwrap();
+    let initial_fuzzy = initial_adv.fuzzy_identity();
 
-    // Change surrounding code (e.g. adding a variable) but keep evaluation of "1" the same
-    fs::write(&ts_file, "function test() { let y = 1; eval(\"1\"); }").unwrap();
+    // Change surrounding code but keep the sink call the same
+    fs::write(
+        &ts_file,
+        "function handler() { var y = 1; var code = input(); eval(code); }",
+    )
+    .unwrap();
 
     let new_advisories = engine.run(root).unwrap();
-    let new_fuzzy = new_advisories[0].fuzzy_identity();
+    let new_adv = new_advisories
+        .iter()
+        .find(|a| a.rule_id == "TAINT_INPUT_TO_EXEC")
+        .unwrap();
+    let new_fuzzy = new_adv.fuzzy_identity();
 
     assert_eq!(
         initial_fuzzy, new_fuzzy,
-        "Fuzzy identity should match if the flagged node content ('eval(\"1\")') is the same"
+        "Fuzzy identity should match if the flagged node content is the same"
     );
 }

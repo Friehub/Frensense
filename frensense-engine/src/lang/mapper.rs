@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-use crate::lang::kinds::AbstractKind;
 use crate::lang::Language;
+use crate::lang::kinds::AbstractKind;
 
 pub fn abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
     match language {

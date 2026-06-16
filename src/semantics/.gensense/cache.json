@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "language_filter": null,
+  "files": {
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/registry.rs": "6c8dc708071969c0cd4282cd31ae571a807818978dbf147e2e4991f9387ebf9e",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/data_flow/mod.rs": "7b6ac5c3154d9e872aab9910a023e9f05d19800097b1cd88feeb25773d419dbd",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/data_flow/normalization.rs": "c2b595ae826bf9ff5ae736cbaeb0d62d3a4d7d093e53333402fc590394faebb0",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/symbols.rs": "47f13441d2e058294c3920088583110ca48c6b421a340bebd676f6acf64f95ae",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/reachability.rs": "214a7388c22da76becc14ea58dc41aebc8eb3eee8a6a7ea660fdad72982833c3",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/graph.rs": "d7bc6430c343070199f8010be45af7f33abdc7ab26fbc51f585786b17c7bd4ac",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/data_flow/tracking.rs": "a543dd677821298afc53f69d5707721c9d68f374b946d576d2c9560a72846a61",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/consistency.rs": "6589fb4b3860e8218f444c7116f690790a6489db686f9442b5d6a09b13f05c9d",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/data_flow/handlers.rs": "73dfbbd44cc6dd5ec12f5006321f5b8a5ece9abd037e1cebaf10ff60211b9f9c",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/data_flow/lookup.rs": "993234b68c6af56a71bba8a6a53899bf598faa872295549af95980105da0d5da",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/mod.rs": "1064bc89dcce8de969d2b4036d2babf0002c3b5cb4ae34c3cb997a46d840ca50",
+    "/home/oxisrael/Friehub/Taas/gensense/src/semantics/data_flow/resolve.rs": "312014056c1b70e6c53333b73ce97f5f7f7189d1d6ebcb80c1d9747feb9908a1"
+  }
+}

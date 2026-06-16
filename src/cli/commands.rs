@@ -3,8 +3,8 @@
     clippy::missing_errors_doc,
     clippy::must_use_candidate
 )]
-use crate::parser::ParserRegistry;
 use crate::Result;
+use crate::parser::ParserRegistry;
 use std::path::Path;
 
 pub fn print_help() {
@@ -25,7 +25,9 @@ pub fn print_help() {
     println!("  --severity <level>  Minimum severity: critical, warning, info");
     println!();
     println!("Confidence & Tuning:");
-    println!("  --confidence <tier>      Preset: high (>=0.85), medium (>=0.60), low (>=0.30), any");
+    println!(
+        "  --confidence <tier>      Preset: high (>=0.85), medium (>=0.60), low (>=0.30), any"
+    );
     println!("  --min-confidence <0-1>   Raw confidence threshold (default: 0.0)");
     println!("  --jaccard-threshold <0-1>  Similarity threshold for duplicate detection");
     println!("  --max-source-lines <N>   Limit source lines for analysis");
@@ -36,15 +38,17 @@ pub fn print_help() {
     println!("  --strict            Exit with code 1 if any findings match filter");
     println!("  --emit-baseline <file>   Save current findings as a baseline");
     println!("  --compare-baseline <file>  Compare findings against a baseline");
-    #[cfg(feature = "remediation")]
-    println!("  --fix               Apply automated remediation (experimental)");
-    #[cfg(feature = "remediation")]
-    println!("  --diff              Show unified diff of proposed changes");
+    println!("  --fix [scope]      Apply automated fixes (scope: all, style, security)");
+    println!(
+        "  --diff [scope]     Show unified diff of proposed changes (scope: all, style, security)"
+    );
     println!();
     println!("Style Profile:");
     println!("  --learn-profile     Build a project style profile from current codebase");
     println!("  --check-profile     Check code against learned profile for style anomalies");
-    println!("  --profile-threshold <0-1>  Surprise threshold for anomaly detection (default: 0.7)");
+    println!(
+        "  --profile-threshold <0-1>  Surprise threshold for anomaly detection (default: 0.7)"
+    );
     println!("  --profile-stats     Display profile statistics");
     println!();
     println!("Information:");
@@ -73,7 +77,6 @@ pub fn print_help() {
     println!("  [x] TypeScript/JS Analysis");
     #[cfg(feature = "fingerprinting")]
     println!("  [x] N-Gram Fingerprinting");
-    #[cfg(feature = "remediation")]
     println!("  [x] Auto-Remediation");
 }
 
@@ -90,14 +93,7 @@ pub fn print_version() {
     println!("  [x] TypeScript/JS Analysis");
     #[cfg(feature = "fingerprinting")]
     println!("  [x] N-Gram Fingerprinting");
-    #[cfg(feature = "remediation")]
     println!("  [x] Auto-Remediation");
-}
-
-#[derive(serde::Deserialize)]
-struct RulesWrapper {
-    #[serde(default)]
-    rules: Vec<serde_yaml::Value>,
 }
 
 pub fn handle_list_rules() -> Result<()> {
@@ -177,7 +173,9 @@ pub fn handle_early_args(args: &[String]) -> bool {
     }
 
     if args.contains(&"--list-rules".to_string()) || args.contains(&"--list-patterns".to_string()) {
-        let corpus_dir = args.iter().position(|a| a == "--corpus")
+        let corpus_dir = args
+            .iter()
+            .position(|a| a == "--corpus")
             .and_then(|i| args.get(i + 1).map(|s| s.as_str()));
         if let Err(e) = handle_list_patterns(corpus_dir) {
             eprintln!("Error: {e}");

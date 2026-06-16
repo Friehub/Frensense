@@ -15,10 +15,7 @@ impl TaintConfidenceAdjuster {
         sink_content: &str,
         original_confidence: f32,
     ) -> f32 {
-        let ext = file_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let mut parser = tree_sitter::Parser::new();
         let lang = crate::parser::ParserRegistry::get_language_by_name(match ext {
@@ -76,9 +73,7 @@ impl TaintConfidenceAdjuster {
 
             let closest_def = defs_before.iter().max_by_key(|d| d.start_byte);
 
-            let source_reaches = closest_def.is_some_and(|def| {
-                matches_source_name(def, source)
-            });
+            let source_reaches = closest_def.is_some_and(|def| matches_source_name(def, source));
 
             if source_reaches {
                 return original_confidence;
@@ -204,13 +199,8 @@ fn no_kill() {
 
     #[test]
     fn test_unknown_language_returns_original() {
-        let confidence = TaintConfidenceAdjuster::adjust_confidence(
-            "",
-            Path::new("test.abc"),
-            1,
-            "",
-            0.90,
-        );
+        let confidence =
+            TaintConfidenceAdjuster::adjust_confidence("", Path::new("test.abc"), 1, "", 0.90);
         assert_eq!(confidence, 0.90, "unknown language should return original");
     }
 }

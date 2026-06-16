@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-#[cfg(feature = "remediation")]
 use crate::{Advisory, FrensenseError, Result};
-#[cfg(feature = "remediation")]
 use diff;
-#[cfg(feature = "remediation")]
 use pathdiff;
-#[cfg(feature = "remediation")]
 use std::fmt::Write;
-#[cfg(feature = "remediation")]
 use std::fs;
-#[cfg(feature = "remediation")]
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "remediation")]
 pub struct PatchManager {
     root_dir: PathBuf,
 }
 
-#[cfg(feature = "remediation")]
 impl PatchManager {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         Self {
@@ -118,8 +110,9 @@ impl PatchManager {
         }
 
         let absolute_path = self.root_dir.join(file_path);
-        let content = fs::read_to_string(&absolute_path)
-            .map_err(|e| FrensenseError::Config(format!("Failed to read file for patching: {e}")))?;
+        let content = fs::read_to_string(&absolute_path).map_err(|e| {
+            FrensenseError::Config(format!("Failed to read file for patching: {e}"))
+        })?;
 
         // Sort advisories back-to-front by start_byte to ensure offset stability
         let mut sorted_advisories = advisories.to_vec();
@@ -197,8 +190,9 @@ impl PatchManager {
         })?;
 
         // 3. Atomic rename (on Unix, this is atomic).
-        fs::rename(&tmp_path, &absolute_path)
-            .map_err(|e| FrensenseError::Config(format!("Failed to apply patch atomically: {e}")))?;
+        fs::rename(&tmp_path, &absolute_path).map_err(|e| {
+            FrensenseError::Config(format!("Failed to apply patch atomically: {e}"))
+        })?;
 
         Ok(())
     }

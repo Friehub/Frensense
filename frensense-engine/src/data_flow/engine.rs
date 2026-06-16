@@ -37,7 +37,11 @@ impl DataFlowEngine {
         origin: TaintOrigin,
     ) {
         self.global_field_taint.insert(
-            (file_path.to_string(), var_name.to_string(), field.to_string()),
+            (
+                file_path.to_string(),
+                var_name.to_string(),
+                field.to_string(),
+            ),
             origin,
         );
     }
@@ -83,10 +87,8 @@ impl DataFlowEngine {
         function_name: &str,
         summary: FunctionTaintSummary,
     ) {
-        self.summaries.insert(
-            (file_path.to_string(), function_name.to_string()),
-            summary,
-        );
+        self.summaries
+            .insert((file_path.to_string(), function_name.to_string()), summary);
     }
 
     pub fn get_summary(
@@ -140,7 +142,12 @@ mod tests {
     fn test_global_taint_seed() {
         let mut engine = DataFlowEngine::new();
         engine.register_global_taint("a.rs", "DB_POOL", TaintOrigin::Database);
-        engine.register_global_field_taint("a.rs", "CONFIG", "secret_key", TaintOrigin::Environment);
+        engine.register_global_field_taint(
+            "a.rs",
+            "CONFIG",
+            "secret_key",
+            TaintOrigin::Environment,
+        );
 
         let mut registry = TaintRegistry::default();
         engine.seed_registry_from_globals("a.rs", &mut registry);

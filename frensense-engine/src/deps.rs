@@ -72,18 +72,26 @@ impl DependencyResolver {
             let trimmed = line.trim();
 
             if trimmed == "[dependencies]" {
-                in_deps = true; in_dev = false; continue;
+                in_deps = true;
+                in_dev = false;
+                continue;
             }
             if trimmed == "[dev-dependencies]" {
-                in_deps = false; in_dev = true; continue;
+                in_deps = false;
+                in_dev = true;
+                continue;
             }
             if trimmed.starts_with('[') && trimmed.ends_with(']') {
-                in_deps = false; in_dev = false; continue;
+                in_deps = false;
+                in_dev = false;
+                continue;
             }
 
             if trimmed.starts_with("name = \"") {
-                if let Some(s) = trimmed.strip_prefix("name = \"")
-                    .and_then(|s| s.strip_suffix('"')) {
+                if let Some(s) = trimmed
+                    .strip_prefix("name = \"")
+                    .and_then(|s| s.strip_suffix('"'))
+                {
                     self.cargo_deps.insert(s.to_string());
                 }
                 continue;
@@ -103,8 +111,14 @@ impl DependencyResolver {
                     let mut in_ws = false;
                     for line in ws.lines() {
                         let t = line.trim();
-                        if t == "[workspace.dependencies]" { in_ws = true; continue; }
-                        if t.starts_with('[') && t.ends_with(']') { in_ws = false; continue; }
+                        if t == "[workspace.dependencies]" {
+                            in_ws = true;
+                            continue;
+                        }
+                        if t.starts_with('[') && t.ends_with(']') {
+                            in_ws = false;
+                            continue;
+                        }
                         if in_ws {
                             if let Some(name) = extract_dep_name(t) {
                                 self.cargo_deps.insert(name);
@@ -138,15 +152,8 @@ impl DependencyResolver {
         self.npm_deps.contains(package_name)
     }
 
-    pub fn scan_file(
-        &self,
-        source: &str,
-        file_path: &Path,
-    ) -> Vec<HallucinatedImport> {
-        let ext = file_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+    pub fn scan_file(&self, source: &str, file_path: &Path) -> Vec<HallucinatedImport> {
+        let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let mut hits = Vec::new();
 
@@ -171,9 +178,7 @@ impl DependencyResolver {
                 }
                 "ts" | "tsx" | "js" | "jsx" => {
                     if let Some(import) = extract_ts_package(trimmed) {
-                        if !self.check_npm_import(&import)
-                            && !is_relative_import(&import)
-                        {
+                        if !self.check_npm_import(&import) && !is_relative_import(&import) {
                             hits.push(HallucinatedImport {
                                 import_name: import,
                                 line: line_num + 1,
@@ -207,10 +212,7 @@ fn parse_json_keys(text: &str, set: &mut HashSet<String>) {
         }
         let colon_pos = trimmed.find(':');
         if let Some(pos) = colon_pos {
-            let key = trimmed[..pos]
-                .trim()
-                .trim_matches('"')
-                .trim_matches(',');
+            let key = trimmed[..pos].trim().trim_matches('"').trim_matches(',');
             if !key.is_empty() && key != "}" {
                 set.insert(key.to_string());
             }
@@ -258,8 +260,7 @@ fn extract_ts_package(line: &str) -> Option<String> {
     } else if line.contains("require(") {
         let start = line.find("require(")? + 8;
         let end = line[start..].find(')')?;
-        let package = line[start..start + end]
-            .trim_matches(|c| c == '"' || c == '\'');
+        let package = line[start..start + end].trim_matches(|c| c == '"' || c == '\'');
         Some(package.to_string())
     } else {
         None
@@ -267,14 +268,7 @@ fn extract_ts_package(line: &str) -> Option<String> {
 }
 
 fn is_stdlib_crate(name: &str) -> bool {
-    matches!(
-        name,
-        "std"
-            | "core"
-            | "alloc"
-            | "proc_macro"
-            | "test"
-    )
+    matches!(name, "std" | "core" | "alloc" | "proc_macro" | "test")
 }
 
 fn is_local_module(name: &str) -> bool {
@@ -291,8 +285,14 @@ mod tests {
 
     #[test]
     fn test_extract_rust_crate() {
-        assert_eq!(extract_rust_crate("use serde::Serialize;"), Some("serde".to_string()));
-        assert_eq!(extract_rust_crate("use tokio::runtime::Runtime;"), Some("tokio".to_string()));
+        assert_eq!(
+            extract_rust_crate("use serde::Serialize;"),
+            Some("serde".to_string())
+        );
+        assert_eq!(
+            extract_rust_crate("use tokio::runtime::Runtime;"),
+            Some("tokio".to_string())
+        );
         assert_eq!(extract_rust_crate("use crate::foo;"), None);
         assert_eq!(extract_rust_crate("use self::bar;"), None);
     }
@@ -307,7 +307,10 @@ mod tests {
             extract_ts_package("import React from 'react';"),
             Some("react".to_string())
         );
-        assert_eq!(extract_ts_package("import './styles.css';"), Some("./styles.css".to_string()));
+        assert_eq!(
+            extract_ts_package("import './styles.css';"),
+            Some("./styles.css".to_string())
+        );
     }
 
     #[test]

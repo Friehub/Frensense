@@ -1,6 +1,6 @@
-# GenSense: Contributor Engineering Standards
+# Frensense: Contributor Engineering Standards
 
-This document defines the operational mindset, technical principles, and behavioral expectations for anyone (human or AI agent) contributing to the GenSense codebase. It serves as a technical contract to ensure the production of correct, high-performance, and semantically accurate code.
+This document defines the operational mindset, technical principles, and behavioral expectations for anyone (human or AI agent) contributing to the Frensense codebase. It serves as a technical contract to ensure the production of correct, high-performance, and semantically accurate code.
 
 ---
 
@@ -62,10 +62,10 @@ We process projects in two distinct passes to ensure stability and parallel safe
 ### The Taint Summary Model (Deterministic Propagation)
 To avoid exponential blowup during cross-file analysis, we do not perform deep inlining or recursion:
 *   **Function Summaries:** We compute a summary of what a function does to its inputs (e.g., `propagates`, `cleans`, or `sink`).
-*   **Zero-Recursion Auditing:** During the audit phase, we check the summary instead of traversing the callee's body. This allows GenSense to scale linearly with the number of call sites rather than exponentially with call depth.
+*   **Zero-Recursion Auditing:** During the audit phase, we check the summary instead of traversing the callee's body. This allows Frensense to scale linearly with the number of call sites rather than exponentially with call depth.
 
 ---
 
 ## 📜 Continuous Improvement
 
-This document is living. As the GenSense engine evolves, these standards will be refined to ensure we are building the most reliable and high-performance semantic engine possible.
+This document is living. As the Frensense engine evolves, these standards will be refined to ensure we are building the most reliable and high-performance semantic engine possible.

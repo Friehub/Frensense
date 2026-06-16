@@ -32,7 +32,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             && !trimmed.contains('/')
             && !trimmed.contains('.')
         {
-            self.alias_tracker.borrow_mut().record_alias(target, trimmed);
+            self.alias_tracker
+                .borrow_mut()
+                .record_alias(target, trimmed);
         }
     }
 

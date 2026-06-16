@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use rustc_hash::{FxHashSet, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use tree_sitter::Node;
@@ -15,12 +15,59 @@ pub struct FunctionFingerprint {
     pub line: usize,
     pub language: String,
     pub ngram_hashes: FxHashSet<u64>,
+    pub weighted_ngram_hashes: FxHashMap<u64, f32>,
     pub signature_ngrams: FxHashSet<u64>,
     pub param_type_ngrams: FxHashSet<u64>,
     pub name_segments: Vec<String>,
     pub structural_markers: FxHashSet<u64>,
     pub type_usages: Vec<String>,
     pub comment_density: f64,
+}
+
+/// M1: Compute IDF weights for n-grams from a set of fingerprints.
+pub fn compute_idf_weights(fingerprints: &[FunctionFingerprint]) -> FxHashMap<u64, f32> {
+    let n = fingerprints.len() as f32;
+    if n == 0.0 {
+        return FxHashMap::default();
+    }
+    let mut doc_freq: FxHashMap<u64, f32> = FxHashMap::default();
+    for fp in fingerprints {
+        for &hash in &fp.ngram_hashes {
+            *doc_freq.entry(hash).or_insert(0.0) += 1.0;
+        }
+    }
+    doc_freq
+        .into_iter()
+        .map(|(hash, df)| (hash, (n / df).ln()))
+        .collect()
+}
+
+/// M9: Position-weighted n-gram hashing.
+/// Combines position with token hash so that `return` at line 5 differs from `return` at line 50.
+fn token_ngrams_positional(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
+    if tokens.len() < window_size {
+        return FxHashSet::default();
+    }
+    let mut hashes = FxHashSet::default();
+    let total = tokens.len();
+    for i in 0..=(total.saturating_sub(window_size)) {
+        let mut fx_hasher = FxHasher::default();
+        tokens[i..i + window_size].hash(&mut fx_hasher);
+        let token_hash = fx_hasher.finish();
+        // M9: weight by relative position (0.0 = start, 1.0 = end)
+        let position = if total > 1 {
+            i as f32 / (total - 1) as f32
+        } else {
+            0.0
+        };
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let position_bits = (position * 1024.0) as u64; // 10 bits for position
+        let mut final_hasher = FxHasher::default();
+        token_hash.hash(&mut final_hasher);
+        position_bits.hash(&mut final_hasher);
+        hashes.insert(final_hasher.finish());
+    }
+    hashes
 }
 
 fn token_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
@@ -195,13 +242,15 @@ pub fn extract_fingerprints(
         {
             let mut function_name = "anonymous".to_string();
             if let Some(name_node) = node.child_by_field_name("name") {
-                function_name = source_code[name_node.start_byte()..name_node.end_byte()].to_string();
+                function_name =
+                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
             } else if kind == "arrow_function"
                 && let Some(parent) = node.parent()
                 && parent.kind() == "variable_declarator"
                 && let Some(name_node) = parent.child_by_field_name("name")
             {
-                function_name = source_code[name_node.start_byte()..name_node.end_byte()].to_string();
+                function_name =
+                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
             }
 
             let body_code = &source_code[body.start_byte()..body.end_byte()];
@@ -217,12 +266,15 @@ pub fn extract_fingerprints(
             let param_types = extract_param_types(node, source_code);
             let name_segments = split_name_segments(&function_name);
 
+            let positional_hashes = token_ngrams_positional(&tokens, window_size);
+
             fingerprints.push(FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
                 function_name,
                 line: node.start_position().row + 1,
                 language: language.clone(),
-                ngram_hashes: token_ngrams(&tokens, window_size),
+                ngram_hashes: positional_hashes.clone(),
+                weighted_ngram_hashes: positional_hashes.into_iter().map(|h| (h, 1.0)).collect(),
                 signature_ngrams: token_ngrams(&sig_tokens, 3.min(sig_tokens.len().max(1))),
                 param_type_ngrams: token_ngrams(&param_types, 2.min(param_types.len().max(1))),
                 name_segments,

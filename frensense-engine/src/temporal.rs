@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-
 use std::path::Path;
 use tree_sitter::Node;
 
@@ -162,7 +161,12 @@ impl TemporalAnalyzer {
         self.violations.clone()
     }
 
-    pub fn analyze_with_events(&mut self, root: Node, source: &str, file_path: &Path) -> Vec<TemporalEvent> {
+    pub fn analyze_with_events(
+        &mut self,
+        root: Node,
+        source: &str,
+        file_path: &Path,
+    ) -> Vec<TemporalEvent> {
         let events = crate::graph::extract_temporal_events(root, source, file_path);
         let file_str = file_path.to_string_lossy().to_string();
         self.analyze(&events, &file_str)
@@ -203,11 +207,20 @@ impl TemporalAnalyzer {
         all_violations
     }
 
-    pub fn check_must_follow<'a>(&self, events: &'a [TemporalEvent], before: &str, after: &str) -> Vec<&'a TemporalEvent> {
+    pub fn check_must_follow<'a>(
+        &self,
+        events: &'a [TemporalEvent],
+        before: &str,
+        after: &str,
+    ) -> Vec<&'a TemporalEvent> {
         events
             .iter()
             .filter(|e| e.label == before)
-            .filter(|be| !events.iter().any(|ae| ae.label == after && ae.line > be.line))
+            .filter(|be| {
+                !events
+                    .iter()
+                    .any(|ae| ae.label == after && ae.line > be.line)
+            })
             .collect()
     }
 
@@ -238,7 +251,9 @@ pub fn extract_ordered_events<'a>(
                 let line = node.start_position().row + 1;
                 let column = node.start_position().column + 1;
 
-                let event_type = if call_text.contains(".lock()") || call_text.contains("mutex_lock(") {
+                let event_type = if call_text.contains(".lock()")
+                    || call_text.contains("mutex_lock(")
+                {
                     Some((EventType::Acquire, "lock"))
                 } else if call_text.contains(".unlock()") || call_text.contains("mutex_unlock(") {
                     Some((EventType::Release, "unlock"))
@@ -294,15 +309,13 @@ mod tests {
 
     #[test]
     fn test_temporal_rule_lock_unlock_violation() {
-        let events = vec![
-            TemporalEvent {
-                event_type: EventType::Acquire,
-                label: "lock".to_string(),
-                file_path: "test.rs".to_string(),
-                line: 1,
-                column: 1,
-            },
-        ];
+        let events = vec![TemporalEvent {
+            event_type: EventType::Acquire,
+            label: "lock".to_string(),
+            file_path: "test.rs".to_string(),
+            line: 1,
+            column: 1,
+        }];
 
         let rule = TemporalRule {
             name: "lock_unlock".to_string(),
@@ -353,20 +366,21 @@ mod tests {
 
     #[test]
     fn test_analyzer_with_default_rules() {
-        let events = vec![
-            TemporalEvent {
-                event_type: EventType::Acquire,
-                label: "lock".to_string(),
-                file_path: "test.rs".to_string(),
-                line: 1,
-                column: 1,
-            },
-        ];
+        let events = vec![TemporalEvent {
+            event_type: EventType::Acquire,
+            label: "lock".to_string(),
+            file_path: "test.rs".to_string(),
+            line: 1,
+            column: 1,
+        }];
 
         let mut analyzer = TemporalAnalyzer::new();
         analyzer.add_default_rules();
         let violations = analyzer.analyze(&events, "test.rs");
-        assert!(violations.iter().any(|v| v.label.contains("lock")), "should flag lock without unlock");
+        assert!(
+            violations.iter().any(|v| v.label.contains("lock")),
+            "should flag lock without unlock"
+        );
     }
 
     #[test]
@@ -392,15 +406,13 @@ mod tests {
         let violations = analyzer.check_must_follow(&events, "lock", "unlock");
         assert!(violations.is_empty(), "lock is followed by unlock");
 
-        let events2 = vec![
-            TemporalEvent {
-                event_type: EventType::Acquire,
-                label: "lock".to_string(),
-                file_path: "test.rs".to_string(),
-                line: 1,
-                column: 1,
-            },
-        ];
+        let events2 = vec![TemporalEvent {
+            event_type: EventType::Acquire,
+            label: "lock".to_string(),
+            file_path: "test.rs".to_string(),
+            line: 1,
+            column: 1,
+        }];
         let violations2 = analyzer.check_must_follow(&events2, "lock", "unlock");
         assert!(!violations2.is_empty(), "should detect lock without unlock");
     }

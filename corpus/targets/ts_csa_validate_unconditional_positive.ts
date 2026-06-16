@@ -1,4 +1,15 @@
-// Rule: TS_CSA_VALIDATE_UNCONDITIONAL
-function validateInput(input: any) {
-    return true; // No rejection path — always succeeds
+interface Credentials {
+    username: string;
+    password: string;
+}
+
+function validateCredentials(input: any): boolean {
+    const creds = input as Credentials;
+    const valid = Boolean(creds.username && creds.password);
+    return valid;
+}
+
+function formatOutput(data: unknown): string {
+    const result = data as string;
+    return result;
 }

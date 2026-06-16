@@ -109,4 +109,45 @@ impl<'a> ReachabilityChecker<'a> {
             _ => None,
         }
     }
+
+    /// Finds code inside dead branches (if false, else after if true).
+    /// Returns (node, reason) pairs for each dead branch found.
+    pub fn find_dead_branches(&self, node: Node<'a>) -> Vec<(Node<'a>, String)> {
+        let mut results = Vec::new();
+        self.walk_for_dead_branches(node, &mut results);
+        results
+    }
+
+    fn walk_for_dead_branches(&self, node: Node<'a>, results: &mut Vec<(Node<'a>, String)>) {
+        let kind = node.kind();
+
+        if (kind == "if_statement" || kind == "if_expression")
+            && let Some(cond) = node.child_by_field_name("condition")
+        {
+            match self.evaluate_condition(cond) {
+                Some(false) => {
+                    if let Some(consequence) = node.child_by_field_name("consequence") {
+                        results.push((consequence, "Condition is always false".to_string()));
+                    }
+                }
+                Some(true) => {
+                    if let Some(alternative) = node.child_by_field_name("alternative") {
+                        results.push((
+                            alternative,
+                            "Condition is always true — else branch is dead".to_string(),
+                        ));
+                    }
+                }
+                None => {}
+            }
+        }
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "comment" {
+                continue;
+            }
+            self.walk_for_dead_branches(child, results);
+        }
+    }
 }

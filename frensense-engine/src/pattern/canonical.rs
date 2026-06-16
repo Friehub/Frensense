@@ -111,7 +111,9 @@ mod tests {
     fn test_canonical_form() {
         let source = "let x = 1;";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let root = tree.root_node();
         let pattern = PatternCompiler::compile_node(root, source);
@@ -125,7 +127,9 @@ mod tests {
         let source_a = "let x = 1;";
         let source_b = "let y = 2;";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree_a = parser.parse(source_a, None).unwrap();
         let tree_b = parser.parse(source_b, None).unwrap();
         let pattern_a = PatternCompiler::compile_node(tree_a.root_node(), source_a);
@@ -133,6 +137,9 @@ mod tests {
         let cf_a = CanonicalForm::from_node(&pattern_a);
         let cf_b = CanonicalForm::from_node(&pattern_b);
         let sim = cf_a.structural_similarity(&cf_b);
-        assert!(sim > 0.5, "similar let bindings should have high structural similarity");
+        assert!(
+            sim > 0.5,
+            "similar let bindings should have high structural similarity"
+        );
     }
 }

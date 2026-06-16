@@ -25,9 +25,9 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         let call_text = &self.current_source[call_node.start_byte()..call_node.end_byte()];
 
         for (idx, arg) in args.iter().enumerate() {
-            if source_re.is_match(fn_name) || source_re.is_match(call_text) {
-                let arg_name = &self.current_source[arg.start_byte()..arg.end_byte()];
-                registry.taint(arg_name, TaintOrigin::UserInput);
+            let arg_text = &self.current_source[arg.start_byte()..arg.end_byte()];
+            if source_re.is_match(arg_text) {
+                registry.taint(arg_text, TaintOrigin::UserInput);
             }
             if let Some(origin) =
                 self.resolve_taint(*arg, source_re, sink_re, rule, registry, &mut advisories)
@@ -220,13 +220,18 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         let prop_name = &self.current_source
                             [property_node.start_byte()..property_node.end_byte()];
 
-                        if let Some(origin) =
-                            self.alias_tracker.borrow().get_field_origin_with_aliases(obj_name, prop_name, registry)
+                        if let Some(origin) = self
+                            .alias_tracker
+                            .borrow()
+                            .get_field_origin_with_aliases(obj_name, prop_name, registry)
                         {
                             return Some(origin);
                         }
 
-                        if let Some(origin) = self.alias_tracker.borrow().get_origin_with_aliases(obj_name, registry)
+                        if let Some(origin) = self
+                            .alias_tracker
+                            .borrow()
+                            .get_origin_with_aliases(obj_name, registry)
                         {
                             return Some(origin);
                         }

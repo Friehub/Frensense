@@ -1,4 +1,4 @@
-# GenSense Integrity Stack
+# Frensense Integrity Stack
 
 .PHONY: all audit check test fmt clean help
 
@@ -45,7 +45,7 @@ fuzz:
 
 ## Documentation
 docs:
-	@echo "[DOC] Generating GenSense Rule Catalog..."
+	@echo "[DOC] Generating Frensense Rule Catalog..."
 	cargo run --features cli -- --generate-docs
 
 ## Security & Compliance
@@ -58,14 +58,14 @@ dist: docs sbom
 	@echo "[DIST] Bundling release artifacts..."
 	mkdir -p dist
 	cargo build --release --features cli
-	cp target/release/gensense dist/
+	cp target/release/frensense dist/
 	cp RULES.md dist/
 	cp bom.json dist/
 	@echo "[SUCCESS] Release artifacts bundled in dist/"
 
 docker:
 	@echo "[DOCKER] Building production image..."
-	docker build -t gensense:latest .
+	docker build -t frensense:latest .
 
 ## Performance
 benchmark:

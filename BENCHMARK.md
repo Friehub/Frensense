@@ -1,6 +1,6 @@
 # Benchmarks
 
-Performance measurements for GenSense's audit pipeline using [criterion](https://github.com/bheisler/criterion.rs).
+Performance measurements for Frensense's audit pipeline using [criterion](https://github.com/bheisler/criterion.rs).
 
 ## Scan Throughput
 
@@ -35,7 +35,7 @@ Scaling behavior as file count increases.
 
 ## Historical Self-Scan
 
-Tracks how findings evolve across a target repo's tagged history using the current GenSense binary
+Tracks how findings evolve across a target repo's tagged history using the current Frensense binary
 ([`scripts/historical-benchmark.sh`](scripts/historical-benchmark.sh)).
 
 ### Usage
@@ -51,13 +51,13 @@ git clone https://github.com/tokio-rs/tokio.git /tmp/tokio
 
 Output is a CSV with columns `tag,advisories,critical,warning,info`.
 
-### GenSense Evolution (fixed target: tokio 1.47.3)
+### Frensense Evolution (fixed target: tokio 1.47.3)
 
-How GenSense's own rule set evolved across releases. Each version scans the same
+How Frensense's own rule set evolved across releases. Each version scans the same
 codebase ([tokio](https://github.com/tokio-rs/tokio) `tokio/src`), isolating
 rule changes from target drift.
 
-| GenSense Version | Total | Critical | Warning | Info | Notes |
+| Frensense Version | Total | Critical | Warning | Info | Notes |
 | :--------------- | ----: | -------: | ------: | ---: | :---- |
 | v0.2.2 | 1,939 | 11 | 1,728 | 200 | 200 info-level noise, no `exclude_scope` |
 | v0.3.0 | 1,330 | 22 | 1,308 | 0 | `info` removed; still no `exclude_scope` |
@@ -67,10 +67,10 @@ Key takeaway: the 70% drop from v0.3.0 (1,330) to v0.3.1 (397) is driven by
 `exclude_scope` — rules now skip test, benchmark, and build directories,
 eliminating hundreds of noise findings from tokio's extensive test suite.
 
-### Tokio Evolution (fixed tool: current GenSense HEAD)
+### Tokio Evolution (fixed tool: current Frensense HEAD)
 
 How tokio's code quality evolved across tagged releases, as measured
-by the current GenSense binary scanning `tokio/src` (sampled every 20th
+by the current Frensense binary scanning `tokio/src` (sampled every 20th
 tag, 388 total → 20 scanned).
 
 | Tag | Total | Critical | Warning | Notes |
@@ -88,7 +88,7 @@ tag, 388 total → 20 scanned).
 
 *(Run `./scripts/historical-benchmark.sh /tmp/tokio tokio/src` for current data.)*
 
-### Self-Scan (current GenSense on its own repo)
+### Self-Scan (current Frensense on its own repo)
 
 | Tag | Total | Critical | Warning |
 | :-- | ----: | -------: | ------: |
@@ -97,5 +97,5 @@ tag, 388 total → 20 scanned).
 *(Run `./scripts/historical-benchmark.sh .` for data across all gensense tags.)*
 
 HEAD reaches 0 warnings because `exclude_scope` and `precision` filtering
-exclude the patterns found in GenSense's own source. The threshold in
+exclude the patterns found in Frensense's own source. The threshold in
 `self_audit_report_warnings` is set at 165 as a safety net for regressions.

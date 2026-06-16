@@ -5,8 +5,6 @@ pub mod discovery;
 pub mod events;
 pub mod project_auditor;
 pub mod rules;
-pub mod user_rules;
-
 pub use project_auditor::ProjectAuditor;
 
 use glob::Pattern;
@@ -85,7 +83,7 @@ impl FrensenseAuditor {
 
     #[must_use]
     pub fn default_auditor() -> Self {
-        let (rules, _) = Self::default_rules();
+        let rules = Self::default_rules();
         Self::new(rules)
     }
 

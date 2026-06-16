@@ -43,7 +43,13 @@ impl SecretScanner {
         self
     }
 
-    pub fn add_pattern(&mut self, name: &str, regex: &str, confidence: f64, context_hint: Option<&str>) {
+    pub fn add_pattern(
+        &mut self,
+        name: &str,
+        regex: &str,
+        confidence: f64,
+        context_hint: Option<&str>,
+    ) {
         if let Ok(re) = Regex::new(regex) {
             self.patterns.push(SecretPattern {
                 name: name.to_string(),
@@ -154,7 +160,10 @@ impl SecretScanner {
         let mut cursor = root.walk();
         loop {
             let node = cursor.node();
-            if node.kind() == "string" || node.kind() == "string_literal" || node.kind() == "template_string" {
+            if node.kind() == "string"
+                || node.kind() == "string_literal"
+                || node.kind() == "template_string"
+            {
                 if let Ok(text) = node.utf8_text(source.as_bytes()) {
                     let line = node.start_position().row + 1;
                     let column = node.start_position().column + 1;
@@ -239,7 +248,10 @@ mod tests {
         scanner.add_default_patterns();
         let source = "let key = \"AKIAIOSFODNN7EXAMPLE\";";
         let results = scanner.scan_source(source, Path::new("test.rs"));
-        let aws: Vec<_> = results.iter().filter(|r| r.pattern_name == "aws_access_key").collect();
+        let aws: Vec<_> = results
+            .iter()
+            .filter(|r| r.pattern_name == "aws_access_key")
+            .collect();
         assert!(!aws.is_empty(), "should detect AWS access key");
     }
 
@@ -247,9 +259,13 @@ mod tests {
     fn test_scan_private_key() {
         let mut scanner = SecretScanner::new();
         scanner.add_default_patterns();
-        let source = "-----BEGIN RSA PRIVATE KEY-----\nMIICXAIBAAKBgQ\n-----END RSA PRIVATE KEY-----";
+        let source =
+            "-----BEGIN RSA PRIVATE KEY-----\nMIICXAIBAAKBgQ\n-----END RSA PRIVATE KEY-----";
         let results = scanner.scan_source(source, Path::new("test.rs"));
-        let pk: Vec<_> = results.iter().filter(|r| r.pattern_name == "private_key_header").collect();
+        let pk: Vec<_> = results
+            .iter()
+            .filter(|r| r.pattern_name == "private_key_header")
+            .collect();
         assert!(!pk.is_empty(), "should detect private key header");
     }
 
@@ -279,6 +295,8 @@ mod tests {
         let source = "AKIAIOSFODNN7EXAMPLE and -----BEGIN RSA PRIVATE KEY-----";
         let results = scanner.scan_source(source, Path::new("test.rs"));
         let grouped = SecretScanner::group_by_pattern(&results);
-        assert!(grouped.contains_key("aws_access_key") || grouped.contains_key("private_key_header"));
+        assert!(
+            grouped.contains_key("aws_access_key") || grouped.contains_key("private_key_header")
+        );
     }
 }

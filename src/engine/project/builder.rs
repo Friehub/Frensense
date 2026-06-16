@@ -2,7 +2,6 @@
 
 use super::Engine;
 use crate::FrensenseEnvironment;
-use std::path::PathBuf;
 
 impl Engine {
     #[cfg(feature = "fingerprinting")]
@@ -85,51 +84,12 @@ impl Engine {
         &self.auditor
     }
 
-    #[must_use]
-    pub fn project_rules(&self) -> &[Box<dyn crate::ProjectRule>] {
-        &self.project_rules
-    }
-
-    #[must_use]
-    pub fn list_rules(&self) -> Vec<(String, String, String)> {
-        let mut rules = Vec::new();
-        for r in self.auditor.rules() {
-            let meta = r.metadata();
-            rules.push((
-                meta.id.to_string(),
-                meta.name.to_string(),
-                format!("{:?}", meta.severity),
-            ));
-        }
-        for r in &self.project_rules {
-            let meta = r.metadata();
-            rules.push((
-                meta.id.to_string(),
-                meta.name.to_string(),
-                format!("{:?}", meta.severity),
-            ));
-        }
-        rules
-    }
-
     pub fn enable_tag(&mut self, tag: &str) {
         self.enabled_tags.insert(tag.to_string());
     }
 
     pub fn enable_category(&mut self, category: &str) {
         self.enabled_categories.insert(category.to_string());
-    }
-
-    pub fn add_rule_dir<P: Into<PathBuf>>(&mut self, path: P) {
-        self.extra_rule_dirs.push(path.into());
-    }
-
-    pub const fn set_no_builtin_rules(&mut self, val: bool) {
-        self.no_builtin_rules = val;
-    }
-
-    pub const fn set_isolate_rules(&mut self, val: bool) {
-        self.isolate_rules = val;
     }
 
     pub const fn set_severity_filter(&mut self, severity: Option<crate::Severity>) {

@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: MIT
+#![allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    clippy::return_self_not_must_use,
+    clippy::missing_panics_doc,
+    clippy::module_inception
+)]
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
@@ -141,7 +148,90 @@ pub struct Advisory {
     pub tags: Vec<String>,
 }
 
+/// Lossless usize → u32, saturating at `u32::MAX`.
+#[inline]
+#[must_use]
+pub fn to_u32(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
+
 impl Advisory {
+    /// Create an advisory with common defaults pre-filled.
+    /// Only set the fields that differ per finding.
+    #[must_use]
+    pub fn bare(
+        rule_id: impl Into<String>,
+        severity: Severity,
+        file_id: FileId,
+        file_path: &std::path::Path,
+        observation: impl Into<String>,
+    ) -> Self {
+        Self {
+            rule_id: rule_id.into(),
+            file_id,
+            file_path: file_path.display().to_string(),
+            severity,
+            observation: observation.into(),
+            confidence: 0.5,
+            impact: String::new(),
+            improvement: String::new(),
+            line: 0,
+            column: 0,
+            start_byte: 0,
+            end_byte: 0,
+            original_content: String::new(),
+            proposed_replacement: None,
+            proposed_import: None,
+            enclosing_symbol: None,
+            fingerprint: String::new(),
+            auto_fixable: false,
+            requires_human: true,
+            tags: Vec::new(),
+        }
+    }
+
+    pub fn with_confidence(mut self, v: f32) -> Self {
+        self.confidence = v;
+        self
+    }
+    pub fn with_line(mut self, v: u32) -> Self {
+        self.line = v;
+        self
+    }
+    pub fn with_column(mut self, v: u32) -> Self {
+        self.column = v;
+        self
+    }
+    pub fn with_bytes(mut self, start: u32, end: u32) -> Self {
+        self.start_byte = start;
+        self.end_byte = end;
+        self
+    }
+    pub fn with_content(mut self, v: impl Into<String>) -> Self {
+        self.original_content = v.into();
+        self
+    }
+    pub fn with_impact(mut self, v: impl Into<String>) -> Self {
+        self.impact = v.into();
+        self
+    }
+    pub fn with_improvement(mut self, v: impl Into<String>) -> Self {
+        self.improvement = v.into();
+        self
+    }
+    pub fn with_enclosing_symbol(mut self, v: impl Into<String>) -> Self {
+        self.enclosing_symbol = Some(v.into());
+        self
+    }
+    pub fn with_tags<const N: usize>(mut self, tags: [&str; N]) -> Self {
+        self.tags = tags.iter().map(|s| s.to_string()).collect();
+        self
+    }
+    pub fn with_replacement(mut self, v: impl Into<String>) -> Self {
+        self.proposed_replacement = Some(v.into());
+        self
+    }
+
     /// Returns a unique identity key for this advisory, used for baseline comparisons.
     #[must_use]
     pub fn identity(&self) -> (String, String, Option<String>, u32, u32) {
@@ -237,9 +327,10 @@ impl TaintCache {
         let mut inner = self.inner.borrow_mut();
         let mut order = self.order.borrow_mut();
         if inner.len() >= TAINT_CACHE_MAX
-            && let Some(oldest) = order.pop_front() {
-                inner.remove(&oldest);
-            }
+            && let Some(oldest) = order.pop_front()
+        {
+            inner.remove(&oldest);
+        }
         order.push_back(key.clone());
         inner.insert(key, value);
     }

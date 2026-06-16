@@ -8,8 +8,7 @@ pub mod helpers;
 pub mod runner;
 
 use crate::engine::auditor::FrensenseAuditor;
-use crate::semantics::symbols::SymbolRegistry;
-use crate::{Advisory, FileId, FrensenseEnvironment, ProjectRule, SourceRegistry};
+use crate::{FileId, FrensenseEnvironment, SourceRegistry};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -26,16 +25,12 @@ pub struct FileSnapshot {
 
 pub struct Engine {
     auditor: FrensenseAuditor,
-    project_rules: Vec<Box<dyn ProjectRule>>,
     source_registry: SourceRegistry,
     min_confidence: f32,
     environment: FrensenseEnvironment,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
     suite: crate::Suite,
-    extra_rule_dirs: Vec<PathBuf>,
-    no_builtin_rules: bool,
-    isolate_rules: bool,
     severity_filter: Option<crate::Severity>,
     language_filter: Option<Vec<&'static str>>,
     file_cache: cache::FileCache,
@@ -63,6 +58,7 @@ pub struct Engine {
 
     corpus_dir: Option<PathBuf>,
     baseline_path: Option<PathBuf>,
+    extra_taint_rule_dirs: Vec<PathBuf>,
 }
 
 impl Engine {
@@ -70,16 +66,12 @@ impl Engine {
     pub fn new() -> Self {
         Self {
             auditor: FrensenseAuditor::new(Vec::new()),
-            project_rules: Vec::new(),
             source_registry: SourceRegistry::new(),
             min_confidence: 0.1,
             environment: FrensenseEnvironment::Development,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
             suite: crate::Suite::All,
-            extra_rule_dirs: Vec::new(),
-            no_builtin_rules: false,
-            isolate_rules: false,
             severity_filter: None,
             language_filter: None,
             file_cache: cache::FileCache::default(),
@@ -101,6 +93,7 @@ impl Engine {
             profile_threshold: 0.7,
             corpus_dir: None,
             baseline_path: None,
+            extra_taint_rule_dirs: Vec::new(),
         }
     }
 
@@ -111,30 +104,9 @@ impl Engine {
     pub fn set_baseline_path(&mut self, path: std::path::PathBuf) {
         self.baseline_path = Some(path);
     }
-}
 
-pub struct ProjectAuditor {
-    rules: Vec<Box<dyn ProjectRule>>,
-}
-
-impl ProjectAuditor {
-    #[must_use]
-    pub fn new(rules: Vec<Box<dyn ProjectRule>>) -> Self {
-        Self { rules }
-    }
-
-    #[must_use]
-    pub fn run(
-        &self,
-        symbols: &SymbolRegistry,
-        sources: &SourceRegistry,
-        _env: FrensenseEnvironment,
-    ) -> Vec<Advisory> {
-        let mut advisories = Vec::new();
-        for rule in &self.rules {
-            advisories.extend(rule.check_project(symbols, sources));
-        }
-        advisories
+    pub fn set_extra_taint_rule_dirs(&mut self, dirs: Vec<PathBuf>) {
+        self.extra_taint_rule_dirs = dirs;
     }
 }
 

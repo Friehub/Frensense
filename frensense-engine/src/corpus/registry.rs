@@ -39,6 +39,20 @@ impl PatternRegistry {
         Ok(count)
     }
 
+    pub fn load_corpus_dirs(&mut self, dirs: &[&Path]) -> Result<usize, String> {
+        let mut all_patterns = Vec::new();
+        for dir in dirs {
+            match load_corpus(dir) {
+                Ok(patterns) => all_patterns.extend(patterns),
+                Err(e) => eprintln!("Corpus warning: skipping {}: {e}", dir.display()),
+            }
+        }
+        let count = all_patterns.len();
+        self.patterns = all_patterns;
+        self.build_lsh_index();
+        Ok(count)
+    }
+
     pub fn pattern_count(&self) -> usize {
         self.patterns.len()
     }
@@ -73,11 +87,8 @@ impl PatternRegistry {
         let mut matches = Vec::new();
         for &idx in &candidates {
             let pattern = &self.patterns[idx];
-            let score = PatternScorer::score_against_corpus(
-                fp,
-                &pattern.positive,
-                &pattern.negative,
-            );
+            let score =
+                PatternScorer::score_against_corpus(fp, &pattern.positive, &pattern.negative);
             if score >= self.threshold {
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),
@@ -88,7 +99,11 @@ impl PatternRegistry {
             }
         }
 
-        matches.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        matches.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         matches
     }
 }

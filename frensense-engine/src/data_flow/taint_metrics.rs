@@ -35,8 +35,7 @@ impl TaintMetrics {
 
             if is_conditional(kind) {
                 if let Some(cond) = node.child_by_field_name("condition") {
-                    let cond_text =
-                        &source[cond.start_byte()..cond.end_byte()];
+                    let cond_text = &source[cond.start_byte()..cond.end_byte()];
                     if tainted_vars.iter().any(|v| cond_text.contains(v.as_str())) {
                         metrics.taint_branched_on += 1;
                     }

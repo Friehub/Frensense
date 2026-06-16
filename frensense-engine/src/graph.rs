@@ -51,7 +51,6 @@ pub struct TemporalEvent {
 
 #[derive(Debug, Clone)]
 pub enum SemanticNode {
-
     Declaration(Symbol),
     Event(TemporalEvent),
 }
@@ -124,15 +123,19 @@ impl SemanticGraph {
     }
 
     pub fn find_node(&self, name: &str, file: &str, line: usize) -> Option<SemanticNodeId> {
-        self.name_index.get(name).and_then(|indices| {
-            indices.iter().find(|&&idx| {
-                if let Some(SemanticNode::Declaration(s)) = self.graph.node_weight(idx) {
-                    s.file_path == file && (line == 0 || s.line == line)
-                } else {
-                    false
-                }
+        self.name_index
+            .get(name)
+            .and_then(|indices| {
+                indices.iter().find(|&&idx| {
+                    if let Some(SemanticNode::Declaration(s)) = self.graph.node_weight(idx) {
+                        s.file_path == file && (line == 0 || s.line == line)
+                    } else {
+                        false
+                    }
+                })
             })
-        }).copied().map(SemanticNodeId)
+            .copied()
+            .map(SemanticNodeId)
     }
 
     pub fn neighbors_of(&self, id: SemanticNodeId, kind: EdgeKind) -> Vec<SemanticNodeId> {
@@ -167,7 +170,10 @@ impl SemanticGraph {
                 !self
                     .graph
                     .edges_directed(idx, petgraph::Direction::Incoming)
-                    .any(|e| *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.source()))
+                    .any(|e| {
+                        *e.weight() == EdgeKind::SequentiallyFollows
+                            && event_set.contains(&e.source())
+                    })
             })
             .copied()
             .collect();
@@ -197,7 +203,9 @@ impl SemanticGraph {
             let mut next_edges: Vec<_> = self
                 .graph
                 .edges(idx)
-                .filter(|e| *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.target()))
+                .filter(|e| {
+                    *e.weight() == EdgeKind::SequentiallyFollows && event_set.contains(&e.target())
+                })
                 .collect();
             if next_edges.len() > 1 {
                 next_edges.sort_by(|a, b| {
@@ -241,14 +249,23 @@ impl SemanticGraph {
     }
 
     pub fn has_taint_flow(&self, func_name: &str, file_path: &str) -> bool {
-        self.taint_flows.iter().any(|r| r.function_name == func_name && r.file_path == file_path)
+        self.taint_flows
+            .iter()
+            .any(|r| r.function_name == func_name && r.file_path == file_path)
     }
 
     pub fn taint_flows_for(&self, func_name: &str, file_path: &str) -> Vec<&TaintFlowRecord> {
-        self.taint_flows.iter().filter(|r| r.function_name == func_name && r.file_path == file_path).collect()
+        self.taint_flows
+            .iter()
+            .filter(|r| r.function_name == func_name && r.file_path == file_path)
+            .collect()
     }
 
-    pub fn has_call_path(&self, from_nodes: &[SemanticNodeId], to_nodes: &[SemanticNodeId]) -> bool {
+    pub fn has_call_path(
+        &self,
+        from_nodes: &[SemanticNodeId],
+        to_nodes: &[SemanticNodeId],
+    ) -> bool {
         let to_nodes: HashSet<NodeIndex> = to_nodes.iter().map(|id| id.0).collect();
         for from in from_nodes {
             let mut visited = HashSet::new();
@@ -303,7 +320,10 @@ pub fn extract_temporal_events<'a>(
                     line,
                     column,
                 });
-            } else if call_text.contains(".close()") || call_text.contains(".release()") || call_text.contains(".drop()") {
+            } else if call_text.contains(".close()")
+                || call_text.contains(".release()")
+                || call_text.contains(".drop()")
+            {
                 events.push(TemporalEvent {
                     event_type: EventType::Release,
                     label: "release".to_string(),

@@ -16,7 +16,7 @@
 // is found in the GenSense source tree. Warning findings are reported but do
 // not fail the build — they serve as an ongoing code-quality dashboard.
 
-use gensense::{Engine, Severity};
+use frensense::{Engine, Severity};
 use std::path::Path;
 
 fn get_engine() -> Engine {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::{HashMap, HashSet, VecDeque};
 use crate::data_flow::TaintOrigin;
 use crate::graph::{EdgeKind, SemanticGraph};
 use crate::symbols::Symbol;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrossFileTaint {
@@ -40,16 +40,28 @@ impl CrossFileTaintResolver {
 
             let callee_list: Vec<String> = callees.collect();
             if !callee_list.is_empty() {
-                self.call_graph.entry(sym_key.clone()).or_default().extend(callee_list.clone());
+                self.call_graph
+                    .entry(sym_key.clone())
+                    .or_default()
+                    .extend(callee_list.clone());
                 for callee in &callee_list {
-                    self.reverse_call_graph.entry(callee.clone()).or_default().push(sym_key.clone());
+                    self.reverse_call_graph
+                        .entry(callee.clone())
+                        .or_default()
+                        .push(sym_key.clone());
                 }
             }
         }
     }
 
-    pub fn register_exposed_taint(&mut self, symbol_key: &str, file_path: &str, origin: TaintOrigin) {
-        self.exposed_taint.insert((symbol_key.to_string(), file_path.to_string()), origin);
+    pub fn register_exposed_taint(
+        &mut self,
+        symbol_key: &str,
+        file_path: &str,
+        origin: TaintOrigin,
+    ) {
+        self.exposed_taint
+            .insert((symbol_key.to_string(), file_path.to_string()), origin);
     }
 
     pub fn resolve_taint(
@@ -157,9 +169,9 @@ pub fn build_resolver(project_symbols: &[(&Symbol, &SemanticGraph)]) -> CrossFil
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FileId;
     use crate::graph::SemanticGraph;
     use crate::symbols::{Symbol, SymbolKind};
-    use crate::FileId;
 
     fn make_symbol(name: &str, file: &str) -> Symbol {
         Symbol {

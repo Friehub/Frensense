@@ -48,11 +48,15 @@ impl<'a> ControlFlowGraph<'a> {
     }
 
     pub fn successors(&self, id: usize) -> Vec<(usize, CFEdgeKind)> {
-        self.blocks.get(id).map_or_else(Vec::new, |b| b.successors.clone())
+        self.blocks
+            .get(id)
+            .map_or_else(Vec::new, |b| b.successors.clone())
     }
 
     pub fn predecessors(&self, id: usize) -> Vec<usize> {
-        self.blocks.get(id).map_or_else(Vec::new, |b| b.predecessors.clone())
+        self.blocks
+            .get(id)
+            .map_or_else(Vec::new, |b| b.predecessors.clone())
     }
 
     pub fn block_count(&self) -> usize {
@@ -123,8 +127,12 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     successors: vec![(merge_block, CFEdgeKind::Branch)],
                     predecessors: vec![current_block],
                 });
-                blocks[current_block].successors.push((branch_block, CFEdgeKind::Branch));
-                blocks[current_block].successors.push((merge_block, CFEdgeKind::Branch));
+                blocks[current_block]
+                    .successors
+                    .push((branch_block, CFEdgeKind::Branch));
+                blocks[current_block]
+                    .successors
+                    .push((merge_block, CFEdgeKind::Branch));
                 blocks.push(BasicBlock {
                     id: merge_block,
                     start_byte: node.end_byte(),
@@ -136,9 +144,15 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     predecessors: vec![branch_block, current_block],
                 });
                 blocks[branch_block].predecessors.push(current_block);
-                blocks[current_block].successors.retain(|(id, _)| *id != branch_block || *id != merge_block);
-                blocks[current_block].successors.push((branch_block, CFEdgeKind::Branch));
-                blocks[current_block].successors.push((merge_block, CFEdgeKind::Branch));
+                blocks[current_block]
+                    .successors
+                    .retain(|(id, _)| *id != branch_block || *id != merge_block);
+                blocks[current_block]
+                    .successors
+                    .push((branch_block, CFEdgeKind::Branch));
+                blocks[current_block]
+                    .successors
+                    .push((merge_block, CFEdgeKind::Branch));
                 parent_stack.push(current_block);
                 current_block = branch_block;
             }
@@ -152,10 +166,15 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     kind: "loop_body".to_string(),
                     nodes: vec![node],
                     dominators: HashSet::new(),
-                    successors: vec![(loop_body, CFEdgeKind::BackEdge), (after_loop, CFEdgeKind::Unconditional)],
+                    successors: vec![
+                        (loop_body, CFEdgeKind::BackEdge),
+                        (after_loop, CFEdgeKind::Unconditional),
+                    ],
                     predecessors: vec![current_block, loop_body],
                 });
-                blocks[current_block].successors.push((loop_body, CFEdgeKind::Unconditional));
+                blocks[current_block]
+                    .successors
+                    .push((loop_body, CFEdgeKind::Unconditional));
                 blocks.push(BasicBlock {
                     id: after_loop,
                     start_byte: node.end_byte(),
@@ -197,7 +216,9 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     successors: Vec::new(),
                     predecessors: vec![current_block],
                 });
-                blocks[current_block].successors.push((exit, CFEdgeKind::Unconditional));
+                blocks[current_block]
+                    .successors
+                    .push((exit, CFEdgeKind::Unconditional));
                 let mut cfg = ControlFlowGraph {
                     blocks,
                     entry,
@@ -323,7 +344,9 @@ fn split_statement_blocks(cfg: &mut ControlFlowGraph) {
         block.predecessors.clear();
         for pred in old_preds {
             let mapped = remap(pred);
-            block.predecessors.extend(mapped.iter().copied().filter(|m| *m != block.id));
+            block
+                .predecessors
+                .extend(mapped.iter().copied().filter(|m| *m != block.id));
         }
 
         let old_succs: Vec<(usize, CFEdgeKind)> = block.successors.drain(..).collect();
@@ -369,7 +392,10 @@ pub fn walk_reachable(cfg: &ControlFlowGraph, from: usize) -> CFGWalkResult {
         }
     }
 
-    CFGWalkResult { reachable, back_edges }
+    CFGWalkResult {
+        reachable,
+        back_edges,
+    }
 }
 
 pub fn compute_dominators(cfg: &mut ControlFlowGraph) {
@@ -396,7 +422,10 @@ pub fn compute_dominators(cfg: &mut ControlFlowGraph) {
         for i in 1..n {
             let mut new_doms: HashSet<usize> = (0..n).collect();
             for pred in cfg.blocks[i].predecessors.clone() {
-                new_doms = new_doms.intersection(&cfg.blocks[pred].dominators).copied().collect();
+                new_doms = new_doms
+                    .intersection(&cfg.blocks[pred].dominators)
+                    .copied()
+                    .collect();
             }
             new_doms.insert(i);
             if new_doms != cfg.blocks[i].dominators {
@@ -418,11 +447,7 @@ pub fn immediate_dominator(cfg: &ControlFlowGraph, block_id: usize) -> Option<us
             idom = d;
         }
     }
-    if idom == block_id {
-        None
-    } else {
-        Some(idom)
-    }
+    if idom == block_id { None } else { Some(idom) }
 }
 
 pub fn dominance_frontier(cfg: &ControlFlowGraph, block_id: usize) -> HashSet<usize> {

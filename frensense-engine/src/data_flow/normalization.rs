@@ -19,9 +19,19 @@ impl From<tree_sitter::Node<'_>> for Range {
 
 #[derive(Debug, Clone)]
 pub enum SemanticOp {
-    Binding { name: String, value_range: Range },
-    Assignment { target: String, value_range: Range },
-    Call { function_name: String, args: Vec<Range>, range: Range },
+    Binding {
+        name: String,
+        value_range: Range,
+    },
+    Assignment {
+        target: String,
+        value_range: Range,
+    },
+    Call {
+        function_name: String,
+        args: Vec<Range>,
+        range: Range,
+    },
     EnterBlock(Range),
 }
 

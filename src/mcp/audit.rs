@@ -126,7 +126,7 @@ pub fn run_audit_streamed(
     }
 
     let mut engine = Engine::new();
-    let rule_count = engine.list_rules().len();
+    let rule_count = engine.auditor().rules().len();
     eprintln!(
         "frensense-mcp: streaming cwd={:?}, rules={}",
         std::env::current_dir().ok(),
@@ -175,7 +175,6 @@ pub fn run_audit_streamed(
         }));
     }
 
-    #[cfg(feature = "remediation")]
     if fix_auto {
         apply_auto_fixes(&filtered, target);
     }
@@ -208,7 +207,7 @@ pub fn run_audit(
     }
 
     let mut engine = Engine::new();
-    let rule_count = engine.list_rules().len();
+    let rule_count = engine.auditor().rules().len();
     eprintln!(
         "frensense-mcp: cwd={:?}, rules={}, threshold={:?}",
         std::env::current_dir().ok(),
@@ -242,7 +241,6 @@ pub fn run_audit(
         .cloned()
         .collect();
 
-    #[cfg(feature = "remediation")]
     if fix_auto {
         apply_auto_fixes(&filtered, target);
     }
@@ -263,7 +261,6 @@ pub fn severity_rank(s: Severity) -> u8 {
     }
 }
 
-#[cfg(feature = "remediation")]
 pub fn apply_auto_fixes(advisories: &[Advisory], root: &Path) {
     use crate::patcher::PatchManager;
 
@@ -282,7 +279,6 @@ pub fn apply_auto_fixes(advisories: &[Advisory], root: &Path) {
     }
 }
 
-#[cfg(feature = "remediation")]
 pub fn find_project_root_for_fix(target: &Path) -> std::path::PathBuf {
     let mut root = target.to_path_buf();
     if root.is_file() {

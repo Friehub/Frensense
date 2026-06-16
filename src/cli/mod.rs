@@ -6,7 +6,7 @@ pub mod options;
 pub mod reporting;
 
 pub use commands::*;
-#[cfg(any(feature = "remediation", feature = "fingerprinting"))]
+#[cfg(feature = "fingerprinting")]
 pub use extras::*;
 pub use options::*;
 pub use reporting::*;

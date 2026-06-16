@@ -33,7 +33,6 @@ frensense-engine = { path = "frensense-engine" }
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
-tree-sitter-yaml = "0.7"
 tree-sitter-javascript = { version = "0.23", optional = true }
 tree-sitter-python = { version = "0.23", optional = true }
 thiserror = "1.0"
@@ -43,7 +42,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 regex = "1"
 walkdir = "2"
-diff = { version = "0.1", optional = true }
+diff = "0.1"
 glob = "0.3"
 petgraph = "0.6"
 dirs = "5.0"
@@ -53,14 +52,14 @@ blake3 = "1.5"
 toml = "0.8"
 
 [features]
-default = ["rust", "typescript", "fingerprinting", "remediation", "temporal"]
+default = ["rust", "typescript", "fingerprinting", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 c_lang = ["frensense-engine/c_lang"]
 python = ["frensense-engine/python", "dep:tree-sitter-python"]
 fingerprinting = ["frensense-engine/serialize"]
-remediation = ["dep:diff"]
 temporal = []
+disabled_yaml_rules = []
 
 [dev-dependencies]
 tempfile = "3"

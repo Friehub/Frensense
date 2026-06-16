@@ -33,16 +33,16 @@ fn read_response(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
 }
 
 fn spawn_mcp() -> (Child, ChildStdin, BufReader<ChildStdout>) {
-    let bin_path = option_env!("CARGO_BIN_EXE_gensense-mcp").unwrap_or_else(|| {
+    let bin_path = option_env!("CARGO_BIN_EXE_frensense-mcp").unwrap_or_else(|| {
         panic!(
-            "gensense-mcp binary not available. \
+            "frensense-mcp binary not available. \
              This test requires the 'mcp' feature to build the binary. \
              Run: cargo test --features mcp"
         );
     });
     assert!(
         std::path::Path::new(bin_path).exists(),
-        "gensense-mcp binary not found at {bin_path}. \
+        "frensense-mcp binary not found at {bin_path}. \
          The build may have been cleaned between compilation and test execution. \
          Rebuild with: cargo test --features mcp"
     );
@@ -51,7 +51,7 @@ fn spawn_mcp() -> (Child, ChildStdin, BufReader<ChildStdout>) {
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .expect("failed to spawn gensense-mcp");
+        .expect("failed to spawn frensense-mcp");
 
     let stdin = child.stdin.take().unwrap();
     let stdout = BufReader::new(child.stdout.take().unwrap());

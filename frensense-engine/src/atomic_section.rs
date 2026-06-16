@@ -69,7 +69,10 @@ impl AtomicSectionAnalyzer {
                     let line = node.start_position().row + 1;
                     let column = node.start_position().column + 1;
 
-                    if text.contains("lock(") || text.contains("mutex_lock(") || text.contains("acquire(") {
+                    if text.contains("lock(")
+                        || text.contains("mutex_lock(")
+                        || text.contains("acquire(")
+                    {
                         let target = extract_target(text, "lock");
                         events.push(AtomicEvent {
                             op: AtomicOp::Lock,
@@ -79,7 +82,10 @@ impl AtomicSectionAnalyzer {
                             start_byte: node.start_byte(),
                             end_byte: node.end_byte(),
                         });
-                    } else if text.contains("unlock(") || text.contains("mutex_unlock(") || text.contains("release(") {
+                    } else if text.contains("unlock(")
+                        || text.contains("mutex_unlock(")
+                        || text.contains("release(")
+                    {
                         let target = extract_target(text, "unlock");
                         events.push(AtomicEvent {
                             op: AtomicOp::Unlock,
@@ -206,7 +212,10 @@ impl AtomicSectionAnalyzer {
 
         for event in events {
             if event.op == AtomicOp::Lock {
-                sections_by_var.entry(&event.target).or_default().push(event);
+                sections_by_var
+                    .entry(&event.target)
+                    .or_default()
+                    .push(event);
             }
         }
 
@@ -218,7 +227,9 @@ impl AtomicSectionAnalyzer {
                             .iter()
                             .filter(|e| e.line > first.line && e.line < second.line)
                             .collect();
-                        let has_unlock = between.iter().any(|e| e.op == AtomicOp::Unlock && e.target == first.target);
+                        let has_unlock = between
+                            .iter()
+                            .any(|e| e.op == AtomicOp::Unlock && e.target == first.target);
                         if !has_unlock {
                             for event in &between {
                                 if event.op == AtomicOp::CondWait {
@@ -286,7 +297,11 @@ fn extract_target(text: &str, op: &str) -> String {
             break;
         }
     }
-    if target.is_empty() { "unknown".to_string() } else { target }
+    if target.is_empty() {
+        "unknown".to_string()
+    } else {
+        target
+    }
 }
 
 pub fn analyze_atomic_sections(
@@ -326,7 +341,9 @@ mod tests {
     fn test_empty_source() {
         let source = "";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_c::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_c::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let mut analyzer = AtomicSectionAnalyzer::new();
         analyzer.analyze(tree.root_node(), source, Path::new("test.c"));
@@ -345,7 +362,9 @@ void foo() {
 }
 "#;
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_c::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_c::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let mut analyzer = AtomicSectionAnalyzer::new();
         analyzer.analyze(tree.root_node(), source, Path::new("test.c"));
@@ -363,11 +382,16 @@ void foo() {
 }
 "#;
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_c::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_c::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let mut analyzer = AtomicSectionAnalyzer::new();
         analyzer.analyze(tree.root_node(), source, Path::new("test.c"));
-        assert!(analyzer.has_incomplete_sections(), "should detect incomplete lock");
+        assert!(
+            analyzer.has_incomplete_sections(),
+            "should detect incomplete lock"
+        );
     }
 
     #[test]
@@ -386,7 +410,9 @@ void check_and_use() {
 }
 "#;
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_c::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_c::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let mut analyzer = AtomicSectionAnalyzer::new();
         analyzer.analyze(tree.root_node(), source, Path::new("test.c"));

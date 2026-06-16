@@ -127,7 +127,10 @@ impl ParserRegistry {
 
     pub fn is_supported(path: &Path) -> bool {
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        matches!(ext, "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml")
+        matches!(
+            ext,
+            "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml"
+        )
     }
 
     pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {

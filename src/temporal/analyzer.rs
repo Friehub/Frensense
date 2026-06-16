@@ -36,12 +36,8 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
         let meta = rule.metadata();
 
         match behavior {
-            TemporalBehavior::MustNotFollow => {
-                self.check_must_not_follow(&events, sequence, meta)
-            }
-            TemporalBehavior::MustFollow => {
-                self.check_must_follow(&scope, &events, sequence, rule)
-            }
+            TemporalBehavior::MustNotFollow => self.check_must_not_follow(&events, sequence, meta),
+            TemporalBehavior::MustFollow => self.check_must_follow(&scope, &events, sequence, rule),
             TemporalBehavior::ForbiddenBetween(start_re, end_re) => {
                 self.check_forbidden_between(&events, sequence, start_re, end_re, meta)
             }

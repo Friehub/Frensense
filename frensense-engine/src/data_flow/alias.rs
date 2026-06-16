@@ -33,7 +33,10 @@ impl AliasTracker {
             return;
         }
 
-        self.aliases.entry(v.clone()).or_default().extend(t_aliases.clone());
+        self.aliases
+            .entry(v.clone())
+            .or_default()
+            .extend(t_aliases.clone());
 
         let vars_to_update: Vec<String> = self
             .aliases
@@ -182,9 +185,6 @@ mod tests {
             tracker.get_origin_with_aliases("r2", &registry),
             Some(TaintOrigin::UserInput)
         );
-        assert_eq!(
-            tracker.get_origin_with_aliases("unknown", &registry),
-            None
-        );
+        assert_eq!(tracker.get_origin_with_aliases("unknown", &registry), None);
     }
 }

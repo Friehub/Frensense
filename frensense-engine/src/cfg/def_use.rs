@@ -55,7 +55,12 @@ impl DefUseChain {
     pub fn defs_reaching(&self, use_index: usize) -> Vec<&Definition> {
         self.def_for_use
             .get(&use_index)
-            .map(|indices| indices.iter().filter_map(|&i| self.definitions.get(i)).collect())
+            .map(|indices| {
+                indices
+                    .iter()
+                    .filter_map(|&i| self.definitions.get(i))
+                    .collect()
+            })
             .unwrap_or_default()
     }
 }
@@ -243,7 +248,14 @@ fn scan_statement_def_uses(
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            scan_statement_def_uses(cursor.node(), block_id, source, definitions, uses, node_counter);
+            scan_statement_def_uses(
+                cursor.node(),
+                block_id,
+                source,
+                definitions,
+                uses,
+                node_counter,
+            );
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -356,7 +368,13 @@ pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str) -> DefUs
     let mut node_counter = 0usize;
 
     for block in &cfg.blocks {
-        scan_block_def_uses(block, source, &mut chains.definitions, &mut chains.uses, &mut node_counter);
+        scan_block_def_uses(
+            block,
+            source,
+            &mut chains.definitions,
+            &mut chains.uses,
+            &mut node_counter,
+        );
     }
 
     compute_reaching_defs(cfg, &mut chains);
@@ -418,7 +436,11 @@ fn no_dup() {
         let root = tree.root_node();
         let chain = build_def_use(root, source, "rs");
 
-        let get_password_uses: usize = chain.uses.iter().filter(|u| u.name == "get_password").count();
+        let get_password_uses: usize = chain
+            .uses
+            .iter()
+            .filter(|u| u.name == "get_password")
+            .count();
         assert!(
             get_password_uses <= 2,
             "should not have massive duplication of get_password uses, got {get_password_uses}"
@@ -444,6 +466,9 @@ fn reassign() {
 
         let x_defs: Vec<_> = chain.definitions.iter().filter(|d| d.name == "x").collect();
         assert_eq!(x_defs.len(), 2, "should have two definitions of x");
-        assert!(chain.uses.iter().any(|u| u.name == "x"), "should have use of x");
+        assert!(
+            chain.uses.iter().any(|u| u.name == "x"),
+            "should have use of x"
+        );
     }
 }

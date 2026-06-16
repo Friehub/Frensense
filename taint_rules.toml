@@ -1,0 +1,57 @@
+# Frensense Built-in Taint Rules
+# Users can add custom rules by placing additional .toml files
+# in a directory and passing --extra-taint-rules <dir>.
+
+[[rules]]
+id = "TAINT_CREDENTIAL_TO_DB"
+source = "password|secret|token|credential|key|api_key"
+sink = "insert|update|create|upsert|db\\.|database\\.|query|execute"
+severity = "critical"
+observation = "Plaintext credential may reach a database write."
+impact = "Credentials stored without hashing are exposed in database dumps and logs."
+improvement = "Hash with bcrypt/argon2 before persistence. Use parameterized queries."
+
+[[rules]]
+id = "TAINT_INPUT_TO_EXEC"
+source = "input|body|param|query|request|user|header|cookie"
+sink = "exec|system|shell|command|spawn|eval|popen"
+severity = "critical"
+observation = "Untrusted input may reach a command execution sink."
+impact = "Command injection allows arbitrary code execution on the host."
+improvement = "Use parameterized APIs instead of string interpolation. Validate against allowlist."
+
+[[rules]]
+id = "TAINT_CREDENTIAL_TO_LOG"
+source = "password|secret|token|api_key|credential|private_key"
+sink = "log|console|print|write|debug|trace|info|warn|error"
+severity = "warning"
+observation = "Credential may reach a logging sink."
+impact = "Secrets in logs are captured by monitoring systems and stored indefinitely."
+improvement = "Redact credentials before logging. Use a secrets scanner in CI."
+
+[[rules]]
+id = "TAINT_INPUT_TO_FS"
+source = "input|body|param|query|request|file_name|path"
+sink = "write|create|open|read_file|write_file|mkdir|remove"
+severity = "warning"
+observation = "Untrusted input may reach a filesystem operation."
+impact = "Path traversal allows reading/writing arbitrary files."
+improvement = "Sanitize paths with a whitelist. Use a chroot or sandboxed directory."
+
+[[rules]]
+id = "TAINT_INPUT_TO_HTTP"
+source = "input|body|param|query|request|user|header"
+sink = "fetch|http|request|get|post|put|curl|wget"
+severity = "warning"
+observation = "Untrusted input may reach an outbound HTTP request."
+impact = "SSRF allows the server to make requests to internal services."
+improvement = "Validate URLs against an allowlist. Block internal IP ranges."
+
+[[rules]]
+id = "TAINT_CREDENTIAL_TO_HTTP"
+source = "password|secret|token|api_key|credential"
+sink = "fetch|http|request|get|post|put|url|endpoint"
+severity = "critical"
+observation = "Credential may be sent over HTTP in cleartext."
+impact = "Credentials transmitted without encryption are intercepted on the network."
+improvement = "Use HTTPS. Never pass credentials in URL query parameters."

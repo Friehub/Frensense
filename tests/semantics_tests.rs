@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::semantics::data_flow::normalization::{SemanticExtractor, SemanticOp};
+use frensense::semantics::data_flow::normalization::{SemanticExtractor, SemanticOp};
 use tree_sitter::Parser;
 
 fn parse_ts(source: &str) -> tree_sitter::Tree {

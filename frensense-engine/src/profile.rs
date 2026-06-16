@@ -82,77 +82,113 @@ impl ProjectProfile {
             lang_profile.total_functions += 1;
 
             for &hash in &fp.ngram_hashes {
-                let entry = lang_profile.body_ngram_freq.entry(hash).or_insert_with(|| ProfileEntry {
-                    count: 0,
-                    examples: Vec::new(),
-                });
+                let entry =
+                    lang_profile
+                        .body_ngram_freq
+                        .entry(hash)
+                        .or_insert_with(|| ProfileEntry {
+                            count: 0,
+                            examples: Vec::new(),
+                        });
                 entry.count += 1;
                 if entry.examples.len() < 3 {
-                    entry.examples.push(format!("{}:{}", fp.function_name, fp.line));
+                    entry
+                        .examples
+                        .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
             lang_profile.total_ngrams += fp.ngram_hashes.len();
 
             for &hash in &fp.signature_ngrams {
-                let entry = lang_profile.signature_ngram_freq.entry(hash).or_insert_with(|| ProfileEntry {
-                    count: 0,
-                    examples: Vec::new(),
-                });
+                let entry = lang_profile
+                    .signature_ngram_freq
+                    .entry(hash)
+                    .or_insert_with(|| ProfileEntry {
+                        count: 0,
+                        examples: Vec::new(),
+                    });
                 entry.count += 1;
                 if entry.examples.len() < 3 {
-                    entry.examples.push(format!("{}:{}", fp.function_name, fp.line));
+                    entry
+                        .examples
+                        .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
 
             for &hash in &fp.param_type_ngrams {
-                let entry = lang_profile.param_type_freq.entry(hash).or_insert_with(|| ProfileEntry {
-                    count: 0,
-                    examples: Vec::new(),
-                });
+                let entry =
+                    lang_profile
+                        .param_type_freq
+                        .entry(hash)
+                        .or_insert_with(|| ProfileEntry {
+                            count: 0,
+                            examples: Vec::new(),
+                        });
                 entry.count += 1;
                 if entry.examples.len() < 3 {
-                    entry.examples.push(format!("{}:{}", fp.function_name, fp.line));
+                    entry
+                        .examples
+                        .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
 
             for seg in &fp.name_segments {
-                let entry = lang_profile.name_segment_freq.entry(seg.clone()).or_insert_with(|| ProfileEntry {
-                    count: 0,
-                    examples: Vec::new(),
-                });
+                let entry = lang_profile
+                    .name_segment_freq
+                    .entry(seg.clone())
+                    .or_insert_with(|| ProfileEntry {
+                        count: 0,
+                        examples: Vec::new(),
+                    });
                 entry.count += 1;
                 if entry.examples.len() < 3 {
-                    entry.examples.push(format!("{}:{}", fp.function_name, fp.line));
+                    entry
+                        .examples
+                        .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
 
             for &hash in &fp.structural_markers {
-                let entry = lang_profile.structural_marker_freq.entry(hash).or_insert_with(|| ProfileEntry {
-                    count: 0,
-                    examples: Vec::new(),
-                });
+                let entry = lang_profile
+                    .structural_marker_freq
+                    .entry(hash)
+                    .or_insert_with(|| ProfileEntry {
+                        count: 0,
+                        examples: Vec::new(),
+                    });
                 entry.count += 1;
                 if entry.examples.len() < 3 {
-                    entry.examples.push(format!("{}:{}", fp.function_name, fp.line));
+                    entry
+                        .examples
+                        .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
 
             for ty in &fp.type_usages {
-                let entry = lang_profile.type_usage_freq.entry(ty.clone()).or_insert_with(|| ProfileEntry {
-                    count: 0,
-                    examples: Vec::new(),
-                });
+                let entry = lang_profile
+                    .type_usage_freq
+                    .entry(ty.clone())
+                    .or_insert_with(|| ProfileEntry {
+                        count: 0,
+                        examples: Vec::new(),
+                    });
                 entry.count += 1;
                 if entry.examples.len() < 3 {
-                    entry.examples.push(format!("{}:{}", fp.function_name, fp.line));
+                    entry
+                        .examples
+                        .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
 
             let dir = dir_prefix(&fp.file_path);
-            let file_profile = lang_profile.file_profiles.entry(dir).or_insert_with(|| FileProfile {
-                body_ngram_freq: FxHashMap::default(),
-                total_ngrams: 0,
-            });
+            let file_profile =
+                lang_profile
+                    .file_profiles
+                    .entry(dir)
+                    .or_insert_with(|| FileProfile {
+                        body_ngram_freq: FxHashMap::default(),
+                        total_ngrams: 0,
+                    });
             for &hash in &fp.ngram_hashes {
                 *file_profile.body_ngram_freq.entry(hash).or_insert(0) += 1;
             }
@@ -204,7 +240,10 @@ impl ProjectProfile {
         if !fp.signature_ngrams.is_empty() {
             let ratio = sig_unseen as f64 / fp.signature_ngrams.len() as f64;
             if ratio > 0.5 {
-                details.push(format!("Signature patterns: {:.0}% unfamiliar", ratio * 100.0));
+                details.push(format!(
+                    "Signature patterns: {:.0}% unfamiliar",
+                    ratio * 100.0
+                ));
             }
         }
 
@@ -219,7 +258,8 @@ impl ProjectProfile {
         if name_seg_unseen > 0 {
             for seg in &fp.name_segments {
                 if !lang_profile.name_segment_freq.contains_key(seg) && !seg.is_empty() {
-                    if let Some(entry) = lang_profile.name_segment_freq
+                    if let Some(entry) = lang_profile
+                        .name_segment_freq
                         .iter()
                         .find(|(k, _)| k.to_lowercase() == seg.to_lowercase())
                     {
@@ -248,7 +288,10 @@ impl ProjectProfile {
         if !fp.structural_markers.is_empty() {
             let ratio = struct_unseen as f64 / fp.structural_markers.len() as f64;
             if ratio > 0.5 {
-                details.push(format!("Structural markers: {:.0}% unfamiliar", ratio * 100.0));
+                details.push(format!(
+                    "Structural markers: {:.0}% unfamiliar",
+                    ratio * 100.0
+                ));
             }
         }
 
@@ -264,7 +307,10 @@ impl ProjectProfile {
             for ty in &fp.type_usages {
                 if !lang_profile.type_usage_freq.contains_key(ty) {
                     if let Some(entry) = lang_profile.type_usage_freq.get(ty) {
-                        details.push(format!("Type usage: '{}' — seen {}x in project.", ty, entry.count));
+                        details.push(format!(
+                            "Type usage: '{}' — seen {}x in project.",
+                            ty, entry.count
+                        ));
                     } else {
                         details.push(format!("Type '{ty}' never used in this project."));
                     }
@@ -273,9 +319,13 @@ impl ProjectProfile {
         }
 
         if lang_profile.total_functions > 5 {
-            let avg_density = lang_profile.body_ngram_freq.len() as f64 / lang_profile.total_functions.max(1) as f64;
+            let avg_density = lang_profile.body_ngram_freq.len() as f64
+                / lang_profile.total_functions.max(1) as f64;
             if fp.comment_density < 0.01 && avg_density > 0.05 {
-                details.push("No comments in function body — project average suggests ~5% comment density.".to_string());
+                details.push(
+                    "No comments in function body — project average suggests ~5% comment density."
+                        .to_string(),
+                );
             }
         }
 
@@ -323,6 +373,7 @@ impl ProjectProfile {
     #[cfg(feature = "serialize")]
     pub fn load(path: &Path) -> std::io::Result<Self> {
         let data = std::fs::read_to_string(path)?;
-        serde_json::from_str(&data).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        serde_json::from_str(&data)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }

@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::graph::{EdgeKind, SemanticGraph, SemanticNodeId};
 use crate::FileId;
+use crate::graph::{EdgeKind, SemanticGraph, SemanticNodeId};
 
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -120,13 +120,19 @@ impl SymbolRegistry {
             .find(|s| s.file_path == file_str)
             .and_then(|s| self.graph.find_node(&s.name, &s.file_path, s.line));
 
-        let target_node_id = if let Some(local) = target_symbols.iter().find(|s| s.file_path == file_str) {
-            self.graph.find_node(&local.name, &local.file_path, local.line)
-        } else if target_symbols.len() == 1 {
-            self.graph.find_node(&target_symbols[0].name, &target_symbols[0].file_path, target_symbols[0].line)
-        } else {
-            None
-        };
+        let target_node_id =
+            if let Some(local) = target_symbols.iter().find(|s| s.file_path == file_str) {
+                self.graph
+                    .find_node(&local.name, &local.file_path, local.line)
+            } else if target_symbols.len() == 1 {
+                self.graph.find_node(
+                    &target_symbols[0].name,
+                    &target_symbols[0].file_path,
+                    target_symbols[0].line,
+                )
+            } else {
+                None
+            };
 
         if let (Some(s_id), Some(t_id)) = (src_node_id, target_node_id) {
             self.graph.add_edge(s_id, t_id, EdgeKind::Calls);
@@ -185,7 +191,9 @@ impl SymbolRegistry {
         use tree_sitter::Query;
         let lang = crate::parser::ParserRegistry::get_language(file_path).ok();
         let Some(lang) = lang else { return };
-        let Ok(query) = Query::new(&lang, query_str) else { return };
+        let Ok(query) = Query::new(&lang, query_str) else {
+            return;
+        };
         let mut cursor = tree_sitter::QueryCursor::new();
         let file_str = file_path.to_string_lossy().to_string();
 
@@ -222,7 +230,9 @@ impl SymbolRegistry {
         use tree_sitter::Query;
         let lang = crate::parser::ParserRegistry::get_language(file_path).ok();
         let Some(lang) = lang else { return };
-        let Ok(query) = Query::new(&lang, query_str) else { return };
+        let Ok(query) = Query::new(&lang, query_str) else {
+            return;
+        };
         let mut cursor = tree_sitter::QueryCursor::new();
 
         for m in cursor.matches(&query, tree.root_node(), source.as_bytes()) {

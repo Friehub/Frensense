@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::engine::auditor::GenSenseAuditor;
-use gensense::engine::project::Engine;
-use gensense::semantics::SymbolRegistry;
-use gensense::semantics::data_flow::TaintOrigin;
-use gensense::{FileId, GenSenseContext, TaintCache};
+use frensense::engine::auditor::FrensenseAuditor;
+use frensense::engine::project::Engine;
+use frensense::semantics::SymbolRegistry;
+use frensense::semantics::data_flow::TaintOrigin;
+use frensense::{FileId, FrensenseContext, TaintCache};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -19,7 +19,7 @@ fn test_symbol_shadowing() {
         }
     ";
     let path = Path::new("shadow.rs");
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -43,7 +43,7 @@ fn test_taint_through_destructuring() {
         sink(a);
     ";
     let path = Path::new("destruct.rs");
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -55,7 +55,7 @@ fn test_taint_through_destructuring() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let ctx = GenSenseContext {
+    let ctx = FrensenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -71,8 +71,8 @@ fn test_taint_through_destructuring() {
         ngram_window_size: 5,
     };
 
-    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
-    let mut taint_reg = gensense::semantics::data_flow::TaintRegistry::default();
+    let analyzer = frensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
+    let mut taint_reg = frensense::semantics::data_flow::TaintRegistry::default();
 
     // Manual source injection
     taint_reg.taint("get_tainted_pair", TaintOrigin::UserInput);
@@ -82,17 +82,17 @@ fn test_taint_through_destructuring() {
 
     // We need a dummy rule
     struct DummyRule {
-        metadata: gensense::RuleMetadata,
+        metadata: frensense::RuleMetadata,
     }
-    impl gensense::GenSenseRule for DummyRule {
-        fn metadata(&self) -> &gensense::RuleMetadata {
+    impl frensense::FrensenseRule for DummyRule {
+        fn metadata(&self) -> &frensense::RuleMetadata {
             &self.metadata
         }
         fn check<'a>(
             &self,
             _n: tree_sitter::Node<'a>,
-            _c: &GenSenseContext<'a>,
-        ) -> Vec<gensense::Advisory> {
+            _c: &FrensenseContext<'a>,
+        ) -> Vec<frensense::Advisory> {
             vec![]
         }
         fn applies_to(&self, _ext: &str) -> bool {
@@ -101,17 +101,17 @@ fn test_taint_through_destructuring() {
     }
 
     let rule = DummyRule {
-        metadata: gensense::RuleMetadata {
+        metadata: frensense::RuleMetadata {
             id: "DUMMY".into(),
             name: "Dummy".into(),
-            severity: gensense::Severity::Info,
+            severity: frensense::Severity::Info,
             observation: "Dummy finding".into(),
             impact: "None".into(),
             improvement: "None".into(),
             tags: vec![],
             category: "Test".into(),
             confidence: 0.55,
-            precision: gensense::Precision::VeryHigh,
+            precision: frensense::Precision::VeryHigh,
         },
     };
 
@@ -153,15 +153,15 @@ fn test_snapshot_determinism() {
 
 #[test]
 fn test_sarif_output_properties() {
-    use gensense::Advisory;
-    use gensense::FileId;
-    use gensense::reporter::Reporter;
+    use frensense::Advisory;
+    use frensense::FileId;
+    use frensense::reporter::Reporter;
 
     let adv = Advisory {
         rule_id: "TEST_RULE".into(),
         file_id: FileId(1),
         file_path: "src/main.rs".into(),
-        severity: gensense::Severity::Warning,
+        severity: frensense::Severity::Warning,
         confidence: 0.85,
         observation: "observation".into(),
         impact: "impact".into(),
@@ -223,15 +223,24 @@ fn test_sarif_output_properties() {
 #[test]
 fn test_non_remediated_advisory_is_not_auto_fixable() {
     let dir = tempfile::tempdir().unwrap();
-    let f = dir.path().join("panic.rs");
-    fs::write(&f, "fn main() { panic!(\"boom\"); }").unwrap();
+    let f = dir.path().join("leak.ts");
+    fs::write(
+        &f,
+        "function logPassword(password: string) { console.log(password); }",
+    )
+    .unwrap();
 
     let mut engine = Engine::new();
     let advisories = engine.run(&f).unwrap();
-    let panic_adv = advisories.iter().find(|a| a.rule_id == "RUST_PANIC_IN_LIB");
+    let leak_adv = advisories
+        .iter()
+        .find(|a| a.rule_id == "TAINT_CREDENTIAL_TO_LOG");
 
-    assert!(panic_adv.is_some(), "RUST_PANIC_IN_LIB must fire");
-    let adv = panic_adv.unwrap();
+    assert!(
+        leak_adv.is_some(),
+        "TAINT_CREDENTIAL_TO_LOG must fire on console.log(password)"
+    );
+    let adv = leak_adv.unwrap();
     assert!(
         !adv.auto_fixable,
         "non-remediated advisory must not be auto_fixable"

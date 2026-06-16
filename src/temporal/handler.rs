@@ -22,8 +22,9 @@ pub fn compile_temporal_config(
 ) -> Result<(Vec<regex::Regex>, TemporalBehavior), crate::FrensenseError> {
     let mut sequence = Vec::new();
     for p in config.sequence {
-        sequence
-            .push(regex::Regex::new(&p).map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?);
+        sequence.push(
+            regex::Regex::new(&p).map_err(|e| crate::FrensenseError::Pattern(e.to_string()))?,
+        );
     }
 
     let behavior = match config.behavior.as_str() {

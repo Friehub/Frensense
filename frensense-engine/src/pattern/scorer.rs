@@ -11,6 +11,40 @@ use crate::pattern::matcher::MatchResult;
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
 
+/// M1: Weighted Jaccard — IDF-weighted intersection / union.
+fn weighted_jaccard(
+    a: &rustc_hash::FxHashMap<u64, f32>,
+    b: &rustc_hash::FxHashMap<u64, f32>,
+) -> f64 {
+    if a.is_empty() && b.is_empty() {
+        return 0.5;
+    }
+    let mut intersection = 0.0f64;
+    let mut union = 0.0f64;
+    let all_keys: std::collections::HashSet<_> = a.keys().chain(b.keys()).collect();
+    for key in all_keys {
+        let wa = f64::from(a.get(key).copied().unwrap_or(0.0));
+        let wb = f64::from(b.get(key).copied().unwrap_or(0.0));
+        intersection += wa.min(wb);
+        union += wa.max(wb);
+    }
+    if union == 0.0 {
+        0.0
+    } else {
+        intersection / union
+    }
+}
+
+/// M8: Cross-lingual transfer penalty.
+/// If pattern language differs from candidate language, apply penalty.
+fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
+    if pattern_lang == candidate_lang || pattern_lang == "unknown" || candidate_lang == "unknown" {
+        1.0
+    } else {
+        0.75 // 25% penalty for cross-language matching
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ScoredPattern {
     pub pattern_id: String,
@@ -100,25 +134,44 @@ impl PatternScorer {
     ) -> f64 {
         let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
 
-        let sim_to_positive = jaccard(&candidate.ngram_hashes, &positive.ngram_hashes) * 0.35
-            + jaccard(
-                &candidate.structural_markers,
-                &positive.structural_markers,
-            ) * 0.30
+        // M1: Use weighted Jaccard for n-grams when weights are available
+        let ngram_sim_pos = if candidate.weighted_ngram_hashes.is_empty()
+            || positive.weighted_ngram_hashes.is_empty()
+        {
+            jaccard(&candidate.ngram_hashes, &positive.ngram_hashes)
+        } else {
+            weighted_jaccard(
+                &candidate.weighted_ngram_hashes,
+                &positive.weighted_ngram_hashes,
+            )
+        };
+        let ngram_sim_neg = if candidate.weighted_ngram_hashes.is_empty()
+            || negative.weighted_ngram_hashes.is_empty()
+        {
+            jaccard(&candidate.ngram_hashes, &negative.ngram_hashes)
+        } else {
+            weighted_jaccard(
+                &candidate.weighted_ngram_hashes,
+                &negative.weighted_ngram_hashes,
+            )
+        };
+
+        let sim_to_positive = ngram_sim_pos * 0.35
+            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.30
             + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.20
             + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.10
             + type_usage_overlap(candidate, positive) * 0.05;
 
-        let sim_to_negative = jaccard(&candidate.ngram_hashes, &negative.ngram_hashes) * 0.35
-            + jaccard(
-                &candidate.structural_markers,
-                &negative.structural_markers,
-            ) * 0.30
+        let sim_to_negative = ngram_sim_neg * 0.35
+            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.30
             + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.20
             + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.10
             + type_usage_overlap(candidate, negative) * 0.05;
 
-        sim_to_positive * (1.0 - sim_to_negative)
+        // M8: Apply cross-lingual transfer penalty
+        let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
+
+        sim_to_positive * (1.0 - sim_to_negative) * f64::from(transfer)
     }
 }
 
@@ -193,7 +246,10 @@ mod tests {
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
         let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
-        assert!(score > 0.6, "candidate identical to positive should score high, got {score}");
+        assert!(
+            score > 0.6,
+            "candidate identical to positive should score high, got {score}"
+        );
     }
 
     #[test]
@@ -202,9 +258,6 @@ mod tests {
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
         let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
-        assert!(
-            score < 0.6,
-            "candidate closer to negative should score low"
-        );
+        assert!(score < 0.6, "candidate closer to negative should score low");
     }
 }

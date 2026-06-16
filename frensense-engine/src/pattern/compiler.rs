@@ -2,8 +2,6 @@
 
 use tree_sitter::Node;
 
-
-
 #[derive(Debug, Clone)]
 pub struct PatternNode {
     pub kind: String,
@@ -92,7 +90,9 @@ impl PatternCompiler {
         let lang = ParserRegistry::get_language_by_name(language).map_err(|e| e.to_string())?;
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(&lang).map_err(|e| e.to_string())?;
-        let tree = parser.parse(source, None).ok_or("Failed to parse pattern source")?;
+        let tree = parser
+            .parse(source, None)
+            .ok_or("Failed to parse pattern source")?;
         let root = tree.root_node();
         Ok(Pattern::Exact(Self::compile_node(root, source)))
     }
@@ -110,7 +110,9 @@ mod tests {
     fn test_compile_expr() {
         let source = "let x = 1;";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let root = tree.root_node();
         let pattern = PatternCompiler::compile_node(root, source);

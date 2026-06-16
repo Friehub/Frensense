@@ -2,7 +2,7 @@
 
 use super::Engine;
 use super::{FileSnapshot, cache, config};
-use crate::engine::auditor::{AuditOptions, FrensenseAuditor};
+use crate::engine::auditor::AuditOptions;
 use crate::engine::suppression::SuppressConfig;
 use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::symbols::SymbolRegistry;
@@ -113,10 +113,10 @@ impl Engine {
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
-        eprintln!("TAINT_DEBUG: run_taint_analysis: starting");
-        for rule in crate::engine::taint_rules::security_taint_rules() {
-            let source_re = regex::Regex::new(rule.source_re).ok();
-            let sink_re = regex::Regex::new(rule.sink_re).ok();
+        tracing::debug!("run_taint_analysis: starting");
+        for rule in crate::engine::taint_rules::load_all_taint_rules(&self.extra_taint_rule_dirs) {
+            let source_re = regex::Regex::new(&rule.source_re).ok();
+            let sink_re = regex::Regex::new(&rule.sink_re).ok();
             if source_re.is_none() || sink_re.is_none() {
                 continue;
             }
@@ -146,7 +146,8 @@ impl Engine {
                 analyzer.discover_symbols(&mut registry);
 
                 let functions: Vec<tree_sitter::Node> = collect_function_nodes(root);
-                eprintln!("TAINT: rule={} file={} fn_count={} ops_count={}",
+                tracing::debug!(
+                    "taint: rule={} file={} fn_count={} ops_count={}",
                     rule.id,
                     snap.path.display(),
                     functions.len(),
@@ -154,16 +155,23 @@ impl Engine {
                 );
                 for fn_node in &functions {
                     let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
-                    let mut findings = analyzer.analyze_block(
+                    let fn_name = &snap.content[fn_node.start_byte()..fn_node.end_byte()];
+                    let metrics = frensense_engine::data_flow::taint_metrics::TaintMetrics::compute(
+                        &registry,
+                        body,
+                        &snap.content,
+                        fn_name,
+                    );
+                    let findings = analyzer.analyze_block(
                         body,
                         &source,
                         &sink,
-                    &MinimalRule {
-                        id: rule.id,
-                        severity: rule.severity,
-                        impact: rule.impact,
-                        improvement: rule.improvement,
-                    },
+                        &MinimalRule {
+                            id: rule.id.clone(),
+                            severity: rule.severity,
+                            impact: rule.impact.clone(),
+                            improvement: rule.improvement.clone(),
+                        },
                         &mut registry,
                     );
 
@@ -176,6 +184,9 @@ impl Engine {
                             adv.confidence,
                         );
                         adv.confidence = adjusted;
+                        if metrics.is_hollow_validator() {
+                            adv.confidence = (adv.confidence * 0.4).max(0.15);
+                        }
                         all_advisories.push(adv);
                     }
                 }
@@ -187,11 +198,8 @@ impl Engine {
         for snap in &snapshots {
             let mut scanner = frensense_engine::secrets::SecretScanner::new();
             scanner.add_default_patterns();
-            let secret_matches = scanner.scan_tree(
-                snap.tree.root_node(),
-                &snap.content,
-                &snap.path,
-            );
+            let secret_matches =
+                scanner.scan_tree(snap.tree.root_node(), &snap.content, &snap.path);
             for m in secret_matches {
                 all_advisories.push(crate::Advisory {
                     rule_id: format!("SECRET_{}", m.pattern_name.to_uppercase().replace(' ', "_")),
@@ -222,6 +230,38 @@ impl Engine {
             }
         }
 
+        // W7: Dependency hallucination check
+        let mut dep_resolver = frensense_engine::deps::DependencyResolver::new();
+        dep_resolver.load_project(root);
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::hallucinated_import::find(
+                &mut dep_resolver,
+                snap,
+            ));
+        }
+
+        // W2: Dead branch detection
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::dead_branch::find(snap));
+        }
+
+        // W3: Unused variables via def-use
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::unused_variable::find(snap));
+        }
+
+        // W1: Temporal violations
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::temporal_violation::find(snap));
+        }
+
+        // W4: Cross-file taint
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::cross_file_taint::find(
+                &symbols, snap,
+            ));
+        }
+
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
     }
@@ -231,7 +271,7 @@ impl Engine {
     /// # Errors
     /// Returns an error if parsing or auditing fails.
     pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        let config = if self.auditor.rules().is_empty() && !self.isolate_rules {
+        let config = if self.auditor.rules().is_empty() {
             self.initialize_auditor_and_config(Path::new("."))
         } else {
             config::load_config(Path::new("."))
@@ -278,15 +318,6 @@ impl Engine {
 
         let result = self.auditor.audit(&opts)?;
         let mut advisories = result.advisories;
-
-        for rule in &self.project_rules {
-            let project_advisories = rule.check_project(&registry, &self.source_registry);
-            for a in project_advisories {
-                if a.confidence >= self.min_confidence {
-                    advisories.push(a);
-                }
-            }
-        }
 
         // Merge config + CLI severity overrides (CLI wins)
         let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
@@ -386,15 +417,6 @@ impl Engine {
 
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
-
-        for rule in &self.project_rules {
-            let project_advisories = rule.check_project(&symbols, &self.source_registry);
-            for a in project_advisories {
-                if a.confidence >= self.min_confidence {
-                    all_advisories.push(a);
-                }
-            }
-        }
 
         // Merge config + CLI severity overrides (CLI wins)
         let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
@@ -507,13 +529,23 @@ impl Engine {
             }
         }
 
+        // Collect all corpus dirs
+        let mut corpus_dirs: Vec<&std::path::Path> = Vec::new();
         if let Some(ref corpus_dir) = self.corpus_dir {
-            let metadata = load_corpus_metadata(corpus_dir);
+            corpus_dirs.push(corpus_dir.as_path());
+        }
+
+        if !corpus_dirs.is_empty() {
+            let mut all_metadata = HashMap::new();
+            for dir in &corpus_dirs {
+                all_metadata.extend(load_corpus_metadata(dir));
+            }
             let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(0.60);
-            match registry.load_corpus(corpus_dir) {
+            match registry.load_corpus_dirs(&corpus_dirs) {
                 Ok(count) if count > 0 => {
                     for snap in &snapshots {
-                        let mut fps: Vec<frensense_engine::fingerprint::FunctionFingerprint> = Vec::new();
+                        let mut fps: Vec<frensense_engine::fingerprint::FunctionFingerprint> =
+                            Vec::new();
                         frensense_engine::fingerprint::extract_fingerprints(
                             snap.tree.root_node(),
                             &snap.content,
@@ -523,7 +555,7 @@ impl Engine {
                         );
                         for fp in &fps {
                             for m in registry.scan_function(fp) {
-                                let meta = metadata.get(&m.pattern_id);
+                                let meta = all_metadata.get(&m.pattern_id);
                                 all_advisories.push(Advisory {
                                     rule_id: meta
                                         .and_then(|md| md.get("id"))
@@ -561,8 +593,9 @@ impl Engine {
                                     improvement: meta
                                         .and_then(|md| md.get("improvement"))
                                         .cloned()
-                                        .unwrap_or_else(|| "Review against corpus example."
-                                            .to_string()),
+                                        .unwrap_or_else(|| {
+                                            "Review against corpus example.".to_string()
+                                        }),
                                     line: u32::try_from(fp.line).unwrap_or(u32::MAX),
                                     column: 0,
                                     start_byte: 0,
@@ -587,11 +620,48 @@ impl Engine {
 
         self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
 
+        // W4: Cross-file taint (via findings module)
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::cross_file_taint::find(
+                &symbols, snap,
+            ));
+        }
+
+        // W7: Dependency hallucination check
+        let mut dep_resolver = frensense_engine::deps::DependencyResolver::new();
+        dep_resolver.load_project(root);
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::hallucinated_import::find(
+                &mut dep_resolver,
+                snap,
+            ));
+        }
+
+        // W2: Dead branch detection
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::dead_branch::find(snap));
+        }
+
+        // W3: Unused variables via def-use
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::unused_variable::find(snap));
+        }
+
+        // W1: Temporal violations
+        for snap in &snapshots {
+            all_advisories.extend(crate::engine::findings::temporal_violation::find(snap));
+        }
+
+        // Apply severity overrides to taint findings too
+        for adv in &mut all_advisories {
+            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
+                adv.severity = *sev;
+            }
+        }
+
         if let Some(ref baseline_path) = self.baseline_path {
             if let Ok(prev) = std::fs::read_to_string(baseline_path) {
-                if let Ok(fingerprints) =
-                    serde_json::from_str::<Vec<String>>(&prev)
-                {
+                if let Ok(fingerprints) = serde_json::from_str::<Vec<String>>(&prev) {
                     let baseline_set: std::collections::HashSet<String> =
                         fingerprints.into_iter().collect();
                     all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
@@ -617,9 +687,13 @@ impl Engine {
         >,
         all_advisories: &mut Vec<Advisory>,
     ) {
-        for rule in crate::engine::taint_rules::security_taint_rules() {
-            let Some(source) = regex::Regex::new(rule.source_re).ok() else { continue };
-            let Some(sink) = regex::Regex::new(rule.sink_re).ok() else { continue };
+        for rule in crate::engine::taint_rules::load_all_taint_rules(&self.extra_taint_rule_dirs) {
+            let Some(source) = regex::Regex::new(&rule.source_re).ok() else {
+                continue;
+            };
+            let Some(sink) = regex::Regex::new(&rule.sink_re).ok() else {
+                continue;
+            };
 
             for snap in snapshots {
                 let context = crate::FrensenseContext {
@@ -645,15 +719,22 @@ impl Engine {
 
                 for fn_node in &collect_function_nodes(root) {
                     let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
+                    let fn_name = &snap.content[fn_node.start_byte()..fn_node.end_byte()];
+                    let metrics = frensense_engine::data_flow::taint_metrics::TaintMetrics::compute(
+                        &registry,
+                        body,
+                        &snap.content,
+                        fn_name,
+                    );
                     let findings = analyzer.analyze_block(
                         body,
                         &source,
                         &sink,
                         &MinimalRule {
-                            id: rule.id,
+                            id: rule.id.clone(),
                             severity: rule.severity,
-                            impact: rule.impact,
-                            improvement: rule.improvement,
+                            impact: rule.impact.clone(),
+                            improvement: rule.improvement.clone(),
                         },
                         &mut registry,
                     );
@@ -666,6 +747,9 @@ impl Engine {
                             &adv.original_content,
                             adv.confidence,
                         );
+                        if metrics.is_hollow_validator() {
+                            adv.confidence = (adv.confidence * 0.4).max(0.15);
+                        }
                         all_advisories.push(adv);
                     }
                 }
@@ -676,45 +760,22 @@ impl Engine {
     fn initialize_auditor_and_config(&mut self, root: &Path) -> config::FrensenseConfig {
         let config = config::load_config(root);
 
-        if !self.isolate_rules {
-            let mut dirs = self.extra_rule_dirs.clone();
-            if let Some(config_rules_dir) = &config.rules_dir {
-                dirs.push(PathBuf::from(config_rules_dir));
-            }
-            let (rules, project_rules) =
-                FrensenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
-            self.auditor.set_rules(rules);
-            self.project_rules = project_rules;
-
-            let mut disabled_set: HashSet<&str> = HashSet::new();
-            if let Some(disabled) = &config.disabled_rules {
-                for id in disabled {
-                    disabled_set.insert(id.as_str());
-                }
-            }
-            for id in &self.disabled_rule_ids {
+        // Apply disabled_rules from config + CLI
+        let mut disabled_set: HashSet<&str> = HashSet::new();
+        if let Some(disabled) = &config.disabled_rules {
+            for id in disabled {
                 disabled_set.insert(id.as_str());
             }
-            if !disabled_set.is_empty() {
-                self.auditor
-                    .retain_rules(|r| !disabled_set.contains(r.id()));
-                self.project_rules
-                    .retain(|r| !disabled_set.contains(r.metadata().id.as_ref()));
-            }
-
-            if let Some(_max_lines) = self.max_source_lines {
-            }
-        } else if !self.extra_rule_dirs.is_empty() {
-            let (user_rules, user_project_rules) =
-                crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
-            self.auditor.add_rules(user_rules);
-            self.project_rules.extend(user_project_rules);
-
-            if let Some(_max_lines) = self.max_source_lines {
-            }
-        } else if let Some(_max_lines) = self.max_source_lines {
+        }
+        for id in &self.disabled_rule_ids {
+            disabled_set.insert(id.as_str());
+        }
+        if !disabled_set.is_empty() {
+            self.auditor
+                .retain_rules(|r| !disabled_set.contains(r.id()));
         }
 
+        // Load suppressions
         let suppress_file = root.join(".frensense-suppress.yml");
         if suppress_file.exists()
             && let Ok(content) = std::fs::read_to_string(suppress_file)
@@ -810,21 +871,21 @@ fn collect_function_nodes(node: tree_sitter::Node) -> Vec<tree_sitter::Node> {
 }
 
 struct MinimalRule {
-    id: &'static str,
+    id: String,
     severity: crate::Severity,
-    impact: &'static str,
-    improvement: &'static str,
+    impact: String,
+    improvement: String,
 }
 
 impl crate::FrensenseRule for MinimalRule {
     fn metadata(&self) -> &crate::RuleMetadata {
         Box::leak(Box::new(crate::RuleMetadata {
-            id: std::borrow::Cow::Borrowed(self.id),
-            name: std::borrow::Cow::Borrowed(self.id),
+            id: std::borrow::Cow::Owned(self.id.clone()),
+            name: std::borrow::Cow::Owned(self.id.clone()),
             severity: self.severity,
             observation: std::borrow::Cow::Borrowed(""),
-            impact: std::borrow::Cow::Borrowed(self.impact),
-            improvement: std::borrow::Cow::Borrowed(self.improvement),
+            impact: std::borrow::Cow::Owned(self.impact.clone()),
+            improvement: std::borrow::Cow::Owned(self.improvement.clone()),
             tags: Vec::new(),
             category: std::borrow::Cow::Borrowed("security"),
             confidence: 0.85,

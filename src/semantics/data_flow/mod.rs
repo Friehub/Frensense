@@ -52,7 +52,10 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
     }
 
     #[must_use]
-    pub fn with_engine(mut self, engine: &'ctx frensense_engine::data_flow::DataFlowEngine) -> Self {
+    pub fn with_engine(
+        mut self,
+        engine: &'ctx frensense_engine::data_flow::DataFlowEngine,
+    ) -> Self {
         self.data_flow_engine = Some(engine);
         self
     }

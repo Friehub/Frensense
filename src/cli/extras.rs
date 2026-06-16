@@ -1,15 +1,11 @@
 #![allow(clippy::missing_panics_doc, clippy::must_use_candidate)]
 use super::options::CliOptions;
-#[cfg(feature = "remediation")]
 use crate::Advisory;
 #[cfg(feature = "fingerprinting")]
 use crate::engine::profile::ProjectProfile;
-#[cfg(feature = "remediation")]
 use crate::patcher::PatchManager;
-#[cfg(any(feature = "remediation", feature = "fingerprinting"))]
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "remediation")]
 pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path: &Path) {
     let mut project_root = input_path.to_path_buf();
     if project_root.is_file() {
@@ -30,18 +26,23 @@ pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_p
 
     let mut fix_advisories = advisories.to_vec();
     fix_advisories.retain(|a| a.proposed_replacement.is_some());
+
+    // Filter by scope
+    if let Some(ref scope) = options.fix_scope {
+        filter_by_scope(&mut fix_advisories, scope);
+    }
     fix_advisories.sort_by_key(|a| std::cmp::Reverse(a.start_byte));
 
     let mut fixed_count = 0;
     let mut skipped_count = 0;
 
     for adv in &fix_advisories {
-        if options.show_diff
+        if options.diff_scope.is_some()
             && let Ok(diff) = patcher.generate_diff(adv, Path::new(&adv.file_path))
         {
             println!("{diff}");
         }
-        if options.do_fix {
+        if options.fix_scope.is_some() {
             match patcher.apply_fix(adv, Path::new(&adv.file_path)) {
                 Ok(()) => {
                     println!("[FIXED] {}:{} ({})", adv.file_path, adv.line, adv.rule_id);
@@ -54,10 +55,22 @@ pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_p
             }
         }
     }
-    if options.do_fix {
+    if options.fix_scope.is_some() {
         println!(
             "\n[DONE] {fixed_count} fixed, {skipped_count} skipped (context mismatch), 0 conflicts."
         );
+    }
+}
+
+fn filter_by_scope(advisories: &mut Vec<Advisory>, scope: &str) {
+    match scope {
+        "style" => advisories.retain(|a| a.tags.iter().any(|t| t == "quality" || t == "dead-code")),
+        "security" => advisories.retain(|a| {
+            a.tags
+                .iter()
+                .any(|t| t == "security" || t == "taint" || t == "hallucination")
+        }),
+        _ => {} // "all" — keep everything
     }
 }
 

@@ -66,7 +66,7 @@ impl Reporter {
                         "fullDescription": {
                             "text": format!("{}\n\nImpact: {}\n\nImprovement: {}", adv.observation, adv.impact, adv.improvement)
                         },
-                        "helpUri": format!("https://friehub.github.io/gensense/rules/{}", adv.rule_id)
+                        "helpUri": format!("https://friehub.github.io/frensense/rules/{}", adv.rule_id)
                     }),
                 );
             }

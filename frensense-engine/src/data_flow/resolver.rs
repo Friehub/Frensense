@@ -68,9 +68,7 @@ pub fn resolve_fn_definition(
     let all_matches: Vec<_> = all_symbols.iter().filter(|s| s.name == name).collect();
 
     if let Some(sym) = all_matches.iter().find(|s| s.file_path == fp) {
-        if let Some(node) =
-            current_root.descendant_for_byte_range(sym.start_byte, sym.end_byte)
-        {
+        if let Some(node) = current_root.descendant_for_byte_range(sym.start_byte, sym.end_byte) {
             return Some(ResolvedFunction {
                 file_path: fp,
                 source: current_source.to_string(),
@@ -87,8 +85,9 @@ pub fn resolve_fn_definition(
             continue;
         }
         if let Some((_path_str, (src, tree))) = file_trees.get_key_value(&sym.file_path) {
-            if let Some(node) =
-                tree.root_node().descendant_for_byte_range(sym.start_byte, sym.end_byte)
+            if let Some(node) = tree
+                .root_node()
+                .descendant_for_byte_range(sym.start_byte, sym.end_byte)
             {
                 return Some(ResolvedFunction {
                     file_path: sym.file_path.clone(),
@@ -230,12 +229,8 @@ mod tests {
         let root = tree.root_node();
         let fn_node = root.child(0).unwrap();
 
-        let result = map_call_args_to_params(
-            fn_node,
-            source,
-            &[(0, TaintOrigin::UserInput)],
-        )
-        .unwrap();
+        let result =
+            map_call_args_to_params(fn_node, source, &[(0, TaintOrigin::UserInput)]).unwrap();
 
         assert!(result.is_tainted("x"));
         assert!(!result.is_tainted("y"));
@@ -337,4 +332,3 @@ mod tests {
         assert_eq!(r.source, source_a);
     }
 }
-

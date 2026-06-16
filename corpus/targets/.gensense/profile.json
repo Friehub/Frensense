@@ -1,0 +1,4203 @@
+{
+  "version": 1,
+  "languages": {
+    "rust": {
+      "total_ngrams": 133,
+      "total_functions": 23,
+      "body_ngram_freq": {
+        "13695940678994533766": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "10609788700576968058": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "533400655987862516": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "10411227091410982065": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "1338488370346404395": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "6882636610148801512": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "9007177380527772258": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "16667068783762753055": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "18112656948605995350": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "1620926805598450128": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "8717491644528406413": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "9433327736913587518": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "17838980177799885106": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "10916533124730617894": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "17736007503434507156": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "4740856528088018123": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "1094664688525193352": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "7810870987834161410": {
+          "count": 2,
+          "examples": [
+            "process_order:2",
+            "process_order:2"
+          ]
+        },
+        "14885455550767268098": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "15373886592577423673": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "8972739359243355894": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "557214771076247530": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "7392884818419676705": {
+          "count": 2,
+          "examples": [
+            "process_order:2",
+            "process_order:2"
+          ]
+        },
+        "5719759054336641825": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "8637370293517266898": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "1753543178902166671": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "13095325623321473100": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "4143569209720721606": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "9221540326705455034": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "4501190839262351735": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "2186465563768832887": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "6022402793633417902": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "3091428228987165035": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "15068222085015288939": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "15911034468015030178": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "3478348323756018771": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "18230870418878003271": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "277559953646623425": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "10561639841268756161": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "13923796479262842939": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "18007636138702909176": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "2579450647704260801": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "16710837394584498290": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "10803488857335690878": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "11164245637625535980": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "5061619460410696818": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "14384760187804569111": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "7546690592681146769": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "3222948227514070527": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "14459607498066041020": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "11134090532340592249": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "1988313798452804028": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "38593236642325101": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "8667674761019623210": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "5147733749855156266": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "14757723483066700964": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "4314186429524502046": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "5205361916202936795": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "1379397863735545984": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "15816821187822558013": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "17792253306409783034": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "1154286058843115380": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "1831395527134944817": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "12410098041772526251": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "17364134869219598952": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "12818280843360994853": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "8922769326785789532": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "3786489092044636051": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "5627125893521884362": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "13643743336481518715": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "17344292749873799980": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "1447677416661195619": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "6022613118688950560": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "11059436261652952919": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "25145169064745748": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "14117471992792257611": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "6044612804585787979": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "17781925680017488069": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "11155022384082078594": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "12405357616534251071": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "7295819519127265020": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "12317110196329881005": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "4492413885019792234": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "14115596615389532711": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "2756745486181145060": {
+          "count": 1,
+          "examples": [
+            "process_order:2"
+          ]
+        },
+        "11556862001417556507": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "16873227339011889234": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "14228873041793618447": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "9479834891832414479": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "5449486988576345737": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "415403087084362109": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "11931454149960973949": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "10791610148491299319": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "12891928080293453815": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "12709401692693643633": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "9993506629449807260": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "8025364178881689689": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "8415823771181709401": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "9213167951240901721": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "3698633147023585302": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "14963370349157706317": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "10999745939294936074": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "12217522419511087559": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "16049056853283071620": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "1223051938895185808": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "11526849778416270523": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "11672497230601630761": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "6145398016429750246": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "13843983633990448681": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "95387376530925408": {
+          "count": 2,
+          "examples": [
+            "fetch_data:2",
+            "fetch_data:2"
+          ]
+        },
+        "10823297383710314848": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "10459300954704442074": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "12545740917732285591": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "12602730181442461524": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "9824644057140199764": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "11414551649174268244": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "17753003588346942792": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "15951472872005615109": {
+          "count": 1,
+          "examples": [
+            "fetch_data:2"
+          ]
+        },
+        "16471312250687657410": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "4857437443407890626": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "12667274357319488060": {
+          "count": 1,
+          "examples": [
+            "handle_request:2"
+          ]
+        },
+        "5931880120387456706": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "4201749874237518262": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "289503163807163574": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "100308973857614628": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "9750324039576644321": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "10683179204640105106": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "13456707006525417228": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "4443567813410822534": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "12702945966978265990": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        }
+      },
+      "signature_ngram_freq": {
+        "2314360055633980093": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "13444515312441249591": {
+          "count": 2,
+          "examples": [
+            "convert:1",
+            "convert:1"
+          ]
+        },
+        "3229943616854293870": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "15252721056344558699": {
+          "count": 1,
+          "examples": [
+            "test_async_safe:5"
+          ]
+        },
+        "16715262588930580520": {
+          "count": 2,
+          "examples": [
+            "process:1",
+            "process:1"
+          ]
+        },
+        "10022402958570121561": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "13914946675184965462": {
+          "count": 2,
+          "examples": [
+            "process_order:2",
+            "process_order:2"
+          ]
+        },
+        "10790829947397686669": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "6257070199567370744": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "12880738691830222773": {
+          "count": 1,
+          "examples": [
+            "handle:1"
+          ]
+        },
+        "7754528371296288498": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "14093580200166579064": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "16086679331376094185": {
+          "count": 1,
+          "examples": [
+            "handle:1"
+          ]
+        },
+        "15442249521997292582": {
+          "count": 1,
+          "examples": [
+            "test_blocking:1"
+          ]
+        },
+        "17728605763254025245": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "14549024505056492506": {
+          "count": 2,
+          "examples": [
+            "process:1",
+            "process:1"
+          ]
+        },
+        "17715260479965046106": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "1429346407540235153": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "9797970656848147083": {
+          "count": 2,
+          "examples": [
+            "handle_request:2",
+            "handle_request:2"
+          ]
+        },
+        "14772301178304072517": {
+          "count": 3,
+          "examples": [
+            "fallible:1",
+            "compute_result:1",
+            "process:1"
+          ]
+        },
+        "18024131078213418876": {
+          "count": 2,
+          "examples": [
+            "convert:1",
+            "convert:1"
+          ]
+        },
+        "16915939227859372787": {
+          "count": 2,
+          "examples": [
+            "process:1",
+            "process:1"
+          ]
+        },
+        "6355559719622965040": {
+          "count": 2,
+          "examples": [
+            "convert:1",
+            "convert:1"
+          ]
+        },
+        "16103173206054330154": {
+          "count": 1,
+          "examples": [
+            "process:1"
+          ]
+        },
+        "10511119009049424874": {
+          "count": 2,
+          "examples": [
+            "fetch_data:2",
+            "fetch_data:2"
+          ]
+        },
+        "2664927515829775652": {
+          "count": 2,
+          "examples": [
+            "process:1",
+            "process:1"
+          ]
+        },
+        "14659550057250615777": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "2239405486032324434": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "17203325869883729231": {
+          "count": 1,
+          "examples": [
+            "test_sync:1"
+          ]
+        }
+      },
+      "param_type_freq": {},
+      "name_segment_freq": {
+        "process": {
+          "count": 6,
+          "examples": [
+            "process:1",
+            "process_order:2",
+            "process_order:2"
+          ]
+        },
+        "input": {
+          "count": 2,
+          "examples": [
+            "validate_input:2",
+            "validate_input:2"
+          ]
+        },
+        "fetch": {
+          "count": 2,
+          "examples": [
+            "fetch_data:2",
+            "fetch_data:2"
+          ]
+        },
+        "blocking": {
+          "count": 1,
+          "examples": [
+            "test_blocking:1"
+          ]
+        },
+        "async": {
+          "count": 1,
+          "examples": [
+            "test_async_safe:5"
+          ]
+        },
+        "handle": {
+          "count": 4,
+          "examples": [
+            "handle_request:2",
+            "handle:1",
+            "handle:1"
+          ]
+        },
+        "fallible": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "order": {
+          "count": 2,
+          "examples": [
+            "process_order:2",
+            "process_order:2"
+          ]
+        },
+        "validate": {
+          "count": 2,
+          "examples": [
+            "validate_input:2",
+            "validate_input:2"
+          ]
+        },
+        "in": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "result": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "safe": {
+          "count": 1,
+          "examples": [
+            "test_async_safe:5"
+          ]
+        },
+        "loop": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "convert": {
+          "count": 2,
+          "examples": [
+            "convert:1",
+            "convert:1"
+          ]
+        },
+        "clone": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "compute": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "sync": {
+          "count": 1,
+          "examples": [
+            "test_sync:1"
+          ]
+        },
+        "case": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "request": {
+          "count": 2,
+          "examples": [
+            "handle_request:2",
+            "handle_request:2"
+          ]
+        },
+        "data": {
+          "count": 2,
+          "examples": [
+            "fetch_data:2",
+            "fetch_data:2"
+          ]
+        },
+        "test": {
+          "count": 4,
+          "examples": [
+            "test_sync:1",
+            "test_async_safe:5",
+            "test:1"
+          ]
+        }
+      },
+      "structural_marker_freq": {
+        "5823516524177010243": {
+          "count": 22,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "2733145720805439415": {
+          "count": 23,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "2528604022815229367": {
+          "count": 2,
+          "examples": [
+            "clone_in_loop_case:1",
+            "test:1"
+          ]
+        },
+        "11442793366581764956": {
+          "count": 10,
+          "examples": [
+            "handle_request:2",
+            "process:1",
+            "fetch_data:2"
+          ]
+        },
+        "10420111648834899420": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "3366653537919310867": {
+          "count": 20,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "process:1"
+          ]
+        },
+        "9849429683413810951": {
+          "count": 11,
+          "examples": [
+            "clone_in_loop_case:1",
+            "process:1",
+            "fetch_data:2"
+          ]
+        },
+        "4804693157945101764": {
+          "count": 18,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "404616347193895937": {
+          "count": 4,
+          "examples": [
+            "clone_in_loop_case:1",
+            "process:1",
+            "compute_result:1"
+          ]
+        },
+        "7971500873945737022": {
+          "count": 23,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "4479217104840121723": {
+          "count": 8,
+          "examples": [
+            "handle_request:2",
+            "fetch_data:2",
+            "process_order:2"
+          ]
+        },
+        "16332205828908311035": {
+          "count": 4,
+          "examples": [
+            "clone_in_loop_case:1",
+            "process:1",
+            "compute_result:1"
+          ]
+        },
+        "5467675711620017915": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "1825051856230050610": {
+          "count": 8,
+          "examples": [
+            "clone_in_loop_case:1",
+            "process:1",
+            "fetch_data:2"
+          ]
+        },
+        "12414338206328892539": {
+          "count": 3,
+          "examples": [
+            "validate_input:2",
+            "compute_result:1",
+            "process:1"
+          ]
+        },
+        "2476833184045476646": {
+          "count": 2,
+          "examples": [
+            "clone_in_loop_case:1",
+            "test:1"
+          ]
+        },
+        "7188922018760011424": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "15772668166051997149": {
+          "count": 2,
+          "examples": [
+            "validate_input:2",
+            "compute_result:1"
+          ]
+        },
+        "5349749393753230411": {
+          "count": 2,
+          "examples": [
+            "clone_in_loop_case:1",
+            "test:1"
+          ]
+        },
+        "11022961450715919368": {
+          "count": 18,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "13734703264576762742": {
+          "count": 10,
+          "examples": [
+            "handle_request:2",
+            "process:1",
+            "fetch_data:2"
+          ]
+        },
+        "8594912376847139062": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "9111827012676064624": {
+          "count": 1,
+          "examples": [
+            "validate_input:2"
+          ]
+        },
+        "1813062271994396778": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "17809062428607115419": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "1335123892886093973": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "2586205914681910226": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "6415801743178056780": {
+          "count": 2,
+          "examples": [
+            "validate_input:2",
+            "validate_input:2"
+          ]
+        },
+        "14528135501485025996": {
+          "count": 5,
+          "examples": [
+            "convert:1",
+            "test_sync:1",
+            "test_async_safe:5"
+          ]
+        },
+        "12663901871905685257": {
+          "count": 10,
+          "examples": [
+            "handle_request:2",
+            "process:1",
+            "fetch_data:2"
+          ]
+        },
+        "12034560164012170810": {
+          "count": 10,
+          "examples": [
+            "clone_in_loop_case:1",
+            "fallible:1",
+            "fetch_data:2"
+          ]
+        },
+        "15385672753063698935": {
+          "count": 4,
+          "examples": [
+            "process:1",
+            "validate_input:2",
+            "compute_result:1"
+          ]
+        },
+        "1475400146513705390": {
+          "count": 1,
+          "examples": [
+            "convert:1"
+          ]
+        },
+        "16718628943531405035": {
+          "count": 4,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "handle_request:2"
+          ]
+        },
+        "6522436738650215702": {
+          "count": 1,
+          "examples": [
+            "fallible:1"
+          ]
+        },
+        "16277780691242977302": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "1883168690486077316": {
+          "count": 18,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "16537014143729474692": {
+          "count": 8,
+          "examples": [
+            "clone_in_loop_case:1",
+            "process:1",
+            "fetch_data:2"
+          ]
+        },
+        "6964404729170464766": {
+          "count": 10,
+          "examples": [
+            "clone_in_loop_case:1",
+            "fallible:1",
+            "fetch_data:2"
+          ]
+        },
+        "16983469021331306561": {
+          "count": 3,
+          "examples": [
+            "handle:1",
+            "test_async_safe:5",
+            "handle:1"
+          ]
+        },
+        "16672998480043574849": {
+          "count": 3,
+          "examples": [
+            "handle:1",
+            "test_async_safe:5",
+            "handle:1"
+          ]
+        },
+        "6563382731813922168": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "16787993519799438639": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "18233535120636730324": {
+          "count": 8,
+          "examples": [
+            "handle_request:2",
+            "fetch_data:2",
+            "process_order:2"
+          ]
+        },
+        "452533938378130132": {
+          "count": 12,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "process:1"
+          ]
+        },
+        "2017478388674110353": {
+          "count": 3,
+          "examples": [
+            "validate_input:2",
+            "compute_result:1",
+            "process:1"
+          ]
+        },
+        "10439017434381502920": {
+          "count": 5,
+          "examples": [
+            "convert:1",
+            "test_sync:1",
+            "test_async_safe:5"
+          ]
+        },
+        "8833664860897202504": {
+          "count": 2,
+          "examples": [
+            "validate_input:2",
+            "compute_result:1"
+          ]
+        },
+        "10003030518978953916": {
+          "count": 1,
+          "examples": [
+            "clone_in_loop_case:1"
+          ]
+        },
+        "18316405741207701308": {
+          "count": 4,
+          "examples": [
+            "process:1",
+            "validate_input:2",
+            "compute_result:1"
+          ]
+        },
+        "11251617620553513398": {
+          "count": 18,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "18119349241446054454": {
+          "count": 1,
+          "examples": [
+            "compute_result:1"
+          ]
+        },
+        "6286835624363610282": {
+          "count": 4,
+          "examples": [
+            "clone_in_loop_case:1",
+            "process:1",
+            "compute_result:1"
+          ]
+        },
+        "10724761136716666855": {
+          "count": 23,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "10933106688310266075": {
+          "count": 1,
+          "examples": [
+            "test:1"
+          ]
+        },
+        "18433720252661539273": {
+          "count": 10,
+          "examples": [
+            "clone_in_loop_case:1",
+            "fallible:1",
+            "fetch_data:2"
+          ]
+        },
+        "2270106412597172553": {
+          "count": 18,
+          "examples": [
+            "handle_request:2",
+            "clone_in_loop_case:1",
+            "convert:1"
+          ]
+        },
+        "13840727042744474435": {
+          "count": 2,
+          "examples": [
+            "validate_input:2",
+            "validate_input:2"
+          ]
+        }
+      },
+      "type_usage_freq": {},
+      "file_profiles": {
+        "/home": {
+          "body_ngram_freq": {
+            "13695940678994533766": 1,
+            "10609788700576968058": 1,
+            "533400655987862516": 1,
+            "10411227091410982065": 1,
+            "1338488370346404395": 1,
+            "6882636610148801512": 1,
+            "9007177380527772258": 1,
+            "16667068783762753055": 1,
+            "18112656948605995350": 1,
+            "1620926805598450128": 1,
+            "8717491644528406413": 1,
+            "9433327736913587518": 1,
+            "17838980177799885106": 1,
+            "10916533124730617894": 1,
+            "17736007503434507156": 1,
+            "4740856528088018123": 1,
+            "1094664688525193352": 1,
+            "7810870987834161410": 2,
+            "14885455550767268098": 1,
+            "15373886592577423673": 1,
+            "8972739359243355894": 1,
+            "557214771076247530": 1,
+            "7392884818419676705": 2,
+            "5719759054336641825": 1,
+            "8637370293517266898": 1,
+            "1753543178902166671": 1,
+            "13095325623321473100": 1,
+            "4143569209720721606": 1,
+            "9221540326705455034": 1,
+            "4501190839262351735": 1,
+            "2186465563768832887": 1,
+            "6022402793633417902": 1,
+            "3091428228987165035": 1,
+            "15068222085015288939": 1,
+            "15911034468015030178": 1,
+            "3478348323756018771": 1,
+            "18230870418878003271": 1,
+            "277559953646623425": 1,
+            "10561639841268756161": 1,
+            "13923796479262842939": 1,
+            "18007636138702909176": 1,
+            "2579450647704260801": 1,
+            "16710837394584498290": 1,
+            "10803488857335690878": 1,
+            "11164245637625535980": 1,
+            "5061619460410696818": 1,
+            "14384760187804569111": 1,
+            "7546690592681146769": 1,
+            "3222948227514070527": 1,
+            "14459607498066041020": 1,
+            "11134090532340592249": 1,
+            "1988313798452804028": 1,
+            "38593236642325101": 1,
+            "8667674761019623210": 1,
+            "5147733749855156266": 1,
+            "14757723483066700964": 1,
+            "4314186429524502046": 1,
+            "5205361916202936795": 1,
+            "1379397863735545984": 1,
+            "15816821187822558013": 1,
+            "17792253306409783034": 1,
+            "1154286058843115380": 1,
+            "1831395527134944817": 1,
+            "12410098041772526251": 1,
+            "17364134869219598952": 1,
+            "12818280843360994853": 1,
+            "8922769326785789532": 1,
+            "3786489092044636051": 1,
+            "5627125893521884362": 1,
+            "13643743336481518715": 1,
+            "17344292749873799980": 1,
+            "1447677416661195619": 1,
+            "6022613118688950560": 1,
+            "11059436261652952919": 1,
+            "25145169064745748": 1,
+            "14117471992792257611": 1,
+            "6044612804585787979": 1,
+            "17781925680017488069": 1,
+            "11155022384082078594": 1,
+            "12405357616534251071": 1,
+            "7295819519127265020": 1,
+            "12317110196329881005": 1,
+            "4492413885019792234": 1,
+            "14115596615389532711": 1,
+            "2756745486181145060": 1,
+            "11556862001417556507": 1,
+            "16873227339011889234": 1,
+            "14228873041793618447": 1,
+            "9479834891832414479": 1,
+            "5449486988576345737": 1,
+            "415403087084362109": 1,
+            "11931454149960973949": 1,
+            "10791610148491299319": 1,
+            "12891928080293453815": 1,
+            "12709401692693643633": 1,
+            "9993506629449807260": 1,
+            "8025364178881689689": 1,
+            "8415823771181709401": 1,
+            "9213167951240901721": 1,
+            "3698633147023585302": 1,
+            "14963370349157706317": 1,
+            "10999745939294936074": 1,
+            "12217522419511087559": 1,
+            "16049056853283071620": 1,
+            "1223051938895185808": 1,
+            "11526849778416270523": 1,
+            "11672497230601630761": 1,
+            "6145398016429750246": 1,
+            "13843983633990448681": 1,
+            "95387376530925408": 2,
+            "10823297383710314848": 1,
+            "10459300954704442074": 1,
+            "12545740917732285591": 1,
+            "12602730181442461524": 1,
+            "9824644057140199764": 1,
+            "11414551649174268244": 1,
+            "17753003588346942792": 1,
+            "15951472872005615109": 1,
+            "16471312250687657410": 1,
+            "4857437443407890626": 1,
+            "12667274357319488060": 1,
+            "5931880120387456706": 1,
+            "4201749874237518262": 1,
+            "289503163807163574": 1,
+            "100308973857614628": 1,
+            "9750324039576644321": 1,
+            "10683179204640105106": 1,
+            "13456707006525417228": 1,
+            "4443567813410822534": 1,
+            "12702945966978265990": 1
+          },
+          "total_ngrams": 133
+        }
+      }
+    },
+    "typescript": {
+      "total_ngrams": 259,
+      "total_functions": 41,
+      "body_ngram_freq": {
+        "11280001196059633152": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "13827174697174114926": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "6361681662611964014": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "1978907100080507368": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5465533380862170734": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15159724434176024174": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "7364341065132473131": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "15591169750206146646": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9094219037950052115": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "13131035962494949840": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "10919923706769545034": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "6281131348887565831": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "16418856110520182846": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "5319618332361212667": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "13934710141627274357": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11065319106349943279": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "59361142209676948": {
+          "count": 2,
+          "examples": [
+            "godFunction:1",
+            "big:1"
+          ]
+        },
+        "17605326857756767435": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "4558205037990633352": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "2338951368479262088": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15958825221502383685": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "8322140946677760447": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "8319426256008500860": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "11649407543917653305": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "7624835747298880447": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "3494208087089716726": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "2879607887845647216": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "12156691727107116077": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11852495037814351137": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "16089685459199205342": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "14923526586140163361": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "270364049898641941": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "3498021947388403410": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "11213998253827685074": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9942217388543445202": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "5730197126872275209": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "9208743146482657789": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11086126105290911418": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "10460623260042015095": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11231092069224262196": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "16082485804092147764": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "15267571054169067438": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8472918248636892700": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "4895849785118883332": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "1874725412742486910": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "9000173063871867317": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "2736125937500545839": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "10791261849520441836": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "2679994757397415916": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5589447576144178534": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8514194978151208995": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "4818090244673010022": {
+          "count": 1,
+          "examples": [
+            "fetchData:1"
+          ]
+        },
+        "3365227444978997984": {
+          "count": 1,
+          "examples": [
+            "fetchData:1"
+          ]
+        },
+        "7784114255052192346": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "16696470170989122437": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "2530600493377183731": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "7501432804463904755": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "10927189215693637808": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5147733749855156266": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "62905284024203172": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "6603996436284744344": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "13716924590840935954": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "16866857524666298063": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "18280999228156008143": {
+          "count": 2,
+          "examples": [
+            "godFunction:1",
+            "big:1"
+          ]
+        },
+        "14987139634861436544": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "13514073104734388919": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "2193656521350183985": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8425710999170924782": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "1859209451618218143": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "5519113510883906451": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "6529081793544088144": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11816966147211811329": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "15098187213998859052": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "15295221693748797417": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "860625306932500000": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "16433620917576148031": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "14992210245100847088": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "1583719903449053168": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "7866796317159725284": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "568233414955680862": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "17093045547224766211": {
+          "count": 2,
+          "examples": [
+            "godFunction:1",
+            "big:1"
+          ]
+        },
+        "2057359748629415872": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "16223225086327141367": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "4655711593210217140": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "14691178849169760436": {
+          "count": 1,
+          "examples": [
+            "fetchData:1"
+          ]
+        },
+        "12533636084641431787": {
+          "count": 2,
+          "examples": [
+            "processUser:1",
+            "processUser:1"
+          ]
+        },
+        "7731733551725421291": {
+          "count": 1,
+          "examples": [
+            "big:1"
+          ]
+        },
+        "13182717044368700060": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11314197803901120857": {
+          "count": 2,
+          "examples": [
+            "getUser:2",
+            "handler:1"
+          ]
+        },
+        "3008834394373809040": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8798630238884885904": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "10286799735891462544": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8636776149533867006": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "17970588097855303867": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "3654286412934917819": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "7747442681998258985": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15018605618218867930": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "3451036811362220439": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "14405297752955705483": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "4492649373679710859": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "14546194104031546885": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "7228921267589626617": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "1678786112757745968": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "16887472028903754221": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "10979052826110079658": {
+          "count": 2,
+          "examples": [
+            "godFunction:1",
+            "big:1"
+          ]
+        },
+        "18206967533710874282": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "1904451520284064670": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8223509876219748309": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15041968175417669455": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "2955019204648080719": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "16562100650761555468": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "4138961698261740422": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "10662689363388278150": {
+          "count": 2,
+          "examples": [
+            "godFunction:1",
+            "big:1"
+          ]
+        },
+        "13732286794284838924": {
+          "count": 1,
+          "examples": [
+            "fetchData:1"
+          ]
+        },
+        "17364819400384129658": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11597752424847705210": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "8866174554341322661": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "17256622412833820770": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "17912628331814694364": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8516156635533728653": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "16002711861492137546": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "11250157192250426954": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "7186895684171613636": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15234304686761331463": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "18312759640537295623": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "8970839548838112251": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "16580045056956880891": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "2175184605271466357": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "12465210477882134523": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8616316328819131631": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "14436386241401550898": {
+          "count": 2,
+          "examples": [
+            "getUser:2",
+            "handler:1"
+          ]
+        },
+        "3734367335160875058": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "7167573002376882982": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "17063132492421088739": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9926956753621064864": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "9855305624447016474": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "2898183711712156887": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "13794853297238521614": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "13788669690810594062": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "1008941932729991816": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "6002923829084354751": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "12903640470594867769": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "17310158301686045296": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "6669822156668162349": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "9456588481823548394": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "1551820566518915885": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "2325410236447584533": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "12706416116837713685": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "16599536012495375503": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "9829158194316697231": {
+          "count": 2,
+          "examples": [
+            "find_user:2",
+            "find_user:2"
+          ]
+        },
+        "12765070245176584524": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "16873648562602391750": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "15940195825542440914": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "14743163749016996117": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "1862869159896532757": {
+          "count": 1,
+          "examples": [
+            "fetchData:1"
+          ]
+        },
+        "4650467983642187895": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "16804850368436212398": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "2277325497778706795": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "1472628896968760360": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "6521479926389471760": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "15617717742303958221": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9355534580410446029": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "5043970729077466372": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "6076628792449730686": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "10337462769177535157": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5263502529628559919": {
+          "count": 1,
+          "examples": [
+            "handler:2"
+          ]
+        },
+        "14533890422565348265": {
+          "count": 2,
+          "examples": [
+            "authenticateUser:2",
+            "authenticateUser:2"
+          ]
+        },
+        "13554784145009798490": {
+          "count": 2,
+          "examples": [
+            "godFunction:1",
+            "big:1"
+          ]
+        },
+        "14384760187804569111": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "18236934927321639959": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9576657477721630609": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "8374614221833625544": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "1760474983182656243": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "3017223242559539632": {
+          "count": 1,
+          "examples": [
+            "big:1"
+          ]
+        },
+        "11076385269268733604": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15780559829508934497": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "1524205674353572382": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "1721542548844456911": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "17276927620914591238": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5835508256233443578": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "4523055752795006580": {
+          "count": 2,
+          "examples": [
+            "authenticateUser:2",
+            "authenticateUser:2"
+          ]
+        },
+        "17461244737802547316": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "16689078829080741413": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "5617526239245743196": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "11154631641273925078": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "9133243880212705080": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "2395545372442870127": {
+          "count": 1,
+          "examples": [
+            "fetchData:1"
+          ]
+        },
+        "17024798774971620908": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "3798351143285290595": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "13624787112059605280": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "12368837497499483101": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "16827547007034959136": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "4734903790217125262": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "4861776139448019019": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "14803558818965811086": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "11494112228278325110": {
+          "count": 1,
+          "examples": [
+            "find_user:2"
+          ]
+        },
+        "13993066046752843638": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5776634478896116275": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "8451058080169020522": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "4753481927533715940": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "13996103692969064932": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "1904911313800089627": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "11075983034734583189": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15671539204157827343": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "6839030382260224137": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "10221064544647225859": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "13324025063997932736": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "9747317245362184573": {
+          "count": 2,
+          "examples": [
+            "authenticateUser:2",
+            "authenticateUser:2"
+          ]
+        },
+        "14119764389906570999": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "9170861269254609844": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "16879297681290084709": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "6848329887416672290": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "13434716761864037599": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "13579306567893966937": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "12717232404516098326": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "2120412738725884615": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "12482351443875026631": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9952585653319177068": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "13843983633990448681": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "13889184119188507744": {
+          "count": 2,
+          "examples": [
+            "processUser:1",
+            "processUser:1"
+          ]
+        },
+        "8274641177308428951": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "5043510671198078103": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "1378212470579250193": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "4036267235579562190": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "6160406137125272593": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "9390879029946353169": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "9889979168675245317": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "11084090207195207429": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "15844705029882738114": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "3387081178313038865": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "7867717155282929090": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "13942621906665756531": {
+          "count": 1,
+          "examples": [
+            "merge:1"
+          ]
+        },
+        "1201146654478482913": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "13241436981493683870": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "37250806663216987": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "12250275487422552466": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "14096851667964763215": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "11428662089747683596": {
+          "count": 1,
+          "examples": [
+            "handleRequest:1"
+          ]
+        },
+        "10938689303740803718": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "7933502183728028483": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        }
+      },
+      "signature_ngram_freq": {
+        "18166764286541261507": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "5205602432008681911": {
+          "count": 1,
+          "examples": [
+            "createSafe:1"
+          ]
+        },
+        "6591008467046670824": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "9111476413625185640": {
+          "count": 2,
+          "examples": [
+            "authenticateUser:2",
+            "authenticateUser:2"
+          ]
+        },
+        "5238624479743715621": {
+          "count": 1,
+          "examples": [
+            "merge:1"
+          ]
+        },
+        "1350305102760271894": {
+          "count": 1,
+          "examples": [
+            "processUser:1"
+          ]
+        },
+        "2564405525620699850": {
+          "count": 2,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2"
+          ]
+        },
+        "15867848538954534535": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "8790627299809760650": {
+          "count": 2,
+          "examples": [
+            "sanitize_input:2",
+            "sanitize_input:2"
+          ]
+        },
+        "13825970351264720641": {
+          "count": 1,
+          "examples": [
+            "big:1"
+          ]
+        },
+        "12659634656408736361": {
+          "count": 2,
+          "examples": [
+            "find_user:2",
+            "find_user:2"
+          ]
+        },
+        "1982636347741736669": {
+          "count": 12,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "3559994680056662807": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "6004695640182269137": {
+          "count": 10,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "10471080246053595144": {
+          "count": 1,
+          "examples": [
+            "anonymous:1"
+          ]
+        },
+        "5515766571653315653": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "5869288892481114498": {
+          "count": 1,
+          "examples": [
+            "readFile:2"
+          ]
+        },
+        "9785261127857010111": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "4052943762462419650": {
+          "count": 1,
+          "examples": [
+            "merge:1"
+          ]
+        },
+        "968669953051237765": {
+          "count": 1,
+          "examples": [
+            "processUser:1"
+          ]
+        },
+        "1218995213685686390": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "1222996732198996083": {
+          "count": 2,
+          "examples": [
+            "handler:1",
+            "handler:1"
+          ]
+        },
+        "14156478754906255987": {
+          "count": 2,
+          "examples": [
+            "anonymous:2",
+            "anonymous:2"
+          ]
+        },
+        "4634410954908331370": {
+          "count": 1,
+          "examples": [
+            "anonymous:1"
+          ]
+        },
+        "4053144743755456798": {
+          "count": 1,
+          "examples": [
+            "anonymous:4"
+          ]
+        },
+        "13210566869879178267": {
+          "count": 2,
+          "examples": [
+            "sanitize_input:2",
+            "sanitize_input:2"
+          ]
+        },
+        "7973176025169242127": {
+          "count": 10,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "8533912782889676559": {
+          "count": 1,
+          "examples": [
+            "getUser:2"
+          ]
+        },
+        "2907033496700171724": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "6289667849904429519": {
+          "count": 1,
+          "examples": [
+            "merge:1"
+          ]
+        },
+        "13031656326164723907": {
+          "count": 2,
+          "examples": [
+            "anonymous:2",
+            "anonymous:2"
+          ]
+        }
+      },
+      "param_type_freq": {},
+      "name_segment_freq": {
+        "handler": {
+          "count": 12,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "user": {
+          "count": 2,
+          "examples": [
+            "find_user:2",
+            "find_user:2"
+          ]
+        },
+        "read": {
+          "count": 2,
+          "examples": [
+            "readFile:2",
+            "readFile:2"
+          ]
+        },
+        "input": {
+          "count": 2,
+          "examples": [
+            "sanitize_input:2",
+            "sanitize_input:2"
+          ]
+        },
+        "Safe": {
+          "count": 1,
+          "examples": [
+            "createSafe:1"
+          ]
+        },
+        "find": {
+          "count": 2,
+          "examples": [
+            "find_user:2",
+            "find_user:2"
+          ]
+        },
+        "File": {
+          "count": 2,
+          "examples": [
+            "readFile:2",
+            "readFile:2"
+          ]
+        },
+        "create": {
+          "count": 1,
+          "examples": [
+            "createSafe:1"
+          ]
+        },
+        "Request": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "validate": {
+          "count": 2,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2"
+          ]
+        },
+        "sanitize": {
+          "count": 2,
+          "examples": [
+            "sanitize_input:2",
+            "sanitize_input:2"
+          ]
+        },
+        "anonymous": {
+          "count": 7,
+          "examples": [
+            "anonymous:1",
+            "anonymous:1",
+            "anonymous:2"
+          ]
+        },
+        "Data": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "Function": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "User": {
+          "count": 6,
+          "examples": [
+            "getUser:2",
+            "processUser:1",
+            "getUser:2"
+          ]
+        },
+        "fetch": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "authenticate": {
+          "count": 2,
+          "examples": [
+            "authenticateUser:2",
+            "authenticateUser:2"
+          ]
+        },
+        "handle": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "get": {
+          "count": 2,
+          "examples": [
+            "getUser:2",
+            "getUser:2"
+          ]
+        },
+        "process": {
+          "count": 2,
+          "examples": [
+            "processUser:1",
+            "processUser:1"
+          ]
+        },
+        "god": {
+          "count": 1,
+          "examples": [
+            "godFunction:1"
+          ]
+        },
+        "Input": {
+          "count": 2,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2"
+          ]
+        },
+        "merge": {
+          "count": 1,
+          "examples": [
+            "merge:1"
+          ]
+        },
+        "big": {
+          "count": 1,
+          "examples": [
+            "big:1"
+          ]
+        }
+      },
+      "structural_marker_freq": {
+        "13840727042744474435": {
+          "count": 4,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "handler:1"
+          ]
+        },
+        "12663901871905685257": {
+          "count": 15,
+          "examples": [
+            "handler:1",
+            "handler:2",
+            "find_user:2"
+          ]
+        },
+        "12034560164012170810": {
+          "count": 10,
+          "examples": [
+            "handler:1",
+            "readFile:2",
+            "handler:1"
+          ]
+        },
+        "2733145720805439415": {
+          "count": 38,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "handler:1"
+          ]
+        },
+        "15385672753063698935": {
+          "count": 3,
+          "examples": [
+            "validateInput:2",
+            "find_user:2",
+            "authenticateUser:2"
+          ]
+        },
+        "11457172676830567668": {
+          "count": 2,
+          "examples": [
+            "handler:1",
+            "handler:1"
+          ]
+        },
+        "16718628943531405035": {
+          "count": 5,
+          "examples": [
+            "handler:2",
+            "handler:2",
+            "authenticateUser:2"
+          ]
+        },
+        "6415180377498958507": {
+          "count": 2,
+          "examples": [
+            "find_user:2",
+            "createSafe:1"
+          ]
+        },
+        "272802566093863327": {
+          "count": 3,
+          "examples": [
+            "validateInput:2",
+            "find_user:2",
+            "authenticateUser:2"
+          ]
+        },
+        "1355857824777420703": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "2563464514495380889": {
+          "count": 11,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "find_user:2"
+          ]
+        },
+        "3366653537919310867": {
+          "count": 38,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "handler:1"
+          ]
+        },
+        "4562583920771323472": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "15353132161065196621": {
+          "count": 3,
+          "examples": [
+            "validateInput:2",
+            "find_user:2",
+            "authenticateUser:2"
+          ]
+        },
+        "4544926541425317258": {
+          "count": 6,
+          "examples": [
+            "handler:1",
+            "handler:2",
+            "find_user:2"
+          ]
+        },
+        "9849429683413810951": {
+          "count": 31,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "4804693157945101764": {
+          "count": 27,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "431368705749017537": {
+          "count": 9,
+          "examples": [
+            "handler:1",
+            "readFile:2",
+            "handler:1"
+          ]
+        },
+        "7971500873945737022": {
+          "count": 38,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "handler:1"
+          ]
+        },
+        "16332205828908311035": {
+          "count": 3,
+          "examples": [
+            "validateInput:2",
+            "find_user:2",
+            "authenticateUser:2"
+          ]
+        },
+        "12414338206328892539": {
+          "count": 11,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "find_user:2"
+          ]
+        },
+        "1883168690486077316": {
+          "count": 32,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "1296618492446029560": {
+          "count": 31,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "16672998480043574849": {
+          "count": 3,
+          "examples": [
+            "anonymous:1",
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "16983469021331306561": {
+          "count": 3,
+          "examples": [
+            "anonymous:1",
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "6964404729170464766": {
+          "count": 2,
+          "examples": [
+            "handleRequest:1",
+            "handleRequest:1"
+          ]
+        },
+        "15652175469527275494": {
+          "count": 14,
+          "examples": [
+            "handler:1",
+            "handler:2",
+            "find_user:2"
+          ]
+        },
+        "12697567568545439907": {
+          "count": 38,
+          "examples": [
+            "validateInput:2",
+            "validateInput:2",
+            "handler:1"
+          ]
+        },
+        "12658117056543847971": {
+          "count": 11,
+          "examples": [
+            "validateInput:2",
+            "find_user:2",
+            "handler:2"
+          ]
+        },
+        "4962872521347585885": {
+          "count": 8,
+          "examples": [
+            "handler:1",
+            "handler:2",
+            "find_user:2"
+          ]
+        },
+        "9686044130454319898": {
+          "count": 35,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "12356420103385589530": {
+          "count": 16,
+          "examples": [
+            "handler:1",
+            "handler:2",
+            "find_user:2"
+          ]
+        },
+        "112626545425508058": {
+          "count": 2,
+          "examples": [
+            "processUser:1",
+            "processUser:1"
+          ]
+        },
+        "16132851947177745607": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "544414892024782645": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "7334705339843520410": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "11022961450715919368": {
+          "count": 34,
+          "examples": [
+            "validateInput:2",
+            "handler:1",
+            "handler:1"
+          ]
+        },
+        "6567548841034279173": {
+          "count": 7,
+          "examples": [
+            "handler:1",
+            "handler:2",
+            "find_user:2"
+          ]
+        },
+        "12280390238699070402": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "10995118529657968456": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "5685801511178638060": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "11251617620553513398": {
+          "count": 34,
+          "examples": [
+            "validateInput:2",
+            "handler:1",
+            "handler:1"
+          ]
+        },
+        "6842611150915090416": {
+          "count": 3,
+          "examples": [
+            "validateInput:2",
+            "find_user:2",
+            "authenticateUser:2"
+          ]
+        },
+        "9111827012676064624": {
+          "count": 1,
+          "examples": [
+            "validateInput:2"
+          ]
+        },
+        "1813062271994396778": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "1664695040849384487": {
+          "count": 2,
+          "examples": [
+            "fetchData:1",
+            "fetchData:1"
+          ]
+        },
+        "18154502759066757668": {
+          "count": 7,
+          "examples": [
+            "handler:1",
+            "readFile:2",
+            "handler:1"
+          ]
+        },
+        "9955721216396015649": {
+          "count": 6,
+          "examples": [
+            "anonymous:1",
+            "anonymous:1",
+            "godFunction:1"
+          ]
+        },
+        "5475241835619681755": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "1493939193326400920": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "6181125726411185173": {
+          "count": 1,
+          "examples": [
+            "sanitize_input:2"
+          ]
+        },
+        "13329015035928977746": {
+          "count": 1,
+          "examples": [
+            "authenticateUser:2"
+          ]
+        },
+        "9390421445113221068": {
+          "count": 1,
+          "examples": [
+            "merge:1"
+          ]
+        },
+        "2270106412597172553": {
+          "count": 31,
+          "examples": [
+            "handler:1",
+            "handler:1",
+            "handler:2"
+          ]
+        },
+        "1352115942516920646": {
+          "count": 9,
+          "examples": [
+            "handler:1",
+            "readFile:2",
+            "handler:1"
+          ]
+        },
+        "5823516524177010243": {
+          "count": 36,
+          "examples": [
+            "validateInput:2",
+            "handler:1",
+            "handler:1"
+          ]
+        }
+      },
+      "type_usage_freq": {
+        "any": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        },
+        "string": {
+          "count": 1,
+          "examples": [
+            "handler:1"
+          ]
+        }
+      },
+      "file_profiles": {
+        "/home": {
+          "body_ngram_freq": {
+            "11280001196059633152": 1,
+            "13827174697174114926": 1,
+            "6361681662611964014": 1,
+            "1978907100080507368": 1,
+            "5465533380862170734": 1,
+            "15159724434176024174": 1,
+            "7364341065132473131": 1,
+            "15591169750206146646": 1,
+            "9094219037950052115": 1,
+            "13131035962494949840": 1,
+            "10919923706769545034": 1,
+            "6281131348887565831": 1,
+            "16418856110520182846": 1,
+            "5319618332361212667": 1,
+            "13934710141627274357": 1,
+            "11065319106349943279": 1,
+            "59361142209676948": 2,
+            "17605326857756767435": 1,
+            "4558205037990633352": 1,
+            "2338951368479262088": 1,
+            "15958825221502383685": 1,
+            "8322140946677760447": 1,
+            "8319426256008500860": 1,
+            "11649407543917653305": 1,
+            "7624835747298880447": 1,
+            "3494208087089716726": 1,
+            "2879607887845647216": 1,
+            "12156691727107116077": 1,
+            "11852495037814351137": 1,
+            "16089685459199205342": 1,
+            "14923526586140163361": 1,
+            "270364049898641941": 1,
+            "3498021947388403410": 1,
+            "11213998253827685074": 1,
+            "9942217388543445202": 1,
+            "5730197126872275209": 1,
+            "9208743146482657789": 1,
+            "11086126105290911418": 1,
+            "10460623260042015095": 1,
+            "11231092069224262196": 1,
+            "16082485804092147764": 1,
+            "15267571054169067438": 1,
+            "8472918248636892700": 1,
+            "4895849785118883332": 1,
+            "1874725412742486910": 1,
+            "9000173063871867317": 1,
+            "2736125937500545839": 1,
+            "10791261849520441836": 1,
+            "2679994757397415916": 1,
+            "5589447576144178534": 1,
+            "8514194978151208995": 1,
+            "4818090244673010022": 1,
+            "3365227444978997984": 1,
+            "7784114255052192346": 1,
+            "16696470170989122437": 1,
+            "2530600493377183731": 1,
+            "7501432804463904755": 1,
+            "10927189215693637808": 1,
+            "5147733749855156266": 1,
+            "62905284024203172": 1,
+            "6603996436284744344": 1,
+            "13716924590840935954": 1,
+            "16866857524666298063": 1,
+            "18280999228156008143": 2,
+            "14987139634861436544": 1,
+            "13514073104734388919": 2,
+            "2193656521350183985": 1,
+            "8425710999170924782": 1,
+            "1859209451618218143": 1,
+            "5519113510883906451": 1,
+            "6529081793544088144": 1,
+            "11816966147211811329": 1,
+            "15098187213998859052": 1,
+            "15295221693748797417": 1,
+            "860625306932500000": 1,
+            "16433620917576148031": 1,
+            "14992210245100847088": 1,
+            "1583719903449053168": 1,
+            "7866796317159725284": 1,
+            "568233414955680862": 1,
+            "17093045547224766211": 2,
+            "2057359748629415872": 1,
+            "16223225086327141367": 1,
+            "4655711593210217140": 1,
+            "14691178849169760436": 1,
+            "12533636084641431787": 2,
+            "7731733551725421291": 1,
+            "13182717044368700060": 1,
+            "11314197803901120857": 2,
+            "3008834394373809040": 1,
+            "8798630238884885904": 1,
+            "10286799735891462544": 1,
+            "8636776149533867006": 1,
+            "17970588097855303867": 1,
+            "3654286412934917819": 1,
+            "7747442681998258985": 1,
+            "15018605618218867930": 1,
+            "3451036811362220439": 1,
+            "14405297752955705483": 1,
+            "4492649373679710859": 1,
+            "14546194104031546885": 1,
+            "7228921267589626617": 1,
+            "1678786112757745968": 1,
+            "16887472028903754221": 1,
+            "10979052826110079658": 2,
+            "18206967533710874282": 1,
+            "1904451520284064670": 1,
+            "8223509876219748309": 1,
+            "15041968175417669455": 1,
+            "2955019204648080719": 1,
+            "16562100650761555468": 1,
+            "4138961698261740422": 1,
+            "10662689363388278150": 2,
+            "13732286794284838924": 1,
+            "17364819400384129658": 1,
+            "11597752424847705210": 1,
+            "8866174554341322661": 1,
+            "17256622412833820770": 1,
+            "17912628331814694364": 1,
+            "8516156635533728653": 1,
+            "16002711861492137546": 1,
+            "11250157192250426954": 1,
+            "7186895684171613636": 1,
+            "15234304686761331463": 1,
+            "18312759640537295623": 1,
+            "8970839548838112251": 1,
+            "16580045056956880891": 1,
+            "2175184605271466357": 1,
+            "12465210477882134523": 1,
+            "8616316328819131631": 1,
+            "14436386241401550898": 2,
+            "3734367335160875058": 1,
+            "7167573002376882982": 1,
+            "17063132492421088739": 1,
+            "9926956753621064864": 1,
+            "9855305624447016474": 2,
+            "2898183711712156887": 1,
+            "13794853297238521614": 1,
+            "13788669690810594062": 1,
+            "1008941932729991816": 1,
+            "6002923829084354751": 1,
+            "12903640470594867769": 1,
+            "17310158301686045296": 1,
+            "6669822156668162349": 2,
+            "9456588481823548394": 1,
+            "1551820566518915885": 1,
+            "2325410236447584533": 1,
+            "12706416116837713685": 1,
+            "16599536012495375503": 1,
+            "9829158194316697231": 2,
+            "12765070245176584524": 1,
+            "16873648562602391750": 1,
+            "15940195825542440914": 1,
+            "14743163749016996117": 1,
+            "1862869159896532757": 1,
+            "4650467983642187895": 1,
+            "16804850368436212398": 1,
+            "2277325497778706795": 1,
+            "1472628896968760360": 1,
+            "6521479926389471760": 1,
+            "15617717742303958221": 1,
+            "9355534580410446029": 1,
+            "5043970729077466372": 1,
+            "6076628792449730686": 1,
+            "10337462769177535157": 1,
+            "5263502529628559919": 1,
+            "14533890422565348265": 2,
+            "13554784145009798490": 2,
+            "14384760187804569111": 1,
+            "18236934927321639959": 1,
+            "9576657477721630609": 1,
+            "8374614221833625544": 1,
+            "1760474983182656243": 1,
+            "3017223242559539632": 1,
+            "11076385269268733604": 1,
+            "15780559829508934497": 1,
+            "1524205674353572382": 1,
+            "1721542548844456911": 1,
+            "17276927620914591238": 1,
+            "5835508256233443578": 1,
+            "4523055752795006580": 2,
+            "17461244737802547316": 1,
+            "16689078829080741413": 1,
+            "5617526239245743196": 1,
+            "11154631641273925078": 1,
+            "9133243880212705080": 1,
+            "2395545372442870127": 1,
+            "17024798774971620908": 1,
+            "3798351143285290595": 1,
+            "13624787112059605280": 1,
+            "12368837497499483101": 1,
+            "16827547007034959136": 1,
+            "4734903790217125262": 1,
+            "4861776139448019019": 1,
+            "14803558818965811086": 2,
+            "11494112228278325110": 1,
+            "13993066046752843638": 1,
+            "5776634478896116275": 1,
+            "8451058080169020522": 1,
+            "4753481927533715940": 1,
+            "13996103692969064932": 1,
+            "1904911313800089627": 1,
+            "11075983034734583189": 1,
+            "15671539204157827343": 1,
+            "6839030382260224137": 1,
+            "10221064544647225859": 1,
+            "13324025063997932736": 1,
+            "9747317245362184573": 2,
+            "14119764389906570999": 1,
+            "9170861269254609844": 1,
+            "16879297681290084709": 1,
+            "6848329887416672290": 1,
+            "13434716761864037599": 1,
+            "13579306567893966937": 2,
+            "12717232404516098326": 1,
+            "2120412738725884615": 1,
+            "12482351443875026631": 1,
+            "9952585653319177068": 1,
+            "13843983633990448681": 1,
+            "13889184119188507744": 2,
+            "8274641177308428951": 1,
+            "5043510671198078103": 1,
+            "1378212470579250193": 1,
+            "4036267235579562190": 1,
+            "6160406137125272593": 1,
+            "9390879029946353169": 1,
+            "9889979168675245317": 1,
+            "11084090207195207429": 1,
+            "15844705029882738114": 1,
+            "3387081178313038865": 1,
+            "7867717155282929090": 1,
+            "13942621906665756531": 1,
+            "1201146654478482913": 1,
+            "13241436981493683870": 1,
+            "37250806663216987": 1,
+            "12250275487422552466": 1,
+            "14096851667964763215": 1,
+            "11428662089747683596": 1,
+            "10938689303740803718": 1,
+            "7933502183728028483": 1
+          },
+          "total_ngrams": 259
+        }
+      }
+    }
+  },
+  "threshold": 0.7
+}

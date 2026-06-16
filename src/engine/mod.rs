@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod auditor;
+pub mod findings;
 #[cfg(feature = "fingerprinting")]
 pub mod fingerprint;
 #[cfg(feature = "fingerprinting")]

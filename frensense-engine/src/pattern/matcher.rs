@@ -32,7 +32,8 @@ impl PatternMatcher {
                 let mut result = Self::match_node(pn, node, source);
                 if result.matched {
                     for constraint in constraints {
-                        result.matched = Self::check_constraint(constraint, &result.captures, node, source);
+                        result.matched =
+                            Self::check_constraint(constraint, &result.captures, node, source);
                         if !result.matched {
                             result.score = 0.0;
                             break;
@@ -89,7 +90,8 @@ impl PatternMatcher {
             loop {
                 let child = cursor.node();
                 if child_idx < pattern.children.len() {
-                    if Self::match_recursive(&pattern.children[child_idx], child, source, captures) {
+                    if Self::match_recursive(&pattern.children[child_idx], child, source, captures)
+                    {
                         matched_children += 1;
                     }
                     child_idx += 1;
@@ -169,7 +171,9 @@ mod tests {
     fn test_match_exact_expression() {
         let source = "let x = 1;";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let root = tree.root_node();
         let pattern = PatternCompiler::compile_node(root, source);
@@ -182,7 +186,9 @@ mod tests {
         let source_a = "let x = 1;";
         let source_b = "fn foo() {}";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree_a = parser.parse(source_a, None).unwrap();
         let tree_a_root = tree_a.root_node();
         let tree_b = parser.parse(source_b, None).unwrap();

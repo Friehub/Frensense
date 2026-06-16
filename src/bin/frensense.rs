@@ -22,10 +22,6 @@ fn main() -> Result<()> {
     let options = parse_options(&args);
 
     let mut engine = Engine::new();
-    for dir in &options.extra_rule_dirs {
-        engine.add_rule_dir(dir.clone());
-    }
-    engine.set_no_builtin_rules(options.no_builtin);
     engine.set_suite(options.suite);
     engine.set_severity_filter(options.severity_filter);
 
@@ -69,6 +65,9 @@ fn main() -> Result<()> {
     }
     if let Some(ref baseline_path) = options.baseline_path {
         engine.set_baseline_path(baseline_path.clone());
+    }
+    if !options.extra_taint_rule_dirs.is_empty() {
+        engine.set_extra_taint_rule_dirs(options.extra_taint_rule_dirs.clone());
     }
 
     if let Some(lang_arg) = &options.language_filter {
@@ -131,16 +130,19 @@ fn main() -> Result<()> {
             );
             std::process::exit(1);
         }
-        let profile = frensense::engine::profile::ProjectProfile::load(&profile_path)
-            .map_err(|e| frensense::FrensenseError::Config(format!("Failed to load profile: {e}")))?;
+        let profile =
+            frensense::engine::profile::ProjectProfile::load(&profile_path).map_err(|e| {
+                frensense::FrensenseError::Config(format!("Failed to load profile: {e}"))
+            })?;
         if let Some(threshold) = options.profile_threshold {
             engine.set_profile_threshold(threshold);
         }
         engine = engine.with_profile(profile);
         if options.profile_stats
-            && let Some(profile) = engine.profile() {
-                print_profile_stats(profile);
-            }
+            && let Some(profile) = engine.profile()
+        {
+            print_profile_stats(profile);
+        }
     }
 
     #[cfg(feature = "fingerprinting")]
@@ -224,8 +226,9 @@ fn main() -> Result<()> {
         regression_detected = compare_baseline(&filtered_advisories, path)?;
     }
 
-    #[cfg(feature = "remediation")]
-    if (options.do_fix || options.show_diff) && !filtered_advisories.is_empty() {
+    if (options.fix_scope.is_some() || options.diff_scope.is_some())
+        && !filtered_advisories.is_empty()
+    {
         handle_remediation(&filtered_advisories, &options, &input_path);
     }
 

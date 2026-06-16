@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "language_filter": null,
+  "files": {
+    "/home/oxisrael/Friehub/Taas/gensense/src/cli/options.rs": "25d9b5fe79ee10b063ce277ef655ffe4c030e23090b24f4c965ded45c7f1bfa6",
+    "/home/oxisrael/Friehub/Taas/gensense/src/cli/extras.rs": "6716b84b8d178e2b5e9ce8caa5efe9c4dae562bc382768f95664c96c7ce02156",
+    "/home/oxisrael/Friehub/Taas/gensense/src/cli/reporting.rs": "ef81bd41d44a66fa81419cb2b455332f2f21d2e0573c32efbf3998ac1c8b029f",
+    "/home/oxisrael/Friehub/Taas/gensense/src/cli/commands.rs": "41773598bd2e458b7081a317e546031061f7f35c8eea81348d2e11748fd66051",
+    "/home/oxisrael/Friehub/Taas/gensense/src/cli/mod.rs": "195f86cbc189f2a70c9e7aa38f3a25bb278c9399be3312a2c3a5d7231c675e02"
+  }
+}

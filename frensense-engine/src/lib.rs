@@ -1,3 +1,12 @@
+#![allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    clippy::stable_sort_primitive,
+    clippy::cast_possible_truncation,
+    clippy::implicit_hasher,
+    clippy::field_reassign_with_default,
+    clippy::match_same_arms
+)]
 // SPDX-License-Identifier: MIT
 #![allow(
     clippy::must_use_candidate,
@@ -100,7 +109,12 @@ pub type Result<T> = std::result::Result<T, FrensenseError>;
 ///
 /// # Errors
 /// Returns an error if the language is unsupported or the source cannot be parsed.
-pub fn analyze_file(source: &str, language: &str, file_path: &Path, file_id: FileId) -> Result<AnalysisResult> {
+pub fn analyze_file(
+    source: &str,
+    language: &str,
+    file_path: &Path,
+    file_id: FileId,
+) -> Result<AnalysisResult> {
     let lang = parser::ParserRegistry::get_language_by_name(language)?;
     let mut ts_parser = tree_sitter::Parser::new();
     ts_parser
@@ -114,10 +128,7 @@ pub fn analyze_file(source: &str, language: &str, file_path: &Path, file_id: Fil
 
     let mut functions = Vec::new();
     let parser_registry = parser::ParserRegistry;
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     fingerprint::extract_fingerprints(root, source, file_path, &mut functions, 5);
 
     let mut symbols = symbols::SymbolRegistry::new();
@@ -181,5 +192,8 @@ pub fn analyze_project(
         Some(profile::ProjectProfile::learn(&all_fingerprints))
     };
 
-    Ok(ProjectAnalysis { files: results, profile })
+    Ok(ProjectAnalysis {
+        files: results,
+        profile,
+    })
 }

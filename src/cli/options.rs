@@ -2,17 +2,14 @@
 use crate::{Severity, Suite};
 use std::path::PathBuf;
 
-#[allow(clippy::struct_excessive_bools)]
 pub struct CliOptions {
     pub format: String,
     pub is_strict: bool,
-    pub do_fix: bool,
-    pub show_diff: bool,
+    pub fix_scope: Option<String>,
+    pub diff_scope: Option<String>,
     pub diff_only: bool,
     pub severity_filter: Option<Severity>,
     pub enabled_tags: Vec<String>,
-    pub extra_rule_dirs: Vec<PathBuf>,
-    pub no_builtin: bool,
     pub emit_baseline_path: Option<String>,
     pub compare_baseline_path: Option<String>,
     pub min_confidence: f32,
@@ -41,6 +38,7 @@ pub struct CliOptions {
     pub corpus_threshold: f64,
     pub baseline_path: Option<PathBuf>,
     pub update_baseline: bool,
+    pub extra_taint_rule_dirs: Vec<PathBuf>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -48,13 +46,11 @@ pub fn parse_options(args: &[String]) -> CliOptions {
     let mut options = CliOptions {
         format: "text".to_string(),
         is_strict: false,
-        do_fix: false,
-        show_diff: false,
+        fix_scope: None,
+        diff_scope: None,
         diff_only: false,
         severity_filter: None,
         enabled_tags: Vec::new(),
-        extra_rule_dirs: Vec::new(),
-        no_builtin: false,
         emit_baseline_path: None,
         compare_baseline_path: None,
         min_confidence: 0.0,
@@ -83,6 +79,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         corpus_threshold: 0.65,
         baseline_path: None,
         update_baseline: false,
+        extra_taint_rule_dirs: Vec::new(),
     };
 
     let mut i = 1;
@@ -91,12 +88,27 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--json" => options.format = "json".to_string(),
             "--sarif" => options.format = "sarif".to_string(),
             "--strict" => options.is_strict = true,
-            #[cfg(feature = "remediation")]
-            "--fix" => options.do_fix = true,
-            #[cfg(feature = "remediation")]
-            "--diff" => options.show_diff = true,
+            "--fix" => {
+                let scope = args.get(i + 1).map(|s| s.as_str());
+                match scope {
+                    Some("style") | Some("security") | Some("all") => {
+                        options.fix_scope = Some(scope.unwrap().to_string());
+                        i += 1;
+                    }
+                    _ => options.fix_scope = Some("all".to_string()),
+                }
+            }
+            "--diff" => {
+                let scope = args.get(i + 1).map(|s| s.as_str());
+                match scope {
+                    Some("style") | Some("security") | Some("all") => {
+                        options.diff_scope = Some(scope.unwrap().to_string());
+                        i += 1;
+                    }
+                    _ => options.diff_scope = Some("all".to_string()),
+                }
+            }
             "--diff-only" => options.diff_only = true,
-            "--no-builtin-rules" => options.no_builtin = true,
             "--min-confidence" => {
                 if let Some(val) = args.get(i + 1) {
                     if let Ok(c) = val.parse::<f32>() {
@@ -119,12 +131,6 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                             std::process::exit(1);
                         }
                     };
-                    i += 1;
-                }
-            }
-            "--rules-dir" => {
-                if let Some(dir) = args.get(i + 1) {
-                    options.extra_rule_dirs.push(PathBuf::from(dir));
                     i += 1;
                 }
             }
@@ -333,6 +339,12 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 }
             }
             "--update-baseline" => options.update_baseline = true,
+            "--extra-taint-rules" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.extra_taint_rule_dirs.push(PathBuf::from(val));
+                    i += 1;
+                }
+            }
             _ => {}
         }
         i += 1;

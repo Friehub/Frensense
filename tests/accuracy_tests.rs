@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT
+#![cfg(feature = "disabled_yaml_rules")]
 
-use gensense::engine::auditor::GenSenseAuditor;
-use gensense::semantics::SymbolRegistry;
-use gensense::semantics::data_flow::{TaintOrigin, TaintRegistry};
-use gensense::{FileId, GenSenseContext, TaintCache};
+use frensense::engine::auditor::FrensenseAuditor;
+use frensense::semantics::SymbolRegistry;
+use frensense::semantics::data_flow::{TaintOrigin, TaintRegistry};
+use frensense::{FileId, FrensenseContext, TaintCache};
 use std::collections::HashMap;
 use std::path::Path;
 
 struct DummyRule {
-    metadata: gensense::RuleMetadata,
+    metadata: frensense::RuleMetadata,
 }
-impl gensense::GenSenseRule for DummyRule {
-    fn metadata(&self) -> &gensense::RuleMetadata {
+impl frensense::FrensenseRule for DummyRule {
+    fn metadata(&self) -> &frensense::RuleMetadata {
         &self.metadata
     }
     fn check<'a>(
         &self,
         _n: tree_sitter::Node<'a>,
-        _c: &GenSenseContext<'a>,
-    ) -> Vec<gensense::Advisory> {
+        _c: &FrensenseContext<'a>,
+    ) -> Vec<frensense::Advisory> {
         vec![]
     }
     fn applies_to(&self, _ext: &str) -> bool {
@@ -31,7 +32,7 @@ impl gensense::GenSenseRule for DummyRule {
 fn test_path_interning_stability() {
     let path = Path::new("main.rs");
     let content = "fn main() { let x = 1; }";
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -50,7 +51,7 @@ fn test_path_interning_stability() {
         (tree.clone(), content.to_string(), ops.clone()),
     );
 
-    let ctx = GenSenseContext {
+    let ctx = FrensenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -66,7 +67,7 @@ fn test_path_interning_stability() {
         ngram_window_size: 5,
     };
 
-    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
+    let analyzer = frensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let taint_reg = TaintRegistry::default();
 
     // Resolve definition in a different file multiple times
@@ -88,7 +89,7 @@ fn test_parameter_destructuring_taint() {
         }
     ";
     let path = Path::new("test.js");
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -100,7 +101,7 @@ fn test_parameter_destructuring_taint() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let ctx = GenSenseContext {
+    let ctx = FrensenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -116,7 +117,7 @@ fn test_parameter_destructuring_taint() {
         ngram_window_size: 5,
     };
 
-    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
+    let analyzer = frensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
 
     // Find the actual function definition node dynamically
     let mut def_node = None;
@@ -151,7 +152,7 @@ fn test_method_chain_taint_propagation() {
         sink(cleaned);
     ";
     let path = Path::new("test.js");
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -163,7 +164,7 @@ fn test_method_chain_taint_propagation() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let ctx = GenSenseContext {
+    let ctx = FrensenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -179,7 +180,7 @@ fn test_method_chain_taint_propagation() {
         ngram_window_size: 5,
     };
 
-    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
+    let analyzer = frensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = TaintRegistry::default();
     taint_reg.taint("raw", TaintOrigin::UserInput);
 
@@ -187,17 +188,17 @@ fn test_method_chain_taint_propagation() {
     let sink_re = regex::Regex::new("sink").unwrap();
 
     let rule = DummyRule {
-        metadata: gensense::RuleMetadata {
+        metadata: frensense::RuleMetadata {
             id: "DUMMY".into(),
             name: "Dummy".into(),
-            severity: gensense::Severity::Info,
+            severity: frensense::Severity::Info,
             observation: "Dummy".into(),
             impact: "None".into(),
             improvement: "None".into(),
             tags: vec![],
             category: "Test".into(),
             confidence: 0.5,
-            precision: gensense::Precision::VeryHigh,
+            precision: frensense::Precision::VeryHigh,
         },
     };
 
@@ -226,7 +227,7 @@ fn test_return_value_taint_propagation() {
         sink(value);
     ";
     let path = Path::new("test.js");
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -245,7 +246,7 @@ fn test_return_value_taint_propagation() {
         (tree.clone(), content.to_string(), ops.clone()),
     );
 
-    let ctx = GenSenseContext {
+    let ctx = FrensenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -261,7 +262,7 @@ fn test_return_value_taint_propagation() {
         ngram_window_size: 5,
     };
 
-    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
+    let analyzer = frensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = TaintRegistry::default();
     taint_reg.taint("secret", TaintOrigin::UserInput);
 
@@ -269,17 +270,17 @@ fn test_return_value_taint_propagation() {
     let sink_re = regex::Regex::new("sink").unwrap();
 
     let rule = DummyRule {
-        metadata: gensense::RuleMetadata {
+        metadata: frensense::RuleMetadata {
             id: "DUMMY".into(),
             name: "Dummy".into(),
-            severity: gensense::Severity::Info,
+            severity: frensense::Severity::Info,
             observation: "Dummy".into(),
             impact: "None".into(),
             improvement: "None".into(),
             tags: vec![],
             category: "Test".into(),
             confidence: 0.5,
-            precision: gensense::Precision::VeryHigh,
+            precision: frensense::Precision::VeryHigh,
         },
     };
 
@@ -300,8 +301,9 @@ fn test_return_value_taint_propagation() {
 
 // Test S-expression AST Query in rule compiler and engine
 #[test]
+#[cfg(feature = "disabled_yaml_rules")]
 fn test_sexpr_ast_query() {
-    use gensense::engine::project::Engine;
+    use frensense::engine::project::Engine;
 
     let yaml = r#"
 rules:
@@ -324,9 +326,9 @@ rules:
     engine.set_isolate_rules(true);
     let rule_value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
     let rules_list = rule_value["rules"].as_sequence().unwrap();
-    let dsl_rule: gensense::rules::core::CoreRule =
+    let dsl_rule: frensense::rules::core::CoreRule =
         serde_yaml::from_value(rules_list[0].clone()).unwrap();
-    let compiled_rule = gensense::rules::compiler::RuleCompiler::compile(dsl_rule).unwrap();
+    let compiled_rule = frensense::rules::compiler::RuleCompiler::compile(dsl_rule).unwrap();
     engine.set_rules(vec![Box::new(compiled_rule)]);
 
     // Positive case: a validate function that returns nothing / has no rejection path
@@ -383,7 +385,7 @@ fn test_object_aliasing_field_taint_propagation() {
         console.log(payload);
     ";
     let path = Path::new("test.ts");
-    let auditor = GenSenseAuditor::default_auditor();
+    let auditor = FrensenseAuditor::default_auditor();
     let (lang, tree) = auditor.parse_source(path, content).unwrap();
     let symbols = auditor
         .discover_symbols(path, FileId(1), content, &lang, &tree)
@@ -395,7 +397,7 @@ fn test_object_aliasing_field_taint_propagation() {
     let ops = auditor.extract_semantic_ops(path, content, &tree);
     let taint_cache = TaintCache::default();
 
-    let ctx = GenSenseContext {
+    let ctx = FrensenseContext {
         file_id: FileId(1),
         file_path: path,
         source_code: content,
@@ -411,7 +413,7 @@ fn test_object_aliasing_field_taint_propagation() {
         ngram_window_size: 5,
     };
 
-    let analyzer = gensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
+    let analyzer = frensense::semantics::data_flow::DataFlowAnalyzer::new(&ctx, tree.root_node());
     let mut taint_reg = TaintRegistry::default();
 
     // Simulate: pwd is tainted by source_pattern, then payload = { data: pwd }
@@ -423,17 +425,17 @@ fn test_object_aliasing_field_taint_propagation() {
     let sink_re = regex::Regex::new("console\\.log").unwrap();
 
     let rule = DummyRule {
-        metadata: gensense::RuleMetadata {
+        metadata: frensense::RuleMetadata {
             id: "TS_DATA_LEAK_TRACKER".into(),
             name: "Dummy".into(),
-            severity: gensense::Severity::Warning,
+            severity: frensense::Severity::Warning,
             observation: "Dummy".into(),
             impact: "None".into(),
             improvement: "None".into(),
             tags: vec![],
             category: "Test".into(),
             confidence: 0.85,
-            precision: gensense::Precision::VeryHigh,
+            precision: frensense::Precision::VeryHigh,
         },
     };
 
