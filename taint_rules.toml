@@ -55,3 +55,33 @@ severity = "critical"
 observation = "Credential may be sent over HTTP in cleartext."
 impact = "Credentials transmitted without encryption are intercepted on the network."
 improvement = "Use HTTPS. Never pass credentials in URL query parameters."
+
+[[rules]]
+id = "TAINT_INPUT_TO_SQL"
+languages = ["rust", "typescript", "javascript", "python"]
+source = "input|body|param|query|request|user|header|cookie"
+sink = "raw_query|execute_raw|format_sql|interpolate|sql_query|raw\\(|format!.*SELECT|format!.*INSERT|format!.*UPDATE|format!.*DELETE"
+severity = "critical"
+observation = "Untrusted input may be interpolated into a raw SQL string."
+impact = "SQL injection allows data exfiltration and arbitrary database modification."
+improvement = "Use parameterized queries or an ORM. Never interpolate user input into SQL strings."
+
+[[rules]]
+id = "TAINT_INPUT_TO_DESERIALIZE"
+languages = ["rust", "typescript", "javascript", "python"]
+source = "input|body|param|request|user|header|cookie"
+sink = "from_str|from_slice|loads|parse|deserialize|JSON\\.parse|json\\.loads"
+severity = "warning"
+observation = "Untrusted input passed to a deserialization function."
+impact = "Malicious payloads can trigger deserialization vulnerabilities or panic the process."
+improvement = "Validate input schema before deserializing. Use size limits and type assertions."
+
+[[rules]]
+id = "TAINT_INPUT_TO_REGEX"
+languages = ["rust", "typescript", "javascript"]
+source = "input|body|param|query|user"
+sink = "Regex::new|new RegExp|re\\.compile|regex\\.compile"
+severity = "warning"
+observation = "Untrusted input used as a regex pattern — potential ReDoS."
+impact = "A crafted input can cause catastrophic backtracking and hang the process."
+improvement = "Sanitize or escape input before using as a regex. Use a regex timeout or bounded engine."

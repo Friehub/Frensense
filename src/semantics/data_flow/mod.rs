@@ -30,6 +30,7 @@ pub struct DataFlowAnalyzer<'a, 'ctx> {
     pub(crate) data_flow_engine: Option<&'ctx frensense_engine::data_flow::DataFlowEngine>,
     pub(crate) alias_tracker: RefCell<frensense_engine::data_flow::AliasTracker>,
     pub(crate) sanitize_re: Option<Regex>,
+    pub(crate) seeder: Option<crate::engine::taint_seeder::TaintSeeder<'a>>,
 }
 
 impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
@@ -48,6 +49,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             data_flow_engine: None,
             alias_tracker: RefCell::new(frensense_engine::data_flow::AliasTracker::new()),
             sanitize_re: None,
+            seeder: None,
         }
     }
 
@@ -100,6 +102,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             data_flow_engine: None,
             alias_tracker: RefCell::new(frensense_engine::data_flow::AliasTracker::new()),
             sanitize_re: None,
+            seeder: None,
         }
     }
 
@@ -130,6 +133,13 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             data_flow_engine: Some(engine),
             alias_tracker: RefCell::new(alias_tracker),
             sanitize_re: None,
+            seeder: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_seeder(mut self, seeder: crate::engine::taint_seeder::TaintSeeder<'a>) -> Self {
+        self.seeder = Some(seeder);
+        self
     }
 }

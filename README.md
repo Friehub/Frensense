@@ -74,6 +74,23 @@ cp fixed.rs     corpus/targets/rust_my_bug_negative.rs
 
 No YAML. No compiler changes. No DSL.
 
+## Corpus Data Sources
+
+The detection corpus is built from real-world vulnerability data:
+
+- **CVEfixes** — 12,107 vulnerability-fixing commits across 4,249 open-source projects (11,873 CVEs, 272 CWE types). Before/after patches extracted as positive/negative function pairs.
+- **Semgrep community rules** — 3,000+ rules with `_bad`/`_ok` test fixtures converted to corpus pairs.
+
+### Citation
+
+If you use CVEfixes data in your research or tooling, please cite:
+
+> Moonen, L., Vidziunas, L., & Bhandari, G. P. (2024). *CVEfixes: Automated Collection of Vulnerabilities and Their Fixes from Open-Source Software* (v1.0.8). 17th International Conference on Predictive Models and Data Analytics in Software Engineering (PROMISE), Athens, Greece. Zenodo. https://doi.org/10.5281/zenodo.13138703
+
+If you use the Semgrep community rules as a corpus source, please cite:
+
+> Semgrep, Inc. (2024). *Semgrep Rules Repository*. GitHub. https://github.com/semgrep/semgrep-rules
+
 ## License
 
 MIT

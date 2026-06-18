@@ -94,7 +94,7 @@ tag, 388 total → 20 scanned).
 | :-- | ----: | -------: | ------: |
 | **HEAD** | **0** | **0** | **0** |
 
-*(Run `./scripts/historical-benchmark.sh .` for data across all gensense tags.)*
+*(Run `./scripts/historical-benchmark.sh .` for data across all frensense tags.)*
 
 HEAD reaches 0 warnings because `exclude_scope` and `precision` filtering
 exclude the patterns found in Frensense's own source. The threshold in

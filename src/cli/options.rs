@@ -36,6 +36,7 @@ pub struct CliOptions {
     pub profile_stats: bool,
     pub corpus_dir: Option<PathBuf>,
     pub corpus_threshold: f64,
+    pub threshold_overrides: Vec<(String, f64)>,
     pub baseline_path: Option<PathBuf>,
     pub update_baseline: bool,
     pub extra_taint_rule_dirs: Vec<PathBuf>,
@@ -77,6 +78,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         profile_stats: false,
         corpus_dir: None,
         corpus_threshold: 0.65,
+        threshold_overrides: Vec::new(),
         baseline_path: None,
         update_baseline: false,
         extra_taint_rule_dirs: Vec::new(),
@@ -328,6 +330,46 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 if let Some(val) = args.get(i + 1) {
                     if let Ok(t) = val.parse::<f64>() {
                         options.corpus_threshold = t;
+                    }
+                    i += 1;
+                }
+            }
+            "--threshold-sec" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(t) = val.parse::<f64>() {
+                        options.threshold_overrides.push(("sec".to_string(), t));
+                    }
+                    i += 1;
+                }
+            }
+            "--threshold-llm" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(t) = val.parse::<f64>() {
+                        options.threshold_overrides.push(("llm".to_string(), t));
+                    }
+                    i += 1;
+                }
+            }
+            "--threshold-arch" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(t) = val.parse::<f64>() {
+                        options.threshold_overrides.push(("arch".to_string(), t));
+                    }
+                    i += 1;
+                }
+            }
+            "--threshold-async" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(t) = val.parse::<f64>() {
+                        options.threshold_overrides.push(("async".to_string(), t));
+                    }
+                    i += 1;
+                }
+            }
+            "--threshold-csa" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(t) = val.parse::<f64>() {
+                        options.threshold_overrides.push(("csa".to_string(), t));
                     }
                     i += 1;
                 }

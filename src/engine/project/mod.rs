@@ -57,6 +57,9 @@ pub struct Engine {
     profile_threshold: f64,
 
     corpus_dir: Option<PathBuf>,
+    corpus_threshold: f64,
+    threshold_overrides: Vec<(String, f64)>,
+    corpus_bundle: Option<&'static [u8]>,
     baseline_path: Option<PathBuf>,
     extra_taint_rule_dirs: Vec<PathBuf>,
 }
@@ -92,6 +95,9 @@ impl Engine {
             #[cfg(feature = "fingerprinting")]
             profile_threshold: 0.7,
             corpus_dir: None,
+            corpus_threshold: 0.60,
+            threshold_overrides: Vec::new(),
+            corpus_bundle: None,
             baseline_path: None,
             extra_taint_rule_dirs: Vec::new(),
         }
@@ -99,6 +105,18 @@ impl Engine {
 
     pub fn set_corpus_dir(&mut self, dir: std::path::PathBuf) {
         self.corpus_dir = Some(dir);
+    }
+
+    pub fn set_corpus_threshold(&mut self, threshold: f64) {
+        self.corpus_threshold = threshold;
+    }
+
+    pub fn set_threshold_overrides(&mut self, overrides: Vec<(String, f64)>) {
+        self.threshold_overrides = overrides;
+    }
+
+    pub fn set_corpus_bundle(&mut self, bundle: &'static [u8]) {
+        self.corpus_bundle = Some(bundle);
     }
 
     pub fn set_baseline_path(&mut self, path: std::path::PathBuf) {

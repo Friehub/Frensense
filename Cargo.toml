@@ -28,6 +28,10 @@ path = "src/bin/frensense.rs"
 name = "frensense-mcp"
 path = "src/bin/frensense-mcp.rs"
 
+[[bin]]
+name = "build-corpus-bundle"
+path = "src/bin/build-corpus-bundle.rs"
+
 [dependencies]
 frensense-engine = { path = "frensense-engine" }
 tree-sitter = "0.23"

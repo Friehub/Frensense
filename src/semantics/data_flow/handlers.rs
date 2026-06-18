@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+use super::DataFlowAnalyzer;
 use super::TaintRegistry;
-use super::{DataFlowAnalyzer, TaintOrigin};
 use crate::{Advisory, FrensenseRule};
 use regex::Regex;
 use tree_sitter::Node;
@@ -54,15 +54,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         {
             let v_node = self.node_at(value_range);
             registry.register_symbol(name, v_node.start_byte(), v_node.end_byte());
-            let val_code = &self.current_source[v_node.start_byte()..v_node.end_byte()];
 
             self.record_alias_if_assign(name, v_node);
 
-            let origin = if source_re.is_match(name) || source_re.is_match(val_code) {
-                Some(TaintOrigin::UserInput)
-            } else {
-                self.resolve_taint(v_node, source_re, sink_re, rule, registry, advisories)
-            };
+            let origin = self.resolve_taint(v_node, source_re, sink_re, rule, registry, advisories);
 
             if let Some(o) = origin {
                 if let Some((obj, prop)) = name.split_once('.') {
@@ -93,15 +88,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
             && value_range.end_byte <= block_range.end_byte
         {
             let v_node = self.node_at(value_range);
-            let val_code = &self.current_source[v_node.start_byte()..v_node.end_byte()];
 
             self.record_alias_if_assign(target, v_node);
 
-            let origin = if source_re.is_match(target) || source_re.is_match(val_code) {
-                Some(TaintOrigin::UserInput)
-            } else {
-                self.resolve_taint(v_node, source_re, sink_re, rule, registry, advisories)
-            };
+            let origin = self.resolve_taint(v_node, source_re, sink_re, rule, registry, advisories);
 
             if let Some(o) = origin {
                 if let Some((obj, prop)) = target.split_once('.') {

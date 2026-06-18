@@ -1,16 +1,18 @@
-use crate::engine::taint_rules::{COMBINED_SINK_RE, COMBINED_SOURCE_RE};
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId};
+use regex::Regex;
 
 pub fn find(
     symbols: &SymbolRegistry,
     snap: &crate::engine::project::FileSnapshot,
+    source_re: &Regex,
+    sink_re: &Regex,
 ) -> Vec<Advisory> {
     let graph = symbols.graph();
     let mut advisories = Vec::new();
 
     for sym in graph.all_symbols() {
-        if sym.file_path != snap.path.to_string_lossy() || !COMBINED_SOURCE_RE.is_match(&sym.name) {
+        if sym.file_path != snap.path.to_string_lossy() || !source_re.is_match(&sym.name) {
             continue;
         }
         let caller_file = &sym.file_path;
@@ -18,7 +20,7 @@ pub fn find(
             for callee_id in graph.neighbors_of(caller_id, crate::semantics::graph::EdgeKind::Calls)
             {
                 if let Some(callee) = graph.get_symbol(callee_id) {
-                    if caller_file != &callee.file_path && COMBINED_SINK_RE.is_match(&callee.name) {
+                    if caller_file != &callee.file_path && sink_re.is_match(&callee.name) {
                         advisories.push(
                             Advisory::bare("CROSS_FILE_TAINT", crate::Severity::Warning, FileId(0), std::path::Path::new(&callee.file_path),
                                 format!("Taint may flow from '{}' in {} through call to '{}' in {}.",

@@ -70,11 +70,16 @@ fn shutdown(mut child: Child, mut stdin: ChildStdin) {
 /// Convenience: call tools/call once in a fresh process and parse the inner
 /// result object.
 fn once_tool_call(path: &str) -> serde_json::Value {
+    once_tool_call_with_threshold(path, "warning")
+}
+
+fn once_tool_call_with_threshold(path: &str, severity_threshold: &str) -> serde_json::Value {
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     let req = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}"}}}}}}"#,
-        path.replace('\\', "\\\\").replace('\n', "")
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","severity_threshold":"{}"}}}}}}"#,
+        path.replace('\\', "\\\\").replace('\n', ""),
+        severity_threshold
     );
     send_request(&mut stdin, &req);
 
@@ -101,7 +106,7 @@ fn test_mcp_tools_list() {
 
     assert_eq!(resp["id"], 1);
     assert!(resp["result"]["tools"].is_array());
-    assert_eq!(resp["result"]["tools"][0]["name"], "gensense_audit");
+    assert_eq!(resp["result"]["tools"][0]["name"], "frensense_audit");
 
     let schema = &resp["result"]["tools"][0]["inputSchema"];
     assert!(
@@ -143,10 +148,10 @@ fn test_mcp_audit_clean_file() {
 #[test]
 fn test_mcp_audit_triggers_findings() {
     let dir = tempfile::tempdir().unwrap();
-    let f = dir.path().join("panic.rs");
-    fs::write(&f, "fn main() { panic!(\"boom\"); }").unwrap();
+    let f = dir.path().join("unused.rs");
+    fs::write(&f, "fn main() { let x = 1; }").unwrap();
 
-    let result = once_tool_call(&f.to_string_lossy());
+    let result = once_tool_call_with_threshold(&f.to_string_lossy(), "info");
     assert_eq!(result["clean"], false);
 
     let ids: Vec<&str> = result["advisories"]
@@ -155,7 +160,7 @@ fn test_mcp_audit_triggers_findings() {
         .iter()
         .map(|a| a["rule_id"].as_str().unwrap())
         .collect();
-    assert!(ids.contains(&"RUST_PANIC_IN_LIB"));
+    assert!(ids.contains(&"UNUSED_VARIABLE"));
 }
 
 #[test]
@@ -186,7 +191,7 @@ fn test_mcp_severity_threshold_filter() {
 
     let (child, mut stdin, mut stdout) = spawn_mcp();
     let req = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","severity_threshold":"critical"}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","severity_threshold":"critical"}}}}}}"#,
         f.to_string_lossy()
     );
     send_request(&mut stdin, &req);
@@ -211,7 +216,7 @@ fn test_mcp_language_filter() {
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     let req = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","language":"rust"}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","language":"rust"}}}}}}"#,
         dir.path().to_string_lossy()
     );
     send_request(&mut stdin, &req);
@@ -239,7 +244,7 @@ fn test_mcp_rules_filter() {
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     let req = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","rules":["NONEXISTENT_RULE"]}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","rules":["NONEXISTENT_RULE"]}}}}}}"#,
         f.to_string_lossy()
     );
     send_request(&mut stdin, &req);
@@ -375,7 +380,7 @@ fn test_mcp_tools_call_without_arguments() {
     send_request(
         &mut stdin,
         &format!(
-            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}"}}}}}}"#,
+            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}"}}}}}}"#,
             dir.path().display()
         ),
     );
@@ -396,7 +401,7 @@ fn test_mcp_extra_fields_ignored() {
     send_request(
         &mut stdin,
         &format!(
-            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","fix_auto":false,"severity_threshold":"info","unknown_field":"should-be-ignored"}},"extraTopLevel":null}}}}"#,
+            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","fix_auto":false,"severity_threshold":"info","unknown_field":"should-be-ignored"}},"extraTopLevel":null}}}}"#,
             dir.path().display()
         ),
     );
@@ -463,20 +468,28 @@ fn test_mcp_deeply_nested_path() {
 fn test_mcp_directory_scan() {
     let dir = tempfile::tempdir().unwrap();
 
-    // Mix of clean, problematic, and target files
-    fs::write(dir.path().join("good.rs"), "fn main() { let x = 1; }").unwrap();
-    fs::write(dir.path().join("bad.rs"), "fn main() { panic!(\"x\"); }").unwrap();
-    fs::write(dir.path().join("main.rs"), "fn main() { todo!(); }").unwrap();
+    // Files that trigger UNUSED_VARIABLE findings
+    fs::write(
+        dir.path().join("good.rs"),
+        "fn main() { let x = 1; let y = 2; }",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("bad.rs"),
+        "fn main() { let a = 1; let b = 2; }",
+    )
+    .unwrap();
+    fs::write(dir.path().join("main.rs"), "fn main() { let _ = 1; }").unwrap();
     fs::create_dir(dir.path().join("nested")).unwrap();
     fs::write(
         dir.path().join("nested").join("deep.rs"),
-        "fn main() { panic!(\"y\"); }",
+        "fn process() { let val = 42; }",
     )
     .unwrap();
 
     let (child, mut stdin, mut stdout) = spawn_mcp();
     let req = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","severity_threshold":"info"}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","severity_threshold":"info"}}}}}}"#,
         dir.path().to_string_lossy()
     );
     send_request(&mut stdin, &req);
@@ -488,7 +501,7 @@ fn test_mcp_directory_scan() {
     let count = text["advisories"].as_array().unwrap().len();
     assert!(
         count >= 2,
-        "must find at least 2 advisories (panic + todo), got {}: {}",
+        "must find at least 2 advisories, got {}: {}",
         count,
         serde_json::to_string_pretty(&text["advisories"]).unwrap_or_default()
     );
@@ -601,7 +614,7 @@ fn test_mcp_audit_self_source_directory() {
 
     let (child, mut stdin, mut stdout) = spawn_mcp();
     let req = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}","severity_threshold":"info"}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}","severity_threshold":"info"}}}}}}"#,
         src_dir.to_string_lossy()
     );
     send_request(&mut stdin, &req);
@@ -654,11 +667,11 @@ fn test_mcp_tools_call_interleaved_response_ordering() {
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     let req_a = format!(
-        r#"{{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}"}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}"}}}}}}"#,
         dir.path().join("a.rs").to_string_lossy()
     );
     let req_b = format!(
-        r#"{{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}"}}}}}}"#,
+        r#"{{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}"}}}}}}"#,
         dir.path().join("b.rs").to_string_lossy()
     );
 
@@ -691,7 +704,7 @@ fn test_mcp_audit_consecutive_different_paths() {
 
     for (i, path) in [&clean_f, &dirty_f, &nonexistent].iter().enumerate() {
         let req = format!(
-            r#"{{"jsonrpc":"2.0","id":{},"method":"tools/call","params":{{"name":"gensense_audit","arguments":{{"path":"{}"}}}}}}"#,
+            r#"{{"jsonrpc":"2.0","id":{},"method":"tools/call","params":{{"name":"frensense_audit","arguments":{{"path":"{}"}}}}}}"#,
             i,
             path.to_string_lossy()
         );

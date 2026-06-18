@@ -143,16 +143,30 @@ impl FrensenseAuditor {
         self.combined_queries.borrow_mut().clear();
     }
 
-    #[allow(clippy::unused_self, clippy::too_many_arguments)]
     fn is_rule_enabled(
         &self,
-        _rule: &dyn FrensenseRule,
-        _category_filter: &std::collections::HashSet<String>,
-        _tag_filter: &std::collections::HashSet<String>,
-        _suite: crate::Suite,
+        rule: &dyn FrensenseRule,
+        category_filter: &std::collections::HashSet<String>,
+        tag_filter: &std::collections::HashSet<String>,
+        suite: crate::Suite,
         _env: crate::FrensenseEnvironment,
-        _severity_filter: Option<crate::Severity>,
+        severity_filter: Option<crate::Severity>,
     ) -> bool {
+        let meta = rule.metadata();
+        if !category_filter.is_empty() && !category_filter.contains(meta.category.as_ref()) {
+            return false;
+        }
+        if !tag_filter.is_empty() && !meta.tags.iter().any(|t| tag_filter.contains(t.as_ref())) {
+            return false;
+        }
+        if !meta.meets_suite(suite) {
+            return false;
+        }
+        if let Some(threshold) = severity_filter {
+            if !meta.severity.meets_threshold(threshold) {
+                return false;
+            }
+        }
         true
     }
 

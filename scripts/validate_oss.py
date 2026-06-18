@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate GenSense rules against real open-source codebases.
+"""Validate Frensense rules against real open-source codebases.
 
 Usage:
     python scripts/validate_oss.py                           # from pre-built binary
@@ -8,7 +8,7 @@ Usage:
     python scripts/validate_oss.py --clean                   # remove repos after
     python scripts/validate_oss.py --skip-clone              # skip clone, use existing
 
-Clones repos shallowly, runs gensense on each, then prints a per-rule
+Clones repos shallowly, runs frensense on each, then prints a per-rule
 summary with sample findings for FP/TP review.
 """
 
@@ -16,17 +16,29 @@ import subprocess, json, os, sys, argparse, shutil, textwrap
 from pathlib import Path
 from collections import defaultdict
 
-GENSENSE_BIN = Path("./target/release/gensense")
-WORKDIR = Path("/tmp/gensense-oss-validation")
+FRENSENSE_BIN = Path("./target/release/frensense")
+WORKDIR = Path("/tmp/frensense-oss-validation")
 
 REPOS = {
+    "axum": {
+        "url": "https://github.com/tokio-rs/axum.git",
+        "scan": "axum/src",
+    },
+    "actix-web": {
+        "url": "https://github.com/actix/actix-web.git",
+        "scan": "actix-web/src",
+    },
+    "hyper": {
+        "url": "https://github.com/hyperium/hyper.git",
+        "scan": "src",
+    },
     "express": {
         "url": "https://github.com/expressjs/express.git",
         "scan": "lib",
     },
     "serde": {
         "url": "https://github.com/serde-rs/serde.git",
-        "scan": ".",
+        "scan": "serde/src",
     },
     "tokio": {
         "url": "https://github.com/tokio-rs/tokio.git",
@@ -39,7 +51,7 @@ REPOS = {
 TARGET_RULES = set()
 
 
-def build_gensense():
+def build_frensense():
     print("[build] cargo build --release ...")
     r = subprocess.run(["cargo", "build", "--release"], capture_output=True, text=True)
     if r.returncode != 0:
@@ -69,12 +81,12 @@ def clone_repos(force=False):
             print(f"  OK ({size} KB)")
 
 
-def run_gensense(path: Path) -> list:
-    """Run gensense on path, return list of advisories."""
+def run_frensense(path: Path) -> list:
+    """Run frensense on path, return list of advisories."""
     try:
         result = subprocess.run(
-            [str(GENSENSE_BIN), str(path), "--json"],
-            capture_output=True, text=True, timeout=180,
+            [str(FRENSENSE_BIN), str(path), "--json"],
+            capture_output=True, text=True, timeout=300,
         )
     except subprocess.TimeoutExpired:
         print(f"  [TIMEOUT] skipped")
@@ -140,18 +152,18 @@ def print_summary(all_findings, elapsed):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate GenSense rules on OSS codebases")
-    parser.add_argument("--build", action="store_true", help="Rebuild gensense binary first")
+    parser = argparse.ArgumentParser(description="Validate Frensense rules on OSS codebases")
+    parser.add_argument("--build", action="store_true", help="Rebuild frensense binary first")
     parser.add_argument("--clean", action="store_true", help="Remove cloned repos after run")
     parser.add_argument("--quick", action="store_true", help="Only scan repo subdirs")
     parser.add_argument("--skip-clone", action="store_true", help="Skip cloning, use existing")
     parser.add_argument("--rule", action="append", help="Filter to specific rule(s)", default=None)
     args = parser.parse_args()
 
-    if not GENSENSE_BIN.exists() or args.build:
-        build_gensense()
+    if not FRENSENSE_BIN.exists() or args.build:
+        build_frensense()
 
-    if not GENSENSE_BIN.exists():
+    if not FRENSENSE_BIN.exists():
         print("FATAL: binary not found. Build with --build first.")
         sys.exit(1)
 
@@ -169,7 +181,7 @@ def main():
             continue
 
         print(f"[scan] {name} — {scan_path} ...")
-        findings = run_gensense(scan_path)
+        findings = run_frensense(scan_path)
 
         if args.rule:
             findings = [f for f in findings if f["rule_id"] in args.rule]

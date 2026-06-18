@@ -10,6 +10,8 @@ use frensense::{Engine, Result};
 use std::env;
 use std::path::PathBuf;
 
+const CORPUS_BUNDLE: &[u8] = include_bytes!("../../frensense-corpus.frc");
+
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     // nosemgrep: rust.lang.security.args.args
@@ -22,6 +24,7 @@ fn main() -> Result<()> {
     let options = parse_options(&args);
 
     let mut engine = Engine::new();
+    engine.set_corpus_bundle(CORPUS_BUNDLE);
     engine.set_suite(options.suite);
     engine.set_severity_filter(options.severity_filter);
 
@@ -62,6 +65,10 @@ fn main() -> Result<()> {
 
     if let Some(ref corpus_dir) = options.corpus_dir {
         engine.set_corpus_dir(corpus_dir.clone());
+    }
+    engine.set_corpus_threshold(options.corpus_threshold);
+    if !options.threshold_overrides.is_empty() {
+        engine.set_threshold_overrides(options.threshold_overrides.clone());
     }
     if let Some(ref baseline_path) = options.baseline_path {
         engine.set_baseline_path(baseline_path.clone());

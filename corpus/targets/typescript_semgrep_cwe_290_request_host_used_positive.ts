@@ -1,0 +1,5 @@
+// Vulnerable: '$http_host' and '$host' variables may contain a malicious value from attacker controlled 'Host' request header. Use an explicitly configured host value or a allow list for validation.
+// Pattern: {'pattern': '$http_host'} | {'pattern': '$host'}
+function vulnerable() {
+  // TODO: implement pattern match
+}

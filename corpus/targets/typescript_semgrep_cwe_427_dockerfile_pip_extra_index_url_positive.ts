@@ -1,0 +1,5 @@
+// Vulnerable: When `--extra-index-url` is used in a `pip install` command, this is usually meant to  install a package from a package index other than the public one.  However, if a package is added with the same name to the public PyPi repository, and if the version number is high enough, this package will be installed when building this docker image. This package may be a malicious dependency. Such an attack is called a dependency confusion attack. If using a private package index, prefer to use `--index-url` if possible. 
+// Pattern: RUN ... $PIP install ... --extra-index-url ...
+function vulnerable() {
+  // TODO: implement pattern match
+}

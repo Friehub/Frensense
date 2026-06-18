@@ -30,6 +30,11 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         let mut advisories = Vec::new();
         let block_range = super::normalization::Range::from(node);
 
+        // Phase 5: Seed taint from typed entry points instead of regex on identifiers
+        if let Some(ref seeder) = self.seeder {
+            seeder.seed_from_function_params(self.root, self.current_source, registry);
+        }
+
         for op in self.context.semantic_ops {
             match op {
                 SemanticOp::Binding { name, value_range } => {

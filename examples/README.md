@@ -1,6 +1,6 @@
-# GenSense Rule Examples
+# Frensense Rule Examples
 
-This directory contains annotated example rules for each major GenSense version.
+This directory contains annotated example rules for each major Frensense version.
 Use these as starting points when writing custom rules for your project.
 
 ```
@@ -24,30 +24,30 @@ examples/
 
 ## Quick Start
 
-Place rule files inside a `.gensense/rules/` directory at the root of your project:
+Place rule files inside a `.frensense/rules/` directory at the root of your project:
 
 ```
 my-project/
-└── .gensense/
+└── .frensense/
     └── rules/
         ├── security.yml
         └── architecture.yml
 ```
 
-GenSense will automatically load all `.yml` files found under `.gensense/rules/`
+Frensense will automatically load all `.yml` files found under `.frensense/rules/`
 in addition to the built-in rules.
 
 Run an audit:
 ```bash
-gensense ./my-project
+frensense ./my-project
 ```
 
 Run with auto-remediation (v0.3.0+):
 ```bash
-gensense ./my-project --fix
+frensense ./my-project --fix
 ```
 
 Preview fixes before applying them:
 ```bash
-gensense ./my-project --fix --diff
+frensense ./my-project --fix --diff
 ```

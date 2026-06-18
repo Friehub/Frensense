@@ -1,0 +1,5 @@
+// Vulnerable: The special variable IFS affects how splitting takes place when expanding unquoted variables. Don't set it globally. Prefer a dedicated utility such as 'cut' or 'awk' if you need to split input data. If you must use 'read', set IFS locally using e.g. 'IFS="," read -a my_array'.
+// Pattern: IFS=...
+function vulnerable() {
+  // TODO: implement pattern match
+}

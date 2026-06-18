@@ -173,6 +173,50 @@ impl PatternScorer {
 
         sim_to_positive * (1.0 - sim_to_negative) * f64::from(transfer)
     }
+
+    pub fn similarity_to_positive(
+        candidate: &FunctionFingerprint,
+        positive: &FunctionFingerprint,
+    ) -> f64 {
+        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
+        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
+            || positive.weighted_ngram_hashes.is_empty()
+        {
+            jaccard(&candidate.ngram_hashes, &positive.ngram_hashes)
+        } else {
+            weighted_jaccard(
+                &candidate.weighted_ngram_hashes,
+                &positive.weighted_ngram_hashes,
+            )
+        };
+        ngram_sim * 0.35
+            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.30
+            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.20
+            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.10
+            + type_usage_overlap(candidate, positive) * 0.05
+    }
+
+    pub fn similarity_to_negative(
+        candidate: &FunctionFingerprint,
+        negative: &FunctionFingerprint,
+    ) -> f64 {
+        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
+        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
+            || negative.weighted_ngram_hashes.is_empty()
+        {
+            jaccard(&candidate.ngram_hashes, &negative.ngram_hashes)
+        } else {
+            weighted_jaccard(
+                &candidate.weighted_ngram_hashes,
+                &negative.weighted_ngram_hashes,
+            )
+        };
+        ngram_sim * 0.35
+            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.30
+            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.20
+            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.10
+            + type_usage_overlap(candidate, negative) * 0.05
+    }
 }
 
 fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {

@@ -11,6 +11,8 @@ use serde_json::{Value, json};
 use std::io::{self, Write};
 use std::path::Path;
 
+const CORPUS_BUNDLE: &[u8] = include_bytes!("../../frensense-corpus.frc");
+
 pub fn tool_definition() -> Value {
     json!({
         "name": "frensense_audit",
@@ -126,6 +128,7 @@ pub fn run_audit_streamed(
     }
 
     let mut engine = Engine::new();
+    engine.set_corpus_bundle(CORPUS_BUNDLE);
     let rule_count = engine.auditor().rules().len();
     eprintln!(
         "frensense-mcp: streaming cwd={:?}, rules={}",
@@ -207,6 +210,7 @@ pub fn run_audit(
     }
 
     let mut engine = Engine::new();
+    engine.set_corpus_bundle(CORPUS_BUNDLE);
     let rule_count = engine.auditor().rules().len();
     eprintln!(
         "frensense-mcp: cwd={:?}, rules={}, threshold={:?}",

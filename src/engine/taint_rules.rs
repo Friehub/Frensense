@@ -12,6 +12,10 @@ pub struct TaintRuleToml {
     pub observation: String,
     pub impact: String,
     pub improvement: String,
+    #[serde(default)]
+    pub languages: Vec<String>,
+    #[serde(default)]
+    pub source_functions: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +27,8 @@ pub struct TaintRule {
     pub observation: String,
     pub impact: String,
     pub improvement: String,
+    pub languages: Vec<String>,
+    pub source_functions: Vec<String>,
 }
 
 impl TaintRule {
@@ -39,7 +45,15 @@ impl TaintRule {
             observation: t.observation,
             impact: t.impact,
             improvement: t.improvement,
+            languages: t.languages,
+            source_functions: t.source_functions,
         }
+    }
+
+    /// Returns true if this rule applies to the given language.
+    /// Empty languages list means the rule applies to all languages.
+    pub fn applies_to_language(&self, language: &str) -> bool {
+        self.languages.is_empty() || self.languages.iter().any(|l| l == language)
     }
 }
 
@@ -106,17 +120,29 @@ fn load_taint_rules_from_str(content: &str) -> Vec<TaintRule> {
         .collect()
 }
 
-/// Combined source regex built once from all taint rules.
+/// Combined source regex built once from built-in taint rules.
+/// For full rule set including user rules, use `build_combined_regexes`.
 pub static COMBINED_SOURCE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
     let patterns: Vec<&str> = BUILTIN_RULES.iter().map(|r| r.source_re.as_str()).collect();
     regex::Regex::new(&patterns.join("|")).expect("valid combined source regex")
 });
 
-/// Combined sink regex built once from all taint rules.
+/// Combined sink regex built once from built-in taint rules.
+/// For full rule set including user rules, use `build_combined_regexes`.
 pub static COMBINED_SINK_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
     let patterns: Vec<&str> = BUILTIN_RULES.iter().map(|r| r.sink_re.as_str()).collect();
     regex::Regex::new(&patterns.join("|")).expect("valid combined sink regex")
 });
+
+/// Build combined source/sink regexes from a full rule list (builtin + user rules).
+pub fn build_combined_regexes(rules: &[TaintRule]) -> (regex::Regex, regex::Regex) {
+    let source_patterns: Vec<&str> = rules.iter().map(|r| r.source_re.as_str()).collect();
+    let sink_patterns: Vec<&str> = rules.iter().map(|r| r.sink_re.as_str()).collect();
+    let source =
+        regex::Regex::new(&source_patterns.join("|")).expect("valid combined source regex");
+    let sink = regex::Regex::new(&sink_patterns.join("|")).expect("valid combined sink regex");
+    (source, sink)
+}
 
 /// Legacy function — returns built-in rules only. Use `load_all_taint_rules` for full set.
 pub fn security_taint_rules() -> Vec<TaintRule> {

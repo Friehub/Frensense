@@ -9,12 +9,12 @@ use crate::fingerprint::{FunctionFingerprint, extract_fingerprints};
 #[derive(Debug, Clone)]
 pub struct CorpusPattern {
     pub id: String,
-    pub positive: FunctionFingerprint,
-    pub negative: FunctionFingerprint,
+    pub positives: Vec<FunctionFingerprint>,
+    pub negatives: Vec<FunctionFingerprint>,
 }
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
-    let mut pairs: HashMap<String, (Option<FunctionFingerprint>, Option<FunctionFingerprint>)> =
+    let mut pairs: HashMap<String, (Vec<FunctionFingerprint>, Vec<FunctionFingerprint>)> =
         HashMap::new();
 
     for entry in fs::read_dir(corpus_dir).map_err(|e| e.to_string())? {
@@ -39,7 +39,13 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             "rs" => "rust",
             "ts" | "tsx" => "typescript",
             "js" | "jsx" => "javascript",
-            _ => continue,
+            _ => {
+                eprintln!(
+                    "corpus: skipping unsupported extension '{ext}' in '{}'",
+                    path.display()
+                );
+                continue;
+            }
         })
         .map_err(|e| e.to_string())?;
         parser.set_language(&lang).map_err(|e| e.to_string())?;
@@ -50,35 +56,37 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
         let mut fps = Vec::new();
         extract_fingerprints(tree.root_node(), &source, &path, &mut fps, 5);
 
-        let Some(fp) = fps.into_iter().next() else {
-            continue; // Silently skip files with no parseable function
-        };
+        if fps.is_empty() {
+            continue;
+        }
 
         let pattern_name = extract_pattern_name(file_name);
         let entry = pairs.entry(pattern_name).or_default();
         if is_positive {
-            entry.0 = Some(fp);
+            entry.0.extend(fps);
         } else {
-            entry.1 = Some(fp);
+            entry.1.extend(fps);
         }
     }
 
     let mut patterns = Vec::new();
     for (name, (pos, neg)) in pairs {
-        match (pos, neg) {
-            (Some(p), Some(n)) => patterns.push(CorpusPattern {
-                id: name,
-                positive: p,
-                negative: n,
-            }),
-            (Some(_p), None) => {
-                eprintln!("Corpus warning: pattern '{name}' has positive but no negative example");
-            }
-            (None, Some(_n)) => {
-                eprintln!("Corpus warning: pattern '{name}' has negative but no positive example");
-            }
-            (None, None) => unreachable!(),
+        if pos.is_empty() && neg.is_empty() {
+            continue;
         }
+        if pos.is_empty() {
+            eprintln!("Corpus warning: pattern '{name}' has negative but no positive example");
+            continue;
+        }
+        if neg.is_empty() {
+            eprintln!("Corpus warning: pattern '{name}' has positive but no negative example");
+            continue;
+        }
+        patterns.push(CorpusPattern {
+            id: name,
+            positives: pos,
+            negatives: neg,
+        });
     }
 
     Ok(patterns)
@@ -228,5 +236,34 @@ mod tests {
         let patterns = load_corpus(dir.path()).unwrap();
         assert_eq!(patterns.len(), 1);
         assert_eq!(patterns[0].id, "rust_foo");
+        assert!(!patterns[0].positives.is_empty());
+        assert!(!patterns[0].negatives.is_empty());
+    }
+
+    #[test]
+    fn test_multi_function_positive_loads_all() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("rust_multi_positive.rs"),
+            "fn a() { panic!(\"x\"); }\nfn b() { panic!(\"y\"); }\nfn c() { panic!(\"z\"); }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("rust_multi_negative.rs"),
+            "fn a() -> Result<(), String> { Ok(()) }\nfn b() -> Result<(), String> { Ok(()) }\n",
+        )
+        .unwrap();
+        let patterns = load_corpus(dir.path()).unwrap();
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(
+            patterns[0].positives.len(),
+            3,
+            "should extract all 3 functions from positive"
+        );
+        assert_eq!(
+            patterns[0].negatives.len(),
+            2,
+            "should extract all 2 functions from negative"
+        );
     }
 }
