@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_125_MEMORY_MARSHAL_CREATE_SPAN"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 125 Memory Marshal Create Span."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_CSP_HEADER_ATTRIBUTE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Csp Header Attribute."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

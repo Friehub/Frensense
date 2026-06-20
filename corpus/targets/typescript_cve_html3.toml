@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_CVE_HTML3"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Cve Html3."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

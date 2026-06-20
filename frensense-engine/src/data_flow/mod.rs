@@ -5,7 +5,6 @@ pub mod confidence;
 pub mod cross_file;
 pub mod engine;
 pub mod normalization;
-pub mod path_sensitive;
 pub mod resolver;
 pub mod taint_metrics;
 

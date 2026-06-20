@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_UNKNOWN_VALUE_WITH_SCRIPT_TAG"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Unknown Value With Script Tag."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

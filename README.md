@@ -67,12 +67,22 @@ Rust, TypeScript, JavaScript, Python (opt-in), C (opt-in). Cross-language patter
 
 Copy two files into `corpus/targets/`:
 
-```
+```bash
 cp my_bug.rs    corpus/targets/rust_my_bug_positive.rs
 cp fixed.rs     corpus/targets/rust_my_bug_negative.rs
 ```
 
 No YAML. No compiler changes. No DSL.
+
+### Other Detection Types
+
+Frensense has 6 detection systems. See the [Developer Guide](docs/DEVELOPER_GUIDE.md) for:
+- **Taint rules** — source-to-sink data flow (`taint_rules.toml`)
+- **Temporal rules** — API ordering constraints (`temporal_rules.toml`)
+- **Corpus patterns** — function shape matching (`corpus/targets/`)
+- **Finding modules** — custom AST analysis (`src/engine/findings/`)
+- **Composition** — cross-layer confidence adjustment
+- **Secret scanning** — hardcoded credential detection
 
 ## Corpus Data Sources
 

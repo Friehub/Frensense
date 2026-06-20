@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_16_HEADER_REDEFINITION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 16 Header Redefinition."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

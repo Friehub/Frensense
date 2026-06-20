@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_1188__INITIALIZATION_WITH_AN_INSECUR_MISTRAL_MISSING_SAFE_PROMPT_JAVASCRIPT"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 1188  Initialization With An Insecur Mistral Missing Safe Prompt Javascript."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

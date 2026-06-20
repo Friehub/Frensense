@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_NO_IO_WRITESTRING_TO_RESPONSEWRITER"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 No Io Writestring To Responsewriter."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

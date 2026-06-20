@@ -156,17 +156,36 @@ impl PatternScorer {
             )
         };
 
-        let sim_to_positive = ngram_sim_pos * 0.35
-            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.30
-            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.20
-            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.10
-            + type_usage_overlap(candidate, positive) * 0.05;
+        // Semantic similarity: how many API categories overlap
+        let semantic_sim_pos = jaccard(&candidate.semantic_markers, &positive.semantic_markers);
+        let semantic_sim_neg = jaccard(&candidate.semantic_markers, &negative.semantic_markers);
 
-        let sim_to_negative = ngram_sim_neg * 0.35
-            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.30
-            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.20
-            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.10
-            + type_usage_overlap(candidate, negative) * 0.05;
+        // M2: AST edit distance (structural similarity)
+        let ast_sim_pos = if !candidate.skeleton.is_empty() && !positive.skeleton.is_empty() {
+            1.0 - crate::ast_distance::tree_edit_distance(&candidate.skeleton, &positive.skeleton)
+        } else {
+            jaccard(&candidate.structural_markers, &positive.structural_markers)
+        };
+        let ast_sim_neg = if !candidate.skeleton.is_empty() && !negative.skeleton.is_empty() {
+            1.0 - crate::ast_distance::tree_edit_distance(&candidate.skeleton, &negative.skeleton)
+        } else {
+            jaccard(&candidate.structural_markers, &negative.structural_markers)
+        };
+
+        // Weighted blend: AST distance gets 40% weight for structural discrimination
+        let sim_to_positive = ngram_sim_pos * 0.20
+            + ast_sim_pos * 0.40
+            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.10
+            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
+            + type_usage_overlap(candidate, positive) * 0.05
+            + semantic_sim_pos * 0.20;
+
+        let sim_to_negative = ngram_sim_neg * 0.20
+            + ast_sim_neg * 0.40
+            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.10
+            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
+            + type_usage_overlap(candidate, negative) * 0.05
+            + semantic_sim_neg * 0.20;
 
         // M8: Apply cross-lingual transfer penalty
         let transfer = cross_lingual_penalty(&positive.language, &candidate.language);

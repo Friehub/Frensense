@@ -33,6 +33,7 @@ fn make_advisory(
         auto_fixable: true,
         requires_human: false,
         tags: vec![],
+        taint_branch_ratio: None,
     }
 }
 

@@ -3,8 +3,8 @@
 use rustc_hash::{FxHashSet, FxHasher};
 use std::hash::{Hash, Hasher};
 
-const DEFAULT_NUM_HASHES: usize = 64;
-const DEFAULT_BANDS: usize = 16;
+const DEFAULT_NUM_HASHES: usize = 128;
+const DEFAULT_BANDS: usize = 32;
 const DEFAULT_ROWS_PER_BAND: usize = 4;
 
 fn sha1_hash(value: u64, seed: u64) -> u64 {

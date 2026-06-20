@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_352_MVC_MISSING_ANTIFORGERY"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 352 Mvc Missing Antiforgery."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

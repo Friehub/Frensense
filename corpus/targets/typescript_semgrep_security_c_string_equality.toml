@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_C_STRING_EQUALITY"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security C String Equality."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

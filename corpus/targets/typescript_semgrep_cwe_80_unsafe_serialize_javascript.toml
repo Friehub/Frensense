@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_80_UNSAFE_SERIALIZE_JAVASCRIPT"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 80 Unsafe Serialize Javascript."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

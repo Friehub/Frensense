@@ -169,14 +169,7 @@ pub fn extract_fingerprints(
     window_size: usize,
 ) {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let language = match ext {
-        "rs" => "rust",
-        "ts" | "tsx" => "typescript",
-        "js" | "jsx" => "javascript",
-        "yml" | "yaml" => "yaml",
-        _ => "unknown",
-    }
-    .to_string();
+    let language = frensense_engine::parser::ext_to_language(ext).to_string();
 
     let mut cursor = root.walk();
     loop {

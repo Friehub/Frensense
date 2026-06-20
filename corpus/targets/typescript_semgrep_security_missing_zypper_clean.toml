@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_MISSING_ZYPPER_CLEAN"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Missing Zypper Clean."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

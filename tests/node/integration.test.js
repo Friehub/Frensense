@@ -66,7 +66,7 @@ async function runTest() {
     // 7. Version check
     console.log('\n--- Testing Version API ---');
     console.log(`Engine Version: ${engine.version}`);
-    const expectedVersion = '0.3.1';
+    const expectedVersion = '0.4.0';
     if (engine.version !== expectedVersion) {
       throw new Error(
         `Version mismatch: engine reports "${engine.version}", expected "${expectedVersion}". ` +

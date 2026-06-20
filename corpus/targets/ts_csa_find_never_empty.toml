@@ -1,0 +1,5 @@
+id = "TS_CSA_FIND_NEVER_EMPTY"
+severity = "Warning"
+observation = "Corpus pattern: Ts Csa Find Never Empty."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

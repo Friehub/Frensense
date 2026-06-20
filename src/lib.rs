@@ -146,6 +146,10 @@ pub struct Advisory {
     pub auto_fixable: bool,
     pub requires_human: bool,
     pub tags: Vec<String>,
+    /// Taint branch ratio from TaintMetrics — higher means function actually branches on input.
+    /// Used by composition layer to suppress hollow validators.
+    #[serde(default)]
+    pub taint_branch_ratio: Option<f32>,
 }
 
 /// Lossless usize → u32, saturating at `u32::MAX`.
@@ -187,6 +191,7 @@ impl Advisory {
             auto_fixable: false,
             requires_human: true,
             tags: Vec::new(),
+            taint_branch_ratio: None,
         }
     }
 
@@ -229,6 +234,11 @@ impl Advisory {
     }
     pub fn with_replacement(mut self, v: impl Into<String>) -> Self {
         self.proposed_replacement = Some(v.into());
+        self
+    }
+
+    pub fn with_taint_branch_ratio(mut self, v: f32) -> Self {
+        self.taint_branch_ratio = Some(v);
         self
     }
 
@@ -365,6 +375,71 @@ pub struct FrensenseContext<'a> {
     pub ngram_window_size: usize,
 }
 
+pub type FileTreeMap = HashMap<
+    String,
+    (
+        tree_sitter::Tree,
+        String,
+        Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+    ),
+>;
+
+impl<'a> FrensenseContext<'a> {
+    /// Create a context with sensible defaults for taint analysis parameters.
+    pub fn new(
+        file_id: FileId,
+        file_path: &'a Path,
+        source_code: &'a str,
+        tree: &'a tree_sitter::Tree,
+        symbols: &'a SymbolRegistry,
+        file_trees: &'a FileTreeMap,
+        taint_cache: &'a TaintCache,
+    ) -> Self {
+        Self {
+            file_id,
+            file_path,
+            source_code,
+            tree,
+            symbols,
+            graph: symbols.graph(),
+            semantic_ops: &[],
+            taint_cache,
+            file_trees,
+            taint_confidence_interprocedural: 0.80,
+            taint_confidence_intraprocedural: 0.90,
+            default_taint_max_depth: 5,
+            ngram_window_size: 5,
+        }
+    }
+
+    /// Create a context for interprocedural resolution, overriding file-level fields
+    /// while inheriting taint parameters from the parent context.
+    pub fn for_interprocedural(
+        parent: &'a Self,
+        file_id: FileId,
+        file_path: &'a Path,
+        source_code: &'a str,
+        tree: &'a tree_sitter::Tree,
+        semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
+    ) -> Self {
+        Self {
+            file_id,
+            file_path,
+            source_code,
+            tree,
+            symbols: parent.symbols,
+            graph: parent.graph,
+            semantic_ops,
+            taint_cache: parent.taint_cache,
+            file_trees: parent.file_trees,
+            taint_confidence_interprocedural: parent.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: parent.taint_confidence_intraprocedural,
+            default_taint_max_depth: parent.default_taint_max_depth,
+            ngram_window_size: parent.ngram_window_size,
+        }
+    }
+}
+
 /// Core Trait: Represents a high-precision semantic `Frensense` rule.
 pub trait FrensenseRule: Send + Sync {
     fn metadata(&self) -> &RuleMetadata;
@@ -406,28 +481,27 @@ pub trait FrensenseRule: Send + Sync {
             .and_then(|idx| context.symbols.graph().get_symbol(idx))
             .map(|s| s.name.clone());
 
-        Advisory {
-            rule_id: meta.id.to_string(),
-            file_id: context.file_id,
-            file_path,
-            severity: meta.severity,
-            confidence: meta.confidence,
+        let mut adv = Advisory::bare(
+            meta.id.as_ref(),
+            meta.severity,
+            context.file_id,
+            context.file_path,
             observation,
-            impact: meta.impact.to_string(),
-            improvement: meta.improvement.to_string(),
-            line: u32::try_from(node.start_position().row + 1).unwrap_or(u32::MAX),
-            column: u32::try_from(node.start_position().column + 1).unwrap_or(u32::MAX),
-            start_byte: u32::try_from(node.start_byte()).unwrap_or(u32::MAX),
-            end_byte: u32::try_from(node.end_byte()).unwrap_or(u32::MAX),
-            original_content: context.source_code[node.start_byte()..node.end_byte()].to_string(),
-            proposed_replacement: None,
-            proposed_import: None,
-            enclosing_symbol,
-            fingerprint: String::new(),
-            auto_fixable: false,
-            requires_human: false,
-            tags: meta.tags.iter().map(ToString::to_string).collect(),
-        }
+        )
+        .with_confidence(meta.confidence)
+        .with_line(u32::try_from(node.start_position().row + 1).unwrap_or(u32::MAX))
+        .with_column(u32::try_from(node.start_position().column + 1).unwrap_or(u32::MAX))
+        .with_bytes(
+            u32::try_from(node.start_byte()).unwrap_or(u32::MAX),
+            u32::try_from(node.end_byte()).unwrap_or(u32::MAX),
+        )
+        .with_content(&context.source_code[node.start_byte()..node.end_byte()])
+        .with_impact(meta.impact.as_ref())
+        .with_improvement(meta.improvement.as_ref());
+        adv.requires_human = false;
+        adv.enclosing_symbol = enclosing_symbol;
+        adv.tags = meta.tags.iter().map(ToString::to_string).collect();
+        adv
     }
 
     fn new_remediated_advisory(

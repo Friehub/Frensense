@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_NO_STRING_EQEQ"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security No String Eqeq."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

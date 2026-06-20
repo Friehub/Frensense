@@ -1,0 +1,5 @@
+id = "RUST_LLM_AWAIT_IN_SYNC"
+severity = "Warning"
+observation = "Corpus pattern: Rust Llm Await In Sync."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_601_SYMFONY_NON_LITERAL_REDIRECT"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 601 Symfony Non Literal Redirect."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

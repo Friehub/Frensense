@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-pub mod common;
 pub mod discovery;
 pub mod events;
 pub mod project_auditor;
@@ -201,46 +200,35 @@ impl FrensenseAuditor {
         // Phase 2: walk-tree fallback for any rules without queries
         if self.has_walk_rules(ext) {
             let taint_cache = TaintCache::default();
-            let context = FrensenseContext {
-                file_id: opts.file_id,
-                file_path: opts.path,
-                source_code: opts.content,
-                tree: opts.tree,
-                symbols: opts.symbols,
-                graph: opts.graph,
-                semantic_ops: opts.semantic_ops,
-                taint_cache: &taint_cache,
-                file_trees: opts.file_trees,
-                taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
-                taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
-                default_taint_max_depth: opts.default_taint_max_depth,
-                ngram_window_size: opts.ngram_window_size,
-            };
+            let context = self.build_context(opts, &taint_cache);
             for rule in &self.rules {
-                if !self.is_rule_enabled(
-                    rule.as_ref(),
-                    opts.category_filter,
-                    opts.tag_filter,
-                    opts.suite,
-                    opts.env,
-                    opts.severity_filter,
-                ) {
+                if !self.is_rule_enabled(rule.as_ref(), opts.category_filter, opts.tag_filter, opts.suite, opts.env, opts.severity_filter) {
                     continue;
                 }
                 if rule.applies_to(ext) && rule.query().is_none() {
-                    self.walk_tree(
-                        opts.tree.root_node(),
-                        rule.as_ref(),
-                        &context,
-                        &mut advisories,
-                    );
+                    self.walk_tree(opts.tree.root_node(), rule.as_ref(), &context, &mut advisories);
                 }
             }
         }
 
         // Phase 3: file-level checks (max_file_lines, etc.)
         let taint_cache = TaintCache::default();
-        let file_context = FrensenseContext {
+        let file_context = self.build_context(opts, &taint_cache);
+        for rule in &self.rules {
+            if !self.is_rule_enabled(rule.as_ref(), opts.category_filter, opts.tag_filter, opts.suite, opts.env, opts.severity_filter) {
+                continue;
+            }
+            advisories.extend(rule.file_check(&file_context));
+        }
+
+        #[cfg(feature = "fingerprinting")]
+        extract_fingerprints(opts.tree.root_node(), opts.content, opts.path, &mut fingerprints, opts.ngram_window_size);
+
+        Ok(ScanResult { advisories, #[cfg(feature = "fingerprinting")] fingerprints })
+    }
+
+    fn build_context<'a>(&self, opts: &'a AuditOptions<'_>, taint_cache: &'a TaintCache) -> FrensenseContext<'a> {
+        FrensenseContext {
             file_id: opts.file_id,
             file_path: opts.path,
             source_code: opts.content,
@@ -248,41 +236,13 @@ impl FrensenseAuditor {
             symbols: opts.symbols,
             graph: opts.graph,
             semantic_ops: opts.semantic_ops,
-            taint_cache: &taint_cache,
+            taint_cache,
             file_trees: opts.file_trees,
             taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
             taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
             default_taint_max_depth: opts.default_taint_max_depth,
             ngram_window_size: opts.ngram_window_size,
-        };
-        for rule in &self.rules {
-            if !self.is_rule_enabled(
-                rule.as_ref(),
-                opts.category_filter,
-                opts.tag_filter,
-                opts.suite,
-                opts.env,
-                opts.severity_filter,
-            ) {
-                continue;
-            }
-            advisories.extend(rule.file_check(&file_context));
         }
-
-        #[cfg(feature = "fingerprinting")]
-        extract_fingerprints(
-            opts.tree.root_node(),
-            opts.content,
-            opts.path,
-            &mut fingerprints,
-            opts.ngram_window_size,
-        );
-
-        Ok(ScanResult {
-            advisories,
-            #[cfg(feature = "fingerprinting")]
-            fingerprints,
-        })
     }
 
     fn run_combined_query(
@@ -295,7 +255,6 @@ impl FrensenseAuditor {
             return;
         };
 
-        // Phase 1: ensure combined query is built (mutable borrow)
         {
             let mut cache = self.combined_queries.borrow_mut();
             if !cache.contains_key(ext) {
@@ -304,45 +263,23 @@ impl FrensenseAuditor {
             }
         }
 
-        // Phase 2: immutable borrow to use the query (Ref stays alive for whole traversal)
         let cache = self.combined_queries.borrow();
         let Some(combined_query) = cache.get(ext).and_then(|q| q.as_ref()) else {
             return;
         };
 
         let taint_cache = TaintCache::default();
-        let context = FrensenseContext {
-            file_id: opts.file_id,
-            file_path: opts.path,
-            source_code: opts.content,
-            tree: opts.tree,
-            symbols: opts.symbols,
-            graph: opts.graph,
-            semantic_ops: opts.semantic_ops,
-            taint_cache: &taint_cache,
-            file_trees: opts.file_trees,
-            taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
-            taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
-            default_taint_max_depth: opts.default_taint_max_depth,
-            ngram_window_size: opts.ngram_window_size,
-        };
+        let context = self.build_context(opts, &taint_cache);
 
         let capture_names = combined_query.capture_names();
         let mut cursor = QueryCursor::new();
-        let query_matches = cursor.matches(
-            combined_query,
-            opts.tree.root_node(),
-            opts.content.as_bytes(),
-        );
+        let query_matches = cursor.matches(combined_query, opts.tree.root_node(), opts.content.as_bytes());
 
         let mut seen = HashSet::new();
 
         for m in query_matches {
             for capture in m.captures {
-                let capture_name = capture_names
-                    .get(capture.index as usize)
-                    .copied()
-                    .unwrap_or("");
+                let capture_name = capture_names.get(capture.index as usize).copied().unwrap_or("");
                 let Some((rule_id, kind)) = capture_name.split_once('.') else {
                     continue;
                 };
@@ -354,14 +291,7 @@ impl FrensenseAuditor {
                 };
                 let rule = &self.rules[rule_idx];
 
-                if !self.is_rule_enabled(
-                    rule.as_ref(),
-                    opts.category_filter,
-                    opts.tag_filter,
-                    opts.suite,
-                    opts.env,
-                    opts.severity_filter,
-                ) {
+                if !self.is_rule_enabled(rule.as_ref(), opts.category_filter, opts.tag_filter, opts.suite, opts.env, opts.severity_filter) {
                     continue;
                 }
 
@@ -370,13 +300,7 @@ impl FrensenseAuditor {
                     continue;
                 }
 
-                if !is_suppressed(
-                    &self.suppressions,
-                    capture.node,
-                    rule.id(),
-                    opts.content,
-                    opts.path,
-                ) {
+                if !is_suppressed(&self.suppressions, capture.node, rule.id(), opts.content, opts.path) {
                     advisories.extend(rule.check(capture.node, &context));
                 }
             }

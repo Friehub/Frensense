@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_MAINTAINER_IS_DEPRECATED"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Maintainer Is Deprecated."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

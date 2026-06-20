@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_532_INFO_LEAK_ON_NON_FORMATED_STRING"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 532 Info Leak On Non Formated String."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

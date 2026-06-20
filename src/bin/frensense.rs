@@ -23,6 +23,11 @@ fn main() -> Result<()> {
     let input_path = get_input_path(&args);
     let options = parse_options(&args);
 
+    // Handle learn mode
+    if options.learn_mode {
+        return handle_learn_mode(&options);
+    }
+
     let mut engine = Engine::new();
     engine.set_corpus_bundle(CORPUS_BUNDLE);
     engine.set_suite(options.suite);
@@ -75,6 +80,9 @@ fn main() -> Result<()> {
     }
     if !options.extra_taint_rule_dirs.is_empty() {
         engine.set_extra_taint_rule_dirs(options.extra_taint_rule_dirs.clone());
+    }
+    if options.check_deps {
+        engine.set_check_deps(true);
     }
 
     if let Some(lang_arg) = &options.language_filter {
@@ -241,6 +249,97 @@ fn main() -> Result<()> {
 
     if regression_detected || (options.is_strict && !filtered_advisories.is_empty()) {
         std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
+    let positive_path = match options.learn_positive.as_ref() {
+        Some(p) => p.clone(),
+        None => {
+            eprintln!("Error: --learn requires a positive (buggy) file");
+            std::process::exit(1);
+        }
+    };
+
+    let negative_path = match options.learn_negative.as_ref() {
+        Some(p) => p.clone(),
+        None => {
+            eprintln!("Error: --learn requires a negative (fixed) file");
+            std::process::exit(1);
+        }
+    };
+
+    // Generate pattern ID from filename
+    let pattern_id = positive_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("learned_pattern")
+        .replace("_positive", "");
+
+    let output_dir = options
+        .learn_output
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("learned_rules"));
+
+    eprintln!("Learning pattern: {}", pattern_id);
+    eprintln!("  Positive: {}", positive_path.display());
+    eprintln!("  Negative: {}", negative_path.display());
+    eprintln!();
+
+    match frensense::engine::learn::learn_pattern(
+        &positive_path,
+        &negative_path,
+        &pattern_id,
+        &output_dir,
+    ) {
+        Ok(result) => {
+            eprintln!("Learned pattern: {}", result.pattern_id);
+            eprintln!("  Positive functions: {}", result.positive_functions);
+            eprintln!("  Negative functions: {}", result.negative_functions);
+            eprintln!("  Metadata: {}", result.metadata_path.display());
+            eprintln!();
+
+            // Show diff summary
+            eprintln!("Diff Summary:");
+            eprintln!("{}", result.diff_summary);
+
+            // Show learned patterns
+            if !result.learned_patterns.is_empty() {
+                eprintln!("Learned {} pattern(s):", result.learned_patterns.len());
+                for pattern in &result.learned_patterns {
+                    eprintln!("  - {:?}: {} in {}", pattern.kind, pattern.description, pattern.function);
+                }
+            }
+
+            // Generate taint rules from metadata
+            let taint_rules = frensense::engine::learn::load_learned_taint_rules(&result.metadata_path);
+            eprintln!("Found {} taint rule(s) in metadata", taint_rules.len());
+            if !taint_rules.is_empty() {
+                let taint_path = output_dir.join("learned_taint.toml");
+                let mut taint_toml = String::from("# Auto-generated taint rules from pattern learning\n\n");
+                for rule in &taint_rules {
+                    taint_toml.push_str(&rule.to_toml());
+                }
+                std::fs::write(&taint_path, &taint_toml).ok();
+                eprintln!();
+                eprintln!("Generated taint rules: {}", taint_path.display());
+            }
+
+            eprintln!();
+            eprintln!("Next steps:");
+            eprintln!("  1. Rebuild bundle:");
+            eprintln!("     cargo run --bin build-corpus-bundle");
+            eprintln!();
+            eprintln!("  2. Or scan with learned rules:");
+            eprintln!("     frensense . --extra-taint-rules {}", output_dir.display());
+        }
+        Err(e) => {
+            eprintln!("Error learning pattern: {}", e);
+            std::process::exit(1);
+        }
     }
 
     Ok(())

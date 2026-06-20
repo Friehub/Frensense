@@ -1,0 +1,5 @@
+id = "TS_SEC_PATH_TRAVERSAL_4"
+severity = "Warning"
+observation = "Corpus pattern: Ts Sec Path Traversal 4."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

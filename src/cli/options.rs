@@ -40,6 +40,11 @@ pub struct CliOptions {
     pub baseline_path: Option<PathBuf>,
     pub update_baseline: bool,
     pub extra_taint_rule_dirs: Vec<PathBuf>,
+    pub check_deps: bool,
+    pub learn_mode: bool,
+    pub learn_positive: Option<PathBuf>,
+    pub learn_negative: Option<PathBuf>,
+    pub learn_output: Option<PathBuf>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -77,11 +82,16 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         #[cfg(feature = "fingerprinting")]
         profile_stats: false,
         corpus_dir: None,
-        corpus_threshold: 0.65,
+        corpus_threshold: 0.40,
         threshold_overrides: Vec::new(),
         baseline_path: None,
         update_baseline: false,
         extra_taint_rule_dirs: Vec::new(),
+        check_deps: false,
+        learn_mode: false,
+        learn_positive: None,
+        learn_negative: None,
+        learn_output: None,
     };
 
     let mut i = 1;
@@ -384,6 +394,25 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--extra-taint-rules" => {
                 if let Some(val) = args.get(i + 1) {
                     options.extra_taint_rule_dirs.push(PathBuf::from(val));
+                    i += 1;
+                }
+            }
+            "--check-deps" => options.check_deps = true,
+            "--learn" => {
+                options.learn_mode = true;
+                // Next two args are positive and negative files
+                if let Some(pos) = args.get(i + 1) {
+                    options.learn_positive = Some(PathBuf::from(pos));
+                    i += 1;
+                }
+                if let Some(neg) = args.get(i + 1) {
+                    options.learn_negative = Some(PathBuf::from(neg));
+                    i += 1;
+                }
+            }
+            "--learn-output" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.learn_output = Some(PathBuf::from(val));
                     i += 1;
                 }
             }

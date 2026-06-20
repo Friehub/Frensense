@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_798_DETECTED_NPM_REGISTRY_AUTH_TOKEN"
+severity = "Critical"
+observation = "Corpus pattern: Typescript Semgrep Cwe 798 Detected Npm Registry Auth Token."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

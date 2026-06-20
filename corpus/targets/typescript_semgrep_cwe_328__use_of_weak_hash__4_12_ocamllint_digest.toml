@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_328__USE_OF_WEAK_HASH__4_12_OCAMLLINT_DIGEST"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 328  Use Of Weak Hash  4 12 Ocamllint Digest."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

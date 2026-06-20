@@ -1,33 +1,33 @@
-# GenSense: The Unexplored Space
+# FrenSense: The Unexplored Space
 ## Strategic Research Direction for the LLM-Written Code Era
 
 **Prepared:** May 2026  
-**For:** GenSense 3.0+ Research Planning
+**For:** FrenSense 3.0+ Research Planning
 
 ---
 
 ## The Core Observation
 
-GenSense was built with a powerful insight: static analysis tools designed for human-written code miss a whole class of semantic bugs because they look at *syntax*, not *intent*. The snapshot model, taint summary engine, and temporal analyzer are all expressions of that insight applied to code humans write.
+FrenSense was built with a powerful insight: static analysis tools designed for human-written code miss a whole class of semantic bugs because they look at *syntax*, not *intent*. The snapshot model, taint summary engine, and temporal analyzer are all expressions of that insight applied to code humans write.
 
-But the world has shifted. LLMs now write most of the code in active development. This does not make GenSense obsolete — it makes GenSense uniquely positioned, because LLMs introduce a *new class of failure mode* that no existing tool category is designed to catch.
+But the world has shifted. LLMs now write most of the code in active development. This does not make FrenSense obsolete — it makes FrenSense uniquely positioned, because LLMs introduce a *new class of failure mode* that no existing tool category is designed to catch.
 
 The unexplored space is this:
 
 > **LLM-generated code is not random. It fails in systematic, predictable, statistically consistent ways — and those patterns are invisible to every tool that treats correctness as a binary property.**
 
-GenSense is already the closest tool in existence to catching this. But it is currently catching the *symptoms* (placeholder panics, tautological assertions, redundant comments) rather than the *structure* of LLM failure.
+FrenSense is already the closest tool in existence to catching this. But it is currently catching the *symptoms* (placeholder panics, tautological assertions, redundant comments) rather than the *structure* of LLM failure.
 
 ---
 
 ## What the Research Record Shows
 
-The program analysis literature from 2010–2020 built the foundations GenSense runs on:
+The program analysis literature from 2010–2020 built the foundations FrenSense runs on:
 
-- **Typestate analysis** (Fink et al., 2008) — sequences of valid operations matter, not just individual calls. GenSense's temporal analyzer is a direct expression of this.
-- **Points-to and taint analysis** (Arzt et al., FlowDroid 2014) — data provenance must be tracked through the heap and across function boundaries. GenSense's cross-file taint is this applied without the full heap model.
-- **Compositional verification** (Cousot & Cousot, abstract interpretation) — summaries instead of inlining. GenSense's taint summary model is precisely this trade-off.
-- **Property-based specification** (CSLang, SLIC) — user-defined behavioral contracts beyond types. GenSense's YAML rule system is this for patterns rather than full contracts.
+- **Typestate analysis** (Fink et al., 2008) — sequences of valid operations matter, not just individual calls. FrenSense's temporal analyzer is a direct expression of this.
+- **Points-to and taint analysis** (Arzt et al., FlowDroid 2014) — data provenance must be tracked through the heap and across function boundaries. FrenSense's cross-file taint is this applied without the full heap model.
+- **Compositional verification** (Cousot & Cousot, abstract interpretation) — summaries instead of inlining. FrenSense's taint summary model is precisely this trade-off.
+- **Property-based specification** (CSLang, SLIC) — user-defined behavioral contracts beyond types. FrenSense's YAML rule system is this for patterns rather than full contracts.
 
 What research *did not* address, because the problem did not exist, is the failure signature of a system that has learned to produce *plausible-looking but semantically hollow* code. That is a new problem class. The research for it does not exist yet.
 
@@ -43,7 +43,7 @@ When an LLM writes a bug, the failure mode is different in kind:
 
 These are not syntax errors. They are not type errors. They are not even logic errors in the traditional sense. They are **contract surface violations** — gaps between what the code *claims* to do at its interface boundary and what it *actually does* under analysis.
 
-GenSense already has three detectors for the most obvious surface expressions of this:
+FrenSense already has three detectors for the most obvious surface expressions of this:
 - `AI_TAUTOLOGICAL_ASSERT` — the test looks like a test but cannot fail
 - `AI_USELESS_TEST` — the test has the form of a test but no assertions
 - `AI_PLACEHOLDER_PANIC` — the function has the form of an implementation but panics unconditionally
@@ -64,15 +64,15 @@ This is different from what Semgrep, CodeQL, or existing static analyzers do. Th
 
 ---
 
-## What This Looks Like Concretely in GenSense
+## What This Looks Like Concretely in FrenSense
 
-GenSense already has all the infrastructure needed to build this. Here is what the new capability looks like at each layer:
+FrenSense already has all the infrastructure needed to build this. Here is what the new capability looks like at each layer:
 
 ### Layer 1: Promise-Body Coherence (No Database Required)
 
 The simplest form: given a function, does the body do what the name and signature imply it does?
 
-GenSense already has:
+FrenSense already has:
 - `RedundantComment` — name-comment overlap detection
 - `SymbolRegistry` with full name and signature
 - `SemanticGraph` with call edges
@@ -87,7 +87,7 @@ fn validate_user_input(input: &str) -> bool {
 }
 ```
 
-A name-containing `validate` implies: the body must contain at least one conditional branch that can return `false`. A body that unconditionally returns `true` is a contract surface violation. This is detectable with GenSense's existing AST infrastructure — no database required.
+A name-containing `validate` implies: the body must contain at least one conditional branch that can return `false`. A body that unconditionally returns `true` is a contract surface violation. This is detectable with FrenSense's existing AST infrastructure — no database required.
 
 The pattern generalizes:
 - Names containing `validate`/`verify`/`check` → must contain a conditional that can return a falsy/error value
@@ -96,17 +96,17 @@ The pattern generalizes:
 - Names containing `find`/`get`/`fetch` → must contain code that can return None/null/empty
 - Names containing `create`/`build`/`make` → result must be used or returned, not discarded
 
-Each of these is a structural rule derivable from the name, checkable against the body AST. Zero ML, zero database, pure static analysis. GenSense can express all of these in its existing rule IR.
+Each of these is a structural rule derivable from the name, checkable against the body AST. Zero ML, zero database, pure static analysis. FrenSense can express all of these in its existing rule IR.
 
 ---
 
 ### Layer 2: Test-to-Implementation Contract Coherence
 
-This is where GenSense's multi-file analysis creates a genuinely new capability.
+This is where FrenSense's multi-file analysis creates a genuinely new capability.
 
 The current `AI_USELESS_TEST` only checks if a test has assertions. What it does not check: whether the assertions test the *right thing* relative to the implementation.
 
-With GenSense's `SymbolRegistry` and call graph, you can check:
+With FrenSense's `SymbolRegistry` and call graph, you can check:
 
 **Does the test exercise the code path that the implementation's name implies is risky?**
 
@@ -128,7 +128,7 @@ test("authenticateUser validates token", async () => {
 
 The advisory here is not "your test has no assertions" — it has one. The advisory is: **"Your test for `authenticateUser` does not exercise the negative path. Authentication functions require at least one test case where the input is invalid or expired."**
 
-This requires cross-file reasoning: find the test for function X, check whether the test exercises the contract-critical paths of X. GenSense's `ProjectRule` infrastructure is exactly the right abstraction for this. The `MustHaveGuard` constraint is the starting point — this is a new constraint type: `TestMustExerciseNegativePath`.
+This requires cross-file reasoning: find the test for function X, check whether the test exercises the contract-critical paths of X. FrenSense's `ProjectRule` infrastructure is exactly the right abstraction for this. The `MustHaveGuard` constraint is the starting point — this is a new constraint type: `TestMustExerciseNegativePath`.
 
 ---
 
@@ -170,11 +170,11 @@ Three reasons this research gap has not been filled:
 
 ---
 
-## What GenSense Can Build That No One Else Can
+## What FrenSense Can Build That No One Else Can
 
-GenSense's specific architectural advantages for this space:
+FrenSense's specific architectural advantages for this space:
 
-| GenSense Capability | How It Enables CSA |
+| FrenSense Capability | How It Enables CSA |
 |---|---|
 | Tree-sitter AST for multiple languages | Name + body structure extraction without ML |
 | `SymbolRegistry` with cross-file graph | Contract surface visible across the whole project |
@@ -255,10 +255,10 @@ This is the minimum viable memory system. It does not require an LLM, a vector s
 
 ## The Positioning
 
-If you build Phase 1 alone, GenSense becomes the first static analyzer with a dedicated theory of LLM output quality. That is a defensible, novel position.
+If you build Phase 1 alone, FrenSense becomes the first static analyzer with a dedicated theory of LLM output quality. That is a defensible, novel position.
 
-If you build all three phases, GenSense becomes something that does not exist: a **semantic coherence auditor** — a tool that tracks whether the promises a codebase makes about its own behavior are actually honored, run over run, as LLMs write more of it.
+If you build all three phases, FrenSense becomes something that does not exist: a **semantic coherence auditor** — a tool that tracks whether the promises a codebase makes about its own behavior are actually honored, run over run, as LLMs write more of it.
 
-Semgrep catches known bad patterns. GenSense would catch *unknown systematic failures* — the ones that emerge specifically from how LLMs reason about code, which is coherent locally and incoherent globally.
+Semgrep catches known bad patterns. FrenSense would catch *unknown systematic failures* — the ones that emerge specifically from how LLMs reason about code, which is coherent locally and incoherent globally.
 
 The research is unexplored. The infrastructure to build it is already in your codebase. The moment to build it is now, because in two years this problem will be well-understood and the space will be crowded.

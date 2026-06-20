@@ -22,6 +22,12 @@ pub struct FunctionFingerprint {
     pub structural_markers: FxHashSet<u64>,
     pub type_usages: Vec<String>,
     pub comment_density: f64,
+    /// Semantic markers: hashes of semantic features like "contains exec call"
+    /// These help discriminate between different vulnerability types
+    pub semantic_markers: FxHashSet<u64>,
+    /// Structural skeleton: list of AST node kinds (identifiers/literals removed)
+    /// Used for AST edit distance computation
+    pub skeleton: Vec<String>,
 }
 
 /// M1: Compute IDF weights for n-grams from a set of fingerprints.
@@ -40,6 +46,18 @@ pub fn compute_idf_weights(fingerprints: &[FunctionFingerprint]) -> FxHashMap<u6
         .into_iter()
         .map(|(hash, df)| (hash, (n / df).ln()))
         .collect()
+}
+
+/// Apply IDF weights to a fingerprint's weighted_ngram_hashes.
+pub fn apply_idf_weights(
+    fingerprint: &mut FunctionFingerprint,
+    idf_weights: &FxHashMap<u64, f32>,
+) {
+    for (hash, weight) in &mut fingerprint.weighted_ngram_hashes {
+        if let Some(&idf) = idf_weights.get(hash) {
+            *weight = idf;
+        }
+    }
 }
 
 /// M9: Position-weighted n-gram hashing.
@@ -120,7 +138,7 @@ fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language)
             if cursor.goto_next_sibling() {
                 let n = cursor.node();
                 let mut h = FxHasher::default();
-                n.kind().hash(&mut h);
+                abstract_kind(n.kind(), language).hash(&mut h);
                 markers.insert(h.finish());
                 break;
             }
@@ -176,6 +194,58 @@ fn count_comment_bytes(node: Node<'_>, _source: &str) -> usize {
     }
 }
 
+/// Extract semantic markers from function body.
+/// These markers identify what APIs/patterns the function uses,
+/// helping discriminate between different vulnerability types.
+fn extract_semantic_markers(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+    let mut markers = FxHashSet::default();
+    let body_text = &source[node.start_byte()..node.end_byte()];
+
+    // Semantic categories and their keywords
+    let categories = [
+        // Database operations
+        ("db_query", &["query", "execute", "raw_query", "format_sql", "sql_query"] as &[&str]),
+        ("db_write", &["insert", "update", "upsert", "create"] as &[&str]),
+        // Command execution
+        ("cmd_exec", &["exec", "system", "spawn", "popen", "shell"] as &[&str]),
+        // Code evaluation
+        ("code_eval", &["eval", "Function(", "new Function"] as &[&str]),
+        // File operations
+        ("file_read", &["readFile", "readFileSync", "createReadStream", "read_to_string"] as &[&str]),
+        ("file_write", &["writeFile", "writeFileSync", "createWriteStream", "write"] as &[&str]),
+        // DOM manipulation
+        ("dom_xss", &["innerHTML", "outerHTML", "document.write", "insertAdjacentHTML"] as &[&str]),
+        // HTTP operations
+        ("http_request", &["fetch", "axios", "request", "http.get", "http.post"] as &[&str]),
+        // URL operations
+        ("url_redirect", &["location.href", "location.assign", "redirect", "res.redirect"] as &[&str]),
+        // Crypto operations
+        ("crypto_weak", &["md5", "sha1", "createHash"] as &[&str]),
+        ("crypto_strong", &["sha256", "sha512", "bcrypt", "argon2"] as &[&str]),
+        // Serialization
+        ("deserialize", &["JSON.parse", "from_str", "loads", "deserialize"] as &[&str]),
+        // Desensitization
+        ("sanitize", &["sanitize", "escape", "encode", "validate"] as &[&str]),
+        // Regex
+        ("regex", &["Regex::new", "new RegExp", "re.compile"] as &[&str]),
+        // Process
+        ("process", &["process.exit", "std::process", "child_process"] as &[&str]),
+    ];
+
+    for (category, keywords) in &categories {
+        for keyword in *keywords {
+            if body_text.contains(keyword) {
+                let mut hasher = FxHasher::default();
+                category.hash(&mut hasher);
+                markers.insert(hasher.finish());
+                break; // Only need one match per category
+            }
+        }
+    }
+
+    markers
+}
+
 fn extract_signature_tokens(node: Node<'_>, source: &str) -> Vec<String> {
     let start = node.start_byte();
     let end = node
@@ -213,14 +283,7 @@ pub fn extract_fingerprints(
     window_size: usize,
 ) {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let language = match ext {
-        "rs" => "rust",
-        "ts" | "tsx" => "typescript",
-        "js" | "jsx" => "javascript",
-        "yml" | "yaml" => "yaml",
-        _ => "unknown",
-    }
-    .to_string();
+    let language = crate::parser::ext_to_language(ext).to_string();
 
     let lang: Language = match ext {
         "rs" => Language::Rust,
@@ -267,6 +330,8 @@ pub fn extract_fingerprints(
             let name_segments = split_name_segments(&function_name);
 
             let positional_hashes = token_ngrams_positional(&tokens, window_size);
+            let semantic_markers = extract_semantic_markers(body, source_code);
+            let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
 
             fingerprints.push(FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
@@ -285,6 +350,8 @@ pub fn extract_fingerprints(
                 } else {
                     0.0
                 },
+                semantic_markers,
+                skeleton,
             });
         }
 

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_347_UNSIGNED_SECURITY_TOKEN"
+severity = "Critical"
+observation = "Corpus pattern: Typescript Semgrep Cwe 347 Unsigned Security Token."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

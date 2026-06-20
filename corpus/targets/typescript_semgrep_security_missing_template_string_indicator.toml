@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_MISSING_TEMPLATE_STRING_INDICATOR"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Missing Template String Indicator."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -6,7 +6,7 @@ use petgraph::visit::EdgeRef;
 use std::collections::{HashMap, HashSet};
 
 /// The type of relationship between two semantic symbols.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EdgeKind {
     Calls,
     RefersTo,
@@ -33,7 +33,7 @@ pub struct TaintFlowRecord {
     pub rule_id: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EventType {
     Acquire,
     Release,
@@ -308,5 +308,68 @@ impl SemanticGraph {
             }
         }
         false
+    }
+}
+
+/// Extract temporal events (lock/await/release) from a tree-sitter AST.
+pub fn extract_temporal_events<'a>(
+    root: tree_sitter::Node<'a>,
+    source: &'a str,
+    file_path: &std::path::Path,
+) -> Vec<TemporalEvent> {
+    let mut events = Vec::new();
+    let mut cursor = root.walk();
+    let file_str = file_path.to_string_lossy().to_string();
+
+    loop {
+        let node = cursor.node();
+        let kind = node.kind();
+
+        if kind == "call_expression" {
+            let call_text = node.utf8_text(source.as_bytes()).unwrap_or("");
+            let line = node.start_position().row + 1;
+            let column = node.start_position().column + 1;
+
+            if call_text.contains(".lock()") || call_text.contains(".lock().") {
+                events.push(TemporalEvent {
+                    event_type: EventType::Acquire,
+                    label: "lock".to_string(),
+                    file_path: file_str.clone(),
+                    line,
+                    column,
+                });
+            } else if call_text.contains(".await") {
+                events.push(TemporalEvent {
+                    event_type: EventType::Await,
+                    label: "await".to_string(),
+                    file_path: file_str.clone(),
+                    line,
+                    column,
+                });
+            } else if call_text.contains(".close()")
+                || call_text.contains(".release()")
+                || call_text.contains(".drop()")
+            {
+                events.push(TemporalEvent {
+                    event_type: EventType::Release,
+                    label: "release".to_string(),
+                    file_path: file_str.clone(),
+                    line,
+                    column,
+                });
+            }
+        }
+
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return events;
+            }
+        }
     }
 }

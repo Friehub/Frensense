@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_1004_LARAVEL_COOKIE_HTTP_ONLY"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 1004 Laravel Cookie Http Only."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

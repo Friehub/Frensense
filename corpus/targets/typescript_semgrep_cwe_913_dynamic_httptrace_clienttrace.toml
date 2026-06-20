@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_913_DYNAMIC_HTTPTRACE_CLIENTTRACE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 913 Dynamic Httptrace Clienttrace."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

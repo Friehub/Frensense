@@ -1,0 +1,5 @@
+id = "TS_JWT_BYPASS"
+severity = "Critical"
+observation = "JWT token is decoded without verification using jwt.decode() instead of jwt.verify()."
+impact = "Attackers can forge JWT tokens with arbitrary claims since the signature is never checked."
+improvement = "Use jwt.verify(token, secret) to validate the signature before trusting the payload."

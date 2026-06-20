@@ -138,9 +138,10 @@ def _extract_fix_urls(vuln: dict) -> list:
     """Extract fix commit URLs from an OSV vulnerability."""
     urls = []
     for ref in vuln.get("references", []):
-        if ref.get("type") == "FIX":
-            url = ref.get("url", "")
-            if "github.com" in url and "/commit/" in url:
+        url = ref.get("url", "")
+        # Check for GitHub commit URLs (FIX type or any type with commit URL)
+        if "github.com" in url and "/commit/" in url:
+            if url not in urls:
                 urls.append(url)
     return urls
 
@@ -252,7 +253,12 @@ def _extract_functions_from_diff(diff: str, language: str, filepath: str) -> lis
         if _is_trivial_change(before_code, after_code):
             continue
 
-        func_name = _extract_function_name(before_code, language) or "changed_function"
+        # Try to extract function name, otherwise use filepath-based name
+        func_name = _extract_function_name(before_code, language)
+        if not func_name:
+            # Use filepath-based name
+            func_name = Path(filepath).stem
+
         slug = re.sub(r"[^a-z0-9]", "_", func_name.lower()).strip("_")[:40]
         cwe = "cve"  # placeholder
         pattern_name = f"{language}_{cwe}_{slug}"

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_328_USE_OF_MD5"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 328 Use Of Md5."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -16,13 +16,13 @@ impl TaintConfidenceAdjuster {
         original_confidence: f32,
     ) -> f32 {
         let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let lang_name = crate::parser::ext_to_language(ext);
+        if lang_name == "unknown" {
+            return original_confidence;
+        }
 
         let mut parser = tree_sitter::Parser::new();
-        let lang = crate::parser::ParserRegistry::get_language_by_name(match ext {
-            "rs" => "rust",
-            "ts" | "tsx" | "js" | "jsx" => "typescript",
-            _ => return original_confidence,
-        });
+        let lang = crate::parser::ParserRegistry::get_language_by_name(lang_name);
         let Ok(lang) = lang else {
             return original_confidence;
         };

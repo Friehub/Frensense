@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_502_DATA_CONTRACT_RESOLVER"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 502 Data Contract Resolver."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

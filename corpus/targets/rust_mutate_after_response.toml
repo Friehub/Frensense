@@ -1,0 +1,5 @@
+id = "RUST_MUTATE_AFTER_RESPONSE"
+severity = "Warning"
+observation = "Corpus pattern: Rust Mutate After Response."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

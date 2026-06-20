@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_INTEGER_OVERFLOW_INT16"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Integer Overflow Int16."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

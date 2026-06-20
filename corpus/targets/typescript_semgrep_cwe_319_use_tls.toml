@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_319_USE_TLS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 319 Use Tls."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -1,6 +1,6 @@
 # Frensense Integrity Stack
 
-.PHONY: all audit check test fmt clean help
+.PHONY: all audit check test fmt clean help corpus-check corpus-gen
 
 all: fmt check audit test
 
@@ -46,7 +46,7 @@ fuzz:
 ## Documentation
 docs:
 	@echo "[DOC] Generating Frensense Rule Catalog..."
-	cargo run --features cli -- --generate-docs
+	cargo run -- --generate-docs
 
 ## Security & Compliance
 sbom:
@@ -57,7 +57,7 @@ sbom:
 dist: docs sbom
 	@echo "[DIST] Bundling release artifacts..."
 	mkdir -p dist
-	cargo build --release --features cli
+	cargo build --release
 	cp target/release/frensense dist/
 	cp RULES.md dist/
 	cp bom.json dist/
@@ -71,6 +71,15 @@ docker:
 benchmark:
 	@echo "[BENCH] Running performance benchmarks..."
 	./scripts/benchmark.sh
+
+## Corpus
+corpus-check:
+	@echo "[CORPUS] Checking pattern completeness..."
+	@python3 scripts/corpus_check.py corpus/targets/
+
+corpus-gen:
+	@echo "[CORPUS] Generating missing sidecar .toml files..."
+	@python3 scripts/corpus_check.py corpus/targets/ --generate
 
 ## Discipline
 discipline: check audit test benchmark

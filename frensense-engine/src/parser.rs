@@ -14,6 +14,112 @@ const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
     (&["yaml", "yml"], &["yml", "yaml"]),
 ];
 
+/// Maps file extension to human-readable language name.
+pub fn ext_to_language(ext: &str) -> &'static str {
+    match ext {
+        "rs" => "rust",
+        "ts" | "tsx" => "typescript",
+        "js" | "jsx" => "javascript",
+        "py" | "pyi" => "python",
+        "yml" | "yaml" => "yaml",
+        _ => "unknown",
+    }
+}
+
+/// Check whether a file has a supported extension.
+pub fn is_supported(path: &Path) -> bool {
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    matches!(
+        ext,
+        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml"
+    )
+}
+
+/// Look up file extensions for a language name (e.g. "rust" → ["rs"]).
+pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {
+    let lower = name.to_lowercase();
+    LANGUAGE_EXTENSIONS
+        .iter()
+        .find(|(names, _)| names.contains(&lower.as_str()))
+        .map(|(_, exts)| *exts)
+}
+
+/// Check whether a file extension matches one of the given allowed extensions.
+pub fn ext_matches(ext: &str, allowed: &[&str]) -> bool {
+    allowed.contains(&ext)
+}
+
+/// Tree-sitter symbol query for a file extension.
+pub fn symbol_query_for_ext(ext: &str) -> Option<&'static str> {
+    match ext {
+        "rs" => Some(
+            r"
+            (function_item name: (identifier) @name)
+            (parameter pattern: (identifier) @name)
+            (parameter pattern: (tuple_pattern (identifier) @name))
+            (let_declaration pattern: (identifier) @name)
+            (let_declaration pattern: (tuple_pattern (identifier) @name))
+            (struct_item name: (type_identifier) @name)
+            (enum_item name: (type_identifier) @name)
+            (trait_item name: (type_identifier) @name)
+            (const_item name: (identifier) @name)
+        ",
+        ),
+        "ts" | "tsx" => Some(
+            r"
+            (function_declaration name: (identifier) @name)
+            (method_definition name: (property_identifier) @name)
+            (class_declaration name: (type_identifier) @name)
+            (interface_declaration name: (type_identifier) @name)
+            (enum_declaration name: (identifier) @name)
+            (variable_declarator name: (identifier) @name)
+            (lexical_declaration (variable_declarator name: (identifier) @name))
+        ",
+        ),
+        "js" | "jsx" => Some(
+            r"
+            (function_declaration name: (identifier) @name)
+            (class_declaration name: (identifier) @name)
+            (variable_declarator name: (identifier) @name)
+            (lexical_declaration (variable_declarator name: (identifier) @name))
+        ",
+        ),
+        "py" | "pyi" => Some(
+            r"
+            (function_definition name: (identifier) @name)
+            (class_definition name: (identifier) @name)
+            (assignment left: (identifier) @name)
+        ",
+        ),
+        _ => None,
+    }
+}
+
+/// Tree-sitter call query for a file extension.
+pub fn call_query_for_ext(ext: &str) -> Option<&'static str> {
+    match ext {
+        "rs" => Some(
+            r"
+            (call_expression function: (identifier) @call)
+            (call_expression function: (field_expression field: (field_identifier) @call))
+        ",
+        ),
+        "ts" | "tsx" | "js" | "jsx" => Some(
+            r"
+            (call_expression function: (identifier) @call)
+            (call_expression function: (member_expression property: (property_identifier) @call))
+        ",
+        ),
+        "py" | "pyi" => Some(
+            r"
+            (call function: (identifier) @call)
+            (call function: (attribute attribute: (identifier) @call))
+        ",
+        ),
+        _ => None,
+    }
+}
+
 pub struct ParserRegistry;
 
 impl ParserRegistry {
@@ -32,7 +138,6 @@ impl ParserRegistry {
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
             #[cfg(feature = "python")]
             "py" | "pyi" => Ok(tree_sitter_python::LANGUAGE.into()),
-            // YAML tree-sitter parsing not available in engine; YAML is consumer-side via serde_yaml
             "yml" | "yaml" => Err(FrensenseError::Config(format!(
                 "YAML tree-sitter parsing not available in the engine (use consumer crate). Extension: {ext}"
             ))),
@@ -57,105 +162,32 @@ impl ParserRegistry {
     }
 
     pub fn get_symbol_query_by_ext(&self, ext: &str) -> Option<&'static str> {
-        match ext {
-            "rs" => Some(
-                r"
-                (function_item name: (identifier) @name)
-                (parameter pattern: (identifier) @name)
-                (parameter pattern: (tuple_pattern (identifier) @name))
-                (let_declaration pattern: (identifier) @name)
-                (let_declaration pattern: (tuple_pattern (identifier) @name))
-                (struct_item name: (type_identifier) @name)
-                (enum_item name: (type_identifier) @name)
-                (trait_item name: (type_identifier) @name)
-                (const_item name: (identifier) @name)
-            ",
-            ),
-            "ts" | "tsx" => Some(
-                r"
-                (function_declaration name: (identifier) @name)
-                (method_definition name: (property_identifier) @name)
-                (class_declaration name: (type_identifier) @name)
-                (interface_declaration name: (type_identifier) @name)
-                (enum_declaration name: (identifier) @name)
-                (variable_declarator name: (identifier) @name)
-                (lexical_declaration (variable_declarator name: (identifier) @name))
-            ",
-            ),
-            "js" | "jsx" => Some(
-                r"
-                (function_declaration name: (identifier) @name)
-                (class_declaration name: (identifier) @name)
-                (variable_declarator name: (identifier) @name)
-                (lexical_declaration (variable_declarator name: (identifier) @name))
-            ",
-            ),
-            "py" | "pyi" => Some(
-                r"
-                (function_definition name: (identifier) @name)
-                (class_definition name: (identifier) @name)
-                (assignment left: (identifier) @name)
-            ",
-            ),
-            _ => None,
-        }
+        symbol_query_for_ext(ext)
     }
 
     pub fn get_call_query_by_ext(&self, ext: &str) -> Option<&'static str> {
-        match ext {
-            "rs" => Some(
-                r"
-                (call_expression function: (identifier) @call)
-                (call_expression function: (field_expression field: (field_identifier) @call))
-            ",
-            ),
-            "ts" | "tsx" | "js" | "jsx" => Some(
-                r"
-                (call_expression function: (identifier) @call)
-                (call_expression function: (member_expression property: (property_identifier) @call))
-            ",
-            ),
-            "py" | "pyi" => Some(
-                r"
-                (call function: (identifier) @call)
-                (call function: (attribute attribute: (identifier) @call))
-            ",
-            ),
-            _ => None,
-        }
+        call_query_for_ext(ext)
     }
 
     pub fn is_supported(path: &Path) -> bool {
-        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        matches!(
-            ext,
-            "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml"
-        )
+        crate::parser::is_supported(path)
     }
 
     pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {
-        let lower = name.to_lowercase();
-        LANGUAGE_EXTENSIONS
-            .iter()
-            .find(|(names, _)| names.contains(&lower.as_str()))
-            .map(|(_, exts)| *exts)
+        crate::parser::extensions_for(name)
     }
 
-    /// Backward-compatible wrapper: get symbol query by path.
     pub fn get_symbol_query(path: &Path) -> Option<&'static str> {
-        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        let registry = ParserRegistry;
-        registry.get_symbol_query_by_ext(ext)
+        let ext = path.extension().and_then(|s| s.to_str())?;
+        symbol_query_for_ext(ext)
     }
 
-    /// Backward-compatible wrapper: get call query by path.
     pub fn get_call_query(path: &Path) -> Option<&'static str> {
-        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        let registry = ParserRegistry;
-        registry.get_call_query_by_ext(ext)
+        let ext = path.extension().and_then(|s| s.to_str())?;
+        call_query_for_ext(ext)
     }
 
     pub fn ext_matches(ext: &str, allowed: &[&str]) -> bool {
-        allowed.contains(&ext)
+        crate::parser::ext_matches(ext, allowed)
     }
 }

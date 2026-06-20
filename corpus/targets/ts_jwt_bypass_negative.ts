@@ -23,3 +23,30 @@ function getProfile(req: Request, res: Response) {
     const data = jwt.verify(token as string, SECRET);
     res.json(data);
 }
+
+// tRPC protected middleware - uses session management library, NOT raw JWT
+const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+    const session = ctx.session;
+    if (!session?.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    return next({ ctx: { ...ctx, session } });
+});
+
+// NextAuth session-based authentication
+export async function getSession(req: Request) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+        throw new Error("Unauthorized");
+    }
+    return session.user;
+}
+
+// Clerk session verification
+export async function requireAuth(ctx: Context) {
+    const userId = ctx.auth.userId;
+    if (!userId) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    return userId;
+}

@@ -1,18 +1,18 @@
-# GenSense in the Agent Era
+# FrenSense in the Agent Era
 ## From Linter to Shared Ground Truth
 
 ---
 
 ## The Core Problem
 
-When GenSense runs as a VSCode extension today, warnings appear as squiggles and Problems 
+When FrenSense runs as a VSCode extension today, warnings appear as squiggles and Problems 
 panel entries. The **human** sees them. The **LLM that generated the code does not** — 
 unless the human copies the error back into the prompt manually.
 
 With Copilot, Cursor, or any inline AI today:
 
 ```
-LLM generates code → GenSense fires → Human sees warning → Human may or may not act
+LLM generates code → FrenSense fires → Human sees warning → Human may or may not act
                                                          ↑
                                               LLM never knows it violated anything
 ```
@@ -25,14 +25,14 @@ This breaks the feedback loop at the most critical point.
 ## What Changes With Multiple AI Agents
 
 A developer running multiple agents — one writing code, one reviewing, one running tests, 
-one managing the PR — has a fundamentally different architecture. GenSense in that world 
+one managing the PR — has a fundamentally different architecture. FrenSense in that world 
 is not a linter the human reads. It is a **signal in the agent feedback loop**.
 
-The agent writing code calls GenSense as a tool. The tool returns advisories. The agent 
+The agent writing code calls FrenSense as a tool. The tool returns advisories. The agent 
 either fixes the code or explains why the advisory does not apply. This is already how 
 agent loops work with compiler errors and test output — they read structured output, 
-they iterate. GenSense advisories in JSON and SARIF are already machine-readable. 
-The infrastructure exists. What is missing is the contract that makes GenSense a 
+they iterate. FrenSense advisories in JSON and SARIF are already machine-readable. 
+The infrastructure exists. What is missing is the contract that makes FrenSense a 
 first-class tool an agent can call, interpret, and act on.
 
 ---
@@ -60,7 +60,7 @@ first-class tool an agent can call, interpret, and act on.
                │           └────────────────────┘
                │
       ┌────────▼───────────────────────────────┐
-      │              GenSense                  │
+      │              FrenSense                  │
       │         Shared Ground Truth            │
       │                                        │
       │  • runs on every file save/tool call   │
@@ -70,7 +70,7 @@ first-class tool an agent can call, interpret, and act on.
       └────────────────────────────────────────┘
 ```
 
-GenSense is the contract all agents agree on. The writer cannot ship code the reviewer 
+FrenSense is the contract all agents agree on. The writer cannot ship code the reviewer 
 will reject because they are both reading the same invariants. The fixer knows exactly 
 what to change because the advisory contains the replacement. The human only appears 
 for global invariants that require architectural judgment.
@@ -125,23 +125,23 @@ With these three fields, the agent workflow becomes deterministic:
 ```
 1. Agent generates code
       ↓
-2. GenSense runs (on save or explicit tool call)
+2. FrenSense runs (on save or explicit tool call)
       ↓
 3. For each advisory where auto_fixable = true:
       → Fixer agent applies proposed_replacement
-      → Re-run GenSense to confirm resolved
+      → Re-run FrenSense to confirm resolved
       ↓
 4. For each advisory where auto_fixable = false AND requires_human = false:
       → Reviewer agent reasons about the finding
       → Writer agent attempts a fix
-      → Re-run GenSense
+      → Re-run FrenSense
       → Repeat up to N attempts
       ↓
 5. For each advisory where requires_human = true:
       → Surface to developer with full context
       → Block merge until resolved
       ↓
-6. When GenSense returns empty → code is considered correct
+6. When FrenSense returns empty → code is considered correct
 ```
 
 The writer cannot ignore a tool return value the way it ignores a squiggle 
@@ -151,7 +151,7 @@ a human forgot to mention. The loop does not exit until the advisories are resol
 
 ## The Interface That Makes This Real
 
-GenSense today outputs JSON to stdout. That is correct for CI. For agents it needs 
+FrenSense today outputs JSON to stdout. That is correct for CI. For agents it needs 
 to be callable as a tool with a defined schema — either as an MCP server or a 
 structured tool definition.
 
@@ -184,7 +184,7 @@ structured tool definition.
 }
 ```
 
-This single interface change — from CLI to callable tool — is what makes GenSense 
+This single interface change — from CLI to callable tool — is what makes FrenSense 
 visible to every LLM writing code in any editor or agent framework. The model 
 does not see a squiggle. It sees a tool return value. And it cannot move forward 
 while `clean: false`.
@@ -209,7 +209,7 @@ A rule that says:
 
 ...cannot be satisfied by generating one convincing function. It requires the entire 
 call graph to be coherent. No agent generating code file-by-file can guarantee that 
-without running GenSense after every change and iterating until the global invariant holds.
+without running FrenSense after every change and iterating until the global invariant holds.
 
 This is why `requires_human: true` is reserved specifically for these. The Datalog 
 fixed-point layer, the cross-file taint checks, the path guards — these are the 
@@ -222,8 +222,8 @@ agents enforce it forever.
 
 | Who | What They See | What They Do |
 |---|---|---|
-| **Writer Agent** | GenSense tool return on each generation | Iterates until clean or escalates |
-| **Fixer Agent** | `auto_fixable` advisories with `proposed_replacement` | Applies fixes, re-runs GenSense |
+| **Writer Agent** | FrenSense tool return on each generation | Iterates until clean or escalates |
+| **Fixer Agent** | `auto_fixable` advisories with `proposed_replacement` | Applies fixes, re-runs FrenSense |
 | **Reviewer Agent** | Full advisory set with confidence scores | Routes: fix / attempt / escalate |
 | **Developer** | Only `requires_human` advisories | Defines global invariants, reviews architectural violations |
 | **CI/CD** | SARIF output, `clean` boolean | Blocks merge if not clean |
@@ -236,17 +236,17 @@ The feedback loop closes at the right place. Today:
 
 ```
 LLM generates → human reviews → human fixes → merge
-              (GenSense warns but LLM never iterates)
+              (FrenSense warns but LLM never iterates)
 ```
 
-With GenSense as a first-class agent tool:
+With FrenSense as a first-class agent tool:
 
 ```
-Agent generates → GenSense returns → agent iterates → GenSense confirms → merge
+Agent generates → FrenSense returns → agent iterates → FrenSense confirms → merge
                   (LLM sees every violation, cannot exit loop until resolved)
 ```
 
-The cost of generating code that satisfies GenSense's global invariants becomes equal 
+The cost of generating code that satisfies FrenSense's global invariants becomes equal 
 to the cost of writing correct code. The bypass and the solution converge. That is the 
 point.
 
@@ -254,7 +254,7 @@ point.
 
 ## Summary
 
-GenSense's path from linter to ground truth is one interface change: MCP tool with 
+FrenSense's path from linter to ground truth is one interface change: MCP tool with 
 three new advisory fields. The human does not disappear — they define the global 
 invariants once, as architectural rules, and then step back. Every agent in the loop 
 reads the same contract. The writer cannot ship what the reviewer will reject. The 
@@ -262,5 +262,5 @@ fixer knows exactly what to change. The developer only sees what genuinely requi
 human judgment.
 
 In a world where LLMs write most code, the bottleneck is not generation — it is 
-correctness verification. GenSense becomes the verification layer that every agent 
+correctness verification. FrenSense becomes the verification layer that every agent 
 in the system must satisfy before code moves forward.

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_AVOID_PLATFORM_WITH_FROM"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Avoid Platform With From."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

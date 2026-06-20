@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_NO_REPLACEALL"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security No Replaceall."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

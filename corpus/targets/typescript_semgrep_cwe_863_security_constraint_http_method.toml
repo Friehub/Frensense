@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_863_SECURITY_CONSTRAINT_HTTP_METHOD"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 863 Security Constraint Http Method."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

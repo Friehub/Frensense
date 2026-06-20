@@ -4,7 +4,7 @@ use crate::semantics::graph::{SemanticGraph, SemanticNodeId};
 use std::collections::HashMap;
 use std::path::Path;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, Hash)]
 pub enum SymbolKind {
     Function,
     Struct,

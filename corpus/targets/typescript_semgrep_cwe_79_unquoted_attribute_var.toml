@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_UNQUOTED_ATTRIBUTE_VAR"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Unquoted Attribute Var."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

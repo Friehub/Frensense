@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_PREFER_READ_IN_BINARY_MODE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Prefer Read In Binary Mode."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

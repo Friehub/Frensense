@@ -76,12 +76,12 @@ def main():
     total_harvested = 0
 
     if args.source in ("cvefixes", "all"):
-        from harvesters.cvefixes import harvest_cvefixes
-        count = harvest_cvefixes(
+        from harvesters.cvefixes_sqlite import harvest_cvefixes_sqlite
+        count = harvest_cvefixes_sqlite(
             output_dir=output_dir,
             language=args.language,
             limit=args.limit - total_harvested,
-            dataset_path=args.dataset_path,
+            db_path=args.dataset_path,
             dry_run=args.dry_run,
         )
         total_harvested += count

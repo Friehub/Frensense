@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_LOCALHOST_BASE_URL"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Localhost Base Url."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

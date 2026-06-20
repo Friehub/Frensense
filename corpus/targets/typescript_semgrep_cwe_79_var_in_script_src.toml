@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_VAR_IN_SCRIPT_SRC"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Var In Script Src."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

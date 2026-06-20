@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_ITERATION_OVER_LS_OUTPUT"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Iteration Over Ls Output."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

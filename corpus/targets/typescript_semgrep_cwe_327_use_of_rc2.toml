@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_327_USE_OF_RC2"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 327 Use Of Rc2."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

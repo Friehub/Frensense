@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_CORRECTNESS_DOUBLE_EPSILON_EQUALITY"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Correctness Double Epsilon Equality."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -1,0 +1,5 @@
+id = "TS_CSA_AUTH_NO_REJECTION"
+severity = "Warning"
+observation = "Corpus pattern: Ts Csa Auth No Rejection."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

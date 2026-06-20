@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_706_HTTP_LISTENER_WILDCARD_BINDINGS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 706 Http Listener Wildcard Bindings."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

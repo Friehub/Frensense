@@ -17,6 +17,7 @@
 )]
 
 pub mod atomic_section;
+pub mod ast_distance;
 pub mod cfg;
 pub mod corpus;
 pub mod data_flow;
@@ -29,8 +30,8 @@ pub mod parser;
 pub mod pattern;
 pub mod profile;
 pub mod reachability;
+pub mod semantic_patterns;
 pub mod secrets;
-pub mod slice;
 pub mod symbols;
 pub mod temporal;
 
@@ -168,13 +169,7 @@ pub fn analyze_project(
     for (idx, (path_str, source)) in files.into_iter().enumerate() {
         let path = Path::new(&path_str);
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let language = match ext {
-            "rs" => "rust",
-            "ts" | "tsx" => "typescript",
-            "js" | "jsx" => "javascript",
-            "yml" | "yaml" => "yaml",
-            _ => "unknown",
-        };
+        let language = crate::parser::ext_to_language(ext);
 
         if language == "unknown" {
             continue;

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_CALLING_SET_STATE_ON_CURRENT_STATE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Calling Set State On Current State."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

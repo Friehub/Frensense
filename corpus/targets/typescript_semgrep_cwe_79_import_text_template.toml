@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_IMPORT_TEXT_TEMPLATE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Import Text Template."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

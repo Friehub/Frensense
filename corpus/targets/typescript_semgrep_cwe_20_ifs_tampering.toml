@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_20_IFS_TAMPERING"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 20 Ifs Tampering."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

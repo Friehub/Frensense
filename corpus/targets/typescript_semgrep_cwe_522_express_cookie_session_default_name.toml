@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_522_EXPRESS_COOKIE_SESSION_DEFAULT_NAME"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 522 Express Cookie Session Default Name."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

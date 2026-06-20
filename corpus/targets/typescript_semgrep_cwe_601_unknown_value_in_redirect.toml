@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_601_UNKNOWN_VALUE_IN_REDIRECT"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 601 Unknown Value In Redirect."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

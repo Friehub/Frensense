@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_327_INSECURE_MODULE_USED"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 327 Insecure Module Used."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

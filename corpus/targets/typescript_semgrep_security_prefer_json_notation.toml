@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_PREFER_JSON_NOTATION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Prefer Json Notation."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

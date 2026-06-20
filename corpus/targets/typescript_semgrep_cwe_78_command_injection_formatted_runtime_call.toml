@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_78_COMMAND_INJECTION_FORMATTED_RUNTIME_CALL"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 78 Command Injection Formatted Runtime Call."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

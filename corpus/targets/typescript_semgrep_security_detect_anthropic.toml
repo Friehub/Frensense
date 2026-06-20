@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_DETECT_ANTHROPIC"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Detect Anthropic."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

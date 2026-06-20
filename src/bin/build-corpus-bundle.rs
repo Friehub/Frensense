@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 //! Builds the corpus fingerprint bundle (frensense-corpus.frc).
 //!
-//! Usage: cargo run --bin build-corpus-bundle
+//! Usage: cargo run --bin build-corpus-bundle [--incremental]
 //!
 //! Reads corpus/targets/, extracts fingerprints, writes frensense-corpus.frc.
+//! With --incremental, only reprocesses changed files using a manifest.
 
 use std::env;
 use std::path::PathBuf;
@@ -13,13 +14,29 @@ fn main() {
     let corpus_dir = manifest_dir.join("corpus").join("targets");
     let output_path = manifest_dir.join("frensense-corpus.frc");
 
-    eprintln!("Building corpus bundle from {}...", corpus_dir.display());
+    let incremental = env::args().any(|a| a == "--incremental");
 
-    let bytes = match frensense_engine::corpus::bundle::build_bundle(&corpus_dir) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Error building bundle: {e}");
-            std::process::exit(1);
+    if incremental {
+        eprintln!("Building corpus bundle (incremental) from {}...", corpus_dir.display());
+    } else {
+        eprintln!("Building corpus bundle from {}...", corpus_dir.display());
+    }
+
+    let bytes = if incremental {
+        match frensense_engine::corpus::bundle::build_bundle_incremental(&corpus_dir) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("Error building bundle: {e}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        match frensense_engine::corpus::bundle::build_bundle(&corpus_dir) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("Error building bundle: {e}");
+                std::process::exit(1);
+            }
         }
     };
 

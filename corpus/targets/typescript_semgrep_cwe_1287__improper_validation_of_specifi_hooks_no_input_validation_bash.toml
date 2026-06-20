@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_1287__IMPROPER_VALIDATION_OF_SPECIFI_HOOKS_NO_INPUT_VALIDATION_BASH"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 1287  Improper Validation Of Specifi Hooks No Input Validation Bash."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

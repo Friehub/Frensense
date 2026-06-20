@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_ENUM_MAP_INTO"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Enum Map Into."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

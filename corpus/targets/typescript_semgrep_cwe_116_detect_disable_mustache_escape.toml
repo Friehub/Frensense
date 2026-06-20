@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_116_DETECT_DISABLE_MUSTACHE_ESCAPE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 116 Detect Disable Mustache Escape."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

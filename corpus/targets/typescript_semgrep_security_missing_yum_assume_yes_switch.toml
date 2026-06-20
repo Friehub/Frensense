@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_MISSING_YUM_ASSUME_YES_SWITCH"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Missing Yum Assume Yes Switch."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

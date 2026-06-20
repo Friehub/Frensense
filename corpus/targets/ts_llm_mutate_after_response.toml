@@ -1,0 +1,5 @@
+id = "TS_LLM_MUTATE_AFTER_RESPONSE"
+severity = "Warning"
+observation = "Corpus pattern: Ts Llm Mutate After Response."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

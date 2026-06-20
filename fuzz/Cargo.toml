@@ -1,15 +1,15 @@
 [package]
-name = "gensense-fuzz"
+name = "frensense-fuzz"
 version = "0.0.1"
 publish = false
 edition = "2021"
 
 [package.metadata.cargo-machete]
-ignored = ["gensense"]
+ignored = ["frensense"]
 
 [dependencies]
 libfuzzer-sys = "0.4"
-gensense = { path = ".." }
+frensense = { path = ".." }
 
 [[bin]]
 name = "audit_parse"

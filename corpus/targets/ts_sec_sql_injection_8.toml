@@ -1,0 +1,5 @@
+id = "TS_SEC_SQL_INJECTION_8"
+severity = "Critical"
+observation = "Corpus pattern: Ts Sec Sql Injection 8."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

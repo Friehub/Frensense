@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_HASHTBL_FIND_OUTSIDE_TRY"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Hashtbl Find Outside Try."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

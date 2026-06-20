@@ -16,6 +16,7 @@ pub struct HallucinatedImport {
 pub struct DependencyResolver {
     cargo_deps: HashSet<String>,
     npm_deps: HashSet<String>,
+    check_deps_enabled: bool,
 }
 
 impl DependencyResolver {
@@ -23,10 +24,68 @@ impl DependencyResolver {
         Self::default()
     }
 
+    pub fn with_check_deps(enabled: bool) -> Self {
+        Self {
+            check_deps_enabled: enabled,
+            ..Default::default()
+        }
+    }
+
     pub fn load_project(&mut self, root: &Path) {
         self.load_cargo_lock(root);
         self.load_cargo_toml_deps(root);
         self.load_package_json(root);
+        
+        // Also load package.json from common subdirectories (monorepo support)
+        self.load_package_json_from_dir(&root.join("apps"));
+        self.load_package_json_from_dir(&root.join("packages"));
+        self.load_package_json_from_dir(&root.join("services"));
+
+        if self.check_deps_enabled {
+            self.verify_cargo_metadata_available(root);
+        }
+    }
+
+    fn verify_cargo_metadata_available(&self, root: &Path) {
+        // Check if this is a Rust project (has Cargo.toml)
+        if !root.join("Cargo.toml").exists() {
+            return;
+        }
+
+        // Check if cargo metadata command works
+        let output = std::process::Command::new("cargo")
+            .arg("metadata")
+            .arg("--format-version=1")
+            .arg("--no-deps")
+            .current_dir(root)
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                // cargo metadata works, we can use it for more accurate dependency checking
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("Warning: cargo metadata failed: {}", stderr.trim());
+                eprintln!("Dependency checking may be incomplete. Install Rust toolchain for full support.");
+            }
+            Err(e) => {
+                eprintln!("Warning: cargo not found on PATH: {e}");
+                eprintln!("Dependency checking will use Cargo.toml/Cargo.lock only.");
+                eprintln!("Install Rust toolchain for full dependency verification.");
+            }
+        }
+    }
+    
+    fn load_package_json_from_dir(&mut self, dir: &Path) {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    self.load_package_json(&path);
+                }
+            }
+        }
     }
 
     fn find_workspace_root(root: &Path) -> Option<PathBuf> {
@@ -149,7 +208,31 @@ impl DependencyResolver {
     }
 
     pub fn check_npm_import(&self, package_name: &str) -> bool {
-        self.npm_deps.contains(package_name)
+        // Exact match
+        if self.npm_deps.contains(package_name) {
+            return true;
+        }
+        
+        // Handle subpath imports: "dotenv/config" → check "dotenv"
+        if let Some(slash_pos) = package_name.find('/') {
+            let base = &package_name[..slash_pos];
+            if self.npm_deps.contains(base) {
+                return true;
+            }
+        }
+        
+        // Handle scoped packages: "@fastify/cors" → already in deps as "@fastify/cors"
+        // But also check if "@fastify" prefix matches any dep
+        if package_name.starts_with('@') {
+            if let Some(slash_pos) = package_name[1..].find('/') {
+                let scope = &package_name[..=slash_pos]; // e.g., "@fastify"
+                if self.npm_deps.iter().any(|d| d.starts_with(scope)) {
+                    return true;
+                }
+            }
+        }
+        
+        false
     }
 
     pub fn scan_file(&self, source: &str, file_path: &Path) -> Vec<HallucinatedImport> {

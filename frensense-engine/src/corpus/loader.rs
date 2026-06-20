@@ -5,12 +5,17 @@ use std::fs;
 use std::path::Path;
 
 use crate::fingerprint::{FunctionFingerprint, extract_fingerprints};
+use crate::corpus::semantic::SemanticFilter;
 
 #[derive(Debug, Clone)]
 pub struct CorpusPattern {
     pub id: String,
     pub positives: Vec<FunctionFingerprint>,
     pub negatives: Vec<FunctionFingerprint>,
+    pub semantic_filter: Option<SemanticFilter>,
+    pub observation: Option<String>,
+    pub impact: Option<String>,
+    pub improvement: Option<String>,
 }
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
@@ -33,21 +38,18 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
 
         let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let lang_name = crate::parser::ext_to_language(ext);
+        if lang_name == "unknown" {
+            eprintln!(
+                "corpus: skipping unsupported extension '{ext}' in '{}'",
+                path.display()
+            );
+            continue;
+        }
 
         let mut parser = tree_sitter::Parser::new();
-        let lang = crate::parser::ParserRegistry::get_language_by_name(match ext {
-            "rs" => "rust",
-            "ts" | "tsx" => "typescript",
-            "js" | "jsx" => "javascript",
-            _ => {
-                eprintln!(
-                    "corpus: skipping unsupported extension '{ext}' in '{}'",
-                    path.display()
-                );
-                continue;
-            }
-        })
-        .map_err(|e| e.to_string())?;
+        let lang = crate::parser::ParserRegistry::get_language_by_name(lang_name)
+            .map_err(|e| e.to_string())?;
         parser.set_language(&lang).map_err(|e| e.to_string())?;
         let Some(tree) = parser.parse(&source, None) else {
             continue;
@@ -70,6 +72,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
     }
 
     let mut patterns = Vec::new();
+    let semantic_filters = load_semantic_filters();
     for (name, (pos, neg)) in pairs {
         if pos.is_empty() && neg.is_empty() {
             continue;
@@ -82,14 +85,154 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             eprintln!("Corpus warning: pattern '{name}' has positive but no negative example");
             continue;
         }
+
+        let advisory = load_sidecar_toml(corpus_dir, &name);
+
+        if advisory.observation.is_none() {
+            eprintln!("Corpus warning: pattern '{name}' has no sidecar .toml (observation/impact/improvement will be empty)");
+        }
+
         patterns.push(CorpusPattern {
-            id: name,
+            id: name.clone(),
             positives: pos,
             negatives: neg,
+            semantic_filter: semantic_filters.get(&name).cloned(),
+            observation: advisory.observation,
+            impact: advisory.impact,
+            improvement: advisory.improvement,
         });
     }
 
     Ok(patterns)
+}
+
+struct AdvisoryText {
+    observation: Option<String>,
+    impact: Option<String>,
+    improvement: Option<String>,
+}
+
+fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> AdvisoryText {
+    let toml_path = corpus_dir.join(format!("{pattern_name}.toml"));
+    if !toml_path.exists() {
+        return AdvisoryText {
+            observation: None,
+            impact: None,
+            improvement: None,
+        };
+    }
+
+    let Ok(content) = std::fs::read_to_string(&toml_path) else {
+        return AdvisoryText {
+            observation: None,
+            impact: None,
+            improvement: None,
+        };
+    };
+
+    let Ok(doc) = content.parse::<toml::Table>() else {
+        return AdvisoryText {
+            observation: None,
+            impact: None,
+            improvement: None,
+        };
+    };
+
+    AdvisoryText {
+        observation: doc.get("observation").and_then(|v| v.as_str()).map(String::from),
+        impact: doc.get("impact").and_then(|v| v.as_str()).map(String::from),
+        improvement: doc.get("improvement").and_then(|v| v.as_str()).map(String::from),
+    }
+}
+
+/// Load semantic filters from the TOML file.
+pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilter> {
+    let mut filters = std::collections::HashMap::new();
+    
+    // Try to find the semantic_filters.toml file
+    let possible_paths = [
+        std::path::PathBuf::from("corpus/semantic_filters.toml"),
+        std::path::PathBuf::from("../corpus/semantic_filters.toml"),
+        std::path::PathBuf::from("../../corpus/semantic_filters.toml"),
+    ];
+    
+    let content = possible_paths.iter()
+        .filter_map(|p| std::fs::read_to_string(p).ok())
+        .next();
+    
+    let Some(content) = content else {
+        return filters;
+    };
+    
+    // Simple TOML parser for our filter format
+    let mut current_pattern: Option<String> = None;
+    let mut current_filter = SemanticFilter::default();
+    
+    for line in content.lines() {
+        let line = line.trim();
+        
+        // Skip comments and empty lines
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        
+        // Pattern header: [pattern_name]
+        if line.starts_with('[') && line.ends_with(']') {
+            // Save previous pattern
+            if let Some(name) = current_pattern.take() {
+                if !current_filter.is_empty() {
+                    filters.insert(name, current_filter.clone());
+                }
+                current_filter = SemanticFilter::default();
+            }
+            current_pattern = Some(line[1..line.len()-1].to_string());
+            continue;
+        }
+        
+        // Key = value pairs
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+            
+            // Parse array values: ["item1", "item2"]
+            let parse_array = |s: &str| -> Vec<String> {
+                s.trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .split(',')
+                    .map(|item| item.trim().trim_matches('"').to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            };
+            
+            match key {
+                "contains_call_to" => {
+                    current_filter.contains_call_to = parse_array(value);
+                }
+                "must_not_contain_call_to" => {
+                    current_filter.must_not_contain_call_to = parse_array(value);
+                }
+                "function_name_regex" => {
+                    current_filter.function_name_regex = Some(value.trim_matches('"').to_string());
+                }
+                "contains_node_type" => {
+                    current_filter.contains_node_type = parse_array(value);
+                }
+                "must_not_contain_node_type" => {
+                    current_filter.must_not_contain_node_type = parse_array(value);
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    // Save last pattern
+    if let Some(name) = current_pattern {
+        if !current_filter.is_empty() {
+            filters.insert(name, current_filter);
+        }
+    }
+    
+    filters
 }
 
 fn extract_pattern_name(file_name: &str) -> String {

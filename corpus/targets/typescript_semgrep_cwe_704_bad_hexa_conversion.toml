@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_704_BAD_HEXA_CONVERSION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 704 Bad Hexa Conversion."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

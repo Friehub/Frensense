@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_862__MISSING_AUTHORIZATION_CLAUDE_SETTINGS_BYPASS_PERMISSIONS_GENER"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 862  Missing Authorization Claude Settings Bypass Permissions Gener."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

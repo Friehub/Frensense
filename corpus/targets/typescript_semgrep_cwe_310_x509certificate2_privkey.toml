@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_310_X509CERTIFICATE2_PRIVKEY"
+severity = "Critical"
+observation = "Corpus pattern: Typescript Semgrep Cwe 310 X509Certificate2 Privkey."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

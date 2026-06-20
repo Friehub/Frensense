@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_HTTPS_EQUIV"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Https Equiv."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -62,3 +62,4 @@ TODO.md
 *.cast
 test-*.js
 tests/list_files_test.rs
+.env

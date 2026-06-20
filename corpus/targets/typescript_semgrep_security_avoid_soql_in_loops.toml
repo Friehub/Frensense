@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_AVOID_SOQL_IN_LOOPS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Avoid Soql In Loops."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

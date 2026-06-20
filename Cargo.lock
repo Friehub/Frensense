@@ -353,6 +353,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "toml",
  "tree-sitter",
  "tree-sitter-c",
  "tree-sitter-javascript",

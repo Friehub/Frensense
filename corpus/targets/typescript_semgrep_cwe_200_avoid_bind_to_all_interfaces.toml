@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_200_AVOID_BIND_TO_ALL_INTERFACES"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 200 Avoid Bind To All Interfaces."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

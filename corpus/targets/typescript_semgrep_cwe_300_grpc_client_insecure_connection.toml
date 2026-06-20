@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_300_GRPC_CLIENT_INSECURE_CONNECTION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 300 Grpc Client Insecure Connection."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

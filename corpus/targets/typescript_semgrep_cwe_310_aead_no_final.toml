@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_310_AEAD_NO_FINAL"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 310 Aead No Final."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

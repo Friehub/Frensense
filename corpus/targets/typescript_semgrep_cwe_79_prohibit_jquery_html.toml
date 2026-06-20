@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_PROHIBIT_JQUERY_HTML"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Prohibit Jquery Html."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

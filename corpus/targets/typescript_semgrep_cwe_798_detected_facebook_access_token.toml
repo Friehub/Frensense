@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_798_DETECTED_FACEBOOK_ACCESS_TOKEN"
+severity = "Critical"
+observation = "Corpus pattern: Typescript Semgrep Cwe 798 Detected Facebook Access Token."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

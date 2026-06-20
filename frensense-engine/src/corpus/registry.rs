@@ -3,9 +3,10 @@
 use std::path::Path;
 
 use crate::corpus::loader::{CorpusPattern, load_corpus};
-use crate::fingerprint::FunctionFingerprint;
+use crate::fingerprint::{FunctionFingerprint, compute_idf_weights, apply_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::scorer::PatternScorer;
+use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
 pub struct PatternMatch {
@@ -13,6 +14,9 @@ pub struct PatternMatch {
     pub score: f64,
     pub positive_similarity: f64,
     pub negative_similarity: f64,
+    pub observation: Option<String>,
+    pub impact: Option<String>,
+    pub improvement: Option<String>,
 }
 
 #[derive(Default)]
@@ -21,6 +25,7 @@ pub struct PatternRegistry {
     lsh_index: Option<LSHIndex>,
     threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
+    idf_weights: FxHashMap<u64, f32>,
 }
 
 impl PatternRegistry {
@@ -30,6 +35,7 @@ impl PatternRegistry {
             lsh_index: None,
             threshold,
             threshold_overrides: std::collections::HashMap::new(),
+            idf_weights: FxHashMap::default(),
         }
     }
 
@@ -37,6 +43,7 @@ impl PatternRegistry {
         let patterns = load_corpus(corpus_dir)?;
         let count = patterns.len();
         self.patterns = patterns;
+        self.compute_and_apply_idf();
         self.build_lsh_index();
         Ok(count)
     }
@@ -51,6 +58,7 @@ impl PatternRegistry {
         }
         let count = all_patterns.len();
         self.patterns = all_patterns;
+        self.compute_and_apply_idf();
         self.build_lsh_index();
         Ok(count)
     }
@@ -59,16 +67,49 @@ impl PatternRegistry {
     pub fn load_from_bundle(&mut self, bytes: &[u8]) -> Result<usize, String> {
         let bundle_patterns = crate::corpus::bundle::load_bundle(bytes)?;
         let count = bundle_patterns.len();
+        
+        // Load semantic filters
+        let semantic_filters = crate::corpus::loader::load_semantic_filters();
+        
         self.patterns = bundle_patterns
             .into_iter()
             .map(|bp| CorpusPattern {
-                id: bp.id,
+                id: bp.id.clone(),
                 positives: bp.positives,
                 negatives: bp.negatives,
+                semantic_filter: semantic_filters.get(&bp.id).cloned(),
+                observation: bp.observation,
+                impact: bp.impact,
+                improvement: bp.improvement,
             })
             .collect();
+        self.compute_and_apply_idf();
         self.build_lsh_index();
         Ok(count)
+    }
+
+    /// Compute IDF weights from corpus fingerprints and apply to all patterns.
+    fn compute_and_apply_idf(&mut self) {
+        let all_positives: Vec<FunctionFingerprint> = self.patterns
+            .iter()
+            .flat_map(|p| p.positives.iter().cloned())
+            .collect();
+        
+        if all_positives.is_empty() {
+            return;
+        }
+        
+        self.idf_weights = compute_idf_weights(&all_positives);
+        
+        // Apply IDF weights to all corpus fingerprints
+        for pattern in &mut self.patterns {
+            for fp in &mut pattern.positives {
+                apply_idf_weights(fp, &self.idf_weights);
+            }
+            for fp in &mut pattern.negatives {
+                apply_idf_weights(fp, &self.idf_weights);
+            }
+        }
     }
 
     pub fn pattern_count(&self) -> usize {
@@ -107,7 +148,7 @@ impl PatternRegistry {
         self.lsh_index = Some(index);
     }
 
-    pub fn scan_function(&self, fp: &FunctionFingerprint) -> Vec<PatternMatch> {
+    pub fn scan_function(&self, fp: &FunctionFingerprint, func_node: Option<tree_sitter::Node<'_>>, source: Option<&str>) -> Vec<PatternMatch> {
         let candidates: Vec<usize> = if let Some(ref lsh) = self.lsh_index {
             let sig = minhash_signature(&fp.ngram_hashes, 128);
             lsh.query(&sig)
@@ -119,9 +160,23 @@ impl PatternRegistry {
             (0..self.patterns.len()).collect()
         };
 
+        // Apply IDF weights to candidate fingerprint for scoring
+        let mut weighted_fp = fp.clone();
+        if !self.idf_weights.is_empty() {
+            apply_idf_weights(&mut weighted_fp, &self.idf_weights);
+        }
+
         let mut matches = Vec::new();
         for &idx in &candidates {
             let pattern = &self.patterns[idx];
+            
+            // Apply semantic filter if present
+            if let (Some(filter), Some(node), Some(src)) = (&pattern.semantic_filter, func_node, source) {
+                if !filter.matches(node, src) {
+                    continue;
+                }
+            }
+            
             let best_score = pattern
                 .positives
                 .iter()
@@ -129,7 +184,10 @@ impl PatternRegistry {
                     pattern
                         .negatives
                         .iter()
-                        .map(move |neg| PatternScorer::score_against_corpus(fp, pos, neg))
+                        .map({
+                            let weighted_fp_clone = weighted_fp.clone();
+                            move |neg| PatternScorer::score_against_corpus(&weighted_fp_clone, pos, neg)
+                        })
                 })
                 .fold(0.0f64, f64::max);
             let threshold = self.threshold_for_pattern(&pattern.id);
@@ -139,6 +197,9 @@ impl PatternRegistry {
                     score: best_score,
                     positive_similarity: 0.0,
                     negative_similarity: 0.0,
+                    observation: pattern.observation.clone(),
+                    impact: pattern.impact.clone(),
+                    improvement: pattern.improvement.clone(),
                 });
             }
         }

@@ -4,11 +4,267 @@ use super::Engine;
 use super::{FileSnapshot, cache, config};
 use crate::engine::auditor::AuditOptions;
 use crate::engine::suppression::SuppressConfig;
-use crate::semantics::data_flow::TaintRegistry;
+
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+
+/// Shared snapshot processing: build symbol registry, add edges, discover events.
+fn process_snapshots<'a>(
+    auditor: &crate::engine::auditor::FrensenseAuditor,
+    snapshots: &'a [FileSnapshot],
+) -> Result<(SymbolRegistry, Vec<(FileId, PathBuf)>, HashMap<FileId, &'a FileSnapshot>)> {
+    let mut symbols = SymbolRegistry::new();
+    let mut file_ids = Vec::new();
+    let mut snapshot_map = HashMap::new();
+
+    for snap in snapshots {
+        file_ids.push((snap.id, snap.path.clone()));
+        snapshot_map.insert(snap.id, snap);
+        for sym in snap.symbols.clone() {
+            symbols.insert(sym);
+        }
+    }
+
+    for snap in snapshots {
+        for (caller, callee) in &snap.edges {
+            symbols.add_call_edge(&snap.path, caller, callee);
+        }
+    }
+
+    for snap in snapshots {
+        auditor.discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
+    }
+
+    Ok((symbols, file_ids, snapshot_map))
+}
+
+/// Build file_trees map from snapshots.
+fn build_file_trees(snapshots: &[FileSnapshot]) -> HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)> {
+    let mut file_trees = HashMap::new();
+    for snap in snapshots {
+        file_trees.insert(
+            snap.path.to_string_lossy().to_string(),
+            (snap.tree.clone(), snap.content.clone(), snap.semantic_ops.clone()),
+        );
+    }
+    file_trees
+}
+
+/// Merge config + CLI severity overrides (CLI wins) into advisories.
+fn apply_severity_overrides(advisories: &mut [Advisory], config_overrides: &Option<HashMap<String, crate::Severity>>, cli_overrides: &HashMap<String, crate::Severity>) {
+    let mut merged = config_overrides.clone().unwrap_or_default();
+    for (rule_id, sev) in cli_overrides {
+        merged.insert(rule_id.clone(), *sev);
+    }
+    for adv in advisories {
+        if let Some(sev) = merged.get(&adv.rule_id) {
+            adv.severity = *sev;
+        }
+    }
+}
+
+/// Run all findings modules (W1-W7) on snapshots.
+fn run_findings_modules(
+    root: &Path,
+    snapshots: &[FileSnapshot],
+    symbols: &SymbolRegistry,
+    _file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+    _extra_taint_rule_dirs: &[PathBuf],
+    check_deps: bool,
+    all_advisories: &mut Vec<Advisory>,
+) {
+    use crate::engine::findings::{FindingContext, registered_modules};
+
+    let modules = registered_modules();
+
+    // Setup shared state needed by some modules
+    let mut dep_resolver = frensense_engine::deps::DependencyResolver::with_check_deps(check_deps);
+    dep_resolver.load_project(root);
+
+    // Create a DataFlowEngine for cross-file taint analysis
+    let data_flow_engine = frensense_engine::data_flow::DataFlowEngine::new();
+
+    for snap in snapshots {
+        let mut ctx = FindingContext {
+            symbols,
+            dep_resolver: Some(&mut dep_resolver),
+            data_flow_engine: Some(&data_flow_engine),
+        };
+        for module in &modules {
+            all_advisories.extend(module.run(snap, &mut ctx));
+        }
+    }
+}
+
+/// Run corpus pattern matching on snapshots.
+fn run_corpus_scan(
+    engine: &Engine,
+    _root: &Path,
+    snapshots: &[FileSnapshot],
+    symbols: &crate::semantics::symbols::SymbolRegistry,
+    data_flow: &frensense_engine::data_flow::DataFlowEngine,
+    file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+    all_advisories: &mut Vec<Advisory>,
+) {
+    let mut corpus_dirs: Vec<&Path> = Vec::new();
+    if let Some(ref corpus_dir) = engine.corpus_dir {
+        corpus_dirs.push(corpus_dir.as_path());
+    }
+
+    let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(engine.corpus_threshold);
+    for (category, threshold) in &engine.threshold_overrides {
+        registry.set_threshold_override(category.clone(), *threshold);
+    }
+    let mut corpus_loaded = false;
+
+    #[cfg(feature = "fingerprinting")]
+    if let Some(bundle_bytes) = engine.corpus_bundle {
+        match registry.load_from_bundle(bundle_bytes) {
+            Ok(count) if count > 0 => {
+                eprintln!("Loaded {count} patterns from embedded bundle");
+                corpus_loaded = true;
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("Bundle load error: {e}"),
+        }
+    }
+
+    // Also load from corpus directories if specified (adds to embedded bundle)
+    if !corpus_dirs.is_empty() {
+        match registry.load_corpus_dirs(&corpus_dirs) {
+            Ok(count) if count > 0 => {
+                eprintln!("Loaded {count} patterns from corpus directory");
+                corpus_loaded = true;
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("Corpus load error: {e}"),
+        }
+    }
+
+    if !corpus_loaded {
+        return;
+    }
+
+    for snap in snapshots {
+        let mut fps = Vec::new();
+        frensense_engine::fingerprint::extract_fingerprints(
+            snap.tree.root_node(), &snap.content, &snap.path, &mut fps, engine.ngram_window_size,
+        );
+        for fp in &fps {
+            let func_node = find_function_node(snap.tree.root_node(), &fp.function_name, fp.line, &snap.content);
+            for m in registry.scan_function(fp, func_node, Some(&snap.content)) {
+                let impact = m.impact.unwrap_or_else(|| "Function shape matches a known violation pattern.".to_string());
+                let improvement = m.improvement.unwrap_or_else(|| "Review against corpus example.".to_string());
+                let observation = m.observation.unwrap_or_else(|| {
+                    format!("Corpus pattern: {} (score {:.2}) in '{}'", m.pattern_id, m.score, fp.function_name)
+                });
+
+                // Apply confidence calibration if available
+                // Extract category from pattern ID for per-category calibration
+                let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
+                let mut confidence = if let Some(ref per_cat_cal) = engine.per_category_calibration {
+                    per_cat_cal.calibrate(m.score, category) as f32
+                } else if let Some(ref params) = engine.calibration {
+                    params.calibrate(m.score) as f32
+                } else {
+                    m.score as f32
+                };
+
+                // Verify taint flow if we have a function node
+                let mut taint_verified = false;
+                let mut taint_detail = String::new();
+                if let Some(fn_node) = func_node {
+                    let verification = verify_taint_flow(
+                        fn_node,
+                        &snap.content,
+                        &snap.tree,
+                        &snap.path,
+                        &symbols,
+                        &data_flow,
+                        &file_trees,
+                    );
+                    if verification.verified {
+                        taint_verified = true;
+                        taint_detail = verification.detail;
+                        // Boost confidence for verified findings
+                        confidence = (confidence * 1.2).min(0.95);
+                    }
+                }
+
+                let mut advisory = Advisory::bare(
+                    format!("CORPUS_{}", m.pattern_id.to_uppercase()),
+                    crate::Severity::Warning,
+                    snap.id,
+                    &snap.path,
+                    &observation,
+                )
+                .with_confidence(confidence)
+                .with_line(u32::try_from(fp.line).unwrap_or(u32::MAX))
+                .with_content(fp.function_name.clone())
+                .with_enclosing_symbol(fp.function_name.clone())
+                .with_impact(&impact)
+                .with_improvement(&improvement)
+                .with_tags(["corpus", "pattern"]);
+
+                // Add taint verification info if available
+                if taint_verified {
+                    advisory = advisory.with_tags(["corpus", "pattern", "taint-verified"]);
+                    advisory.impact = format!("{}\n\nTaint flow verified: {}", impact, taint_detail);
+                }
+
+                all_advisories.push(advisory);
+            }
+        }
+    }
+}
+
+/// Verification result from taint flow analysis.
+struct TaintVerification {
+    verified: bool,
+    detail: String,
+}
+
+/// Verify that taint actually flows from source to sink in a function.
+///
+/// This uses the InterproceduralVerifier to check if user-controlled data
+/// reaches a dangerous sink, following taint through function calls.
+fn verify_taint_flow(
+    fn_node: tree_sitter::Node,
+    source: &str,
+    tree: &tree_sitter::Tree,
+    file_path: &Path,
+    symbols: &crate::semantics::symbols::SymbolRegistry,
+    data_flow: &frensense_engine::data_flow::DataFlowEngine,
+    file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+) -> TaintVerification {
+    use crate::semantics::data_flow::cross_file::CrossFileVerifier;
+
+    let file_path_str = file_path.to_string_lossy().to_string();
+    let mut verifier = CrossFileVerifier::new(
+        source,
+        tree,
+        &file_path_str,
+        symbols,
+        data_flow,
+        file_trees,
+    );
+    verifier.seed_taint(fn_node);
+    let result = verifier.verify_flow(fn_node);
+
+    if result.verified {
+        TaintVerification {
+            verified: true,
+            detail: result.detail,
+        }
+    } else {
+        TaintVerification {
+            verified: false,
+            detail: result.detail,
+        }
+    }
+}
 
 impl Engine {
     /// Runs the project auditor on the given root directory.
@@ -33,6 +289,214 @@ impl Engine {
         let _config = self.initialize_auditor_and_config(root);
         self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
 
+        let snapshots = self.snapshot_files(root, files);
+        let (mut symbols, file_ids, snapshot_map) = process_snapshots(&self.auditor, &snapshots)?;
+        let file_trees = build_file_trees(&snapshots);
+
+        let mut all_advisories =
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
+
+        // Create DataFlowEngine for cross-file taint verification
+        let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+
+        self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
+        run_corpus_scan(self, root, &snapshots, &symbols, &data_flow, &file_trees, &mut all_advisories);
+        run_findings_modules(root, &snapshots, &symbols, &file_trees, &self.extra_taint_rule_dirs, self.check_deps, &mut all_advisories);
+        self.apply_composition(&mut all_advisories);
+
+        self.file_cache.save(root, self.language_filter.as_deref());
+        Ok(all_advisories)
+    }
+
+    /// Runs the audit on a single virtual file with the given content.
+    ///
+    /// # Errors
+    /// Returns an error if parsing or auditing fails.
+    pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
+        let config = if self.auditor.rules().is_empty() {
+            self.initialize_auditor_and_config(Path::new("."))
+        } else {
+            config::load_config(Path::new("."))
+        };
+        let id = self.source_registry.register(path, content.to_string());
+        let (language, tree) = self.auditor.parse_source(path, content)?;
+        let symbols = self.auditor.discover_symbols(path, id, content, &language, &tree)?;
+        let semantic_ops = self.auditor.extract_semantic_ops(path, content, &tree);
+
+        let mut file_trees = HashMap::new();
+        file_trees.insert(
+            path.to_string_lossy().to_string(),
+            (tree.clone(), content.to_string(), semantic_ops.clone()),
+        );
+
+        let mut registry = SymbolRegistry::new();
+        for sym in symbols {
+            registry.insert(sym);
+        }
+        self.auditor.discover_events(path, content, &tree, &mut registry)?;
+
+        let opts = AuditOptions {
+            file_id: id, path, content, tree: &tree, semantic_ops: &semantic_ops,
+            symbols: &registry, graph: registry.graph(), file_trees: &file_trees,
+            category_filter: &self.enabled_categories, tag_filter: &self.enabled_tags,
+            suite: self.suite, env: self.environment, severity_filter: self.severity_filter,
+            ngram_window_size: self.ngram_window_size,
+            taint_confidence_interprocedural: self.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
+            default_taint_max_depth: self.default_taint_max_depth,
+        };
+
+        let mut advisories = self.auditor.audit(&opts)?.advisories;
+        apply_severity_overrides(&mut advisories, &config.severity_override, &self.severity_overrides);
+        self.apply_composition(&mut advisories);
+        Ok(advisories)
+    }
+
+    /// Applies real composition to advisories, replacing the coincidence counter.
+    /// Uses LayerSignals to check if layers are causally related, not just co-located.
+    fn apply_composition(&self, advisories: &mut [Advisory]) {
+        crate::engine::composition::apply_composition(advisories);
+    }
+
+    /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
+    ///
+    /// # Errors
+    /// Returns an error if file reading or parsing fails.
+    #[allow(clippy::too_many_lines)]
+    pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
+        if !root.exists() {
+            return Err(crate::FrensenseError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("path does not exist: {}", root.display()),
+            )));
+        }
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
+        self.cache_root = Some(root.to_path_buf());
+
+        let config = self.initialize_auditor_and_config(root);
+        let snapshots = self.collect_and_snapshot_files(root);
+        let (mut symbols, file_ids, snapshot_map) = process_snapshots(&self.auditor, &snapshots)?;
+        let file_trees = build_file_trees(&snapshots);
+
+        let mut all_advisories =
+            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
+
+        apply_severity_overrides(&mut all_advisories, &config.severity_override, &self.severity_overrides);
+        self.apply_composition(&mut all_advisories);
+
+        #[cfg(feature = "fingerprinting")]
+        self.run_profile_analysis(&snapshots, &mut all_advisories);
+
+        self.load_calibration();
+        // Create DataFlowEngine for cross-file taint verification
+        let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+        run_corpus_scan(self, root, &snapshots, &symbols, &data_flow, &file_trees, &mut all_advisories);
+        self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
+        run_findings_modules(root, &snapshots, &symbols, &file_trees, &self.extra_taint_rule_dirs, self.check_deps, &mut all_advisories);
+
+        // Apply severity overrides to all findings
+        apply_severity_overrides(&mut all_advisories, &config.severity_override, &self.severity_overrides);
+
+        if let Some(ref baseline_path) = self.baseline_path {
+            if let Ok(prev) = std::fs::read_to_string(baseline_path) {
+                if let Ok(fingerprints) = serde_json::from_str::<Vec<String>>(&prev) {
+                    let baseline_set: HashSet<String> = fingerprints.into_iter().collect();
+                    all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
+                }
+            }
+        }
+
+        self.file_cache.save(root, self.language_filter.as_deref());
+        Ok((all_advisories, symbols))
+    }
+
+    fn run_taint_analysis(
+        &self,
+        _snapshots: &[super::FileSnapshot],
+        _symbols: &SymbolRegistry,
+        _file_trees: &std::collections::HashMap<
+            String,
+            (
+                tree_sitter::Tree,
+                String,
+                Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+            ),
+        >,
+        _all_advisories: &mut Vec<Advisory>,
+    ) {
+        // Taint analysis removed — detection is now purely corpus-based.
+        // The taint analysis engine is retained for cross-file taint verification
+        // but is no longer driven by regex rules.
+    }
+
+    #[cfg(feature = "fingerprinting")]
+    fn run_profile_analysis(&self, snapshots: &[super::FileSnapshot], all_advisories: &mut Vec<Advisory>) {
+        let Some(ref profile) = self.profile else { return };
+
+        let mut all_fingerprints = Vec::new();
+        for snap in snapshots {
+            let mut fps = Vec::new();
+            crate::engine::fingerprint::extract_fingerprints(
+                snap.tree.root_node(), &snap.content, &snap.path, &mut fps, self.ngram_window_size,
+            );
+            all_fingerprints.extend(fps);
+        }
+
+        for fp in &all_fingerprints {
+            let result = profile.style_surprise(fp);
+            if result.score > self.profile_threshold {
+                all_advisories.push(
+                    Advisory::bare("STYLE_ANOMALY", crate::Severity::Warning, FileId(0), std::path::Path::new(&fp.file_path), format!("Style Anomaly: '{}' has {:.0}% unfamiliar patterns.", fp.function_name, result.score * 100.0))
+                        .with_confidence(result.score as f32)
+                        .with_line(u32::try_from(fp.line).unwrap_or(u32::MAX))
+                        .with_content(fp.function_name.clone())
+                        .with_enclosing_symbol(fp.function_name.clone())
+                        .with_impact("LLM-generated code often violates project conventions — wrong casing, unfamiliar boilerplate, or types never used in this codebase.")
+                        .with_improvement("Review the function against project patterns. Consider using established conventions."),
+                );
+            }
+        }
+
+        // Use clustering for near-duplicate detection (replaces pairwise O(n²))
+        let clusters = crate::engine::clustering::cluster_functions(&all_fingerprints, 0.75);
+        let cluster_advisories = crate::engine::clustering::cluster_to_advisories(&clusters);
+        all_advisories.extend(cluster_advisories);
+
+        // Also emit basic info for all clusters (even consistent ones)
+        for cluster in &clusters {
+            if cluster.members.len() < 2 {
+                continue;
+            }
+            let member_names: Vec<&str> = cluster
+                .members
+                .iter()
+                .map(|m| m.fingerprint.function_name.as_str())
+                .collect();
+            let first = &cluster.members[0].fingerprint;
+            all_advisories.push(
+                Advisory::bare(
+                    "NEAR_DUPLICATE_FUNCTION",
+                    crate::Severity::Info,
+                    FileId(0),
+                    std::path::Path::new(&first.file_path),
+                    format!(
+                        "Cluster {}: {} functions are near-duplicates: {}",
+                        cluster.id,
+                        cluster.members.len(),
+                        member_names.join(", ")
+                    ),
+                )
+                .with_confidence(0.8)
+                .with_line(u32::try_from(first.line).unwrap_or(u32::MAX))
+                .with_content(first.function_name.clone())
+                .with_impact("Copy-pasted code diverges over time — one copy may lack security fixes.")
+                .with_improvement("Consider extracting shared logic into a common function.")
+                .with_tags(["copy-paste", "duplicate", "cluster"]),
+            );
+        }
+    }
+
+    fn snapshot_files(&mut self, _root: &Path, files: &[PathBuf]) -> Vec<FileSnapshot> {
         let mut snapshots = Vec::new();
         for p in files {
             if let Some(ref allowed) = self.language_filter {
@@ -61,750 +525,27 @@ impl Engine {
                     continue;
                 }
             };
-            let symbols = self
-                .auditor
-                .discover_symbols(p, id, &content, &language, &tree)?;
-            let edges = self.auditor.scan_for_edges(p, &content, &language, &tree)?;
+            let symbols = match self.auditor.discover_symbols(p, id, &content, &language, &tree) {
+                Ok(s) => s,
+                Err(e) => {
+                    self.file_cache.remove(p);
+                    tracing::warn!("symbol discovery failed for {}: {e}", p.display());
+                    continue;
+                }
+            };
+            let edges = match self.auditor.scan_for_edges(p, &content, &language, &tree) {
+                Ok(e) => e,
+                Err(e) => {
+                    self.file_cache.remove(p);
+                    tracing::warn!("edge discovery failed for {}: {e}", p.display());
+                    continue;
+                }
+            };
             let semantic_ops = self.auditor.extract_semantic_ops(p, &content, &tree);
             self.file_cache.update(p, &content);
-            snapshots.push(FileSnapshot {
-                id,
-                path: p.clone(),
-                content,
-                tree,
-                symbols,
-                edges,
-                semantic_ops,
-            });
+            snapshots.push(FileSnapshot { id, path: p.clone(), content, tree, symbols, edges, semantic_ops });
         }
-
-        let mut symbols = SymbolRegistry::new();
-        let mut file_ids = Vec::new();
-        let mut snapshot_map = HashMap::new();
-        let mut file_trees = HashMap::new();
-
-        for snap in &snapshots {
-            file_ids.push((snap.id, snap.path.clone()));
-            snapshot_map.insert(snap.id, snap);
-            for sym in snap.symbols.clone() {
-                symbols.insert(sym);
-            }
-            file_trees.insert(
-                snap.path.to_string_lossy().to_string(),
-                (
-                    snap.tree.clone(),
-                    snap.content.clone(),
-                    snap.semantic_ops.clone(),
-                ),
-            );
-        }
-
-        for snap in &snapshots {
-            for (caller, callee) in &snap.edges {
-                symbols.add_call_edge(&snap.path, caller, callee);
-            }
-        }
-
-        for snap in &snapshots {
-            self.auditor
-                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
-        }
-
-        let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
-
-        tracing::debug!("run_taint_analysis: starting");
-        let entry_points =
-            crate::engine::taint_entry_points::load_all_entry_points(&self.extra_taint_rule_dirs);
-        for rule in crate::engine::taint_rules::load_all_taint_rules(&self.extra_taint_rule_dirs) {
-            let source_re = regex::Regex::new(&rule.source_re).ok();
-            let sink_re = regex::Regex::new(&rule.sink_re).ok();
-            if source_re.is_none() || sink_re.is_none() {
-                continue;
-            }
-            let source = source_re.unwrap();
-            let sink = sink_re.unwrap();
-
-            for snap in &snapshots {
-                // Language filter: skip rule if it doesn't apply to this file's language
-                let file_lang = match snap.path.extension().and_then(|e| e.to_str()) {
-                    Some("rs") => "rust",
-                    Some("ts" | "tsx") => "typescript",
-                    Some("js" | "jsx") => "javascript",
-                    Some("py") => "python",
-                    _ => "",
-                };
-                if !rule.applies_to_language(file_lang) {
-                    continue;
-                }
-                let context = crate::FrensenseContext {
-                    file_id: snap.id,
-                    file_path: &snap.path,
-                    source_code: &snap.content,
-                    tree: &snap.tree,
-                    symbols: &symbols,
-                    graph: symbols.graph(),
-                    semantic_ops: &snap.semantic_ops,
-                    taint_cache: &crate::TaintCache::new(),
-                    file_trees: &file_trees,
-                    taint_confidence_interprocedural: self.taint_confidence_interprocedural,
-                    taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
-                    default_taint_max_depth: self.default_taint_max_depth,
-                    ngram_window_size: self.ngram_window_size,
-                };
-
-                let root = snap.tree.root_node();
-                let seeder =
-                    crate::engine::taint_seeder::TaintSeeder::new(&entry_points, file_lang);
-                let analyzer = crate::semantics::data_flow::DataFlowAnalyzer::new(&context, root)
-                    .with_seeder(seeder);
-                let mut registry = TaintRegistry::default();
-                analyzer.discover_symbols(&mut registry);
-
-                let functions: Vec<tree_sitter::Node> = collect_function_nodes(root);
-                tracing::debug!(
-                    "taint: rule={} file={} fn_count={} ops_count={}",
-                    rule.id,
-                    snap.path.display(),
-                    functions.len(),
-                    snap.semantic_ops.len(),
-                );
-                for fn_node in &functions {
-                    let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
-                    let fn_name = &snap.content[fn_node.start_byte()..fn_node.end_byte()];
-                    let metrics = frensense_engine::data_flow::taint_metrics::TaintMetrics::compute(
-                        &registry,
-                        body,
-                        &snap.content,
-                        fn_name,
-                    );
-                    let findings = analyzer.analyze_block(
-                        body,
-                        &source,
-                        &sink,
-                        &MinimalRule {
-                            id: rule.id.clone(),
-                            severity: rule.severity,
-                            impact: rule.impact.clone(),
-                            improvement: rule.improvement.clone(),
-                        },
-                        &mut registry,
-                    );
-
-                    for mut adv in findings {
-                        let adjusted = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
-                            &snap.content,
-                            &snap.path,
-                            adv.line,
-                            &adv.original_content,
-                            adv.confidence,
-                        );
-                        adv.confidence = adjusted;
-                        if metrics.is_hollow_validator() {
-                            adv.confidence = (adv.confidence * 0.4).max(0.15);
-                        }
-                        all_advisories.push(adv);
-                    }
-                }
-            }
-        }
-
-        self.boost_overlap_confidence(&mut all_advisories);
-
-        for snap in &snapshots {
-            let mut scanner = frensense_engine::secrets::SecretScanner::new();
-            scanner.add_default_patterns();
-            let secret_matches =
-                scanner.scan_tree(snap.tree.root_node(), &snap.content, &snap.path);
-            for m in secret_matches {
-                all_advisories.push(crate::Advisory {
-                    rule_id: format!("SECRET_{}", m.pattern_name.to_uppercase().replace(' ', "_")),
-                    file_id: snap.id,
-                    file_path: snap.path.to_string_lossy().to_string(),
-                    severity: crate::Severity::Critical,
-                    confidence: m.confidence as f32,
-                    observation: format!(
-                        "Potential secret found: {} ({})",
-                        m.pattern_name, m.matched_text
-                    ),
-                    impact: "Hardcoded credentials may be exposed in source control.".to_string(),
-                    improvement: "Move secrets to environment variables or a secrets manager."
-                        .to_string(),
-                    line: u32::try_from(m.line).unwrap_or(u32::MAX),
-                    column: u32::try_from(m.column).unwrap_or(u32::MAX),
-                    start_byte: u32::try_from(m.start_byte).unwrap_or(u32::MAX),
-                    end_byte: u32::try_from(m.end_byte).unwrap_or(u32::MAX),
-                    original_content: m.matched_text,
-                    proposed_replacement: None,
-                    proposed_import: None,
-                    enclosing_symbol: None,
-                    fingerprint: String::new(),
-                    auto_fixable: false,
-                    requires_human: true,
-                    tags: vec!["secret".to_string(), "security".to_string()],
-                });
-            }
-        }
-
-        // W7: Dependency hallucination check
-        let mut dep_resolver = frensense_engine::deps::DependencyResolver::new();
-        dep_resolver.load_project(root);
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::hallucinated_import::find(
-                &mut dep_resolver,
-                snap,
-            ));
-        }
-
-        // W2: Dead branch detection
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::dead_branch::find(snap));
-        }
-
-        // W3: Unused variables via def-use
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::unused_variable::find(snap));
-        }
-
-        // W1: Temporal violations
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::temporal_violation::find(snap));
-        }
-
-        // W4: Cross-file taint
-        let all_taint_rules =
-            crate::engine::taint_rules::load_all_taint_rules(&self.extra_taint_rule_dirs);
-        let (combined_source_re, combined_sink_re) =
-            crate::engine::taint_rules::build_combined_regexes(&all_taint_rules);
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::cross_file_taint::find(
-                &symbols,
-                snap,
-                &combined_source_re,
-                &combined_sink_re,
-            ));
-        }
-
-        self.file_cache.save(root, self.language_filter.as_deref());
-        Ok(all_advisories)
-    }
-
-    /// Runs the audit on a single virtual file with the given content.
-    ///
-    /// # Errors
-    /// Returns an error if parsing or auditing fails.
-    pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        let config = if self.auditor.rules().is_empty() {
-            self.initialize_auditor_and_config(Path::new("."))
-        } else {
-            config::load_config(Path::new("."))
-        };
-        let id = self.source_registry.register(path, content.to_string());
-        let (language, tree) = self.auditor.parse_source(path, content)?;
-        let symbols = self
-            .auditor
-            .discover_symbols(path, id, content, &language, &tree)?;
-        let semantic_ops = self.auditor.extract_semantic_ops(path, content, &tree);
-
-        let mut file_trees = HashMap::new();
-        file_trees.insert(
-            path.to_string_lossy().to_string(),
-            (tree.clone(), content.to_string(), semantic_ops.clone()),
-        );
-
-        let mut registry = SymbolRegistry::new();
-        for sym in symbols {
-            registry.insert(sym);
-        }
-        self.auditor
-            .discover_events(path, content, &tree, &mut registry)?;
-
-        let opts = AuditOptions {
-            file_id: id,
-            path,
-            content,
-            tree: &tree,
-            semantic_ops: &semantic_ops,
-            symbols: &registry,
-            graph: registry.graph(),
-            file_trees: &file_trees,
-            category_filter: &self.enabled_categories,
-            tag_filter: &self.enabled_tags,
-            suite: self.suite,
-            env: self.environment,
-            severity_filter: self.severity_filter,
-            ngram_window_size: self.ngram_window_size,
-            taint_confidence_interprocedural: self.taint_confidence_interprocedural,
-            taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
-            default_taint_max_depth: self.default_taint_max_depth,
-        };
-
-        let result = self.auditor.audit(&opts)?;
-        let mut advisories = result.advisories;
-
-        // Merge config + CLI severity overrides (CLI wins)
-        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
-        for (rule_id, sev) in &self.severity_overrides {
-            merged_overrides.insert(rule_id.clone(), *sev);
-        }
-        for adv in &mut advisories {
-            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
-                adv.severity = *sev;
-            }
-        }
-
-        // Cross-rule confidence boost
-        self.boost_overlap_confidence(&mut advisories);
-
-        Ok(advisories)
-    }
-
-    /// Boosts confidence when multiple rules fire on the same file+line.
-    /// Uses `confidence_boost_rate` per overlapping rule (cap `confidence_boost_max`, max 1.0).
-    fn boost_overlap_confidence(&self, advisories: &mut [Advisory]) {
-        let overlap_counts: HashMap<(u32, u32), usize> = {
-            let mut counts: HashMap<(u32, u32), HashSet<&str>> = HashMap::new();
-            for adv in &*advisories {
-                counts
-                    .entry((adv.file_id.0, adv.line))
-                    .or_default()
-                    .insert(&adv.rule_id);
-            }
-            counts.into_iter().map(|(k, v)| (k, v.len())).collect()
-        };
-
-        for adv in advisories {
-            if let Some(&count) = overlap_counts.get(&(adv.file_id.0, adv.line)) {
-                let extra = count.saturating_sub(1);
-                #[allow(clippy::cast_precision_loss)]
-                let boost =
-                    (extra as f32 * self.confidence_boost_rate).min(self.confidence_boost_max);
-                adv.confidence = (adv.confidence + boost).min(1.0);
-            }
-        }
-    }
-
-    /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
-    ///
-    /// # Errors
-    /// Returns an error if file reading or parsing fails.
-    #[allow(clippy::too_many_lines)]
-    pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
-        if !root.exists() {
-            return Err(crate::FrensenseError::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("path does not exist: {}", root.display()),
-            )));
-        }
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
-        self.cache_root = Some(root.to_path_buf());
-
-        let config = self.initialize_auditor_and_config(root);
-        let snapshots = self.collect_and_snapshot_files(root);
-
-        let mut symbols = SymbolRegistry::new();
-        let mut file_ids = Vec::new();
-        let mut snapshot_map = HashMap::new();
-
-        for snap in &snapshots {
-            file_ids.push((snap.id, snap.path.clone()));
-            snapshot_map.insert(snap.id, snap);
-            for sym in snap.symbols.clone() {
-                symbols.insert(sym);
-            }
-        }
-
-        for snap in &snapshots {
-            for (caller, callee) in &snap.edges {
-                symbols.add_call_edge(&snap.path, caller, callee);
-            }
-        }
-
-        for snap in &snapshots {
-            self.auditor
-                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
-        }
-
-        let mut file_trees = HashMap::new();
-        for snap in &snapshots {
-            let path_str = snap.path.to_string_lossy().to_string();
-            file_trees.insert(
-                path_str,
-                (
-                    snap.tree.clone(),
-                    snap.content.clone(),
-                    snap.semantic_ops.clone(),
-                ),
-            );
-        }
-
-        let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
-
-        // Merge config + CLI severity overrides (CLI wins)
-        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
-        for (rule_id, sev) in &self.severity_overrides {
-            merged_overrides.insert(rule_id.clone(), *sev);
-        }
-        for adv in &mut all_advisories {
-            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
-                adv.severity = *sev;
-            }
-        }
-
-        self.boost_overlap_confidence(&mut all_advisories);
-
-        #[cfg(feature = "fingerprinting")]
-        if let Some(ref profile) = self.profile {
-            let mut all_fingerprints = Vec::new();
-            for snap in &snapshots {
-                let mut fps = Vec::new();
-                crate::engine::fingerprint::extract_fingerprints(
-                    snap.tree.root_node(),
-                    &snap.content,
-                    &snap.path,
-                    &mut fps,
-                    self.ngram_window_size,
-                );
-                all_fingerprints.extend(fps);
-            }
-            for fp in &all_fingerprints {
-                let result = profile.style_surprise(fp);
-                if result.score > self.profile_threshold {
-                    let line = u32::try_from(fp.line).unwrap_or(u32::MAX);
-                    all_advisories.push(Advisory {
-                        rule_id: "STYLE_ANOMALY".to_string(),
-                        file_id: FileId(0),
-                        file_path: fp.file_path.clone(),
-                        severity: crate::Severity::Warning,
-                        #[allow(clippy::cast_possible_truncation)]
-                        confidence: result.score as f32,
-                        observation: format!(
-                            "Style Anomaly: '{}' has {:.0}% unfamiliar patterns.",
-                            fp.function_name,
-                            result.score * 100.0
-                        ),
-                        impact: "LLM-generated code often violates project conventions — wrong casing, unfamiliar boilerplate, or types never used in this codebase."
-                            .to_string(),
-                        improvement:
-                            "Review the function against project patterns. Consider using established conventions."
-                                .to_string(),
-                        line,
-                        column: 0,
-                        start_byte: 0,
-                        end_byte: 0,
-                        original_content: fp.function_name.clone(),
-                        proposed_replacement: None,
-                        proposed_import: None,
-                        enclosing_symbol: Some(fp.function_name.clone()),
-                        fingerprint: String::new(),
-                        auto_fixable: false,
-                        requires_human: true,
-                        tags: vec![],
-                    });
-                }
-            }
-
-            for i in 0..all_fingerprints.len() {
-                for j in (i + 1)..all_fingerprints.len() {
-                    let sim = frensense_engine::minhash::approximate_jaccard(
-                        &all_fingerprints[i].ngram_hashes,
-                        &all_fingerprints[j].ngram_hashes,
-                    );
-                    if sim > 0.75 {
-                        let fp_a = &all_fingerprints[i];
-                        let fp_b = &all_fingerprints[j];
-                        all_advisories.push(Advisory {
-                            rule_id: "NEAR_DUPLICATE_FUNCTION".to_string(),
-                            file_id: FileId(0),
-                            file_path: fp_a.file_path.clone(),
-                            severity: crate::Severity::Info,
-                            confidence: sim as f32,
-                            observation: format!(
-                                "Near-duplicate function: '{}' in {} (line {}) is {:.0}% similar to '{}' in {} (line {}).",
-                                fp_a.function_name,
-                                fp_a.file_path,
-                                fp_a.line,
-                                sim * 100.0,
-                                fp_b.function_name,
-                                fp_b.file_path,
-                                fp_b.line,
-                            ),
-                            impact: "Copy-pasted code diverges over time — one copy may lack security fixes."
-                                .to_string(),
-                            improvement: "Consider extracting shared logic into a common function."
-                                .to_string(),
-                            line: u32::try_from(fp_a.line).unwrap_or(u32::MAX),
-                            column: 0,
-                            start_byte: 0,
-                            end_byte: 0,
-                            original_content: fp_a.function_name.clone(),
-                            proposed_replacement: None,
-                            proposed_import: None,
-                            enclosing_symbol: Some(fp_a.function_name.clone()),
-                            fingerprint: String::new(),
-                            auto_fixable: false,
-                            requires_human: true,
-                            tags: vec!["copy-paste".to_string(), "duplicate".to_string()],
-                        });
-                    }
-                }
-            }
-        }
-
-        // Collect all corpus dirs
-        let mut corpus_dirs: Vec<&std::path::Path> = Vec::new();
-        if let Some(ref corpus_dir) = self.corpus_dir {
-            corpus_dirs.push(corpus_dir.as_path());
-        }
-
-        let mut registry =
-            frensense_engine::corpus::registry::PatternRegistry::new(self.corpus_threshold);
-        for (category, threshold) in &self.threshold_overrides {
-            registry.set_threshold_override(category.clone(), *threshold);
-        }
-        let mut corpus_loaded = false;
-
-        // Try embedded bundle first
-        #[cfg(feature = "fingerprinting")]
-        if let Some(bundle_bytes) = self.corpus_bundle {
-            match registry.load_from_bundle(bundle_bytes) {
-                Ok(count) if count > 0 => {
-                    eprintln!("Loaded {count} patterns from embedded bundle");
-                    corpus_loaded = true;
-                }
-                Ok(_) => {}
-                Err(e) => eprintln!("Bundle load error: {e}"),
-            }
-        }
-
-        // Fall back to source directory
-        if !corpus_loaded && !corpus_dirs.is_empty() {
-            let mut all_metadata = HashMap::new();
-            for dir in &corpus_dirs {
-                all_metadata.extend(load_corpus_metadata(dir));
-            }
-            match registry.load_corpus_dirs(&corpus_dirs) {
-                Ok(count) if count > 0 => {
-                    corpus_loaded = true;
-                    let _ = all_metadata;
-                }
-                Ok(_) => {}
-                Err(e) => eprintln!("Corpus load error: {e}"),
-            }
-        }
-
-        if corpus_loaded {
-            for snap in &snapshots {
-                let mut fps: Vec<frensense_engine::fingerprint::FunctionFingerprint> = Vec::new();
-                frensense_engine::fingerprint::extract_fingerprints(
-                    snap.tree.root_node(),
-                    &snap.content,
-                    &snap.path,
-                    &mut fps,
-                    self.ngram_window_size,
-                );
-                for fp in &fps {
-                    for m in registry.scan_function(fp) {
-                        all_advisories.push(Advisory {
-                            rule_id: format!("CORPUS_{}", m.pattern_id.to_uppercase()),
-                            file_id: snap.id,
-                            file_path: snap.path.to_string_lossy().to_string(),
-                            severity: crate::Severity::Warning,
-                            confidence: m.score as f32,
-                            observation: format!(
-                                "Corpus pattern: {} (score {:.2}) in '{}'",
-                                m.pattern_id, m.score, fp.function_name,
-                            ),
-                            impact: "Function shape matches a known violation pattern.".to_string(),
-                            improvement: "Review against corpus example.".to_string(),
-                            line: u32::try_from(fp.line).unwrap_or(u32::MAX),
-                            column: 0,
-                            start_byte: 0,
-                            end_byte: 0,
-                            original_content: fp.function_name.clone(),
-                            proposed_replacement: None,
-                            proposed_import: None,
-                            enclosing_symbol: Some(fp.function_name.clone()),
-                            fingerprint: String::new(),
-                            auto_fixable: false,
-                            requires_human: true,
-                            tags: vec!["corpus".to_string(), "pattern".to_string()],
-                        });
-                    }
-                }
-            }
-        }
-
-        self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
-
-        // W4: Cross-file taint (via findings module)
-        let all_taint_rules =
-            crate::engine::taint_rules::load_all_taint_rules(&self.extra_taint_rule_dirs);
-        let (combined_source_re, combined_sink_re) =
-            crate::engine::taint_rules::build_combined_regexes(&all_taint_rules);
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::cross_file_taint::find(
-                &symbols,
-                snap,
-                &combined_source_re,
-                &combined_sink_re,
-            ));
-        }
-
-        // W7: Dependency hallucination check
-        let mut dep_resolver = frensense_engine::deps::DependencyResolver::new();
-        dep_resolver.load_project(root);
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::hallucinated_import::find(
-                &mut dep_resolver,
-                snap,
-            ));
-        }
-
-        // W2: Dead branch detection
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::dead_branch::find(snap));
-        }
-
-        // W3: Unused variables via def-use
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::unused_variable::find(snap));
-        }
-
-        // W1: Temporal violations
-        for snap in &snapshots {
-            all_advisories.extend(crate::engine::findings::temporal_violation::find(snap));
-        }
-
-        // Apply severity overrides to taint findings too
-        for adv in &mut all_advisories {
-            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
-                adv.severity = *sev;
-            }
-        }
-
-        if let Some(ref baseline_path) = self.baseline_path {
-            if let Ok(prev) = std::fs::read_to_string(baseline_path) {
-                if let Ok(fingerprints) = serde_json::from_str::<Vec<String>>(&prev) {
-                    let baseline_set: std::collections::HashSet<String> =
-                        fingerprints.into_iter().collect();
-                    all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
-                }
-            }
-        }
-
-        self.file_cache.save(root, self.language_filter.as_deref());
-        Ok((all_advisories, symbols))
-    }
-
-    fn run_taint_analysis(
-        &self,
-        snapshots: &[super::FileSnapshot],
-        symbols: &SymbolRegistry,
-        file_trees: &std::collections::HashMap<
-            String,
-            (
-                tree_sitter::Tree,
-                String,
-                Vec<crate::semantics::data_flow::normalization::SemanticOp>,
-            ),
-        >,
-        all_advisories: &mut Vec<Advisory>,
-    ) {
-        // Load entry points once for all files
-        let entry_points =
-            crate::engine::taint_entry_points::load_all_entry_points(&self.extra_taint_rule_dirs);
-
-        for rule in crate::engine::taint_rules::load_all_taint_rules(&self.extra_taint_rule_dirs) {
-            let Some(source) = regex::Regex::new(&rule.source_re).ok() else {
-                continue;
-            };
-            let Some(sink) = regex::Regex::new(&rule.sink_re).ok() else {
-                continue;
-            };
-
-            for snap in snapshots {
-                // Language filter: skip rule if it doesn't apply to this file's language
-                let file_lang = match snap.path.extension().and_then(|e| e.to_str()) {
-                    Some("rs") => "rust",
-                    Some("ts" | "tsx") => "typescript",
-                    Some("js" | "jsx") => "javascript",
-                    Some("py") => "python",
-                    _ => "",
-                };
-                if !rule.applies_to_language(file_lang) {
-                    continue;
-                }
-                let context = crate::FrensenseContext {
-                    file_id: snap.id,
-                    file_path: &snap.path,
-                    source_code: &snap.content,
-                    tree: &snap.tree,
-                    symbols,
-                    graph: symbols.graph(),
-                    semantic_ops: &snap.semantic_ops,
-                    taint_cache: &crate::TaintCache::new(),
-                    file_trees,
-                    taint_confidence_interprocedural: self.taint_confidence_interprocedural,
-                    taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
-                    default_taint_max_depth: self.default_taint_max_depth,
-                    ngram_window_size: self.ngram_window_size,
-                };
-
-                let root = snap.tree.root_node();
-                let file_lang = match snap.path.extension().and_then(|e| e.to_str()) {
-                    Some("rs") => "rust",
-                    Some("ts" | "tsx") => "typescript",
-                    Some("js" | "jsx") => "javascript",
-                    Some("py") => "python",
-                    _ => "",
-                };
-                let seeder =
-                    crate::engine::taint_seeder::TaintSeeder::new(&entry_points, file_lang);
-                let analyzer = crate::semantics::data_flow::DataFlowAnalyzer::new(&context, root)
-                    .with_seeder(seeder);
-                let mut registry = TaintRegistry::default();
-                analyzer.discover_symbols(&mut registry);
-
-                for fn_node in &collect_function_nodes(root) {
-                    let body = fn_node.child_by_field_name("body").unwrap_or(*fn_node);
-                    let fn_name = &snap.content[fn_node.start_byte()..fn_node.end_byte()];
-                    let metrics = frensense_engine::data_flow::taint_metrics::TaintMetrics::compute(
-                        &registry,
-                        body,
-                        &snap.content,
-                        fn_name,
-                    );
-                    let findings = analyzer.analyze_block(
-                        body,
-                        &source,
-                        &sink,
-                        &MinimalRule {
-                            id: rule.id.clone(),
-                            severity: rule.severity,
-                            impact: rule.impact.clone(),
-                            improvement: rule.improvement.clone(),
-                        },
-                        &mut registry,
-                    );
-
-                    for mut adv in findings {
-                        adv.confidence = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
-                            &snap.content,
-                            &snap.path,
-                            adv.line,
-                            &adv.original_content,
-                            adv.confidence,
-                        );
-                        if metrics.is_hollow_validator() {
-                            adv.confidence = (adv.confidence * 0.4).max(0.15);
-                        }
-                        all_advisories.push(adv);
-                    }
-                }
-            }
-        }
+        snapshots
     }
 
     fn initialize_auditor_and_config(&mut self, root: &Path) -> config::FrensenseConfig {
@@ -873,93 +614,111 @@ impl Engine {
     }
 }
 
-fn load_corpus_metadata(corpus_dir: &Path) -> HashMap<String, HashMap<String, String>> {
-    let mut metadata = HashMap::new();
-    let Ok(entries) = std::fs::read_dir(corpus_dir) else {
-        return metadata;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
-            continue;
-        }
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        let Ok(content) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        let Ok(table) = content.parse::<toml::Table>() else {
-            continue;
-        };
-        let mut map = HashMap::new();
-        for (k, v) in &table {
-            if let Some(s) = v.as_str() {
-                map.insert(k.clone(), s.to_string());
+/// Find a function node by name and line number for semantic filtering.
+fn find_function_node<'a>(
+    root: tree_sitter::Node<'a>,
+    name: &str,
+    line: usize,
+    source: &str,
+) -> Option<tree_sitter::Node<'a>> {
+    let mut cursor = root.walk();
+    let mut best_match: Option<tree_sitter::Node<'a>> = None;
+    
+    loop {
+        let node = cursor.node();
+        let kind = node.kind();
+        
+        if matches!(
+            kind,
+            "function_item" | "function_declaration" | "method_definition" | "arrow_function"
+            | "function" | "formal_parameters"
+        ) {
+            // Calculate line number for this node
+            let node_line = source[..node.start_byte()].chars().filter(|&c| c == '\n').count();
+            
+            // Skip if too far from target line
+            if node_line > line + 5 {
+                if cursor.goto_first_child() { continue; }
+                loop {
+                    if cursor.goto_next_sibling() { break; }
+                    if !cursor.goto_parent() { return best_match; }
+                }
+                continue;
+            }
+            
+            // For named functions, check name match
+            if name != "anonymous" {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let node_name = &source[name_node.start_byte()..name_node.end_byte()];
+                    if node_name == name && node_line.abs_diff(line) <= 2 {
+                        return Some(node);
+                    }
+                } else if kind == "arrow_function" {
+                    if let Some(parent) = node.parent() {
+                        if parent.kind() == "variable_declarator" {
+                            if let Some(name_node) = parent.child_by_field_name("name") {
+                                let node_name = &source[name_node.start_byte()..name_node.end_byte()];
+                                if node_name == name && node_line.abs_diff(line) <= 2 {
+                                    return Some(node);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // For anonymous functions, find the closest function at the target line
+                // Arrow functions and function expressions are the priority
+                if node_line.abs_diff(line) <= 1 {
+                    // Prefer arrow functions (more likely to be the anonymous one)
+                    if kind == "arrow_function" {
+                        // Check if this is the innermost function
+                        let has_inner = has_function_child(node);
+                        if !has_inner {
+                            best_match = Some(node);
+                        }
+                    } else if best_match.is_none() {
+                        best_match = Some(node);
+                    }
+                }
             }
         }
-        metadata.insert(stem.to_string(), map);
-    }
-    metadata
-}
-
-fn collect_function_nodes(node: tree_sitter::Node) -> Vec<tree_sitter::Node> {
-    let mut functions = Vec::new();
-    let kind = node.kind();
-    if matches!(
-        kind,
-        "function_item"
-            | "function_declaration"
-            | "method_definition"
-            | "arrow_function"
-            | "function_definition"
-    ) {
-        functions.push(node);
-    }
-    let mut cursor = node.walk();
-    if cursor.goto_first_child() {
+        
+        if cursor.goto_first_child() {
+            continue;
+        }
         loop {
-            functions.extend(collect_function_nodes(cursor.node()));
-            if !cursor.goto_next_sibling() {
+            if cursor.goto_next_sibling() {
                 break;
             }
+            if !cursor.goto_parent() {
+                return best_match;
+            }
         }
     }
-    functions
 }
 
-struct MinimalRule {
-    id: String,
-    severity: crate::Severity,
-    impact: String,
-    improvement: String,
-}
-
-impl crate::FrensenseRule for MinimalRule {
-    fn metadata(&self) -> &crate::RuleMetadata {
-        Box::leak(Box::new(crate::RuleMetadata {
-            id: std::borrow::Cow::Owned(self.id.clone()),
-            name: std::borrow::Cow::Owned(self.id.clone()),
-            severity: self.severity,
-            observation: std::borrow::Cow::Borrowed(""),
-            impact: std::borrow::Cow::Owned(self.impact.clone()),
-            improvement: std::borrow::Cow::Owned(self.improvement.clone()),
-            tags: Vec::new(),
-            category: std::borrow::Cow::Borrowed("security"),
-            confidence: 0.85,
-            precision: crate::Precision::High,
-        }))
-    }
-
-    fn check<'a>(
-        &self,
-        _node: tree_sitter::Node<'a>,
-        _context: &crate::FrensenseContext<'a>,
-    ) -> Vec<crate::Advisory> {
-        Vec::new()
-    }
-
-    fn applies_to(&self, _extension: &str) -> bool {
-        true
+/// Check if a node contains any function child nodes.
+fn has_function_child(node: tree_sitter::Node<'_>) -> bool {
+    let mut cursor = node.walk();
+    loop {
+        let n = cursor.node();
+        if n != node && matches!(
+            n.kind(),
+            "function_item" | "function_declaration" | "method_definition" | "arrow_function"
+            | "function"
+        ) {
+            return true;
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return false;
+            }
+        }
     }
 }

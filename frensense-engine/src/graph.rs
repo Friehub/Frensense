@@ -305,13 +305,38 @@ pub fn extract_temporal_events<'a>(
             let column = node.start_position().column + 1;
 
             if call_text.contains(".lock()") || call_text.contains(".lock().") {
-                events.push(TemporalEvent {
-                    event_type: EventType::Acquire,
-                    label: "lock".to_string(),
-                    file_path: file_str.clone(),
-                    line,
-                    column,
-                });
+                // In Rust, `let guard = mutex.lock()` binds a MutexGuard that is
+                // automatically dropped at scope end (RAII). Only flag explicit
+                // lock calls that are NOT assigned to a let binding.
+                let is_let_binding = {
+                    let mut p = node.parent();
+                    while let Some(parent) = p {
+                        if parent.kind() == "let_declaration" || parent.kind() == "variable_declaration" {
+                            break;
+                        }
+                        // If we hit a function body / block without hitting let_declaration,
+                        // this is NOT a let binding.
+                        if parent.kind() == "function_item"
+                            || parent.kind() == "function_definition"
+                            || parent.kind() == "arrow_function"
+                            || parent.kind() == "method_definition"
+                        {
+                            break;
+                        }
+                        p = parent.parent();
+                    }
+                    p.map_or(false, |pt| pt.kind() == "let_declaration" || pt.kind() == "variable_declaration")
+                };
+
+                if !is_let_binding {
+                    events.push(TemporalEvent {
+                        event_type: EventType::Acquire,
+                        label: "lock".to_string(),
+                        file_path: file_str.clone(),
+                        line,
+                        column,
+                    });
+                }
             } else if call_text.contains(".await") {
                 events.push(TemporalEvent {
                     event_type: EventType::Await,

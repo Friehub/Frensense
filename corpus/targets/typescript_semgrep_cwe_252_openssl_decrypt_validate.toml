@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_252_OPENSSL_DECRYPT_VALIDATE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 252 Openssl Decrypt Validate."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

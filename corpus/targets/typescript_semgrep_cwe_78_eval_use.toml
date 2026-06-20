@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_78_EVAL_USE"
+severity = "Critical"
+observation = "Corpus pattern: Typescript Semgrep Cwe 78 Eval Use."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

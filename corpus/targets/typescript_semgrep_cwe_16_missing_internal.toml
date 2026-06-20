@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_16_MISSING_INTERNAL"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 16 Missing Internal."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

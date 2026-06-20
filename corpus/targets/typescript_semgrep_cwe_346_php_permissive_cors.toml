@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_346_PHP_PERMISSIVE_CORS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 346 Php Permissive Cors."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

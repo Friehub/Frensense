@@ -6,6 +6,18 @@ use tree_sitter::Node;
 use crate::graph::{EdgeKind, EventType, SemanticGraph, SemanticNodeId, TemporalEvent};
 
 #[derive(Debug, Clone)]
+pub struct TemporalRuleToml {
+    pub id: String,
+    pub sequence: Vec<String>,
+    pub behavior: String,
+    pub severity: String,
+    pub observation: String,
+    pub impact: String,
+    pub improvement: String,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct TemporalConstraint {
     pub before: String,
     pub after: String,
@@ -140,6 +152,31 @@ impl TemporalAnalyzer {
         });
     }
 
+    /// Add rules from TOML configuration.
+    pub fn add_rules_from_toml(&mut self, rules: &[TemporalRuleToml]) {
+        for toml_rule in rules {
+            let constraints = toml_rule
+                .sequence
+                .windows(2)
+                .map(|pair| TemporalConstraint {
+                    before: pair[0].clone(),
+                    after: pair[1].clone(),
+                    description: toml_rule.observation.clone(),
+                    severity: match toml_rule.severity.to_lowercase().as_str() {
+                        "error" | "critical" => Severity::Error,
+                        "warning" => Severity::Warning,
+                        _ => Severity::Info,
+                    },
+                })
+                .collect();
+
+            self.rules.push(TemporalRule {
+                name: toml_rule.id.clone(),
+                constraints,
+            });
+        }
+    }
+
     pub fn analyze(&mut self, events: &[TemporalEvent], file_path: &str) -> Vec<TemporalEvent> {
         self.violations.clear();
         self.last_event_id = None;
@@ -254,7 +291,27 @@ pub fn extract_ordered_events<'a>(
                 let event_type = if call_text.contains(".lock()")
                     || call_text.contains("mutex_lock(")
                 {
-                    Some((EventType::Acquire, "lock"))
+                    // In Rust, `let guard = mutex.lock()` binds a MutexGuard that is
+                    // automatically dropped at scope end (RAII). Only flag if NOT
+                    // assigned to a let binding.
+                    let is_let_binding = {
+                        let mut p = node.parent();
+                        while let Some(parent) = p {
+                            if parent.kind() == "let_declaration" || parent.kind() == "variable_declaration" {
+                                break;
+                            }
+                            if parent.kind() == "function_item"
+                                || parent.kind() == "function_definition"
+                                || parent.kind() == "arrow_function"
+                                || parent.kind() == "method_definition"
+                            {
+                                break;
+                            }
+                            p = parent.parent();
+                        }
+                        p.map_or(false, |pt| pt.kind() == "let_declaration" || pt.kind() == "variable_declaration")
+                    };
+                    if is_let_binding { None } else { Some((EventType::Acquire, "lock")) }
                 } else if call_text.contains(".unlock()") || call_text.contains("mutex_unlock(") {
                     Some((EventType::Release, "unlock"))
                 } else if call_text.contains(".await") {

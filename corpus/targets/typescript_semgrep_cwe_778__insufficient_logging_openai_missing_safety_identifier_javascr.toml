@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_778__INSUFFICIENT_LOGGING_OPENAI_MISSING_SAFETY_IDENTIFIER_JAVASCR"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 778  Insufficient Logging Openai Missing Safety Identifier Javascr."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

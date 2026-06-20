@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_OCAMLLINT_LENGTH_MORE_THAN_ZERO"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Ocamllint Length More Than Zero."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

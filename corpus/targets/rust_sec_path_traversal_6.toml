@@ -1,0 +1,5 @@
+id = "RUST_SEC_PATH_TRAVERSAL_6"
+severity = "Warning"
+observation = "Corpus pattern: Rust Sec Path Traversal 6."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

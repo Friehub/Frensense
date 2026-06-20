@@ -1,4 +1,4 @@
-name: GenSense CI
+name: FrenSense CI
 
 on:
   push:
@@ -74,7 +74,7 @@ jobs:
 
       - name: Verify Feature Gating (cargo hack)
         # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).
-        run: cargo hack check -p gensense --each-feature
+        run: cargo hack check -p frensense --each-feature
 
       - name: Prune Unused Dependencies (cargo machete)
         run: cargo machete
@@ -196,7 +196,7 @@ jobs:
 
       - name: CLI Binary Smoke Test
         run: |
-          binary="./target/debug/gensense"
+          binary="./target/debug/frensense"
           "$binary" --version
           "$binary" --help
           echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
@@ -205,20 +205,20 @@ jobs:
 
       - name: Baseline Regression Check
         run: |
-          binary="./target/debug/gensense"
+          binary="./target/debug/frensense"
           baseline="corpus/baselines/targets.json"
           mkdir -p "$(dirname "$baseline")"
           echo "Emitting baseline for corpus targets..."
           "$binary" corpus/targets --json --emit-baseline "$baseline" 2>&1
           # Clear the file cache so the comparison run does the same full analysis
-          rm -f corpus/targets/.gensense/cache.json
+          rm -f corpus/targets/.frensense/cache.json
           echo "Checking baseline comparison against corpus targets..."
           "$binary" corpus/targets --json --compare-baseline "$baseline" 2>&1
           echo "Baseline regression check passed"
 
       - name: MCP Binary Smoke Test
         run: |
-          binary="./target/debug/gensense-mcp"
+          binary="./target/debug/frensense-mcp"
           echo '{"jsonrpc":"2.0","id":1,"method":"ping"}' | timeout 5 "$binary" || true
           echo "MCP smoke test passed"
 
@@ -300,7 +300,7 @@ jobs:
       - name: Store and Compare Benchmark Results
         uses: benchmark-action/github-action-benchmark@v1
         with:
-          name: Gensense Engine Benchmarks
+          name: FrenSense Engine Benchmarks
           tool: customSmallerIsBetter
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -394,7 +394,7 @@ jobs:
         # Runs the CLI against src/ and captures the report as a build artifact.
         # Does not fail on findings — the test suite handles the gate.
         run: |
-          ./target/release/gensense ./src --json > self_audit_report.json || true
+          ./target/release/frensense ./src --json > self_audit_report.json || true
           echo "Self-audit findings:"
           cat self_audit_report.json | python3 -c "
           import json, sys
@@ -430,14 +430,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker Image
-        run: docker build -t gensense:test .
+        run: docker build -t frensense:test .
 
       - name: Smoke test Docker image
         run: |
-          docker run gensense:test --version
-          docker run gensense:test --help
+          docker run frensense:test --version
+          docker run frensense:test --help
           echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
-          docker run -i gensense:test /dev/stdin --json < /tmp/test_smoke.rs > /dev/null
+          docker run -i frensense:test /dev/stdin --json < /tmp/test_smoke.rs > /dev/null
           echo "Docker smoke test passed"
 
   # --- Documentation Deployment ---
@@ -467,7 +467,7 @@ jobs:
         run: npm ci
       - name: Generate Rule Docs
         run: |
-          cargo run --bin gensense -- --generate-docs
+          cargo run --bin frensense -- --generate-docs
           mv RULES.md docs/rules.md
       - name: Build VitePress Site
         run: npm run docs:build

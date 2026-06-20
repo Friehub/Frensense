@@ -1,0 +1,5 @@
+id = "RUST_CVE_COMMENT"
+severity = "Warning"
+observation = "Corpus pattern: Rust Cve Comment."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -1,20 +1,20 @@
 """
-CVEfixes Dataset Harvester
+CVEfixes Dataset Harvester (LEGACY - JSON format)
 
-Extracts function-level bug/fix pairs from the CVEfixes dataset.
-Dataset: https://github.com/secureIT-project/CVEfixes
+IMPORTANT: This harvester expects the JSON export format produced by running the
+CVEfixes collection scripts against the GitHub API (git_commits/*.json).
 
-Each CVE has a before commit (vulnerable) and after commit (fixed).
-We extract the changed functions and write them as positive/negative pairs.
+The Zenodo distribution (CVEfixes.db, ~12 GB) uses a different schema —
+a SQLite database with method_change/file_change/cve tables. For that
+format, use scripts/extract_cvefixes_targeted.py instead.
 
-IMPORTANT — Format note:
-    This harvester expects the JSON export format produced by running the
-    CVEfixes collection scripts against the GitHub API (git_commits/*.json).
+See docs/CVEFIXES_INTEGRATION.md for the full acquisition workflow.
 
-    The Zenodo distribution (CVEfixes.db, ~12 GB) uses a different schema —
-    a SQLite database with method_change/file_change/cve tables. For that
-    format, use scripts/extract_cvefixes_targeted.py instead.
-    See docs/CVEFIXES_INTEGRATION.md for the full acquisition workflow.
+Usage (legacy JSON format only):
+    python3 scripts/harvesters/cvefixes.py --dataset-path /path/to/json/dir
+
+Usage (recommended - SQLite format):
+    python3 scripts/extract_cvefixes_targeted.py --db /path/to/CVEfixes.db
 """
 
 import subprocess
@@ -41,7 +41,16 @@ def harvest_cvefixes(
     dataset_path: Optional[str],
     dry_run: bool,
 ) -> int:
-    """Harvest patterns from CVEfixes dataset."""
+    """Harvest patterns from CVEfixes dataset (LEGACY - JSON format).
+
+    WARNING: This function expects the JSON export format (git_commits/*.json).
+    For the Zenodo SQLite database (CVEfixes.db), use:
+        python3 scripts/extract_cvefixes_targeted.py --db /path/to/CVEfixes.db
+    """
+    print("  WARNING: This harvester uses the legacy JSON format.")
+    print("  For Zenodo SQLite database, use scripts/extract_cvefixes_targeted.py")
+    print("  See docs/CVEFIXES_INTEGRATION.md for details")
+
     if dataset_path is None:
         print("  CVEfixes: no dataset path provided, cloning...")
         dataset_path = _clone_dataset()

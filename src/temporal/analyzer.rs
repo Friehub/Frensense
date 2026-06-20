@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-use crate::temporal::handler::TemporalBehavior;
 use crate::{Advisory, FrensenseContext, FrensenseRule, RuleMetadata};
 use tree_sitter::Node;
+
+/// Behavior for temporal ordering constraints.
+#[derive(Debug, Clone)]
+pub enum TemporalBehavior {
+    /// First event must be followed by second event.
+    MustFollow,
+    /// First event must NOT be followed by second event.
+    MustNotFollow,
+    /// Events are forbidden between start and end patterns.
+    ForbiddenBetween(regex::Regex, regex::Regex),
+}
 
 pub struct TemporalAnalyzer<'a, 'ctx> {
     pub context: &'ctx FrensenseContext<'a>,
@@ -74,32 +84,26 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                         .and_then(|idx| self.context.symbols.graph().get_symbol(idx))
                         .map(|s| s.name.clone());
 
-                    advisories.push(Advisory {
-                        rule_id: meta.id.to_string(),
-                        file_id: self.context.file_id,
-                        file_path,
-                        severity: meta.severity,
-                        confidence: 0.92,
-                        observation: format!(
+                    let mut adv = Advisory::bare(
+                        meta.id.as_ref(),
+                        meta.severity,
+                        self.context.file_id,
+                        self.context.file_path,
+                        format!(
                             "Temporal Violation: '{}' must NOT follow '{}' in this scope.",
                             sequence[1].as_str(),
                             sequence[0].as_str()
                         ),
-                        impact: meta.impact.to_string(),
-                        improvement: meta.improvement.to_string(),
-                        line: u32::try_from(event.line).unwrap_or(u32::MAX),
-                        column: u32::try_from(event.column).unwrap_or(u32::MAX),
-                        start_byte: 0,
-                        end_byte: 0,
-                        original_content: event.label.clone(),
-                        proposed_replacement: None,
-                        proposed_import: None,
-                        enclosing_symbol,
-                        fingerprint: String::new(),
-                        auto_fixable: false,
-                        requires_human: true,
-                        tags: meta.tags.iter().map(ToString::to_string).collect(),
-                    });
+                    )
+                    .with_confidence(0.92)
+                    .with_line(u32::try_from(event.line).unwrap_or(u32::MAX))
+                    .with_column(u32::try_from(event.column).unwrap_or(u32::MAX))
+                    .with_content(&event.label)
+                    .with_impact(meta.impact.as_ref())
+                    .with_improvement(meta.improvement.as_ref());
+                    adv.enclosing_symbol = enclosing_symbol;
+                    adv.tags = meta.tags.iter().map(ToString::to_string).collect();
+                    advisories.push(adv);
                 }
             }
 
@@ -172,33 +176,27 @@ impl<'a, 'ctx> TemporalAnalyzer<'a, 'ctx> {
                             .and_then(|idx| self.context.symbols.graph().get_symbol(idx))
                             .map(|s| s.name.clone());
 
-                        advisories.push(Advisory {
-                            rule_id: meta.id.to_string(),
-                            file_id: self.context.file_id,
-                            file_path,
-                            severity: meta.severity,
-                            confidence: 0.92,
-                            observation: format!(
+                        let mut adv = Advisory::bare(
+                            meta.id.as_ref(),
+                            meta.severity,
+                            self.context.file_id,
+                            self.context.file_path,
+                            format!(
                                 "Temporal Violation: '{}' found between '{}' and '{}', which is forbidden.",
                                 sequence[i].as_str(),
                                 start_re.as_str(),
                                 end_re.as_str()
                             ),
-                            impact: meta.impact.to_string(),
-                            improvement: meta.improvement.to_string(),
-                            line: u32::try_from(event.line).unwrap_or(u32::MAX),
-                            column: u32::try_from(event.column).unwrap_or(u32::MAX),
-                            start_byte: 0,
-                            end_byte: 0,
-                            original_content: event.label.clone(),
-                            proposed_replacement: None,
-                            proposed_import: None,
-                            enclosing_symbol,
-                            fingerprint: String::new(),
-                            auto_fixable: false,
-                            requires_human: true,
-                            tags: meta.tags.iter().map(ToString::to_string).collect(),
-                        });
+                        )
+                        .with_confidence(0.92)
+                        .with_line(u32::try_from(event.line).unwrap_or(u32::MAX))
+                        .with_column(u32::try_from(event.column).unwrap_or(u32::MAX))
+                        .with_content(&event.label)
+                        .with_impact(meta.impact.as_ref())
+                        .with_improvement(meta.improvement.as_ref());
+                        adv.enclosing_symbol = enclosing_symbol;
+                        adv.tags = meta.tags.iter().map(ToString::to_string).collect();
+                        advisories.push(adv);
                     }
                 }
             }

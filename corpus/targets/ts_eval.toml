@@ -1,0 +1,5 @@
+id = "TS_EVAL"
+severity = "Critical"
+observation = "Direct use of eval() or Function() constructor to execute dynamic code."
+impact = "Arbitrary code execution allows attackers to run any JavaScript in the application context."
+improvement = "Avoid eval(). Use JSON.parse() for data, or a sandboxed interpreter for expressions."

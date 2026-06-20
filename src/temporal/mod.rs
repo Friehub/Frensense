@@ -2,7 +2,6 @@
 
 pub mod analyzer;
 pub mod config;
-pub mod handler;
 
 pub use analyzer::TemporalAnalyzer;
-pub use config::TemporalConfig;
+pub use config::{load_all_temporal_rules, load_temporal_rules_from_file, TemporalRuleToml};

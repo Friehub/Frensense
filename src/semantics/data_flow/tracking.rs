@@ -2,8 +2,7 @@
 
 use super::normalization::SemanticOp;
 use super::{DataFlowAnalyzer, TaintRegistry};
-use crate::{Advisory, FrensenseRule};
-use regex::Regex;
+use crate::Advisory;
 use tree_sitter::Node;
 
 impl<'a> DataFlowAnalyzer<'a, '_> {
@@ -22,18 +21,10 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     pub fn analyze_block(
         &self,
         node: Node<'a>,
-        source_re: &Regex,
-        sink_re: &Regex,
-        rule: &dyn FrensenseRule,
         registry: &mut TaintRegistry,
     ) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let block_range = super::normalization::Range::from(node);
-
-        // Phase 5: Seed taint from typed entry points instead of regex on identifiers
-        if let Some(ref seeder) = self.seeder {
-            seeder.seed_from_function_params(self.root, self.current_source, registry);
-        }
 
         for op in self.context.semantic_ops {
             match op {
@@ -42,9 +33,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         name,
                         *value_range,
                         block_range,
-                        source_re,
-                        sink_re,
-                        rule,
                         registry,
                         &mut advisories,
                     );
@@ -57,9 +45,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         target,
                         *value_range,
                         block_range,
-                        source_re,
-                        sink_re,
-                        rule,
                         registry,
                         &mut advisories,
                     );
@@ -74,9 +59,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                         args,
                         *range,
                         block_range,
-                        source_re,
-                        sink_re,
-                        rule,
                         registry,
                     ) {
                         advisories.extend(call_advisories);
@@ -86,9 +68,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     if let Some(sub_advisories) = self.process_enter_block(
                         *body_range,
                         block_range,
-                        source_re,
-                        sink_re,
-                        rule,
                         registry,
                     ) {
                         advisories.extend(sub_advisories);

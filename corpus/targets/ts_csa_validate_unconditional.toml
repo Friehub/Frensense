@@ -1,0 +1,5 @@
+id = "TS_CSA_VALIDATE_UNCONDITIONAL"
+severity = "Warning"
+observation = "Corpus pattern: Ts Csa Validate Unconditional."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

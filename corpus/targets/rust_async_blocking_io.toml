@@ -1,0 +1,5 @@
+id = "RUST_ASYNC_BLOCKING_IO"
+severity = "Warning"
+observation = "Corpus pattern: Rust Async Blocking Io."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

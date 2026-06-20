@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_522_EXPRESS_JWT_NOT_REVOKED"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 522 Express Jwt Not Revoked."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

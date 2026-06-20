@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_1004_COOKIE_MISSING_HTTPONLY"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 1004 Cookie Missing Httponly."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

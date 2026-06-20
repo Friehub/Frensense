@@ -1,9 +1,9 @@
-# GenSense: Algorithmic Grounding for the LLM Era
+# FrenSense: Algorithmic Grounding for the LLM Era
 ## Mathematics Already in the Codebase + What to Mix In
 
 ---
 
-## What GenSense Already Has (The Mathematical Foundation)
+## What FrenSense Already Has (The Mathematical Foundation)
 
 Before introducing anything new, it is worth naming precisely what is already in the code, 
 because the additions below are *mixtures and extensions* of these — not replacements.
@@ -18,7 +18,7 @@ because the additions below are *mixtures and extensions* of these — not repla
 | BFS in ProjectRule | `ir.rs` | Breadth-first reachability on the call graph |
 | Cross-file taint | `ir.rs` CrossFileTaintFree | Reachability with a sink predicate |
 
-The pattern across all of these: GenSense is already doing graph theory, finite automata, 
+The pattern across all of these: FrenSense is already doing graph theory, finite automata, 
 and set operations on code structure. The additions below are chosen specifically because 
 they compose with what is already here — using the same data structures, adding new 
 mathematical lenses on top of them.
@@ -116,7 +116,7 @@ CodeQL is Datalog, Doop is Datalog, Chord is Datalog. The reason is that fixed-p
 iteration over a monotone lattice is guaranteed to terminate and produces the most-precise 
 result expressible in the logic.
 
-**GenSense does not need a full Datalog engine.** It needs the *pattern* applied to 
+**FrenSense does not need a full Datalog engine.** It needs the *pattern* applied to 
 its existing petgraph structure. The key operation is semi-naive evaluation:
 
 ```
@@ -127,7 +127,7 @@ until Reachable_new == Reachable
 ```
 
 This is a fixed-point iteration. In petgraph terms, it is transitive closure with an 
-early-exit predicate. GenSense already computes this manually in the BFS loops in `ir.rs`. 
+early-exit predicate. FrenSense already computes this manually in the BFS loops in `ir.rs`. 
 The improvement is to:
 
 1. Compute transitive closure *once* at project scan time (cached in `AnalysisRegistry`)
@@ -188,7 +188,7 @@ variable reaches that branch. A function with H near 0 means tainted data flows 
 without conditional decisions. A function with H near log₂(n) (maximum entropy) means 
 tainted data is fully branched on.
 
-**In practice, this does not require probabilistic modeling.** GenSense already has:
+**In practice, this does not require probabilistic modeling.** FrenSense already has:
 - The taint registry (which variables are tainted)
 - The AST (which nodes are branch conditions)
 - The semantic ops (which ops involve tainted variables)
@@ -280,9 +280,9 @@ and `min_taint_entropy` (entropy threshold). Everything else stays backward-comp
 ## The Theoretical Claim
 
 These three algorithms, combined with the contract surface analysis from the previous 
-document, give GenSense a formal description of what it is doing:
+document, give FrenSense a formal description of what it is doing:
 
-> GenSense is a **compositional semantic analyzer** that checks behavioral contracts 
+> FrenSense is a **compositional semantic analyzer** that checks behavioral contracts 
 > (contract surface), path safety (Datalog reachability), structural consistency 
 > (MinHash similarity), and decision coverage (taint entropy) — across the full call 
 > graph of a codebase — without requiring type annotations, user-supplied specifications, 
@@ -295,5 +295,5 @@ verification, entropy for information-theoretic security analysis) and none of t
 existing tool vendors has had reason to combine them under this framing.
 
 The framing is the moat. The algorithms are all published and well-understood. What 
-is new is their composition on top of GenSense's existing semantic substrate, aimed 
+is new is their composition on top of FrenSense's existing semantic substrate, aimed 
 specifically at the structural failure patterns of LLM-generated code.

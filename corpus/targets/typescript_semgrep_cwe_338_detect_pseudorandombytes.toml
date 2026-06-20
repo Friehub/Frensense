@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_338_DETECT_PSEUDORANDOMBYTES"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 338 Detect Pseudorandombytes."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

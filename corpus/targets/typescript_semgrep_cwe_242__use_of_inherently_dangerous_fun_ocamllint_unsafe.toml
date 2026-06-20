@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_242__USE_OF_INHERENTLY_DANGEROUS_FUN_OCAMLLINT_UNSAFE"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 242  Use Of Inherently Dangerous Fun Ocamllint Unsafe."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

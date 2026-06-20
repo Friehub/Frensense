@@ -1,0 +1,5 @@
+id = "RUST_LLM_NEVER_ERR"
+severity = "Warning"
+observation = "Corpus pattern: Rust Llm Never Err."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

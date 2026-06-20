@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_798_HARDCODED_HMAC_KEY"
+severity = "Critical"
+observation = "Corpus pattern: Typescript Semgrep Cwe 798 Hardcoded Hmac Key."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

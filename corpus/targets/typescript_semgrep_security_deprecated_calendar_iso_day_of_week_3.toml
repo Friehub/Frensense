@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_DEPRECATED_CALENDAR_ISO_DAY_OF_WEEK_3"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Deprecated Calendar Iso Day Of Week 3."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

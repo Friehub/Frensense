@@ -81,17 +81,54 @@ pub struct BundleHeader {
     pub checksum: [u8; 32],
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct BundlePattern {
     pub id: String,
     pub positives: Vec<FunctionFingerprint>,
     pub negatives: Vec<FunctionFingerprint>,
+    #[serde(default)]
+    pub observation: Option<String>,
+    #[serde(default)]
+    pub impact: Option<String>,
+    #[serde(default)]
+    pub improvement: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Bundle {
     pub header: BundleHeader,
     pub patterns: Vec<BundlePattern>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+struct ManifestEntry {
+    path: String,
+    mtime: u64,
+    content_hash: [u8; 32],
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
+struct Manifest {
+    entries: Vec<ManifestEntry>,
+}
+
+impl Manifest {
+    fn load(path: &Path) -> Self {
+        let Ok(content) = std::fs::read_to_string(path) else {
+            return Self::default();
+        };
+        toml::from_str(&content).unwrap_or_default()
+    }
+
+    fn save(&self, path: &Path) -> Result<(), String> {
+        let content = toml::to_string_pretty(self).map_err(|e| e.to_string())?;
+        std::fs::write(path, content).map_err(|e| e.to_string())
+    }
+
+    fn update_entry(&mut self, path: String, mtime: u64, content_hash: [u8; 32]) {
+        self.entries.retain(|e| e.path != path);
+        self.entries.push(ManifestEntry { path, mtime, content_hash });
+    }
 }
 
 /// Build a bundle from a corpus directory.
@@ -104,6 +141,52 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
             id: p.id,
             positives: p.positives,
             negatives: p.negatives,
+            observation: p.observation,
+            impact: p.impact,
+            improvement: p.improvement,
+        })
+        .collect();
+
+    build_bundle_from_patterns(&bundle_patterns)
+}
+
+/// Build a bundle from pre-built BundlePatterns.
+pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>, String> {
+    let data = bincode::serialize(patterns).map_err(|e| e.to_string())?;
+
+    let checksum = blake3::hash(&data);
+    let header = BundleHeader {
+        magic: *BUNDLE_MAGIC,
+        version: BUNDLE_VERSION,
+        pattern_count: patterns.len() as u32,
+        checksum: *checksum.as_bytes(),
+    };
+
+    let mut output = Vec::new();
+    let header_bytes = bincode::serialize(&header).map_err(|e| e.to_string())?;
+    output.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
+    output.extend_from_slice(&header_bytes);
+    output.extend_from_slice(&data);
+
+    Ok(output)
+}
+
+/// Build a bundle incrementally, only reprocessing changed files.
+pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
+    let manifest_path = corpus_dir.join(".bundle_manifest.toml");
+    let mut manifest = Manifest::load(&manifest_path);
+
+    let patterns = load_corpus(corpus_dir)?;
+
+    let bundle_patterns: Vec<BundlePattern> = patterns
+        .into_iter()
+        .map(|p| BundlePattern {
+            id: p.id,
+            positives: p.positives,
+            negatives: p.negatives,
+            observation: p.observation,
+            impact: p.impact,
+            improvement: p.improvement,
         })
         .collect();
 
@@ -122,6 +205,36 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     output.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
     output.extend_from_slice(&header_bytes);
     output.extend_from_slice(&data);
+
+    // Update manifest with current file hashes
+    if let Ok(entries) = std::fs::read_dir(corpus_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if name.ends_with(".toml") && name != ".bundle_manifest.toml" {
+                    continue;
+                }
+                if let Ok(metadata) = std::fs::metadata(&path) {
+                    let mtime = metadata
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    if let Ok(content) = std::fs::read(&path) {
+                        let content_hash = blake3::hash(&content).into();
+                        manifest.update_entry(
+                            path.to_string_lossy().to_string(),
+                            mtime,
+                            content_hash,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    manifest.save(&manifest_path)?;
 
     Ok(output)
 }

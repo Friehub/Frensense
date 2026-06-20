@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_JAVASCRIPT_ALERT"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Javascript Alert."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_327_MISSING_SSL_MINVERSION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 327 Missing Ssl Minversion."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

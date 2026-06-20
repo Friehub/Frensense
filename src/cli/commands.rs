@@ -19,7 +19,7 @@ pub fn print_help() {
     println!();
     println!("Detection Options:");
     println!("  --corpus <dir>      Load detection patterns from corpus directory");
-    println!("  --threshold <0-1>   Corpus match threshold (default: 0.65)");
+    println!("  --threshold <0-1>   Corpus match threshold (default: 0.40)");
     println!("  --language <lang>   Language filter: rust, typescript, javascript, yaml");
     println!("  --diff-only         Only scan files changed since the last git commit");
     println!("  --severity <level>  Minimum severity: critical, warning, info");
@@ -42,6 +42,7 @@ pub fn print_help() {
     println!(
         "  --diff [scope]     Show unified diff of proposed changes (scope: all, style, security)"
     );
+    println!("  --check-deps       Require cargo metadata for Rust dependency checking");
     println!();
     println!("Style Profile:");
     println!("  --learn-profile     Build a project style profile from current codebase");
@@ -69,6 +70,10 @@ pub fn print_help() {
     println!("  frensense --override-severity FILE_TOO_LONG:info .  Change rule severity");
     println!("  frensense --emit-baseline baseline.json   Save baseline");
     println!("  frensense --compare-baseline baseline.json  Check for regressions");
+    println!();
+    println!("Learn Mode:");
+    println!("  frensense --learn positive.ts negative.ts    Learn patterns from examples");
+    println!("  frensense --learn pos.ts neg.ts --learn-output rules/  Output to directory");
     println!();
     println!("Features Enabled:");
     #[cfg(feature = "rust")]

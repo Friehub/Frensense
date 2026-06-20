@@ -63,7 +63,6 @@ c_lang = ["frensense-engine/c_lang"]
 python = ["frensense-engine/python", "dep:tree-sitter-python"]
 fingerprinting = ["frensense-engine/serialize"]
 temporal = []
-disabled_yaml_rules = []
 
 [dev-dependencies]
 tempfile = "3"

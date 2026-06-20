@@ -1,0 +1,5 @@
+id = "RUST_NETWORK_IN_TXN"
+severity = "Warning"
+observation = "Corpus pattern: Rust Network In Txn."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

@@ -73,15 +73,38 @@ impl AtomicSectionAnalyzer {
                         || text.contains("mutex_lock(")
                         || text.contains("acquire(")
                     {
-                        let target = extract_target(text, "lock");
-                        events.push(AtomicEvent {
-                            op: AtomicOp::Lock,
-                            target,
-                            line,
-                            column,
-                            start_byte: node.start_byte(),
-                            end_byte: node.end_byte(),
-                        });
+                        // In Rust, `let guard = mutex.lock()` binds a MutexGuard that is
+                        // automatically dropped at scope end (RAII). Only flag if NOT
+                        // assigned to a let binding.
+                        let is_let_binding = {
+                            let mut p = node.parent();
+                            while let Some(parent) = p {
+                                if parent.kind() == "let_declaration" || parent.kind() == "variable_declaration" {
+                                    break;
+                                }
+                                if parent.kind() == "function_item"
+                                    || parent.kind() == "function_definition"
+                                    || parent.kind() == "arrow_function"
+                                    || parent.kind() == "method_definition"
+                                {
+                                    break;
+                                }
+                                p = parent.parent();
+                            }
+                            p.map_or(false, |pt| pt.kind() == "let_declaration" || pt.kind() == "variable_declaration")
+                        };
+
+                        if !is_let_binding {
+                            let target = extract_target(text, "lock");
+                            events.push(AtomicEvent {
+                                op: AtomicOp::Lock,
+                                target,
+                                line,
+                                column,
+                                start_byte: node.start_byte(),
+                                end_byte: node.end_byte(),
+                            });
+                        }
                     } else if text.contains("unlock(")
                         || text.contains("mutex_unlock(")
                         || text.contains("release(")

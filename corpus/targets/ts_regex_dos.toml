@@ -1,0 +1,5 @@
+id = "TS_REGEX_DOS"
+severity = "Warning"
+observation = "Corpus pattern: Ts Regex Dos."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

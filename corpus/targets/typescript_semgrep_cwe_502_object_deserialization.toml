@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_502_OBJECT_DESERIALIZATION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 502 Object Deserialization."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

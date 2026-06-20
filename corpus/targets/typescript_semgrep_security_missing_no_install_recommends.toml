@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_MISSING_NO_INSTALL_RECOMMENDS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Missing No Install Recommends."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

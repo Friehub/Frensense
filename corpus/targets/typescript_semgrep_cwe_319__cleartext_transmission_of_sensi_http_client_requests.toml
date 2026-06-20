@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_319__CLEARTEXT_TRANSMISSION_OF_SENSI_HTTP_CLIENT_REQUESTS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 319  Cleartext Transmission Of Sensi Http Client Requests."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

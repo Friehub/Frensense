@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_79_DOM_BASED_XSS"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 79 Dom Based Xss."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

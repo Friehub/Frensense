@@ -2,7 +2,22 @@ use crate::Advisory;
 
 pub fn find(snap: &crate::engine::project::FileSnapshot) -> Vec<Advisory> {
     let mut temporal = frensense_engine::temporal::TemporalAnalyzer::new();
-    temporal.add_default_rules();
+
+    let temporal_rules = crate::temporal::load_all_temporal_rules(&[]);
+    let engine_rules: Vec<frensense_engine::temporal::TemporalRuleToml> = temporal_rules
+        .into_iter()
+        .map(|r| frensense_engine::temporal::TemporalRuleToml {
+            id: r.id,
+            sequence: r.sequence,
+            behavior: r.behavior,
+            severity: r.severity,
+            observation: r.observation,
+            impact: r.impact,
+            improvement: r.improvement,
+            tags: r.tags,
+        })
+        .collect();
+    temporal.add_rules_from_toml(&engine_rules);
 
     let violations = temporal.analyze_with_events(snap.tree.root_node(), &snap.content, &snap.path);
 

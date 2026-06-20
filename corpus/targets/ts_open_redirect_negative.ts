@@ -1,21 +1,8 @@
-// Rule: TS_OPEN_REDIRECT (negative — no rule expected)
-function handleLogin(req: any, res: any) {
-    const userId = req.session.userId;
-    if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
+function redirect(next: string) {
+    const allowed = ["/dashboard", "/home"];
+    if (allowed.includes(next)) {
+        res.redirect(next);
+    } else {
+        res.redirect("/dashboard");
     }
-
-    const redirectTo = req.query.next || "/dashboard";
-    const dbUser = db.findUser(userId);
-
-    if (!dbUser || dbUser.banned) {
-        return res.status(403).json({ error: "Forbidden" });
-    }
-
-    const allowedPaths = ["/dashboard", "/profile", "/settings"];
-    if (!allowedPaths.includes(redirectTo)) {
-        return res.redirect("/dashboard");
-    }
-
-    res.redirect(redirectTo);
 }

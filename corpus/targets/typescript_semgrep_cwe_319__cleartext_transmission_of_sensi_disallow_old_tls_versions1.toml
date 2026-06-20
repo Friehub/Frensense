@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_319__CLEARTEXT_TRANSMISSION_OF_SENSI_DISALLOW_OLD_TLS_VERSIONS1"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 319  Cleartext Transmission Of Sensi Disallow Old Tls Versions1."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

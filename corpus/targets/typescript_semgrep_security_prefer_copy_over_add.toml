@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_SECURITY_PREFER_COPY_OVER_ADD"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Security Prefer Copy Over Add."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

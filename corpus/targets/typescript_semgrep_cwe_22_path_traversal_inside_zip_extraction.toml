@@ -1,0 +1,5 @@
+id = "TYPESCRIPT_SEMGREP_CWE_22_PATH_TRAVERSAL_INSIDE_ZIP_EXTRACTION"
+severity = "Warning"
+observation = "Corpus pattern: Typescript Semgrep Cwe 22 Path Traversal Inside Zip Extraction."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."
