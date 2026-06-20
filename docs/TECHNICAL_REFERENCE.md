@@ -967,6 +967,191 @@ Training uses gradient descent on labeled TP/FP data:
 
 ---
 
+## Data Flow Engine Internals
+
+**File:** `frensense-engine/src/data_flow/engine.rs`
+
+### FunctionTaintSummary (Cached per Function)
+
+```rust
+pub struct FunctionTaintSummary {
+    pub propagates_return: bool,           // Does return value carry taint?
+    pub tainted_params: HashMap<usize, TaintOrigin>,  // Which params are tainted
+    pub return_origins: Vec<TaintOrigin>,  // Where taint on return comes from
+}
+```
+
+### DataFlowEngine (Global State)
+
+```rust
+pub struct DataFlowEngine {
+    summaries: HashMap<(file, fn_name), FunctionTaintSummary>,  // Cached summaries
+    global_taint: HashMap<(file, var), TaintOrigin>,            // Global variables
+    global_field_taint: HashMap<(file, var, field), TaintOrigin>,  // Global fields
+}
+```
+
+Key methods:
+- `seed_registry_from_globals()` — populate per-file registry from global state
+- `cache_summary()` / `get_summary()` — cache function taint summaries
+- `invalidate_file()` — clear cache for a file (incremental scanning)
+
+---
+
+## Alias Tracker
+
+**File:** `frensense-engine/src/data_flow/alias.rs`
+
+Tracks transitive variable aliases for taint propagation:
+
+```rust
+// y = x → y aliases x
+// z = y → z aliases y, and transitively aliases x
+
+let mut tracker = AliasTracker::new();
+tracker.record_alias("y", "x");
+tracker.record_alias("z", "y");
+assert!(tracker.may_alias("z", "x"));  // transitive!
+```
+
+Used by taint analysis to follow data flow through assignments.
+
+---
+
+## Taint Confidence Adjustment (CFG-Based)
+
+**File:** `frensense-engine/src/data_flow/confidence.rs`
+
+Reduces confidence when taint is killed (reassigned to clean value):
+
+```rust
+// Original: data = get_password(); store_in_db(data);  → confidence 0.95
+// Killed:   data = get_password(); data = "clean"; store_in_db(data);  → confidence 0.33
+```
+
+Uses def-use chains to detect if the tainted variable is reassigned before the sink.
+
+---
+
+## Hollow Validator Detection
+
+**File:** `frensense-engine/src/data_flow/taint_metrics.rs`
+
+```rust
+pub struct TaintMetrics {
+    pub tainted_uses: usize,        // How many times tainted vars are used
+    pub taint_branched_on: usize,   // How many conditionals reference tainted vars
+    pub taint_branch_ratio: f32,    // taint_branched_on / tainted_uses
+    pub has_validation_name: bool,  // Function name contains validate/check/verify/etc.
+}
+
+// Hollow validator: validation name + branch ratio < 0.2
+pub fn is_hollow_validator(&self) -> bool {
+    self.has_validation_name && self.taint_branch_ratio < 0.2
+}
+```
+
+Validation names detected: `validate`, `check_`, `verify_`, `ensure_`, `sanitize_`, `parse_`, `guard_`, `_validator`, `_verifier`
+
+---
+
+## AbstractKind Taxonomy (32 Kinds)
+
+**File:** `frensense-engine/src/lang/kinds.rs`
+
+```
+Definitions:  FunctionDef, ClassDef, MethodDef, InterfaceDef, StructDef, EnumDef, ConstDef, ModuleDef
+Control:      Call, MethodCall, Await, Return, Assign, BinaryOp, UnaryOp, Conditional, Loop, Match, Closure, TryCatch, Throw, Unsafe, Async
+Literals:     StringLiteral, NumberLiteral, BoolLiteral, Identifier, TypeAnnotation
+Structure:    Block, Parameters, Arguments, ImportDecl, ExportDecl, Other
+```
+
+---
+
+## Per-Language Mapper
+
+**File:** `frensense-engine/src/lang/mapper.rs`
+
+Maps tree-sitter node kinds to AbstractKind per language:
+
+| Language | Node Kinds Mapped |
+|----------|-------------------|
+| Rust | `function_item` → FunctionDef, `let_declaration` → Assign, `match_expression` → Match, etc. |
+| TypeScript | `function_declaration` → FunctionDef, `arrow_function` → Closure, `switch_statement` → Match, etc. |
+| C | `function_definition` → FunctionDef, `pointer_declarator` → Identifier, etc. |
+| Python | `function_definition` → FunctionDef, `lambda` → Closure, `match_statement` → Match, etc. |
+
+---
+
+## Project Profile (Style Anomaly Detection)
+
+**File:** `frensense-engine/src/profile.rs`
+
+Learns project coding style from fingerprints:
+
+```rust
+pub struct LanguageProfile {
+    pub body_ngram_freq: FxHashMap<u64, ProfileEntry>,      // Token patterns
+    pub signature_ngram_freq: FxHashMap<u64, ProfileEntry>,  // Signature patterns
+    pub param_type_freq: FxHashMap<u64, ProfileEntry>,       // Parameter types
+    pub name_segment_freq: HashMap<String, ProfileEntry>,    // Naming conventions
+    pub structural_marker_freq: FxHashMap<u64, ProfileEntry>, // AST structure
+    pub type_usage_freq: HashMap<String, ProfileEntry>,       // Types used
+    pub file_profiles: HashMap<String, FileProfile>,          // Per-directory profiles
+}
+
+// Style surprise: % of features unseen in project profile
+pub fn style_surprise(&self, fp: &FunctionFingerprint) -> StyleSurpriseResult {
+    // Checks: body patterns, signatures, name segments, structural markers, type usages
+    // Returns: score (0.0 = familiar, 1.0 = completely novel) + details
+}
+```
+
+---
+
+## SymbolRegistry
+
+**File:** `frensense-engine/src/symbols.rs`
+
+Cross-file symbol table backed by SemanticGraph:
+
+```rust
+pub struct SymbolRegistry {
+    graph: SemanticGraph,                              // Call graph + symbols
+    file_index: HashMap<String, Vec<SemanticNodeId>>,  // File → symbol IDs
+}
+
+// Key methods:
+pub fn find(&self, name: &str) -> Vec<&Symbol>           // Find by name
+pub fn find_at(&self, name, file, line) -> Option<Symbol> // Find at position
+pub fn find_function_at(&self, file, line) -> Option<NodeId>  // Find enclosing function
+pub fn get_callees(&self, sym) -> Vec<&Symbol>           // Functions called by sym
+pub fn get_callers(&self, sym) -> Vec<&Symbol>           // Functions that call sym
+pub fn add_call_edge(&mut self, file, src, target)       // Add call graph edge
+pub fn extract_from_tree(&mut self, tree, source, ...)   // Extract symbols from AST
+```
+
+---
+
+## SemanticOp (Normalization)
+
+**File:** `frensense-engine/src/data_flow/normalization.rs`
+
+Normalizes AST operations for taint tracking:
+
+```rust
+pub enum SemanticOp {
+    Binding { name, value_range },      // let x = value
+    Assignment { target, value_range }, // x = value
+    Call { function_name, args, range }, // foo(args)
+    EnterBlock(Range),                  // { ... }
+}
+```
+
+Extracts from Rust (`let_declaration`, `assignment_expression`) and TypeScript (`lexical_declaration`, `assignment_expression`).
+
+---
+
 ## Summary: What FrenSense Can vs Cannot Catch
 
 | Bug Type | Detected? | How |

@@ -34,20 +34,20 @@ frensense-engine/src/
 │   └── semantic.rs                 ✅ READ — SemanticFilter, AST-level constraints
 ├── data_flow/
 │   ├── mod.rs                      ⚠️ PARTIAL — module declaration
-│   ├── alias.rs                    ❌ UNREAD — alias tracking
-│   ├── confidence.rs               ❌ UNREAD — confidence adjustment
+│   ├── alias.rs                    ✅ READ — transitive alias tracking
+│   ├── confidence.rs               ✅ READ — CFG-based taint confidence adjustment
 │   ├── cross_file.rs               ⚠️ PARTIAL — cross-file taint in engine
-│   ├── engine.rs                   ❌ UNREAD — DataFlowEngine internals
-│   ├── normalization.rs            ❌ UNREAD — semantic op normalization
+│   ├── engine.rs                   ✅ READ — DataFlowEngine with summary caching
+│   ├── normalization.rs            ✅ READ — SemanticOp extraction (Binding/Assignment/Call/EnterBlock)
 │   ├── resolver.rs                 ✅ READ — taint source seeding (regex-based)
-│   └── taint_metrics.rs            ❌ UNREAD — entropy metrics
+│   └── taint_metrics.rs            ✅ READ — hollow validator detection (branch ratio < 0.2)
 ├── deps.rs                         ✅ READ — dependency resolver (Cargo.lock, package.json)
 ├── fingerprint.rs                  ✅ READ — 7-dimensional fingerprinting, IDF, positional ngrams
 ├── graph.rs                        ✅ READ — SemanticGraph, duplicate of src/semantics/graph.rs
 ├── lang/
 │   ├── mod.rs                      ⚠️ PARTIAL — module declaration
-│   ├── kinds.rs                    ❌ UNREAD — AbstractKind taxonomy (32 kinds)
-│   └── mapper.rs                   ❌ UNREAD — per-language AST mapper
+│   ├── kinds.rs                    ✅ READ — AbstractKind taxonomy (32 kinds)
+│   └── mapper.rs                   ✅ READ — per-language mapper (Rust, TS, C, Python)
 ├── minhash.rs                      ✅ READ — MinHash LSH, 16 bands × 8 rows
 ├── parser.rs                       ⚠️ PARTIAL — language detection, parser registry
 ├── pattern/
@@ -56,7 +56,7 @@ frensense-engine/src/
 │   ├── compiler.rs                 ✅ READ — PatternNode compilation, wildcards
 │   ├── matcher.rs                  ✅ READ — AST matching with captures
 │   └── scorer.rs                   ✅ READ — 5-dimensional scoring, AST edit distance
-├── profile.rs                      ❌ UNREAD — project profiling
+├── profile.rs                      ✅ READ — ProjectProfile, style surprise detection
 ├── reachability.rs                 ⚠️ PARTIAL — used by dead_branch finding
 ├── secrets.rs                      ✅ READ — 9 secret patterns, entropy filtering
 ├── semantic_patterns/
@@ -64,7 +64,7 @@ frensense-engine/src/
 │   ├── check_then_act.rs           ✅ READ — CHECK_THEN_ACT_TOCTOU (Prisma-only)
 │   ├── helpers.rs                  ✅ READ — is_db_read, is_db_write, is_inside_transaction
 │   └── registry.rs                 ✅ READ — SemanticPattern trait, PatternRunner
-├── symbols.rs                      ❌ UNREAD — SymbolRegistry
+├── symbols.rs                      ✅ READ — SymbolRegistry with call graph edges
 └── temporal.rs                     ✅ READ — TemporalAnalyzer, 5 built-in rules
 ```
 
@@ -158,9 +158,9 @@ src/
 
 | Category | Total | Read | Partial | Unread |
 |----------|-------|------|---------|--------|
-| Engine (`frensense-engine/src/`) | 41 | 22 | 10 | 9 |
+| Engine (`frensense-engine/src/`) | 41 | 31 | 10 | 0 |
 | CLI + Pipeline (`src/`) | 59 | 27 | 14 | 18 |
-| **Total** | **100** | **49** | **24** | **27** |
+| **Total** | **100** | **58** | **24** | **18** |
 
 ---
 
