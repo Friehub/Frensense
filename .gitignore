@@ -63,3 +63,11 @@ TODO.md
 test-*.js
 tests/list_files_test.rs
 .env
+
+# Large files (removed from tracking)
+*.zip
+*.db
+scripts/harvest_streaming/raw/
+corpus/ground_truth/
+corpus/baselines/
+tests/benchmarks/samples/
