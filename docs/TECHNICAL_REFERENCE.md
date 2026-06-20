@@ -877,6 +877,96 @@ When `stream=true`, findings are sent as JSON-RPC notifications:
 
 ---
 
+## Confidence Composition (Layer Signal AND-Gate)
+
+**File:** `src/engine/composition.rs`
+
+FrenSense uses a 4-layer AND-gate to compose confidence:
+
+```
+Layer 1 (L1): Corpus Pattern Match — structural shape similarity
+Layer 2 (L2): Taint Flow — data actually flows from source to sink
+Layer 3 (L3): Taint Branch Ratio — function branches on tainted input
+Layer 4 (L4): Near-Duplicate — inconsistent behavior across similar functions
+```
+
+### Composition Rules
+
+```rust
+// composition.rs:30-55
+fn compose_confidence(signals: &LayerSignals, base_score: f32) -> f32 {
+    let mut score = base_score;
+
+    // L2 confirms L1: tainted data reaches sink → full confidence
+    if signals.corpus_match && signals.taint_flow {
+        // No penalty
+    } else if signals.corpus_match && !signals.taint_flow {
+        // Structural match with no dataflow → down-weight
+        score *= 0.6;
+    }
+
+    // L3 can SUPPRESS L1: high branch ratio means real validator
+    if let Some(ratio) = signals.taint_branch_ratio {
+        if ratio > 0.6 {
+            score *= 0.3;  // Suppress: function actually validates
+        }
+    }
+
+    // L4 inconsistency boosts confidence
+    if signals.near_duplicate {
+        score *= 1.2;
+    }
+
+    score.min(1.0)
+}
+```
+
+### Visual
+
+```
+                    Corpus Match (L1)
+                         │
+            ┌────────────┼────────────┐
+            │            │            │
+            ▼            ▼            ▼
+     + Taint Flow   No Taint     High Branch
+       (L2)         Flow         Ratio (L3)
+            │            │            │
+            ▼            ▼            ▼
+      Full Score    ×0.6 Score   ×0.3 Score
+      (no penalty)  (downweight) (suppress)
+            │            │            │
+            └────────────┼────────────┘
+                         │
+                    + Near-Duplicate (L4)
+                         │
+                         ▼
+                    ×1.2 Score (boost)
+```
+
+---
+
+## Confidence Calibration (Platt Scaling)
+
+**File:** `src/engine/confidence_calibration.rs`
+
+Raw similarity scores are calibrated to probabilities using logistic regression:
+
+```rust
+// calibration.rs:35-38
+pub fn calibrate(&self, raw_score: f64) -> f64 {
+    let z = self.a * raw_score + self.b;
+    1.0 / (1.0 + (-z).exp())  // sigmoid
+}
+```
+
+Training uses gradient descent on labeled TP/FP data:
+- 500 iterations, learning rate 0.1
+- Cross-entropy loss minimization
+- Reports accuracy on training set
+
+---
+
 ## Summary: What FrenSense Can vs Cannot Catch
 
 | Bug Type | Detected? | How |

@@ -383,13 +383,35 @@ Categories:
 
 ```bash
 --corpus <dir>              # Load corpus patterns
---threshold <0-1>           # Corpus match threshold (default: 0.65)
+--threshold <0-1>           # Corpus match threshold (default: 0.40)
 --severity <level>          # Minimum severity: critical, warning, info
 --diff-only                 # Only scan changed files
 --json                      # JSON output
 --sarif                     # SARIF output for GitHub
---fix [scope]               # Auto-remediation
+--fix [scope]               # Auto-remediation: style, security, all
+--diff [scope]              # Show diff without applying: style, security, all
+--strict                    # Exit code 1 if any findings
+--confidence <tier>         # high (≥0.85), medium (≥0.60), low (≥0.30), any
+--min-confidence <0-1>      # Raw confidence floor
 --extra-taint-rules <dir>   # Custom taint rules
+--check-deps                # Enable dependency checking (Rust)
+--learn-profile             # Build project style profile
+--check-profile             # Check code against learned profile
+--profile-threshold <0-1>   # Surprise threshold for anomaly detection
+--emit-baseline <file>      # Save current findings as baseline
+--compare-baseline <file>   # Compare against baseline
+--update-baseline           # Update baseline with current findings
+--disable-rule <id>         # Suppress specific rule
+--override-severity <id>:<level>  # Change rule severity
+--tag <tag>                 # Filter findings by tag
+--language <lang>           # Filter by language
+--ngram-window <N>          # Token n-gram window size
+--min-ngram-count <N>       # Minimum n-gram occurrences
+--jaccard-threshold <0-1>   # Similarity threshold for near-duplicates
+--max-source-lines <N>      # Skip files with more than N lines
+--taint-conf-inter <0-1>    # Inter-procedural taint confidence
+--taint-conf-intra <0-1>    # Intra-procedural taint confidence
+--taint-max-depth <N>       # Max taint propagation depth
 ```
 
 ### Taint Rules (TOML)
