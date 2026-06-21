@@ -1,5 +1,7 @@
-// Rule: TS_CSA_VALIDATE_UNCONDITIONAL
-// A function that looks like it validates but always returns true.
+// [frensense]
+// observation: Function name implies validation (validate_*) but every check only logs a warning; the result's valid field is hardcoded to true regardless of which fields failed.
+// impact: Callers branch on the returned valid flag to decide whether to proceed, so invalid input reaches the code path that assumes it was rejected.
+// improvement: Push failures into an errors array and derive valid from errors.length === 0, so a failing check actually flips the field callers branch on.
 
 interface Credentials {
     username: string;

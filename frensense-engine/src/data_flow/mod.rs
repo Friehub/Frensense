@@ -146,4 +146,9 @@ impl TaintRegistry {
     pub fn is_tainted(&self, var: &str) -> bool {
         self.get_origin(var).is_some() || self.get_any_field_origin(var).is_some()
     }
+
+    pub fn has_any_tainted(&self) -> bool {
+        self.scopes.iter().any(|scope| !scope.is_empty())
+            || self.field_taint.iter().any(|scope| !scope.is_empty())
+    }
 }

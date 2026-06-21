@@ -1,5 +1,5 @@
 id = "TS_CSA_FIND_NEVER_EMPTY"
 severity = "Warning"
-observation = "Corpus pattern: Ts Csa Find Never Empty."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."
+observation = "Function name implies a lookup that can fail (find_*) and the return type is nullable, but every not-found path (invalid id, cache miss, empty query result, deleted record) synthesizes and returns a placeholder or stale record instead of null."
+impact = "Callers that check for null to detect 'not found' never see it — invalid IDs and soft-deleted users are returned as if valid, masking missing-record bugs and silently bypassing deletion checks."
+improvement = "Return null on the invalid-id, not-found, and deleted-without-includeDeleted branches instead of constructing a placeholder or returning a cached/deleted record unconditionally."

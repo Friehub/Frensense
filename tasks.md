@@ -190,6 +190,44 @@ Sources: `frensense_audit_v0.4.0.md`, `CORPUS_CURATION_GUIDE.md`, `CORPUS_BAKING
 
 ---
 
+## CSA Rework — Corpus-Learned, Not Name-Pattern Rules
+
+> Supersedes the `CONTRACT_SURFACE_*` rule family proposed in earlier research.
+> **Do not build those** — CSA is a corpus
+> category like `sec`/`llm`/`arch`/`async`, not a new rule IR.
+
+### CSA1 — Fill Generic Advisory Text on Existing CSA Sidecars
+- **Status:** Done
+- **Priority:** High
+- **Files:** `rust_csa_validate_unconditional.toml`, `ts_csa_validate_unconditional.toml`, `ts_csa_sanitize_passthrough.toml`, `ts_csa_auth_no_rejection.toml`, `ts_csa_find_never_empty.toml`
+- **Fix:** All 5 had `corpus_check.py --generate` boilerplate (`"Corpus pattern: X Y Z."` / `"Review against corpus example."`) instead of authored advisory text. Replaced with pattern-specific observation/impact/improvement text. Bumped `ts_csa_sanitize_passthrough` and `ts_csa_auth_no_rejection` to `Critical` (passthrough enables XSS/traversal/open-redirect; no-rejection is an auth bypass) — they were `Warning`.
+
+### CSA2 — Rust Counterparts for sanitize_passthrough / auth_no_rejection / find_never_empty
+- **Status:** Done
+- **Priority:** High
+- **Files added:** `rust_csa_sanitize_passthrough_{positive,negative}.rs` + `.toml`, `rust_csa_auth_no_rejection_{positive,negative}.rs` + `.toml`, `rust_csa_find_never_empty_{positive,negative}.rs` + `.toml`
+- **Fix:** Only `validate_unconditional` had a Rust pair before this; the other 3 CSA violation types were TypeScript-only. All 4 types now exist in both languages (8 pairs total). Negatives use a deliberately different structure from their positives (impl blocks + `HashMap`/enum errors/`?` operator vs. the positives' free functions + `println!` warnings) — same lesson as C1d, to avoid the n-gram scorer treating a trivially-inverted positive as its own negative.
+- **Verified:** `python3 scripts/corpus_check.py corpus/targets/` reports no missing positive/negative/toml for any `csa` pattern. **Not verified:** FRC bundle rebuild and `cargo test -p frensense-engine -- corpus` — no Rust toolchain in this session's sandbox. Run both before relying on these in a scan.
+
+### CSA3 — Re-verify the 2 Open FP Flags Against This Session's Changes
+- **Status:** Open
+- **Priority:** Medium
+- **Note:** "Known Issues" (top of this file) lists `rust_csa_validate_unconditional` and `ts_csa_sanitize_passthrough` as having false positives on negatives at threshold 0.32, but **C1d below claims both were already fixed** ("all 6 negatives now score 0 corpus findings at threshold 0.32"). These two task entries contradict each other — re-run `compute_metrics.py --by-rule` or the rule_tests corpus fixtures to find out which is stale before trusting either.
+
+### CSA4 — Test-to-Implementation Pairing (Layer 2 of the rework)
+- **Status:** Open
+- **Priority:** Medium
+- **Depends on:** `SymbolRegistry` cross-file graph (exists) + a new joint fingerprint type
+- **Fix:** Add impl↔test pairing via the existing call graph (not path globs), then a joint fingerprint over (impl taint-entry signature, test call-site argument shapes), scored through the existing `score_against_corpus` — not a new `ProjectFlowConstraint` variant. See rework doc Layer 2 for the full design. This is the only piece of the rework that needs new engine code rather than just corpus pairs.
+
+### CSA5 — Advisory Text from Comment Blocks (replaces TOML sidecar requirement)
+- **Status:** Done
+- **Priority:** High
+- **Files:** `frensense-engine/src/corpus/loader.rs`
+- **Fix:** Added `parse_frensense_block()` that extracts `/// [frensense]` / `// [frensense]` / `# [frensense]` blocks from positive files. `load_corpus` now reads advisory text from the positive file's comment block first, falling back to TOML sidecar. TOML is now optional — comment blocks are the primary source. 7 new unit tests. All 8 CSA positive files updated with `[frensense]` blocks. Verified: observation/impact/improvement text appears in scanner output.
+
+---
+
 ## New Corpus Patterns to Add
 
 ### P1 — SQL Injection (Security)
@@ -338,7 +376,7 @@ Sources: `frensense_audit_v0.4.0.md`, `CORPUS_CURATION_GUIDE.md`, `CORPUS_BAKING
 - **Status:** Done
 - **Priority:** Medium
 - **Depends on:** B6
-- **Fix:** Full rename across source, tests, docs, Makefile, MULTILANG_PLAN.md. Verified with grep — zero remaining.
+- **Fix:** Full rename across source, tests, docs, Makefile. Verified with grep — zero remaining.
 
 ### D2 — Write Corpus Contribution Guide
 - **Status:** Open
@@ -506,7 +544,6 @@ milestone is covered in SCALING_PLAN.md §Build Order as Week 2-3.
 
 ## Phase 5: Taint Precision (Primary Engineering Mandate)
 
-**Full spec:** `PHASE5_PLAN.md`
 **Target:** 585 false positives on Axum → ~10-20
 
 ### Step 1: `taint_entry_points.toml` + loader

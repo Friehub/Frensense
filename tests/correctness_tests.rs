@@ -131,7 +131,7 @@ fn test_taint_through_destructuring() {
 #[test]
 fn test_suppression_correctness() {
     let _ = r#"
-        // gensense-suppress RUST_PANIC
+        // frensense-suppress RUST_PANIC
         panic!("intentional");
         panic!("unsuppressed");
     "#;

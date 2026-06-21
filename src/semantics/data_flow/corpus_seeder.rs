@@ -5,33 +5,23 @@
 //! Instead of regex rules, this module seeds taint based on corpus patterns.
 //! When the corpus finds a function that matches a known bug pattern,
 //! this seeder identifies which parameters are likely tainted based on
-//! the pattern's structure.
+//! the parameter's type annotation, using the corpus-learned source registry.
 
 use super::TaintRegistry;
 use crate::semantics::data_flow::TaintOrigin;
+use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 use tree_sitter::Node;
 
 /// Seed taint for a function based on corpus pattern matching.
 ///
-/// The corpus found this function matches a known violation pattern.
-/// This seeder identifies which parameters carry user-controlled data
-/// by looking at the function's parameter types and usage patterns.
+/// Uses the corpus-learned source type registry: taints parameters whose
+/// type annotations match types found in positive corpus examples.
 pub fn seed_from_corpus_match(
     fn_node: Node,
     source: &str,
     registry: &mut TaintRegistry,
+    source_sink: &CorpusSourceSinkRegistry,
 ) {
-    // Strategy 1: Seed parameters with common framework types
-    // This covers Express, Fastify, Axum, etc.
-    seed_framework_params(fn_node, source, registry);
-
-    // Strategy 2: Seed parameters named with common source patterns
-    // This covers any function with input-like parameter names
-    seed_named_params(fn_node, source, registry);
-}
-
-/// Seed parameters that match common framework entry point types.
-fn seed_framework_params(fn_node: Node, source: &str, registry: &mut TaintRegistry) {
     let params_node = match fn_node
         .child_by_field_name("parameters")
         .or_else(|| fn_node.child_by_field_name("formal_parameters"))
@@ -39,14 +29,6 @@ fn seed_framework_params(fn_node: Node, source: &str, registry: &mut TaintRegist
         Some(p) => p,
         None => return,
     };
-
-    // Framework types that signal user-controlled input
-    let framework_types = [
-        "Request", "IncomingMessage", "FastifyRequest",
-        "Context", "HttpContext", "ServletRequest",
-        "Json", "Query", "Form", "Path", "Extension", "Multipart", "Bytes",
-        "Body", "Query", "Path", "File", "Form",
-    ];
 
     let mut cursor = params_node.walk();
     for param in params_node.children(&mut cursor) {
@@ -60,98 +42,23 @@ fn seed_framework_params(fn_node: Node, source: &str, registry: &mut TaintRegist
         }
 
         let clean_type = param_type.trim_start_matches(':').trim();
-
-        // Check if type matches any framework type
-        for framework_type in &framework_types {
-            if clean_type.contains(framework_type) {
-                registry.taint(&param_name, TaintOrigin::UserInput);
-                return; // Found first tainted param, stop
-            }
+        if source_sink.is_source_type(clean_type) {
+            registry.taint(&param_name, TaintOrigin::UserInput);
+            return;
         }
     }
-}
-
-/// Seed parameters with common source-like names.
-fn seed_named_params(fn_node: Node, source: &str, registry: &mut TaintRegistry) {
-    let params_node = match fn_node
-        .child_by_field_name("parameters")
-        .or_else(|| fn_node.child_by_field_name("formal_parameters"))
-    {
-        Some(p) => p,
-        None => return,
-    };
-
-    // Common names that signal user input
-    let source_names = [
-        "req", "request", "input", "body", "query", "params",
-        "args", "argv", "data", "payload", "event", "ctx", "context",
-    ];
-
-    let mut cursor = params_node.walk();
-    for param in params_node.children(&mut cursor) {
-        if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
-            continue;
-        }
-
-        let (param_name, _) = extract_param_info(param, source);
-        if param_name.is_empty() {
-            continue;
-        }
-
-        let lower_name = param_name.to_lowercase();
-        for source_name in &source_names {
-            if lower_name.contains(source_name) {
-                registry.taint(&param_name, TaintOrigin::UserInput);
-                return; // Found first tainted param, stop
-            }
-        }
-    }
-}
-
-/// Extract parameter name and type from a function parameter node.
-fn extract_param_info(param: Node, source: &str) -> (String, String) {
-    let mut name = String::new();
-    let mut ty = String::new();
-
-    let mut cursor = param.walk();
-    for child in param.children(&mut cursor) {
-        match child.kind() {
-            "identifier" | "shorthand_field_identifier" | "field_identifier" => {
-                if name.is_empty() {
-                    name = source[child.start_byte()..child.end_byte()].to_string();
-                }
-            }
-            "type_annotation" | "type_identifier" | "scoped_type_identifier" | "generic_type" => {
-                if ty.is_empty() {
-                    ty = source[child.start_byte()..child.end_byte()].to_string();
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // Fallback: regex on full text
-    if name.is_empty() || ty.is_empty() {
-        let text = &source[param.start_byte()..param.end_byte()];
-        if let Some(caps) = regex::Regex::new(r"(\w+)\s*:\s*(.+)")
-            .ok()
-            .and_then(|re| re.captures(text))
-        {
-            if name.is_empty() {
-                name = caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            }
-            if ty.is_empty() {
-                ty = caps.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
-            }
-        }
-    }
-
-    (name, ty)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_source_sink() -> CorpusSourceSinkRegistry {
+        let mut reg = CorpusSourceSinkRegistry::default();
+        reg.source_types.insert("Request".to_string(), 5);
+        reg.source_types.insert("Json".to_string(), 3);
+        reg
+    }
 
     #[test]
     fn test_seed_framework_params() {
@@ -164,13 +71,14 @@ mod tests {
         let fn_node = tree.root_node().child(0).unwrap();
 
         let mut registry = TaintRegistry::default();
-        seed_from_corpus_match(fn_node, source, &mut registry);
+        let source_sink = test_source_sink();
+        seed_from_corpus_match(fn_node, source, &mut registry, &source_sink);
 
         assert!(registry.is_tainted("req"), "req with Request type should be tainted");
     }
 
     #[test]
-    fn test_seed_named_params() {
+    fn test_no_taint_without_framework_type() {
         let source = "function process(input: string) { }";
         let mut parser = tree_sitter::Parser::new();
         parser
@@ -180,8 +88,9 @@ mod tests {
         let fn_node = tree.root_node().child(0).unwrap();
 
         let mut registry = TaintRegistry::default();
-        seed_from_corpus_match(fn_node, source, &mut registry);
+        let source_sink = test_source_sink();
+        seed_from_corpus_match(fn_node, source, &mut registry, &source_sink);
 
-        assert!(registry.is_tainted("input"), "input param should be tainted");
+        assert!(!registry.is_tainted("input"), "input without framework type should NOT be tainted");
     }
 }

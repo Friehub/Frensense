@@ -14,10 +14,12 @@ frensense
 frensense.exe
 frensense.d.ts
 frensense.js
-.env
 index.js
 index.d.ts
-bin/frensense.js
+
+# Frensense caches
+.frensense/
+.gensense/
 
 # OS / IDE
 .DS_Store
@@ -32,19 +34,10 @@ fuzz/target
 
 # Benchmarking
 bench_samples/
-correctness_samples/
 __pycache__/
 scripts/__pycache__/
 perf.data
 perf.data.old
-
-# Build output
-docs/.vitepress/dist/
-editors/vscode/out/
-
-# Development scratch files
-scratch/
-tests/fixtures/scratch/
 
 # Generated / report files
 clippy_errors*.txt
@@ -61,13 +54,14 @@ TODO.md
 # Other
 *.cast
 test-*.js
-tests/list_files_test.rs
-.env
 
-# Large files (removed from tracking)
+# Large files
 *.zip
 *.db
 scripts/harvest_streaming/raw/
 corpus/ground_truth/
 corpus/baselines/
 tests/benchmarks/samples/
+
+# Secrets
+.env

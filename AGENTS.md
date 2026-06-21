@@ -25,6 +25,8 @@ cargo run --bin build-corpus-bundle
 
 ## Architecture Overview
 
+**Detection is 100% corpus-driven.** Every bug pattern is a pair of files: a positive (the bug) and a negative (the fix). There are no hardcoded rules, no regex patterns, no YAML DSL.
+
 ```
 frensense/
 ├── frensense-engine/          # Core engine (no CLI, no rules, no policy)
@@ -34,7 +36,8 @@ frensense/
 │   │   │   ├── registry.rs    # PatternRegistry — main entry point
 │   │   │   ├── loader.rs      # Loads *_positive.* and *_negative.* pairs
 │   │   │   ├── bundle.rs      # FRC1 binary bundle format
-│   │   │   └── semantic.rs    # Semantic filters for corpus patterns
+│   │   │   ├── source_sink.rs # Corpus-learned source types & sink names
+│   │   │   └── semantic.rs    # Semantic filters (AST constraints)
 │   │   ├── pattern/           # AST pattern compiler, matcher, scorer
 │   │   ├── minhash.rs         # MinHash LSH for candidate retrieval
 │   │   ├── data_flow.rs       # TaintRegistry, DataFlowEngine
@@ -51,7 +54,7 @@ frensense/
 │   │   └── options.rs          # Argument parsing
 │   ├── engine/
 │   │   ├── project/
-│   │   │   ├── runner.rs       # Main orchestration (8-phase pipeline)
+│   │   │   ├── runner.rs       # Main orchestration (corpus scan + taint verification)
 │   │   │   ├── config.rs       # Project configuration
 │   │   │   └── cache.rs        # File cache for incremental scans
 │   │   ├── auditor/            # Per-file audit logic
@@ -60,11 +63,12 @@ frensense/
 │   ├── semantics/
 │   │   ├── symbols.rs          # SymbolRegistry (cross-file symbol table)
 │   │   ├── data_flow/
-│   │   │   ├── resolve.rs      # Taint source seeding (REGEX-BASED — known limitation)
+│   │   │   ├── cross_file.rs   # Cross-file taint verification (uses corpus-learned sources/sinks)
+│   │   │   ├── interprocedural.rs # Interprocedural taint (uses corpus-learned sources/sinks)
+│   │   │   ├── corpus_seeder.rs # Seeds taint from corpus matches (uses registry)
 │   │   │   ├── tracking.rs     # Intra-procedural taint propagation
-│   │   │   ├── interprocedural.rs # Cross-function taint
-│   │   │   ├── cross_file.rs   # Cross-file taint via call graph
-│   │   │   └── corpus_seeder.rs # Seeds taint from corpus matches
+│   │   │   ├── normalization.rs # SemanticOp extraction from AST
+│   │   │   └── lookup.rs       # Taint lookup helpers
 │   │   ├── consistency.rs      # Cross-path consistency checking
 │   │   └── simple_taint.rs     # Lightweight taint check
 │   ├── patcher/                # Auto-remediation (--fix)
@@ -72,12 +76,10 @@ frensense/
 │   └── lib.rs                  # Public API
 │
 ├── corpus/
-│   ├── targets/                # Positive/negative example pairs
-│   │   ├── *_positive.{rs,ts}  # Buggy code
-│   │   ├── *_negative.{rs,ts}  # Fixed code
-│   │   └── *.toml              # Metadata (severity, observation, impact)
-│   ├── ground_truth/           # Validation datasets
-│   └── baselines/              # Baseline scans
+│   └── targets/                # Positive/negative example pairs
+│       ├── *_positive.{rs,ts}  # Buggy code (with [frensense] comment block)
+│       ├── *_negative.{rs,ts}  # Fixed code
+│       └── *.toml              # Optional metadata (overrides comment block)
 │
 ├── tests/                      # Integration tests
 ├── scripts/                    # Build, validation, metrics tools
@@ -88,270 +90,94 @@ frensense/
 
 ---
 
-## Critical Files to Understand
+## How Detection Works
 
-### 1. The Detection Pipeline
-**File:** `src/engine/project/runner.rs`
+### 1. Corpus Loading (`frensense-engine/src/corpus/loader.rs`)
 
-This is the main orchestration file. It runs 8 phases:
-1. File discovery & parsing
-2. Symbol registry construction
-3. Parallel audit (per-file finding modules)
-4. Corpus pattern matching
-5. Taint analysis
-6. Cross-file taint
-7. Severity overrides & composition
-8. Output
+- Reads all `*_positive.{rs,ts}` and `*_negative.{rs,ts}` files
+- Extracts function fingerprints (7 dimensions)
+- Parses `/// [frensense]` comment blocks from positive files for advisory text
+- **Builds a `CorpusSourceSinkRegistry`** by walking every positive file's AST — learns which parameter types are sources and which function calls are sinks based on frequency across patterns
 
-### 2. Fingerprinting
-**File:** `frensense-engine/src/fingerprint.rs`
+### 2. Fingerprint Scanning (`frensense-engine/src/corpus/registry.rs`)
 
-Every function is fingerprinted into 7 dimensions:
-- `ngram_hashes` — Positional token n-grams
-- `weighted_ngram_hashes` — IDF-weighted n-grams
-- `signature_ngrams` — Function signature text
-- `param_type_ngrams` — Parameter types only
-- `name_segments` — camelCase/snake_case split
-- `structural_markers` — Abstract AST node kinds
-- `type_usages` — All type identifiers used
+- Project functions fingerprinted using the same 7 dimensions
+- LSH pre-filters to ~100-200 candidate patterns
+- 5-dimensional contrastive scoring:
+  ```
+  score = sim_to_positive × (1 - sim_to_negative) × cross_lingual_penalty
 
-### 3. Corpus Scoring
-**File:** `frensense-engine/src/corpus/registry.rs`
+  sim_to_positive =
+      weighted_jaccard(ngrams) × 0.35
+    + jaccard(structural) × 0.30
+    + jaccard(signature) × 0.20
+    + jaccard(param_types) × 0.10
+    + type_usage_overlap × 0.05
+  ```
 
-5-dimensional contrastive scoring:
-```
-score = sim_to_positive × (1 - sim_to_negative) × cross_lingual_penalty
+### 3. Taint Verification (`src/semantics/data_flow/cross_file.rs`)
 
-sim_to_positive =
-    weighted_jaccard(ngrams) × 0.35
-  + jaccard(structural) × 0.30
-  + jaccard(signature) × 0.20
-  + jaccard(param_types) × 0.10
-  + type_usage_overlap × 0.05
-```
+For each corpus finding, `verify_taint_flow()` checks if tainted data actually flows from source to sink:
 
-### 4. Taint Source Seeding (KNOWN LIMITATION)
-**File:** `src/semantics/data_flow/resolve.rs`
+- **Source seeding is corpus-learned**: `CrossFileVerifier::seed_taint()` uses `CorpusSourceSinkRegistry` to taint parameters whose type annotations match types seen in positive examples (e.g., `Request`, `Json<T>`, `Query<T>`)
+- **Sink identification is corpus-learned**: `check_call_for_sink()` uses the registry to identify dangerous function calls
+- Taint propagation follows assignments, member expressions, and function calls through the AST
+- If verified → confidence boosted +20% (capped at 0.95), tagged `taint-verified`
 
-**CRITICAL:** Taint is seeded by variable NAME (regex), not by actual data origin.
-This causes 100% false positive rates on some codebases.
+### 4. Composition Layer (`src/engine/project/runner.rs`)
 
-### 5. TOCTOU Detector (KNOWN LIMITATION)
-**File:** `frensense-engine/src/semantic_patterns/check_then_act.rs`
+- Corpus match alone → down-weight ×0.6
+- Corpus + taint verification → full confidence
+- High branch ratio (hollow validator) → suppress ×0.3
+- Per-category calibration (sec, csa, llm, arch, async)
 
-**CRITICAL:** Only recognizes Prisma ORM patterns.
-TypeORM, Sequelize, Knex, raw SQL → NOT DETECTED.
+### 5. Output
+
+- Advisories with observation/impact/improvement from the positive file's `[frensense]` comment block
+- Confidence-scored, severity-classified findings
 
 ---
 
-## Known Limitations
+## Corpus-Driven Source/Sink Registry
 
-| Limitation | File | Impact | Fix |
-|------------|------|--------|-----|
-| Taint seeded by regex (name-based) | `frensense-engine/src/data_flow/resolver.rs` | High FP rate | T-FIX-1 (AST entry points) |
-| TOCTOU detector Prisma-only | `frensense-engine/src/semantic_patterns/check_then_act.rs` | Misses TOCTOU in other ORMs | Add corpus patterns |
-| Sanitizers not recognized | `frensense-engine/src/data_flow/resolver.rs` | Taint flows through sanitizers | T-FIX-3 |
-| Cross-file taint limited depth | `frensense-engine/src/data_flow/cross_file.rs` | Complex taint paths missed | Increase depth limit |
+**File:** `frensense-engine/src/corpus/source_sink.rs`
 
-## Undocumented Modules
+Instead of hardcoded lists, the engine learns what's a "source" and what's a "sink" from the corpus:
 
-These modules exist in the engine but aren't documented anywhere:
+- **Source types**: extracted from function parameter type annotations in positive files. If `Request` appears as a parameter type in multiple positives, it's a source.
+- **Sink names**: extracted from call expressions in positive files. If `exec` appears as a callee in multiple positives, it's a sink.
+- Only types/sinks appearing in ≥2 distinct patterns are promoted (prunes noise).
 
-| Module | File | What It Does |
-|--------|------|--------------|
-| `ast_distance` | `frensense-engine/src/ast_distance.rs` | Tree edit distance (used by scorer for structural similarity) |
-| `cfg` | `frensense-engine/src/cfg.rs` | Control flow graph with def-use chains |
-| `reachability` | `frensense-engine/src/reachability.rs` | Reachability analysis |
-| `profile` | `frensense-engine/src/profile.rs` | Project profiling from fingerprints |
-| `graph` | `frensense-engine/src/graph.rs` | SemanticGraph (call graph, taint flow, temporal events) |
-
-## Known Code Duplication
-
-| What | Location 1 | Location 2 | Issue |
-|------|-----------|-----------|-------|
-| SemanticGraph | `frensense-engine/src/graph.rs` | `src/semantics/graph.rs` | Near-identical with subtle behavior differences |
-| Temporal event extraction | `frensense-engine/src/temporal.rs:273` | `frensense-engine/src/graph.rs:289` | Different pattern matching logic |
-
-## Important Features (Often Overlooked)
-
-### Semantic Filters (Reduce Corpus False Positives)
-
-**File:** `corpus/semantic_filters.toml` + `frensense-engine/src/corpus/semantic.rs`
-
-Before scoring, patterns pass through AST-level constraints:
-
-```toml
-# Example: Promise chain without .catch()
-[ts_llm_promise_catch]
-contains_call_to = [".then"]
-must_not_contain_call_to = [".catch", ".finally"]
-
-# Example: Sanitizer passthrough
-[ts_csa_sanitize_passthrough]
-function_name_regex = "^sanitize"
-must_not_contain_call_to = [".replace", ".encode", "encodeURIComponent"]
-```
-
-### Taint Verification for Corpus Findings
-
-**File:** `src/engine/project/runner.rs:175-215`
-
-Corpus findings are verified against taint flow. If verified:
-- Confidence boosted by 20% (capped at 0.95)
-- Tagged with `taint-verified`
-- Impact text includes taint flow detail
-
-### Per-Category Calibration
-
-**File:** `src/engine/project/runner.rs:166-173`
-
-Confidence can be calibrated per pattern category:
-- `sec` — security patterns
-- `csa` — contract surface analysis
-- `llm` — LLM anti-patterns
-- `arch` — architecture patterns
-- `async` — concurrency patterns
+This replaces the old hardcoded `framework_types` arrays and `identify_sink()` functions.
 
 ---
-
-## Patcher Limitations
-
-**File:** `src/patcher/mod.rs`
-
-- Import injection is **TypeScript-only** (regex `^import\s+.*`) — won't work for Rust `use` or Python
-- No rollback mechanism — if atomic rename fails, `.patch_tmp` file is left behind
-- No multi-file atomic patches — each file patched independently
-- Context mismatch is fatal — no partial application
-
-## Secret Scanner Limitations
-
-**File:** `frensense-engine/src/secrets.rs`
-
-- No Azure/Azure DevOps, GitLab, npm, PyPI tokens
-- `generic_api_key` requires quotes around value — unquoted `apiKey = abc123` missed
-- No base64 detection
-- `scan_tree` only looks at string nodes — misses secrets in comments
-
-## Temporal Rules Limitations
-
-**File:** `frensense-engine/src/temporal.rs`
-
-- Line-number-based ordering only — doesn't account for control flow
-- No scope awareness — events from different functions mixed
-- Built-in rules: lock/unlock, acquire/release, open/close, connect/disconnect, lock+sleep
-
-## Config Limitations
-
-**File:** `src/engine/project/config.rs`
-
-- Only 3 YAML options: `rules_dir`, `disabled_rules`, `severity_override`
-- Many CLI flags (thresholds, corpus config) not configurable via config file
-- Silent fallback to defaults on parse error
-
-## Feature Flags
-
-**File:** `Cargo.toml` (root)
-
-```toml
-[features]
-default = ["rust", "typescript", "fingerprinting", "temporal"]
-rust = ["dep:tree-sitter-rust"]
-typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-c_lang = ["frensense-engine/c_lang"]
-python = ["frensense-engine/python", "dep:tree-sitter-python"]
-fingerprinting = ["frensense-engine/serialize"]  # Enables FRC bundle
-temporal = []
-```
-
-## Finding Modules Execution Order
-
-**File:** `src/engine/findings/mod.rs:84-93`
-
-```
-1. DeadBranch       — uses ReachabilityChecker (semantics/reachability.rs)
-2. UnusedVariable   — uses CFG def-use chains (frensense-engine/src/cfg/def_use.rs)
-3. TemporalViolation — uses TemporalAnalyzer (temporal rules from TOML)
-4. HallucinatedImport — uses DependencyResolver (frensense-engine/src/deps.rs)
-5. CrossFileTaint    — NO-OP! Returns empty vec (handled by corpus layer)
-6. AtomicSection     — uses AtomicSectionAnalyzer (C lock/unlock pairing)
-7. SemanticPatterns  — uses PatternRunner (CHECK_THEN_ACT_TOCTOU only)
-```
-
-## Taint Rules (Embedded, Not in File)
-
-**Note:** There is no `taint_rules.toml` file. Taint rules are embedded in the engine code.
-The `--extra-taint-rules` flag loads user-provided TOML files that extend (not replace) built-in rules.
-
-## Build Scripts
-
-**File:** `scripts/`
-
-| Script | Purpose |
-|--------|---------|
-| `classify_findings.py` | Classify findings as TP/FP |
-| `compute_metrics.py` | Compute precision/recall metrics |
-| `corpus_check.py` | Validate corpus pattern completeness |
-| `validate_csa_depth.py` | Validate CSA pattern depth criteria |
-| `train_calibration.py` | Train Platt scaling for confidence calibration |
-| `harvest_corpus.py` | Harvest corpus patterns from CVEfixes |
-| `deduplicate_corpus.py` | Remove duplicate corpus patterns |
-| `learn_from_pairs.py` | Learn from positive/negative pairs |
-| `benchmark.sh` | Run benchmark suite |
-| `local-ci.sh` | Local CI pipeline |
 
 ## How to Add New Detection
 
 ### Corpus Pattern (Preferred)
 
 ```bash
-# 1. Create positive example (the bug)
+# 1. Create positive example (the bug) with [frensense] block
 corpus/targets/ts_my_pattern_positive.ts
 
 # 2. Create negative example (the fix)
 corpus/targets/ts_my_pattern_negative.ts
 
-# 3. Create sidecar TOML
-corpus/targets/ts_my_pattern.toml
-
-# 4. Rebuild bundle
+# 3. Rebuild bundle
 cargo run --bin build-corpus-bundle
 ```
 
-### Hardcoded Detector
+**Advisory text format** — put a `[frensense]` block at the top of the positive file:
 
 ```rust
-// 1. Create detector
-frensense-engine/src/semantic_patterns/my_detector.rs
-
-// 2. Implement SemanticPattern trait
-impl SemanticPattern for MyDetector {
-    fn id(&self) -> &str { "MY_DETECTOR" }
-    fn scan(&self, tree: Node, source: &str, file_path: &str) -> Vec<PatternFinding> { ... }
-}
-
-// 3. Register in semantic_patterns/mod.rs
+// [frensense]
+// observation: What the bug looks like to a reader.
+// impact: What goes wrong when this code runs.
+// improvement: How to fix it.
+fn my_buggy_function() { ... }
 ```
 
----
-
-## Testing
-
-```bash
-# All tests
-cargo test
-
-# Engine tests only
-cargo test -p frensense-engine
-
-# Specific pattern test
-cargo test -p frensense-engine -- toctou
-
-# Integration tests
-cargo test --test rule_tests
-
-# MCP tests
-cargo test --test mcp_tests
-```
+Works with `///` (Rust), `//` (TS/JS), `#` (Python). The TOML sidecar is optional — if a `.toml` exists it overrides the comment block, but you almost never need it.
 
 ---
 
@@ -377,6 +203,85 @@ Categories:
 
 ---
 
+## Critical Files
+
+| File | Purpose |
+|------|---------|
+| `src/engine/project/runner.rs` | Main orchestration — corpus scan + taint verification |
+| `frensense-engine/src/fingerprint.rs` | 7-dimensional function fingerprinting |
+| `frensense-engine/src/corpus/registry.rs` | PatternRegistry — scoring, LSH, IDF weights |
+| `frensense-engine/src/corpus/loader.rs` | Loads corpus pairs + builds source/sink registry |
+| `frensense-engine/src/corpus/source_sink.rs` | Corpus-learned source types & sink names |
+| `src/semantics/data_flow/cross_file.rs` | Taint verification using learned sources/sinks |
+
+---
+
+## Known Limitations
+
+| Limitation | Impact | Status |
+|------------|--------|--------|
+| TOCTOU detector Prisma-only | Misses TOCTOU in TypeORM, Sequelize, Knex, raw SQL | Open — needs corpus patterns |
+| 6 corpus patterns with FPs at threshold 0.32 | False positives on negatives | Open — needs richer negatives |
+| Severity mismatch (TOML "Critical" → output "Warning") | Misleading severity in output | Open — TOML severity not propagated |
+| Secret scanner gaps (no Azure, GitLab, npm, PyPI) | Misses some token types | Open |
+| Patcher TypeScript-only | Import injection won't work for Rust/Python | Open |
+| Temporal rules are hardcoded | lock/unlock, acquire/release only | Open — could be corpus-driven |
+| Semantic filters are manual AST constraints | Requires hand-written TOML per pattern | Open — could be deleted if scorer is strong enough |
+
+---
+
+## Feature Flags
+
+**File:** `Cargo.toml` (root)
+
+```toml
+[features]
+default = ["rust", "typescript", "fingerprinting", "temporal"]
+rust = ["dep:tree-sitter-rust"]
+typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
+c_lang = ["frensense-engine/c_lang"]
+python = ["frensense-engine/python", "dep:tree-sitter-python"]
+fingerprinting = ["frensense-engine/serialize"]  # Enables FRC bundle
+temporal = []
+```
+
+## Finding Modules Execution Order
+
+**File:** `src/engine/findings/mod.rs`
+
+```
+1. DeadBranch       — uses ReachabilityChecker
+2. UnusedVariable   — uses CFG def-use chains
+3. TemporalViolation — uses TemporalAnalyzer (hardcoded rules from TOML)
+4. HallucinatedImport — uses DependencyResolver
+5. CrossFileTaint    — NO-OP (handled by corpus layer)
+6. AtomicSection     — uses AtomicSectionAnalyzer (C lock/unlock)
+7. SemanticPatterns  — uses PatternRunner (CHECK_THEN_ACT_TOCTOU only)
+```
+
+---
+
+## Testing
+
+```bash
+# All tests
+cargo test
+
+# Engine tests only
+cargo test -p frensense-engine
+
+# Source/sink registry tests
+cargo test -p frensense-engine -- source_sink
+
+# Data flow tests (cross-file, interprocedural, corpus seeder)
+cargo test -p frensense --lib -- data_flow
+
+# Specific pattern test
+cargo test -p frensense-engine -- toctou
+```
+
+---
+
 ## Configuration
 
 ### CLI Flags
@@ -389,43 +294,17 @@ Categories:
 --json                      # JSON output
 --sarif                     # SARIF output for GitHub
 --fix [scope]               # Auto-remediation: style, security, all
---diff [scope]              # Show diff without applying: style, security, all
+--diff [scope]              # Show diff without applying
 --strict                    # Exit code 1 if any findings
 --confidence <tier>         # high (≥0.85), medium (≥0.60), low (≥0.30), any
 --min-confidence <0-1>      # Raw confidence floor
---extra-taint-rules <dir>   # Custom taint rules
 --check-deps                # Enable dependency checking (Rust)
 --learn-profile             # Build project style profile
 --check-profile             # Check code against learned profile
---profile-threshold <0-1>   # Surprise threshold for anomaly detection
 --emit-baseline <file>      # Save current findings as baseline
 --compare-baseline <file>   # Compare against baseline
---update-baseline           # Update baseline with current findings
 --disable-rule <id>         # Suppress specific rule
 --override-severity <id>:<level>  # Change rule severity
---tag <tag>                 # Filter findings by tag
---language <lang>           # Filter by language
---ngram-window <N>          # Token n-gram window size
---min-ngram-count <N>       # Minimum n-gram occurrences
---jaccard-threshold <0-1>   # Similarity threshold for near-duplicates
---max-source-lines <N>      # Skip files with more than N lines
---taint-conf-inter <0-1>    # Inter-procedural taint confidence
---taint-conf-intra <0-1>    # Intra-procedural taint confidence
---taint-max-depth <N>       # Max taint propagation depth
-```
-
-### Taint Rules (TOML)
-
-```toml
-[[rules]]
-id = "CUSTOM_RULE"
-source = "input|user_input"
-sink = "exec|eval"
-severity = "critical"
-observation = "Description of the bug."
-impact = "What could go wrong."
-improvement = "How to fix it."
-sanitizers = ["sanitize", "escape"]  # Not yet implemented!
 ```
 
 ---
@@ -434,14 +313,14 @@ sanitizers = ["sanitize", "escape"]  # Not yet implemented!
 
 - `frensense-corpus.frc` — Pre-compiled corpus bundle (embedded in binary)
 - `target/release/frensense` — Release binary
-- `.frensense/` — Project configuration directory
 
 ---
 
 ## References
 
-- `docs/TECHNICAL_REFERENCE.md` — Deep source code analysis with diagrams
-- `docs/LIMITATIONS_MAP.md` — Visual guide to what works vs what doesn't
-- `ARCHITECTURE.md` — Architecture decisions and gaps
-- `ROADMAP.md` — What to build next, ordered by impact
+- `docs/TECHNICAL_REFERENCE.md` — Deep source code analysis
+- `docs/LIMITATIONS_MAP.md` — Visual limitations guide
+- `ROADMAP.md` — What to build next
 - `tasks.md` — Current task tracker
+- `research/csa-corpus-rework.md` — CSA as corpus category design
+- `frensense-thesis-updated.md` — Why corpus, why not rules

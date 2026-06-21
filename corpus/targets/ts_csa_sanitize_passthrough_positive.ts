@@ -1,5 +1,7 @@
-// Rule: TS_CSA_SANITIZE_PASSTHROUGH
-// Functions that look like they sanitize but actually pass through input unchanged.
+// [frensense]
+// observation: Function name implies sanitization (sanitize_*) but every dangerous pattern it detects — script tags, path traversal sequences, javascript:/data: URLs — is only logged; the input is returned unmodified.
+// impact: Callers treat the return value as safe to render, store as a filename, or use as a redirect target. XSS payloads, path traversal sequences, and dangerous URL schemes pass through unchanged.
+// improvement: Actually transform the input: HTML-escape entities, strip disallowed characters from filenames, allowlist URL protocols via the URL constructor — return a new string, not the original.
 
 interface SanitizeOptions {
     strict?: boolean;

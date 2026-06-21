@@ -2,7 +2,7 @@ import subprocess
 import os
 import time
 
-GENSENSE_BIN = "./target/release/gensense"
+GENSENSE_BIN = "./target/release/frensense"
 
 def generate_large_ts(size_kb):
     path = f"bench_samples/memory_stress.ts"

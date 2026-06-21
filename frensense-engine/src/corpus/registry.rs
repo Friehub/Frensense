@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use crate::corpus::loader::{CorpusPattern, load_corpus};
+use crate::corpus::source_sink::{CorpusSourceSinkRegistry, build_registry_from_dir};
 use crate::fingerprint::{FunctionFingerprint, compute_idf_weights, apply_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::scorer::PatternScorer;
@@ -26,6 +27,7 @@ pub struct PatternRegistry {
     threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
     idf_weights: FxHashMap<u64, f32>,
+    source_sink: CorpusSourceSinkRegistry,
 }
 
 impl PatternRegistry {
@@ -36,12 +38,14 @@ impl PatternRegistry {
             threshold,
             threshold_overrides: std::collections::HashMap::new(),
             idf_weights: FxHashMap::default(),
+            source_sink: CorpusSourceSinkRegistry::default(),
         }
     }
 
     pub fn load_corpus(&mut self, corpus_dir: &Path) -> Result<usize, String> {
         let patterns = load_corpus(corpus_dir)?;
         let count = patterns.len();
+        self.source_sink = build_registry_from_dir(corpus_dir);
         self.patterns = patterns;
         self.compute_and_apply_idf();
         self.build_lsh_index();
@@ -56,11 +60,20 @@ impl PatternRegistry {
                 Err(e) => eprintln!("Corpus warning: skipping {}: {e}", dir.display()),
             }
         }
+        // Build source/sink registry from the first corpus dir (primary)
+        if let Some(&dir) = dirs.first() {
+            self.source_sink = build_registry_from_dir(dir);
+        }
         let count = all_patterns.len();
         self.patterns = all_patterns;
         self.compute_and_apply_idf();
         self.build_lsh_index();
         Ok(count)
+    }
+
+    /// Get the corpus-learned source/sink registry.
+    pub fn source_sink_registry(&self) -> &CorpusSourceSinkRegistry {
+        &self.source_sink
     }
 
     #[cfg(feature = "serialize")]

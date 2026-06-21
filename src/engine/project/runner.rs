@@ -184,6 +184,7 @@ fn run_corpus_scan(
                         &symbols,
                         &data_flow,
                         &file_trees,
+                        registry.source_sink_registry(),
                     );
                     if verification.verified {
                         taint_verified = true;
@@ -228,8 +229,9 @@ struct TaintVerification {
 
 /// Verify that taint actually flows from source to sink in a function.
 ///
-/// This uses the InterproceduralVerifier to check if user-controlled data
+/// This uses the CrossFileVerifier to check if user-controlled data
 /// reaches a dangerous sink, following taint through function calls.
+/// Source types and sink names are learned from the corpus.
 fn verify_taint_flow(
     fn_node: tree_sitter::Node,
     source: &str,
@@ -238,6 +240,7 @@ fn verify_taint_flow(
     symbols: &crate::semantics::symbols::SymbolRegistry,
     data_flow: &frensense_engine::data_flow::DataFlowEngine,
     file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+    source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
 ) -> TaintVerification {
     use crate::semantics::data_flow::cross_file::CrossFileVerifier;
 
@@ -249,6 +252,7 @@ fn verify_taint_flow(
         symbols,
         data_flow,
         file_trees,
+        source_sink,
     );
     verifier.seed_taint(fn_node);
     let result = verifier.verify_flow(fn_node);

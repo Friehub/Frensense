@@ -7,8 +7,6 @@ cargo install frensense
 frensense . --corpus corpus/targets/
 ```
 
-[Full documentation →](FRENSENSE.md)
-
 ## How It Works
 
 Detection is driven by example pairs in `corpus/targets/`. A pattern is two files — one showing the bug, one showing correct code. The engine fingerprints every function in your project, scores it against all patterns, and emits findings when multiple layers confirm:

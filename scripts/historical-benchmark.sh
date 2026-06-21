@@ -1,7 +1,7 @@
 #!/bin/bash
 # Historical Self-Scan Benchmark
 #
-# Scans a target repo at every tagged version using the current gensense binary
+# Scans a target repo at every tagged version using the current frensense binary
 # and reports how advisory counts evolved over time.
 #
 # Usage:
@@ -25,9 +25,9 @@ if [ ! -d "$TARGET_REPO/.git" ]; then
   exit 1
 fi
 
-GENSENSE="$(dirname "$0")/../target/release/gensense"
+GENSENSE="$(dirname "$0")/../target/release/frensense"
 if [ ! -x "$GENSENSE" ]; then
-  echo "Building gensense release binary..."
+  echo "Building frensense release binary..."
   cargo build --release --manifest-path "$(dirname "$0")/../Cargo.toml"
 fi
 
@@ -50,7 +50,7 @@ for TAG in "${TAGS[@]}"; do
   echo -n "[$COUNT/${#TAGS[@]}] checking out $TAG ... "
   (cd "$TARGET_REPO" && git checkout --quiet "$TAG" 2>/dev/null)
 
-  # Run gensense with --json, suppress gensense's own stdout/stderr
+  # Run frensense with --json, suppress frensense's own stdout/stderr
   JSON=$("$GENSENSE" "$TARGET_REPO/$SCAN_PATH" --json 2>/dev/null || echo '{"advisories":[],"advisory_count":0}')
 
   TOTAL=$(echo "$JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('advisory_count',0))")

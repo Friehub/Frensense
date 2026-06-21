@@ -4,7 +4,7 @@
 
 set -e
 
-BINARY="./target/release/gensense"
+BINARY="./target/release/frensense"
 TARGET="src"
 LOG="bench_samples/memory_stability.log"
 

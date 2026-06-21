@@ -1,5 +1,7 @@
-// Rule: TS_CSA_AUTH_NO_REJECTION
-// A function that looks like it validates tokens but actually accepts everything.
+// [frensense]
+// observation: Function name implies authentication (authenticate*) but every failure path — empty token, JWT decode error, expired exp, unrecognized issuer — falls back to a default identity or proceeds instead of rejecting the request.
+// impact: An empty, malformed, expired, or wrong-issuer token still returns a usable AuthResult. Callers that check for a null/thrown rejection to gate access never see one — auth is effectively bypassed.
+// improvement: Return null (or throw) on each failure branch instead of substituting a fallback payload, extending an expired exp, or accepting an unknown issuer.
 
 interface AuthResult {
     id: number;

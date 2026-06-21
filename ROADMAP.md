@@ -7,7 +7,7 @@
 
 ## State of the Engine Right Now
 
-The agent has shipped significantly more than the AUDIT.md reflects. Key completed work:
+The agent has shipped significantly more than earlier audits reflect. Key completed work:
 
 - **89 corpus patterns** in the embedded FRC bundle (SP1–SP3 done: cmd injection × 10, SQL
   injection × 10, path traversal × 10, in Rust + TypeScript)

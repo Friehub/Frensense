@@ -45,7 +45,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             RAW="${{ github.event.inputs.tag }}"
             if [[ -z "$RAW" ]]; then
-              RAW="$(node -p "require('./package.json').version")"
+              RAW="$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')"
             fi
             # Normalize: strip existing v prefix, then add it back
             RAW="${RAW#v}"
@@ -57,7 +57,7 @@ jobs:
             echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
             # Check for version change
-            VERSION=$(node -p "require('./package.json').version")
+            VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
             TAG="v$VERSION"
             
             if git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -67,14 +67,6 @@ jobs:
               echo "New version $VERSION detected on main. Creating tag $TAG."
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-              
-              # Attempt to sync Cargo.toml if needed (might fail due to branch protection)
-              node scripts/sync-version.js
-              git add Cargo.toml package.json
-              if ! git diff --cached --quiet; then
-                git commit -m "chore: sync version to $VERSION [skip ci]" || true
-                git push origin main || echo "Failed to push version sync to main (likely branch protection). Continuing with tag."
-              fi
               
               git tag "$TAG"
               git push origin "$TAG"
@@ -175,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: library-${{ matrix.settings.target }}
-          path: gensense.node
+          path: frensense.node
 
       - name: Upload CLI Artifact
         uses: actions/upload-artifact@v4
@@ -327,7 +319,7 @@ jobs:
 
       - name: Check version not already published
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           if npm view @friehub/frensense@$VERSION version 2>/dev/null | grep -q "$VERSION"; then
             echo "Version $VERSION already exists on NPM. Skipping."
             exit 0

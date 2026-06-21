@@ -19,8 +19,8 @@ pub struct CorpusPattern {
 }
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
-    let mut pairs: HashMap<String, (Vec<FunctionFingerprint>, Vec<FunctionFingerprint>)> =
-        HashMap::new();
+    type PatternEntry = (Vec<FunctionFingerprint>, Vec<FunctionFingerprint>, AdvisoryText);
+    let mut pairs: HashMap<String, PatternEntry> = HashMap::new();
 
     for entry in fs::read_dir(corpus_dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
@@ -66,6 +66,10 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
         let entry = pairs.entry(pattern_name).or_default();
         if is_positive {
             entry.0.extend(fps);
+            // Extract [frensense] block from positive file — primary source of advisory text
+            if entry.2.observation.is_none() {
+                entry.2 = parse_frensense_block(&source);
+            }
         } else {
             entry.1.extend(fps);
         }
@@ -73,7 +77,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
 
     let mut patterns = Vec::new();
     let semantic_filters = load_semantic_filters();
-    for (name, (pos, neg)) in pairs {
+    for (name, (pos, neg, comment_advisory)) in pairs {
         if pos.is_empty() && neg.is_empty() {
             continue;
         }
@@ -86,56 +90,109 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             continue;
         }
 
-        let advisory = load_sidecar_toml(corpus_dir, &name);
-
-        if advisory.observation.is_none() {
-            eprintln!("Corpus warning: pattern '{name}' has no sidecar .toml (observation/impact/improvement will be empty)");
-        }
+        // Priority: comment block > sidecar TOML > empty
+        let toml_advisory = load_sidecar_toml(corpus_dir, &name);
+        let observation = comment_advisory.observation
+            .or(toml_advisory.observation);
+        let impact = comment_advisory.impact
+            .or(toml_advisory.impact);
+        let improvement = comment_advisory.improvement
+            .or(toml_advisory.improvement);
 
         patterns.push(CorpusPattern {
             id: name.clone(),
             positives: pos,
             negatives: neg,
             semantic_filter: semantic_filters.get(&name).cloned(),
-            observation: advisory.observation,
-            impact: advisory.impact,
-            improvement: advisory.improvement,
+            observation,
+            impact,
+            improvement,
         });
     }
 
     Ok(patterns)
 }
 
+#[derive(Debug, Clone, Default)]
 struct AdvisoryText {
     observation: Option<String>,
     impact: Option<String>,
     improvement: Option<String>,
 }
 
-fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> AdvisoryText {
-    let toml_path = corpus_dir.join(format!("{pattern_name}.toml"));
-    if !toml_path.exists() {
-        return AdvisoryText {
-            observation: None,
-            impact: None,
-            improvement: None,
+/// Parse a `/// [frensense]` / `// [frensense]` / `# [frensense]` block from source.
+///
+/// Format:
+/// ```text
+/// [frensense]
+/// observation: what the bug looks like
+/// impact: what goes wrong
+/// improvement: how to fix it
+/// ```
+///
+/// Block ends at the first blank comment line or a non-comment line.
+fn parse_frensense_block(source: &str) -> AdvisoryText {
+    let mut result = AdvisoryText::default();
+    let mut in_block = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+
+        // Detect comment prefix
+        let content = if let Some(c) = trimmed.strip_prefix("///") {
+            Some(c.trim())
+        } else if let Some(c) = trimmed.strip_prefix("//!") {
+            Some(c.trim())
+        } else if let Some(c) = trimmed.strip_prefix("//") {
+            Some(c.trim())
+        } else if let Some(c) = trimmed.strip_prefix("#") {
+            Some(c.trim())
+        } else {
+            None
         };
+
+        let Some(text) = content else {
+            // Non-comment line — block is over
+            break;
+        };
+
+        if !in_block {
+            if text == "[frensense]" {
+                in_block = true;
+            }
+            continue;
+        }
+
+        // Empty comment line ends the block
+        if text.is_empty() {
+            break;
+        }
+
+        if let Some((key, value)) = text.split_once(':') {
+            let key = key.trim().to_lowercase();
+            let value = value.trim().to_string();
+            if !value.is_empty() {
+                match key.as_str() {
+                    "observation" => result.observation = Some(value),
+                    "impact" => result.impact = Some(value),
+                    "improvement" => result.improvement = Some(value),
+                    _ => {}
+                }
+            }
+        }
     }
 
+    result
+}
+
+fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> AdvisoryText {
+    let toml_path = corpus_dir.join(format!("{pattern_name}.toml"));
     let Ok(content) = std::fs::read_to_string(&toml_path) else {
-        return AdvisoryText {
-            observation: None,
-            impact: None,
-            improvement: None,
-        };
+        return AdvisoryText::default();
     };
 
     let Ok(doc) = content.parse::<toml::Table>() else {
-        return AdvisoryText {
-            observation: None,
-            impact: None,
-            improvement: None,
-        };
+        return AdvisoryText::default();
     };
 
     AdvisoryText {
@@ -361,6 +418,65 @@ mod tests {
         std::fs::write(dir.path().join("config.json"), "{}").unwrap();
         let patterns = load_corpus(dir.path()).unwrap();
         assert!(patterns.is_empty());
+    }
+
+    #[test]
+    fn test_parse_frensense_block_rust() {
+        let source = r#"/// [frensense]
+/// observation: Function always returns true regardless of input.
+/// impact: Malicious input passes validation unchecked.
+/// improvement: Branch on input and return false for invalid values.
+fn validate(input: &str) -> bool {
+    true
+}"#;
+        let advisory = parse_frensense_block(source);
+        assert_eq!(advisory.observation.as_deref(), Some("Function always returns true regardless of input."));
+        assert_eq!(advisory.impact.as_deref(), Some("Malicious input passes validation unchecked."));
+        assert_eq!(advisory.improvement.as_deref(), Some("Branch on input and return false for invalid values."));
+    }
+
+    #[test]
+    fn test_parse_frensense_block_typescript() {
+        let source = "// [frensense]\n// observation: sanitize returns input unchanged.\n// impact: XSS payload passes through.\n// improvement: HTML-escape entities.\n";
+        let advisory = parse_frensense_block(source);
+        assert_eq!(advisory.observation.as_deref(), Some("sanitize returns input unchanged."));
+        assert_eq!(advisory.impact.as_deref(), Some("XSS payload passes through."));
+        assert_eq!(advisory.improvement.as_deref(), Some("HTML-escape entities."));
+    }
+
+    #[test]
+    fn test_parse_frensense_block_python() {
+        let source = "# [frensense]\n# observation: No rejection on invalid token.\n# impact: Auth bypass.\n# improvement: Return None on failure.\n";
+        let advisory = parse_frensense_block(source);
+        assert_eq!(advisory.observation.as_deref(), Some("No rejection on invalid token."));
+        assert_eq!(advisory.impact.as_deref(), Some("Auth bypass."));
+        assert_eq!(advisory.improvement.as_deref(), Some("Return None on failure."));
+    }
+
+    #[test]
+    fn test_parse_frensense_block_blank_line_ends() {
+        let source = "/// [frensense]\n/// observation: Bug here.\n\n/// impact: Overwritten.\n";
+        let advisory = parse_frensense_block(source);
+        assert_eq!(advisory.observation.as_deref(), Some("Bug here."));
+        assert_eq!(advisory.impact, None, "blank line should end the block");
+    }
+
+    #[test]
+    fn test_parse_frensense_block_no_block() {
+        let source = "fn foo() { return 1; }";
+        let advisory = parse_frensense_block(source);
+        assert!(advisory.observation.is_none());
+        assert!(advisory.impact.is_none());
+        assert!(advisory.improvement.is_none());
+    }
+
+    #[test]
+    fn test_parse_frensense_block_partial() {
+        let source = "/// [frensense]\n/// observation: Only observation provided.\n";
+        let advisory = parse_frensense_block(source);
+        assert_eq!(advisory.observation.as_deref(), Some("Only observation provided."));
+        assert!(advisory.impact.is_none());
+        assert!(advisory.improvement.is_none());
     }
 
     #[test]

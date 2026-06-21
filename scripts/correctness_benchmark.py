@@ -2,7 +2,7 @@ import subprocess
 import json
 import os
 
-GENSENSE_BIN = "./target/release/gensense"
+GENSENSE_BIN = "./target/release/frensense"
 
 POSITIVE_TESTS = [
     {
