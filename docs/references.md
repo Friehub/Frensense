@@ -2,6 +2,9 @@
 
 Frensense is built upon decades of computer science research and relies heavily on the vibrant open-source ecosystem. We owe a massive debt of gratitude to the projects, datasets, and academic principles listed below.
 
+## Origins: The First Iteration
+Before Frensense became the blazing-fast Rust engine it is today, the very first conceptual idea was built as a Python analyzer: **[Friehub Auditor](https://github.com/Friehub/Friehub-auditor)**. While the Python iteration successfully proved the concept, its rules were notoriously noisy and produced too many false positives. The hard lessons learned from the "noisy Python days" directly inspired Frensense's shift to a multi-layered, compositional taint architecture in Rust.
+
 ## Open Source Projects
 
 ### Tree-sitter

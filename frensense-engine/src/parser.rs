@@ -35,7 +35,7 @@ pub fn is_supported(path: &Path) -> bool {
     )
 }
 
-/// Look up file extensions for a language name (e.g. "rust" → ["rs"]).
+/// Look up file extensions for a language name (e.g. `rust` → `["rs"]`).
 pub fn extensions_for(name: &str) -> Option<&'static [&'static str]> {
     let lower = name.to_lowercase();
     LANGUAGE_EXTENSIONS

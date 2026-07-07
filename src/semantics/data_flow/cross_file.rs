@@ -289,8 +289,8 @@ impl<'a> CrossFileVerifier<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
+    
+    use frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry;
 
     fn test_registry() -> CorpusSourceSinkRegistry {
         let mut reg = CorpusSourceSinkRegistry::default();
