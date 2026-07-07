@@ -546,6 +546,7 @@ mod tests {
     fn test_load_taint_rules() {
         let content = "[[taint_rule]]\nid = \"TAINT_TEST\"\nsource = \"req.body\"\nsink = \"eval\"\nseverity = \"warning\"\nobservation = \"Test\"\nimprovement = \"Test\"";
 
+        // nosemgrep: rust.lang.security.temp-dir.temp-dir
         let temp_dir = std::env::temp_dir().join("frensense_test_taint");
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -566,6 +567,7 @@ mod tests {
             "function handler(req) {\n    const input = req.body.query;\n    eval(input);\n}";
         let negative = "function handler(req) {\n    const input = req.body.query;\n    const clean = sanitize(input);\n    eval(clean);\n}";
 
+        // nosemgrep: rust.lang.security.temp-dir.temp-dir
         let temp_dir = std::env::temp_dir().join("frensense_test_learn");
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();

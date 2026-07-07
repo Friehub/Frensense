@@ -16,6 +16,7 @@ fn main() {
     let corpus_dir = manifest_dir.join("corpus").join("targets");
     let output_path = manifest_dir.join("frensense-corpus.frc");
 
+    // nosemgrep: rust.lang.security.args.args
     let incremental = env::args().any(|a| a == "--incremental");
 
     if incremental {
