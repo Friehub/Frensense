@@ -518,6 +518,7 @@ fn bench_fingerprinting(c: &mut Criterion) {
         auto_fixable: false,
         requires_human: false,
         tags: vec!["async".into(), "service".into()],
+        taint_branch_ratio: Some(0.0),
     };
 
     // Measure identity() — used on every baseline comparison
@@ -734,6 +735,12 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
                 structural_markers: FxHashSet::default(),
                 type_usages: Vec::new(),
                 comment_density: 0.0,
+                weighted_ngram_hashes: rustc_hash::FxHashMap::default(),
+                semantic_markers: FxHashSet::default(),
+                skeleton: Vec::new(),
+                control_flow_hashes: FxHashSet::default(),
+                api_calls: FxHashSet::default(),
+                property_accesses: FxHashSet::default(),
             });
         }
 

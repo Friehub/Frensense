@@ -32,8 +32,8 @@ fn main() {
 
     for pattern in &patterns {
         // Apply IDF weights to pattern fingerprints
-        let mut pos_fps: Vec<_> = pattern.positives.iter().cloned().collect();
-        let mut neg_fps: Vec<_> = pattern.negatives.iter().cloned().collect();
+        let mut pos_fps: Vec<_> = pattern.positives.to_vec();
+        let mut neg_fps: Vec<_> = pattern.negatives.to_vec();
 
         for fp in &mut pos_fps {
             apply_idf_weights(fp, &idf_weights);

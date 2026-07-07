@@ -6,7 +6,6 @@ use frensense::semantics::SymbolRegistry;
 use frensense::semantics::data_flow::TaintOrigin;
 use frensense::{FileId, FrensenseContext, TaintCache};
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 
 #[test]
