@@ -1,5 +1,0 @@
-id = "RUST_SEC_SQL_INJECTION_5"
-severity = "Critical"
-observation = "Corpus pattern: Rust Sec Sql Injection 5."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

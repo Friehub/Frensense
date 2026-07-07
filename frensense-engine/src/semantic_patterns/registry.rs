@@ -25,7 +25,7 @@ use super::PatternFinding;
 /// }
 /// ```
 pub trait SemanticPattern: Send + Sync {
-    /// Unique identifier for this pattern (e.g., "CHECK_THEN_ACT_TOCTOU").
+    /// Unique identifier for this pattern (e.g., "`CHECK_THEN_ACT_TOCTOU`").
     fn id(&self) -> &str;
 
     /// Human-readable description of what this pattern detects.
@@ -48,9 +48,17 @@ pub struct PatternRegistry {
     patterns: Vec<Box<dyn SemanticPattern>>,
 }
 
+impl Default for PatternRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PatternRegistry {
     pub fn new() -> Self {
-        Self { patterns: Vec::new() }
+        Self {
+            patterns: Vec::new(),
+        }
     }
 
     pub fn register(&mut self, pattern: Box<dyn SemanticPattern>) {
@@ -81,8 +89,7 @@ impl PatternRunner {
     }
 
     pub fn with_defaults() -> Self {
-        let mut registry = PatternRegistry::new();
-        registry.register(Box::new(super::check_then_act::CheckThenAct));
+        let registry = PatternRegistry::new();
         Self { registry }
     }
 
@@ -103,9 +110,7 @@ impl PatternRunner {
 
         for pattern in &self.registry.patterns {
             // Skip patterns that don't apply to this language
-            if !pattern.languages().contains(&"*")
-                && !pattern.languages().contains(&language)
-            {
+            if !pattern.languages().contains(&"*") && !pattern.languages().contains(&language) {
                 continue;
             }
 

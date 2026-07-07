@@ -18,18 +18,24 @@ pub fn extract_skeleton(root: Node, source: &str) -> Vec<String> {
 /// Recursively extract node kinds, skipping identifiers and literals.
 fn extract_skeleton_recursive(node: Node, source: &str, skeleton: &mut Vec<String>) {
     let kind = node.kind();
-    
+
     // Skip leaf nodes that are identifiers or literals
     if node.child_count() == 0 {
-        if kind == "identifier" || kind == "string" || kind == "number" 
-            || kind == "true" || kind == "false" || kind == "null"
-            || kind == "undefined" || kind == "shorthand_property_identifier" {
+        if kind == "identifier"
+            || kind == "string"
+            || kind == "number"
+            || kind == "true"
+            || kind == "false"
+            || kind == "null"
+            || kind == "undefined"
+            || kind == "shorthand_property_identifier"
+        {
             return;
         }
     }
-    
+
     skeleton.push(kind.to_string());
-    
+
     // Recurse into children
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
@@ -54,11 +60,11 @@ pub fn tree_edit_distance(skeleton_a: &[String], skeleton_b: &[String]) -> f64 {
     if skeleton_a.is_empty() || skeleton_b.is_empty() {
         return 1.0;
     }
-    
+
     // LCS-based edit distance (simplified but effective for our use case)
     let lcs_len = longest_common_subsequence(skeleton_a, skeleton_b);
     let max_len = skeleton_a.len().max(skeleton_b.len());
-    
+
     // Normalize to 0-1 where 0 = identical, 1 = completely different
     1.0 - (lcs_len as f64 / max_len as f64)
 }
@@ -67,11 +73,11 @@ pub fn tree_edit_distance(skeleton_a: &[String], skeleton_b: &[String]) -> f64 {
 fn longest_common_subsequence(a: &[String], b: &[String]) -> usize {
     let m = a.len();
     let n = b.len();
-    
+
     // Use space-optimized DP
     let mut prev = vec![0usize; n + 1];
     let mut curr = vec![0usize; n + 1];
-    
+
     for i in 1..=m {
         for j in 1..=n {
             if a[i - 1] == b[j - 1] {
@@ -83,7 +89,7 @@ fn longest_common_subsequence(a: &[String], b: &[String]) -> usize {
         std::mem::swap(&mut prev, &mut curr);
         curr.iter_mut().for_each(|x| *x = 0);
     }
-    
+
     prev[n]
 }
 
@@ -103,10 +109,12 @@ mod tests {
     fn test_extract_skeleton() {
         let source = "function foo(x) { return x + 1; }";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let root = tree.root_node();
-        
+
         let skeleton = extract_skeleton(root, source);
         assert!(!skeleton.is_empty());
         // Should not contain "foo" or "x" (identifiers)
@@ -115,14 +123,26 @@ mod tests {
 
     #[test]
     fn test_tree_edit_distance_identical() {
-        let a = vec!["function".to_string(), "block".to_string(), "return".to_string()];
-        let b = vec!["function".to_string(), "block".to_string(), "return".to_string()];
+        let a = vec![
+            "function".to_string(),
+            "block".to_string(),
+            "return".to_string(),
+        ];
+        let b = vec![
+            "function".to_string(),
+            "block".to_string(),
+            "return".to_string(),
+        ];
         assert!((tree_edit_distance(&a, &b) - 0.0).abs() < 0.001);
     }
 
     #[test]
     fn test_tree_edit_distance_different() {
-        let a = vec!["function".to_string(), "block".to_string(), "return".to_string()];
+        let a = vec![
+            "function".to_string(),
+            "block".to_string(),
+            "return".to_string(),
+        ];
         let b = vec!["if".to_string(), "block".to_string(), "while".to_string()];
         let dist = tree_edit_distance(&a, &b);
         assert!(dist > 0.5);

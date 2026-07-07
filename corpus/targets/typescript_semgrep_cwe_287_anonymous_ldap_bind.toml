@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_287_ANONYMOUS_LDAP_BIND"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 287 Anonymous Ldap Bind."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

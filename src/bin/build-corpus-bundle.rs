@@ -17,7 +17,10 @@ fn main() {
     let incremental = env::args().any(|a| a == "--incremental");
 
     if incremental {
-        eprintln!("Building corpus bundle (incremental) from {}...", corpus_dir.display());
+        eprintln!(
+            "Building corpus bundle (incremental) from {}...",
+            corpus_dir.display()
+        );
     } else {
         eprintln!("Building corpus bundle from {}...", corpus_dir.display());
     }

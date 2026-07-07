@@ -52,7 +52,7 @@ pub struct Engine {
     severity_overrides: HashMap<String, crate::Severity>,
 
     #[cfg(feature = "fingerprinting")]
-    profile: Option<crate::engine::profile::ProjectProfile>,
+    profile: Option<frensense_engine::profile::ProjectProfile>,
     #[cfg(feature = "fingerprinting")]
     profile_threshold: f64,
 
@@ -64,7 +64,8 @@ pub struct Engine {
     extra_taint_rule_dirs: Vec<PathBuf>,
     check_deps: bool,
     calibration: Option<crate::engine::confidence_calibration::CalibrationParams>,
-    per_category_calibration: Option<crate::engine::per_category_calibration::PerCategoryCalibration>,
+    per_category_calibration:
+        Option<crate::engine::per_category_calibration::PerCategoryCalibration>,
 }
 
 impl Engine {
@@ -141,34 +142,36 @@ impl Engine {
         use crate::engine::confidence_calibration::load_calibration;
         use crate::engine::per_category_calibration::load_per_category_calibration;
         use std::path::Path;
-        
+
         // Try to load per-category calibration first
         let per_cat_paths = [
             Path::new("per_category_calibration.json"),
             Path::new(".frensense/per_category_calibration.json"),
         ];
-        
+
         for path in &per_cat_paths {
-            if let Some(params) = load_per_category_calibration(path) {
-                if params.global.n_samples > 0 && params.global.accuracy > 0.0 {
-                    self.per_category_calibration = Some(params);
-                    return;
-                }
+            if let Some(params) = load_per_category_calibration(path)
+                && params.global.n_samples > 0
+                && params.global.accuracy > 0.0
+            {
+                self.per_category_calibration = Some(params);
+                return;
             }
         }
-        
+
         // Fall back to global calibration
         let paths = [
             Path::new("calibration.json"),
             Path::new(".frensense/calibration.json"),
         ];
-        
+
         for path in &paths {
-            if let Some(params) = load_calibration(path) {
-                if params.n_samples > 0 && params.accuracy > 0.0 {
-                    self.calibration = Some(params);
-                    return;
-                }
+            if let Some(params) = load_calibration(path)
+                && params.n_samples > 0
+                && params.accuracy > 0.0
+            {
+                self.calibration = Some(params);
+                return;
             }
         }
     }

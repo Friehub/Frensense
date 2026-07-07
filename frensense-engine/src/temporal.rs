@@ -297,7 +297,9 @@ pub fn extract_ordered_events<'a>(
                     let is_let_binding = {
                         let mut p = node.parent();
                         while let Some(parent) = p {
-                            if parent.kind() == "let_declaration" || parent.kind() == "variable_declaration" {
+                            if parent.kind() == "let_declaration"
+                                || parent.kind() == "variable_declaration"
+                            {
                                 break;
                             }
                             if parent.kind() == "function_item"
@@ -309,9 +311,15 @@ pub fn extract_ordered_events<'a>(
                             }
                             p = parent.parent();
                         }
-                        p.map_or(false, |pt| pt.kind() == "let_declaration" || pt.kind() == "variable_declaration")
+                        p.is_some_and(|pt| {
+                            pt.kind() == "let_declaration" || pt.kind() == "variable_declaration"
+                        })
                     };
-                    if is_let_binding { None } else { Some((EventType::Acquire, "lock")) }
+                    if is_let_binding {
+                        None
+                    } else {
+                        Some((EventType::Acquire, "lock"))
+                    }
                 } else if call_text.contains(".unlock()") || call_text.contains("mutex_unlock(") {
                     Some((EventType::Release, "unlock"))
                 } else if call_text.contains(".await") {

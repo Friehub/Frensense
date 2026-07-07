@@ -77,8 +77,8 @@ flows from an Axum `Query<T>` extractor." Fixing T-FIX-1 isn't a separate taint-
 task that happens to also be on the roadmap; it's the same principle the rest of this
 session's work was built on, applied to the one place it hasn't been applied yet. Until
 it ships, "trace bugs semantically across files" is not yet true of the taint layer —
-it's true of the corpus layer (fingerprint similarity, not name matching) but not yet
-of taint (still name matching).
+it's true of the corpus layer (fingerprint similarity, not name matching) and now
+of taint (AST-based entry points via TaintSeeder, corpus-learned sources/sinks).
 
 ## Why an LLM-as-detector is the wrong tool, and what the MCP server actually is
 
@@ -122,11 +122,13 @@ step, not a new category of work.
 
 | Gap | What it unlocks | Status |
 |---|---|---|
-| **T-FIX-1** — AST-based taint entry points, replacing regex source seeding | Makes "trace across files" actually structural rather than name-matching; un-caps the value of every corpus finding that relies on taint corroboration | Open, confirmed this session. ~450 lines, 2–3 days, specs written (`ROADMAP.md`) |
-| **Dark pattern backlog** — path traversal (20) + command injection (18) | Detection capability that's already written (positive examples exist) but inert | Open, queued from last session |
-| **LLM-anti-pattern corpus growth** | The specific "bugs LLMs write that rules never anticipated" — the core differentiator vs. Semgrep-era tools | Conceptually proven (CSA), needs volume |
-| **AST edit-distance blending** (`ROADMAP.md` M2) | Keeps "generalizes to a novel structurally-similar bug" from degrading into false positives as corpus grows past ~1,000 patterns | Designed, not wired |
-| **Docs/claims correction** | Stops the project from implying static analysis decides correctness — protects credibility, costs nothing technical | Not started |
+| **T-FIX-1** — AST-based taint entry points, replacing regex source seeding | Makes "trace across files" actually structural rather than name-matching | ✅ Done — TaintSeeder implemented |
+| **Dark pattern backlog** — path traversal + command injection | Detection capability that's already written (positive examples exist) | ✅ Done — 597 corpus patterns |
+| **LLM-anti-pattern corpus growth** | The specific "bugs LLMs write that rules never anticipated" | ✅ Done — CSA + llm corpus categories |
+| **AST edit-distance blending** | Keeps "generalizes to a novel structurally-similar bug" from degrading into FPs as corpus grows | Wired — 40% weight in scorer |
+| **Docs/claims correction** | Stops the project from implying static analysis decides correctness | In progress |
+| **45k harvest pipeline** | Scale from 597 to 45,000 patterns from CVEfixes/NVD/GitHub | Architecture ready, pipeline not built |
+| **Scorer precision** | Reduce false positives on trivial code (fn main() matching complex patterns) | Open — needs tighter scoring |
 
 T-FIX-1 is first on this list because it's the one gap that's both fully specified and
 sits underneath several others — taint corroboration affects how much every corpus

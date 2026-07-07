@@ -39,11 +39,11 @@ pub fn compose_confidence(signals: &LayerSignals, base_score: f32) -> f32 {
     }
 
     // L3 can SUPPRESS L1, not just sit beside it
-    if let Some(ratio) = signals.taint_branch_ratio {
-        if ratio > 0.6 {
-            // This function really does branch on its input - likely a real validator
-            score *= 0.3;
-        }
+    if let Some(ratio) = signals.taint_branch_ratio
+        && ratio > 0.6
+    {
+        // This function really does branch on its input - likely a real validator
+        score *= 0.3;
     }
 
     // L4 inconsistency can boost confidence (inconsistent code is suspicious)
@@ -55,10 +55,7 @@ pub fn compose_confidence(signals: &LayerSignals, base_score: f32) -> f32 {
 }
 
 /// Collect layer signals for a given advisory from all advisories on the same function.
-pub fn collect_signals(
-    advisory: &Advisory,
-    all_advisories: &[Advisory],
-) -> LayerSignals {
+pub fn collect_signals(advisory: &Advisory, all_advisories: &[Advisory]) -> LayerSignals {
     let key = (advisory.file_id.0, advisory.line);
     let mut signals = LayerSignals::default();
 
@@ -145,7 +142,13 @@ mod tests {
     #[test]
     fn test_collect_signals_uses_actual_taint_branch_ratio() {
         use crate::FileId;
-        let mut adv = Advisory::bare("TAINT_INPUT_TO_EXEC", crate::Severity::Critical, FileId(0), std::path::Path::new("test.rs"), "test");
+        let mut adv = Advisory::bare(
+            "TAINT_INPUT_TO_EXEC",
+            crate::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("test.rs"),
+            "test",
+        );
         adv.taint_branch_ratio = Some(0.4);
         let all_advisories = vec![adv.clone()];
         let signals = collect_signals(&adv, &all_advisories);

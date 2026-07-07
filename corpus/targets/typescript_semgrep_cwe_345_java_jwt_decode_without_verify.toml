@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_345_JAVA_JWT_DECODE_WITHOUT_VERIFY"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 345 Java Jwt Decode Without Verify."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -8,7 +8,7 @@
 //! 3. Generate pattern metadata from the diff
 //! 4. Save as corpus files
 
-use crate::engine::ast_diff::{diff_ast, extract_patterns_from_diff, PatternKind};
+use crate::engine::ast_diff::{PatternKind, diff_ast, extract_patterns_from_diff};
 use std::path::Path;
 
 /// Learn a pattern from a positive/negative pair.
@@ -42,11 +42,17 @@ pub fn learn_pattern(
     std::fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
 
     // Copy files with proper naming convention
-    let pos_ext = positive_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let neg_ext = negative_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let pos_ext = positive_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let neg_ext = negative_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
 
-    let pos_name = format!("{}_positive.{}", pattern_id, pos_ext);
-    let neg_name = format!("{}_negative.{}", pattern_id, neg_ext);
+    let pos_name = format!("{pattern_id}_positive.{pos_ext}");
+    let neg_name = format!("{pattern_id}_negative.{neg_ext}");
 
     let pos_dest = output_dir.join(&pos_name);
     let neg_dest = output_dir.join(&neg_name);
@@ -54,14 +60,14 @@ pub fn learn_pattern(
     std::fs::copy(positive_path, &pos_dest).map_err(|e| e.to_string())?;
     std::fs::copy(negative_path, &neg_dest).map_err(|e| e.to_string())?;
 
-    // Write metadata file
-    let metadata_path = output_dir.join(format!("{}.toml", pattern_id));
-    let metadata_toml = generate_toml(pattern_id, &metadata, &learned_patterns);
+    // Write metadata file with semantic constraints and advisory text
+    let metadata_path = output_dir.join(format!("{pattern_id}.toml"));
+    let metadata_toml = generate_toml(pattern_id, &metadata, &learned_patterns, &diff);
     std::fs::write(&metadata_path, &metadata_toml).map_err(|e| e.to_string())?;
 
     // Load using the corpus loader to verify
     let patterns = frensense_engine::corpus::loader::load_corpus(output_dir)
-        .map_err(|e| format!("Failed to load corpus: {}", e))?;
+        .map_err(|e| format!("Failed to load corpus: {e}"))?;
 
     let positive_fps: usize = patterns.iter().map(|p| p.positives.len()).sum();
     let negative_fps: usize = patterns.iter().map(|p| p.negatives.len()).sum();
@@ -79,7 +85,10 @@ pub fn learn_pattern(
 }
 
 /// Generate metadata from AST diff.
-fn generate_metadata(diff: &crate::engine::ast_diff::AstDiff, patterns: &[LearnedPattern]) -> PatternMetadata {
+fn generate_metadata(
+    diff: &crate::engine::ast_diff::AstDiff,
+    patterns: &[LearnedPattern],
+) -> PatternMetadata {
     let mut metadata = PatternMetadata {
         bug_type: "unknown".to_string(),
         sanitizer: None,
@@ -107,21 +116,19 @@ fn generate_metadata(diff: &crate::engine::ast_diff::AstDiff, patterns: &[Learne
         let func = &diff.modified_functions[0];
         for change in &func.changes {
             match change.kind {
-                crate::engine::ast_diff::ChangeKind::CallAdded => {
-                    if change.description.contains("sanitize")
+                crate::engine::ast_diff::ChangeKind::CallAdded
+                    if (change.description.contains("sanitize")
                         || change.description.contains("validate")
-                        || change.description.contains("check")
-                    {
-                        metadata.bug_type = "missing_sanitization".to_string();
-                    }
+                        || change.description.contains("check")) =>
+                {
+                    metadata.bug_type = "missing_sanitization".to_string();
                 }
-                crate::engine::ast_diff::ChangeKind::CallRemoved => {
-                    if change.description.contains("eval")
+                crate::engine::ast_diff::ChangeKind::CallRemoved
+                    if (change.description.contains("eval")
                         || change.description.contains("exec")
-                        || change.description.contains("system")
-                    {
-                        metadata.bug_type = "dangerous_function_call".to_string();
-                    }
+                        || change.description.contains("system")) =>
+                {
+                    metadata.bug_type = "dangerous_function_call".to_string();
                 }
                 _ => {}
             }
@@ -131,50 +138,226 @@ fn generate_metadata(diff: &crate::engine::ast_diff::AstDiff, patterns: &[Learne
     metadata
 }
 
-/// Generate TOML metadata file.
-fn generate_toml(pattern_id: &str, metadata: &PatternMetadata, patterns: &[LearnedPattern]) -> String {
-    let mut toml = format!("# Auto-generated metadata for pattern: {}\n", pattern_id);
+/// Generate TOML metadata file with semantic constraints and advisory text.
+fn generate_toml(
+    pattern_id: &str,
+    metadata: &PatternMetadata,
+    patterns: &[LearnedPattern],
+    diff: &crate::engine::ast_diff::AstDiff,
+) -> String {
+    let mut toml = format!("# Auto-generated metadata for pattern: {pattern_id}\n");
+    toml.push_str(&"# Generated by: frensense --learn\n".to_string());
+    toml.push_str(&format!("# Positive (buggy): {pattern_id}_positive\n"));
+    toml.push_str(&format!("# Negative (fixed): {pattern_id}_negative\n\n"));
+
+    // Core metadata
     toml.push_str(&format!("id = \"{}\"\n", pattern_id.to_uppercase()));
     toml.push_str(&format!("bug_type = \"{}\"\n", metadata.bug_type));
-    toml.push_str(&format!("confidence = {}\n", metadata.confidence));
+    toml.push_str(&format!("confidence = {}\n\n", metadata.confidence));
 
-    if let Some(ref sanitizer) = metadata.sanitizer {
-        toml.push_str(&format!("sanitizer = \"{}\"\n", sanitizer));
+    // Advisory text (auto-generated from diff analysis)
+    toml.push_str("# Advisory text - what to tell the developer\n");
+    let (observation, impact, improvement) = generate_advisory_text(pattern_id, metadata, diff);
+    toml.push_str(&format!("observation = \"{}\"\n", observation));
+    toml.push_str(&format!("impact = \"{}\"\n", impact));
+    toml.push_str(&format!("improvement = \"{}\"\n\n", improvement));
+
+    // Semantic constraints (auto-generated from diff)
+    toml.push_str("# Semantic constraints - what AST features must be present\n");
+    let constraints = generate_semantic_constraints(metadata, diff);
+    if !constraints.required_calls.is_empty() {
+        toml.push_str(&format!(
+            "contains_call_to = {:?}\n",
+            constraints.required_calls
+        ));
+    }
+    if !constraints.forbidden_calls.is_empty() {
+        toml.push_str(&format!(
+            "must_not_contain_call_to = {:?}\n",
+            constraints.forbidden_calls
+        ));
+    }
+    if !constraints.required_node_types.is_empty() {
+        toml.push_str(&format!(
+            "contains_node_type = {:?}\n",
+            constraints.required_node_types
+        ));
+    }
+    if !constraints.forbidden_node_types.is_empty() {
+        toml.push_str(&format!(
+            "must_not_contain_node_type = {:?}\n",
+            constraints.forbidden_node_types
+        ));
     }
 
-    if let Some(ref sink) = metadata.sink_pattern {
-        toml.push_str(&format!("sink = \"{}\"\n", sink));
-    }
-
-    if let Some(ref source) = metadata.source_pattern {
-        toml.push_str(&format!("source = \"{}\"\n", source));
-    }
-
-    // Add learned patterns
-    for pattern in patterns {
-        toml.push_str("\n[[learned]]\n");
-        toml.push_str(&format!("kind = \"{:?}\"\n", pattern.kind));
-        toml.push_str(&format!("function = \"{}\"\n", pattern.function));
-        toml.push_str(&format!("description = \"{}\"\n", pattern.description));
-    }
-
-    // Generate taint rule if applicable
-    if metadata.bug_type == "missing_sanitization" || metadata.bug_type == "dangerous_function_call" {
+    // Taint rule (auto-generated if applicable)
+    if metadata.bug_type == "missing_sanitization" || metadata.bug_type == "dangerous_function_call"
+    {
         toml.push_str("\n# Auto-generated taint rule\n");
         toml.push_str("[[taint_rule]]\n");
         toml.push_str(&format!("id = \"TAINT_{}\"\n", pattern_id.to_uppercase()));
-        toml.push_str(&format!("source = \"req\\.body|req\\.query|input|user\"\n"));
-        toml.push_str(&format!("sink = \"{}\"\n", metadata.sink_pattern.as_deref().unwrap_or("eval|exec")));
+        toml.push_str("source = \"req\\.body|req\\.query|input|user|params\"\n");
+        toml.push_str(&format!(
+            "sink = \"{}\"\n",
+            metadata.sink_pattern.as_deref().unwrap_or("eval|exec")
+        ));
         toml.push_str("severity = \"warning\"\n");
-        toml.push_str(&format!("observation = \"Learned from corpus pair: {}\"\n", pattern_id));
-        if let Some(ref sanitizer) = metadata.sanitizer {
-            toml.push_str(&format!("improvement = \"Apply sanitizer before dangerous call: {}\"\n", sanitizer));
-        } else {
-            toml.push_str("improvement = \"Add input validation before dangerous operation\"\n");
+        toml.push_str(&format!("observation = \"{}\"\n", observation));
+        toml.push_str(&format!("improvement = \"{}\"\n", improvement));
+    }
+
+    // Learned patterns from AST diff
+    if !patterns.is_empty() {
+        toml.push_str("\n# Patterns learned from AST diff\n");
+        for pattern in patterns {
+            toml.push_str("\n[[learned]]\n");
+            toml.push_str(&format!("kind = \"{:?}\"\n", pattern.kind));
+            toml.push_str(&format!("function = \"{}\"\n", pattern.function));
+            toml.push_str(&format!("description = \"{}\"\n", pattern.description));
         }
     }
 
     toml
+}
+
+/// Auto-generated advisory text from diff analysis.
+fn generate_advisory_text(
+    _pattern_id: &str,
+    metadata: &PatternMetadata,
+    diff: &crate::engine::ast_diff::AstDiff,
+) -> (String, String, String) {
+    let bug_type_desc = match metadata.bug_type.as_str() {
+        "missing_sanitization" => "input is not sanitized before use",
+        "dangerous_function_call" => "dangerous function is called with untrusted data",
+        "timing_vulnerable" => "comparison uses non-constant-time operation",
+        _ => "code pattern matches a known vulnerability",
+    };
+
+    // Observation: what the bug looks like
+    let observation = if let Some(ref sink) = metadata.sink_pattern {
+        format!("Function calls {} which can be exploited", sink)
+    } else if !diff.call_diffs.is_empty() {
+        let removed: Vec<&str> = diff
+            .call_diffs
+            .iter()
+            .filter_map(|c| c.callee_negative.as_deref())
+            .collect();
+        if !removed.is_empty() {
+            format!("Missing safety check: {} not called", removed.join(", "))
+        } else {
+            format!("Bug type: {}", bug_type_desc)
+        }
+    } else {
+        format!("Bug type: {}", bug_type_desc)
+    };
+
+    // Impact: what goes wrong
+    let impact = match metadata.bug_type.as_str() {
+        "missing_sanitization" => "Untrusted input flows to sensitive operation without validation",
+        "dangerous_function_call" => "Attacker-controlled data reaches dangerous function",
+        "timing_vulnerable" => "Timing side-channel allows secret recovery",
+        _ => "Code pattern matches a known vulnerability class",
+    }
+    .to_string();
+
+    // Improvement: how to fix it
+    let improvement = if let Some(ref sanitizer) = metadata.sanitizer {
+        format!("Apply {} before using the value", sanitizer)
+    } else if let Some(ref sink) = metadata.sink_pattern {
+        format!("Validate and sanitize input before calling {}", sink)
+    } else {
+        match metadata.bug_type.as_str() {
+            "missing_sanitization" => "Add input validation and sanitization",
+            "dangerous_function_call" => "Use safe alternatives or validate input",
+            "timing_vulnerable" => "Use constant-time comparison (e.g., crypto.timingSafeEqual)",
+            _ => "Review against corpus example and apply fix",
+        }
+        .to_string()
+    };
+
+    (observation, impact, improvement)
+}
+
+/// Auto-generated semantic constraints from diff analysis.
+struct SemanticConstraints {
+    required_calls: Vec<String>,
+    forbidden_calls: Vec<String>,
+    required_node_types: Vec<String>,
+    forbidden_node_types: Vec<String>,
+}
+
+fn generate_semantic_constraints(
+    metadata: &PatternMetadata,
+    diff: &crate::engine::ast_diff::AstDiff,
+) -> SemanticConstraints {
+    let mut required_calls = Vec::new();
+    let mut forbidden_calls = Vec::new();
+
+    // Analyze call changes to determine required/forbidden calls
+    for func in &diff.modified_functions {
+        for change in &func.changes {
+            match change.kind {
+                crate::engine::ast_diff::ChangeKind::CallRemoved => {
+                    // Call removed in negative = this call is the bug marker
+                    // Extract the call target from description
+                    if let Some(target) = extract_call_target(&change.description) {
+                        required_calls.push(target);
+                    }
+                }
+                crate::engine::ast_diff::ChangeKind::CallAdded => {
+                    // Call added in negative = this is the fix
+                    // Extract the call target from description
+                    if let Some(target) = extract_call_target(&change.description) {
+                        forbidden_calls.push(target);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Add sink pattern as required call if available
+    if let Some(ref sink) = metadata.sink_pattern {
+        for call in sink.split('|') {
+            let call = call.trim().to_string();
+            if !call.is_empty() && !required_calls.contains(&call) {
+                required_calls.push(call);
+            }
+        }
+    }
+
+    // Deduplicate
+    required_calls.sort();
+    required_calls.dedup();
+    forbidden_calls.sort();
+    forbidden_calls.dedup();
+
+    SemanticConstraints {
+        required_calls,
+        forbidden_calls,
+        required_node_types: Vec::new(), // Could be enhanced with more AST analysis
+        forbidden_node_types: Vec::new(),
+    }
+}
+
+/// Extract call target from change description like "call to eval()".
+fn extract_call_target(description: &str) -> Option<String> {
+    // Look for patterns like "call to foo()" or "foo() called"
+    if let Some(start) = description.find("call to ") {
+        let rest = &description[start + 8..];
+        if let Some(end) = rest.find('(') {
+            return Some(rest[..end].to_string());
+        }
+    }
+    if let Some(start) = description.find("()") {
+        // Find the function name before ()
+        let before = &description[..start];
+        if let Some(name_start) = before.rfind(|c: char| c.is_whitespace() || c == '.' || c == ':')
+        {
+            return Some(before[name_start + 1..].to_string());
+        }
+    }
+    None
 }
 
 /// Generate a human-readable diff summary.
@@ -254,33 +437,73 @@ pub fn load_learned_taint_rules(path: &std::path::Path) -> Vec<LearnedTaintRule>
     let mut result = Vec::new();
 
     // Handle single table: taint_rule = { ... }
-    if let Some(rule) = doc.get("taint_rule").and_then(|r| r.as_table()) {
-        if let Some(id) = rule.get("id").and_then(|v| v.as_str()) {
-            result.push(LearnedTaintRule {
-                id: id.to_string(),
-                source: rule.get("source").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                sink: rule.get("sink").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                severity: rule.get("severity").and_then(|v| v.as_str()).unwrap_or("warning").to_string(),
-                observation: rule.get("observation").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                improvement: rule.get("improvement").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            });
-        }
+    if let Some(rule) = doc.get("taint_rule").and_then(|r| r.as_table())
+        && let Some(id) = rule.get("id").and_then(|v| v.as_str())
+    {
+        result.push(LearnedTaintRule {
+            id: id.to_string(),
+            source: rule
+                .get("source")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            sink: rule
+                .get("sink")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            severity: rule
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("warning")
+                .to_string(),
+            observation: rule
+                .get("observation")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            improvement: rule
+                .get("improvement")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        });
     }
 
     // Handle array of tables: [[taint_rule]]
     if let Some(rules) = doc.get("taint_rule").and_then(|r| r.as_array()) {
         for rule in rules {
-            if let Some(rule_table) = rule.as_table() {
-                if let Some(id) = rule_table.get("id").and_then(|v| v.as_str()) {
-                    result.push(LearnedTaintRule {
-                        id: id.to_string(),
-                        source: rule_table.get("source").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                        sink: rule_table.get("sink").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                        severity: rule_table.get("severity").and_then(|v| v.as_str()).unwrap_or("warning").to_string(),
-                        observation: rule_table.get("observation").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                        improvement: rule_table.get("improvement").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    });
-                }
+            if let Some(rule_table) = rule.as_table()
+                && let Some(id) = rule_table.get("id").and_then(|v| v.as_str())
+            {
+                result.push(LearnedTaintRule {
+                    id: id.to_string(),
+                    source: rule_table
+                        .get("source")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    sink: rule_table
+                        .get("sink")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    severity: rule_table
+                        .get("severity")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("warning")
+                        .to_string(),
+                    observation: rule_table
+                        .get("observation")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    improvement: rule_table
+                        .get("improvement")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                });
             }
         }
     }
@@ -322,24 +545,25 @@ mod tests {
     #[test]
     fn test_load_taint_rules() {
         let content = "[[taint_rule]]\nid = \"TAINT_TEST\"\nsource = \"req.body\"\nsink = \"eval\"\nseverity = \"warning\"\nobservation = \"Test\"\nimprovement = \"Test\"";
-        
+
         let temp_dir = std::env::temp_dir().join("frensense_test_taint");
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
-        
+
         let path = temp_dir.join("test.toml");
         std::fs::write(&path, content).unwrap();
-        
+
         let rules = load_learned_taint_rules(&path);
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].id, "TAINT_TEST");
-        
+
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
     fn test_learn_pattern() {
-        let positive = "function handler(req) {\n    const input = req.body.query;\n    eval(input);\n}";
+        let positive =
+            "function handler(req) {\n    const input = req.body.query;\n    eval(input);\n}";
         let negative = "function handler(req) {\n    const input = req.body.query;\n    const clean = sanitize(input);\n    eval(clean);\n}";
 
         let temp_dir = std::env::temp_dir().join("frensense_test_learn");

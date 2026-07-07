@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_502__DESERIALIZATION_OF_UNTRUSTED_DA_OCAMLLINT_MARSHAL"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 502  Deserialization Of Untrusted Da Ocamllint Marshal."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

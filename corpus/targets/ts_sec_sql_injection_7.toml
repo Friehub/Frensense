@@ -1,5 +1,0 @@
-id = "TS_SEC_SQL_INJECTION_7"
-severity = "Critical"
-observation = "Corpus pattern: Ts Sec Sql Injection 7."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

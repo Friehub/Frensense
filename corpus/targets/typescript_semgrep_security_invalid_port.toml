@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_INVALID_PORT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Invalid Port."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

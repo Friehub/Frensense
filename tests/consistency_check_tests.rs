@@ -6,9 +6,9 @@
 //! lose findings compared to a simplified AST check (Path B: AST-direct).
 //! Any divergence indicates a potential regression or improvement.
 
+use frensense::FileId;
 use frensense::semantics::consistency::{ConsistencyCheck, DivergenceMetrics};
 use frensense::semantics::simple_taint::simple_taint_check;
-use frensense::FileId;
 use regex::Regex;
 
 /// Test that both paths detect the same taint findings for simple cases.
@@ -70,23 +70,66 @@ fn test_divergence_detection() {
 
     // Path A (graph-based) found 2 findings
     let path_a = vec![
-        Advisory::bare("TAINT_INPUT_TO_EXEC", frensense::Severity::Critical, FileId(0), std::path::Path::new("test.ts"), "finding 1").with_line(10),
-        Advisory::bare("CORPUS_XSS_PATTERN", frensense::Severity::Warning, FileId(0), std::path::Path::new("test.ts"), "finding 2").with_line(20),
+        Advisory::bare(
+            "TAINT_INPUT_TO_EXEC",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("test.ts"),
+            "finding 1",
+        )
+        .with_line(10),
+        Advisory::bare(
+            "CORPUS_XSS_PATTERN",
+            frensense::Severity::Warning,
+            FileId(0),
+            std::path::Path::new("test.ts"),
+            "finding 2",
+        )
+        .with_line(20),
     ];
 
     // Path B (AST-direct) found 3 findings
     let path_b = vec![
-        Advisory::bare("TAINT_INPUT_TO_EXEC", frensense::Severity::Critical, FileId(0), std::path::Path::new("test.ts"), "finding 1").with_line(10),
-        Advisory::bare("TAINT_CREDENTIAL_TO_DB", frensense::Severity::Critical, FileId(0), std::path::Path::new("test.ts"), "finding 3").with_line(30),
-        Advisory::bare("TAINT_INPUT_TO_HTTP", frensense::Severity::Warning, FileId(0), std::path::Path::new("test.ts"), "finding 4").with_line(40),
+        Advisory::bare(
+            "TAINT_INPUT_TO_EXEC",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("test.ts"),
+            "finding 1",
+        )
+        .with_line(10),
+        Advisory::bare(
+            "TAINT_CREDENTIAL_TO_DB",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("test.ts"),
+            "finding 3",
+        )
+        .with_line(30),
+        Advisory::bare(
+            "TAINT_INPUT_TO_HTTP",
+            frensense::Severity::Warning,
+            FileId(0),
+            std::path::Path::new("test.ts"),
+            "finding 4",
+        )
+        .with_line(40),
     ];
 
     let check = ConsistencyCheck::new(path_b, path_a);
     assert!(!check.verify());
 
     let div = check.detect_divergence();
-    assert_eq!(div.missing_in_graph.len(), 2, "Graph should miss 2 findings");
-    assert_eq!(div.extra_in_graph.len(), 1, "Graph should have 1 extra finding");
+    assert_eq!(
+        div.missing_in_graph.len(),
+        2,
+        "Graph should miss 2 findings"
+    );
+    assert_eq!(
+        div.extra_in_graph.len(),
+        1,
+        "Graph should have 1 extra finding"
+    );
 
     // Verify specific divergences
     let missing_rules: Vec<_> = div.missing_in_graph.iter().map(|k| &k.rule_id).collect();
@@ -103,14 +146,49 @@ fn test_metrics_computation() {
     use frensense::Advisory;
 
     let path_a = vec![
-        Advisory::bare("TAINT_INPUT_TO_EXEC", frensense::Severity::Critical, FileId(0), std::path::Path::new("a.ts"), "f1").with_line(10),
-        Advisory::bare("TAINT_INPUT_TO_EXEC", frensense::Severity::Critical, FileId(0), std::path::Path::new("a.ts"), "f2").with_line(20),
-        Advisory::bare("CORPUS_XSS", frensense::Severity::Warning, FileId(0), std::path::Path::new("b.ts"), "f3").with_line(30),
+        Advisory::bare(
+            "TAINT_INPUT_TO_EXEC",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("a.ts"),
+            "f1",
+        )
+        .with_line(10),
+        Advisory::bare(
+            "TAINT_INPUT_TO_EXEC",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("a.ts"),
+            "f2",
+        )
+        .with_line(20),
+        Advisory::bare(
+            "CORPUS_XSS",
+            frensense::Severity::Warning,
+            FileId(0),
+            std::path::Path::new("b.ts"),
+            "f3",
+        )
+        .with_line(30),
     ];
 
     let path_b = vec![
-        Advisory::bare("TAINT_INPUT_TO_EXEC", frensense::Severity::Critical, FileId(0), std::path::Path::new("a.ts"), "f1").with_line(10),
-        Advisory::bare("TAINT_CREDENTIAL_TO_DB", frensense::Severity::Critical, FileId(0), std::path::Path::new("a.ts"), "f4").with_line(40),
+        Advisory::bare(
+            "TAINT_INPUT_TO_EXEC",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("a.ts"),
+            "f1",
+        )
+        .with_line(10),
+        Advisory::bare(
+            "TAINT_CREDENTIAL_TO_DB",
+            frensense::Severity::Critical,
+            FileId(0),
+            std::path::Path::new("a.ts"),
+            "f4",
+        )
+        .with_line(40),
     ];
 
     let check = ConsistencyCheck::new(path_b, path_a);
@@ -132,7 +210,7 @@ fn test_metrics_computation() {
 /// Test regression detection against a baseline.
 #[test]
 fn test_regression_detection() {
-    use frensense::semantics::consistency::{check_regression, RuleDivergence};
+    use frensense::semantics::consistency::{RuleDivergence, check_regression};
     use std::collections::HashMap;
 
     let baseline = DivergenceMetrics {
@@ -171,6 +249,14 @@ fn test_regression_detection() {
 
     let regressions = check_regression(&current, &baseline);
     assert_eq!(regressions.len(), 2);
-    assert!(regressions.iter().any(|r| r.contains("Missing findings increased")));
-    assert!(regressions.iter().any(|r| r.contains("TAINT_INPUT_TO_EXEC")));
+    assert!(
+        regressions
+            .iter()
+            .any(|r| r.contains("Missing findings increased"))
+    );
+    assert!(
+        regressions
+            .iter()
+            .any(|r| r.contains("TAINT_INPUT_TO_EXEC"))
+    );
 }

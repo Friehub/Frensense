@@ -127,7 +127,11 @@ impl Manifest {
 
     fn update_entry(&mut self, path: String, mtime: u64, content_hash: [u8; 32]) {
         self.entries.retain(|e| e.path != path);
-        self.entries.push(ManifestEntry { path, mtime, content_hash });
+        self.entries.push(ManifestEntry {
+            path,
+            mtime,
+            content_hash,
+        });
     }
 }
 

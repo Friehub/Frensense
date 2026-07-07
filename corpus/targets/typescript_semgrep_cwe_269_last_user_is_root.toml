@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_269_LAST_USER_IS_ROOT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 269 Last User Is Root."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

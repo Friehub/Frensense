@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_287_JWT_SIMPLE_NOVERIFY"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 287 Jwt Simple Noverify."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -45,8 +45,8 @@ fuzz:
 
 ## Documentation
 docs:
-	@echo "[DOC] Generating Frensense Rule Catalog..."
-	cargo run -- --generate-docs
+	@echo "[DOC] Building Frensense Documentation..."
+	npm run docs:build
 
 ## Security & Compliance
 sbom:
@@ -59,7 +59,6 @@ dist: docs sbom
 	mkdir -p dist
 	cargo build --release
 	cp target/release/frensense dist/
-	cp RULES.md dist/
 	cp bom.json dist/
 	@echo "[SUCCESS] Release artifacts bundled in dist/"
 

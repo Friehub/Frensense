@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_328_USE_OF_SHA224"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 328 Use Of Sha224."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

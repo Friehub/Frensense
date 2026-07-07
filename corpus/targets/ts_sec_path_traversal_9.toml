@@ -1,5 +1,0 @@
-id = "TS_SEC_PATH_TRAVERSAL_9"
-severity = "Warning"
-observation = "Corpus pattern: Ts Sec Path Traversal 9."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

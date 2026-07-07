@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_502_USE_SNAKEYAML_CONSTRUCTOR"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 502 Use Snakeyaml Constructor."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

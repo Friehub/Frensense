@@ -1,5 +1,0 @@
-id = "TS_WEBHOOK_HMAC_BYPASS"
-severity = "Critical"
-observation = "Webhook signature or HMAC is compared using '===' operator instead of constant-time comparison, or HMAC verification is skipped entirely."
-impact = "Timing side-channel attacks allow attackers to forge webhook signatures by measuring response time differences. Missing HMAC allows arbitrary webhook injection."
-improvement = "Use crypto.timingSafeEqual() for all secret comparisons. Always verify HMAC signatures for webhook endpoints."

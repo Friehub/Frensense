@@ -16,7 +16,6 @@
     clippy::needless_pass_by_value
 )]
 
-pub mod atomic_section;
 pub mod ast_distance;
 pub mod cfg;
 pub mod corpus;
@@ -29,9 +28,7 @@ pub mod minhash;
 pub mod parser;
 pub mod pattern;
 pub mod profile;
-pub mod reachability;
 pub mod semantic_patterns;
-pub mod secrets;
 pub mod symbols;
 pub mod temporal;
 

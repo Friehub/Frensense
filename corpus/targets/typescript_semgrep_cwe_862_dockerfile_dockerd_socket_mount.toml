@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_862_DOCKERFILE_DOCKERD_SOCKET_MOUNT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 862 Dockerfile Dockerd Socket Mount."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

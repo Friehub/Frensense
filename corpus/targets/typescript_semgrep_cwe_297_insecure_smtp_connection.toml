@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_297_INSECURE_SMTP_CONNECTION"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 297 Insecure Smtp Connection."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

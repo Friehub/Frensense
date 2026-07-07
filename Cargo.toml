@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "frensense"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Friehub Developers"]
 edition = "2024"
 description = "Frensense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
@@ -59,7 +59,6 @@ toml = "0.8"
 default = ["rust", "typescript", "fingerprinting", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-c_lang = ["frensense-engine/c_lang"]
 python = ["frensense-engine/python", "dep:tree-sitter-python"]
 fingerprinting = ["frensense-engine/serialize"]
 temporal = []

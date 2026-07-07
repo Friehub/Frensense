@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_252__UNCHECKED_RETURN_VALUE_OPENAI_MISSING_REFUSAL_CHECK_JAVASCRIPT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 252  Unchecked Return Value Openai Missing Refusal Check Javascript."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

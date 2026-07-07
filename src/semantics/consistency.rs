@@ -88,16 +88,32 @@ impl ConsistencyCheck {
     /// Check if both paths produce identical advisory sets.
     #[must_use]
     pub fn verify(&self) -> bool {
-        let keys_a: HashSet<_> = self.path_ast.iter().map(FindingKey::from_advisory).collect();
-        let keys_b: HashSet<_> = self.path_graph.iter().map(FindingKey::from_advisory).collect();
+        let keys_a: HashSet<_> = self
+            .path_ast
+            .iter()
+            .map(FindingKey::from_advisory)
+            .collect();
+        let keys_b: HashSet<_> = self
+            .path_graph
+            .iter()
+            .map(FindingKey::from_advisory)
+            .collect();
         keys_a == keys_b
     }
 
     /// Detect specific divergences between paths.
     #[must_use]
     pub fn detect_divergence(&self) -> Divergence {
-        let keys_ast: HashSet<_> = self.path_ast.iter().map(FindingKey::from_advisory).collect();
-        let keys_graph: HashSet<_> = self.path_graph.iter().map(FindingKey::from_advisory).collect();
+        let keys_ast: HashSet<_> = self
+            .path_ast
+            .iter()
+            .map(FindingKey::from_advisory)
+            .collect();
+        let keys_graph: HashSet<_> = self
+            .path_graph
+            .iter()
+            .map(FindingKey::from_advisory)
+            .collect();
 
         let missing_in_graph = keys_ast
             .iter()
@@ -130,19 +146,13 @@ impl ConsistencyCheck {
 
         // Per-rule metrics from graph path
         for adv in &self.path_graph {
-            let entry = metrics
-                .per_rule
-                .entry(adv.rule_id.clone())
-                .or_default();
+            let entry = metrics.per_rule.entry(adv.rule_id.clone()).or_default();
             entry.total_graph += 1;
         }
 
         // Per-rule metrics from AST path
         for adv in &self.path_ast {
-            let entry = metrics
-                .per_rule
-                .entry(adv.rule_id.clone())
-                .or_default();
+            let entry = metrics.per_rule.entry(adv.rule_id.clone()).or_default();
             entry.total_ast += 1;
         }
 
@@ -162,18 +172,12 @@ impl ConsistencyCheck {
 
         // Per-file metrics
         for key in &div.missing_in_graph {
-            let entry = metrics
-                .per_file
-                .entry(key.file_path.clone())
-                .or_default();
+            let entry = metrics.per_file.entry(key.file_path.clone()).or_default();
             entry.missing += 1;
         }
 
         for key in &div.extra_in_graph {
-            let entry = metrics
-                .per_file
-                .entry(key.file_path.clone())
-                .or_default();
+            let entry = metrics.per_file.entry(key.file_path.clone()).or_default();
             entry.extra += 1;
         }
 
@@ -214,13 +218,13 @@ pub fn check_regression(current: &DivergenceMetrics, baseline: &DivergenceMetric
 
     // Check per-rule regressions
     for (rule, current_div) in &current.per_rule {
-        if let Some(baseline_div) = baseline.per_rule.get(rule) {
-            if current_div.missing > baseline_div.missing {
-                regressions.push(format!(
-                    "Rule '{}': missing findings increased: {} → {}",
-                    rule, baseline_div.missing, current_div.missing
-                ));
-            }
+        if let Some(baseline_div) = baseline.per_rule.get(rule)
+            && current_div.missing > baseline_div.missing
+        {
+            regressions.push(format!(
+                "Rule '{}': missing findings increased: {} → {}",
+                rule, baseline_div.missing, current_div.missing
+            ));
         }
     }
 

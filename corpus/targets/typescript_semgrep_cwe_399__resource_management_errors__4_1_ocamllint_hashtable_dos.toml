@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_399__RESOURCE_MANAGEMENT_ERRORS__4_1_OCAMLLINT_HASHTABLE_DOS"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 399  Resource Management Errors  4 1 Ocamllint Hashtable Dos."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

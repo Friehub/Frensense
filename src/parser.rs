@@ -22,8 +22,6 @@ impl ParserRegistry {
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
             #[cfg(feature = "python")]
             "py" | "pyi" => Ok(tree_sitter_python::LANGUAGE.into()),
-            #[cfg(feature = "c_lang")]
-            "c" | "h" => Ok(tree_sitter_c::LANGUAGE.into()),
             "yml" | "yaml" => Err(FrensenseError::Config(
                 "YAML tree-sitter parsing not available in this build".to_string(),
             )),

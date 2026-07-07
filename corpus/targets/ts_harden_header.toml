@@ -1,5 +1,0 @@
-id = "TS_HARDEN_HEADER"
-severity = "Warning"
-observation = "Corpus pattern: Ts Harden Header."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

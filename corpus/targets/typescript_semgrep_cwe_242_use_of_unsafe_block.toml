@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_242_USE_OF_UNSAFE_BLOCK"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 242 Use Of Unsafe Block."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

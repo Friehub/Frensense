@@ -1,5 +1,0 @@
-id = "RUST_CSA_SANITIZE_PASSTHROUGH"
-severity = "Critical"
-observation = "Function name implies sanitization (sanitize_*) but every dangerous pattern it detects is only logged with println!; the input is returned unmodified via input.to_string()."
-impact = "Callers treat the return value as safe to render, store as a filename, or use as a SQL identifier. Script tags, path traversal sequences, and SQL metacharacters pass through unchanged."
-improvement = "Actually transform the input: escape HTML entities, filter filenames to an allowed character set, strip non-alphanumeric characters from SQL identifiers — return a new String, not the original."

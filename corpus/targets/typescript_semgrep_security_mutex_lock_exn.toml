@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_MUTEX_LOCK_EXN"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Mutex Lock Exn."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

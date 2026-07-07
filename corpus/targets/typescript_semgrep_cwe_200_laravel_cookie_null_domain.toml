@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_200_LARAVEL_COOKIE_NULL_DOMAIN"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 200 Laravel Cookie Null Domain."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

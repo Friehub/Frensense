@@ -148,8 +148,19 @@ fn test_mcp_audit_clean_file() {
 #[test]
 fn test_mcp_audit_triggers_findings() {
     let dir = tempfile::tempdir().unwrap();
-    let f = dir.path().join("unused.rs");
-    fs::write(&f, "fn main() { let x = 1; }").unwrap();
+    let f = dir.path().join("unused.ts");
+    fs::write(
+        &f,
+        "
+export function decodeFileContent(data: { content: string, encoding: string }) {
+  if (data.encoding === \"base64\") {
+    data.content = atob(data.content);
+  }
+  return data.content;
+}
+",
+    )
+    .unwrap();
 
     let result = once_tool_call_with_threshold(&f.to_string_lossy(), "info");
     assert_eq!(result["clean"], false);
@@ -160,7 +171,7 @@ fn test_mcp_audit_triggers_findings() {
         .iter()
         .map(|a| a["rule_id"].as_str().unwrap())
         .collect();
-    assert!(ids.contains(&"UNUSED_VARIABLE"));
+    assert!(ids.contains(&"CORPUS_TS_ATOB_UTF8_CORRUPTION"));
 }
 
 #[test]
@@ -468,22 +479,32 @@ fn test_mcp_deeply_nested_path() {
 fn test_mcp_directory_scan() {
     let dir = tempfile::tempdir().unwrap();
 
-    // Files that trigger UNUSED_VARIABLE findings
+    // Files that trigger CORPUS findings
+    fs::write(dir.path().join("good.rs"), "fn main() { let _x = 1; }").unwrap();
     fs::write(
-        dir.path().join("good.rs"),
-        "fn main() { let x = 1; let y = 2; }",
+        dir.path().join("bad.ts"),
+        "
+export function decodeFileContent(data: { content: string, encoding: string }) {
+  if (data.encoding === \"base64\") {
+    data.content = atob(data.content);
+  }
+  return data.content;
+}
+",
     )
     .unwrap();
-    fs::write(
-        dir.path().join("bad.rs"),
-        "fn main() { let a = 1; let b = 2; }",
-    )
-    .unwrap();
-    fs::write(dir.path().join("main.rs"), "fn main() { let _ = 1; }").unwrap();
+    fs::write(dir.path().join("main.rs"), "fn main() { let _y = 1; }").unwrap();
     fs::create_dir(dir.path().join("nested")).unwrap();
     fs::write(
-        dir.path().join("nested").join("deep.rs"),
-        "fn process() { let val = 42; }",
+        dir.path().join("nested").join("deep.ts"),
+        "
+export function decodeFileContent(data: { content: string, encoding: string }) {
+  if (data.encoding === \"base64\") {
+    data.content = atob(data.content);
+  }
+  return data.content;
+}
+",
     )
     .unwrap();
 

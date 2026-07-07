@@ -181,7 +181,7 @@ pub fn handle_early_args(args: &[String]) -> bool {
         let corpus_dir = args
             .iter()
             .position(|a| a == "--corpus")
-            .and_then(|i| args.get(i + 1).map(|s| s.as_str()));
+            .and_then(|i| args.get(i + 1).map(std::string::String::as_str));
         if let Err(e) = handle_list_patterns(corpus_dir) {
             eprintln!("Error: {e}");
             std::process::exit(1);

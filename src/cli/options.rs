@@ -1,4 +1,3 @@
-#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
 use crate::{Severity, Suite};
 use std::path::PathBuf;
 
@@ -101,9 +100,9 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--sarif" => options.format = "sarif".to_string(),
             "--strict" => options.is_strict = true,
             "--fix" => {
-                let scope = args.get(i + 1).map(|s| s.as_str());
+                let scope = args.get(i + 1).map(std::string::String::as_str);
                 match scope {
-                    Some("style") | Some("security") | Some("all") => {
+                    Some("style" | "security" | "all") => {
                         options.fix_scope = Some(scope.unwrap().to_string());
                         i += 1;
                     }
@@ -111,9 +110,9 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 }
             }
             "--diff" => {
-                let scope = args.get(i + 1).map(|s| s.as_str());
+                let scope = args.get(i + 1).map(std::string::String::as_str);
                 match scope {
-                    Some("style") | Some("security") | Some("all") => {
+                    Some("style" | "security" | "all") => {
                         options.diff_scope = Some(scope.unwrap().to_string());
                         i += 1;
                     }

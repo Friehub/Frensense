@@ -22,12 +22,16 @@ pub struct FunctionFingerprint {
     pub structural_markers: FxHashSet<u64>,
     pub type_usages: Vec<String>,
     pub comment_density: f64,
-    /// Semantic markers: hashes of semantic features like "contains exec call"
-    /// These help discriminate between different vulnerability types
     pub semantic_markers: FxHashSet<u64>,
-    /// Structural skeleton: list of AST node kinds (identifiers/literals removed)
-    /// Used for AST edit distance computation
     pub skeleton: Vec<String>,
+    /// Control flow encoding: hashes of control flow paths through the function
+    /// Captures if/else, match, loop, return patterns that fingerprint race conditions, TOCTOU, etc.
+    pub control_flow_hashes: FxHashSet<u64>,
+    /// API calls: hashes of function call names used in the body
+    /// Used for AST-aware semantic matching (replaces text-based keyword search)
+    pub api_calls: FxHashSet<u64>,
+    /// Property accesses: hashes of object property access names (e.g., 'price' in 'item.price')
+    pub property_accesses: FxHashSet<u64>,
 }
 
 /// M1: Compute IDF weights for n-grams from a set of fingerprints.
@@ -48,11 +52,8 @@ pub fn compute_idf_weights(fingerprints: &[FunctionFingerprint]) -> FxHashMap<u6
         .collect()
 }
 
-/// Apply IDF weights to a fingerprint's weighted_ngram_hashes.
-pub fn apply_idf_weights(
-    fingerprint: &mut FunctionFingerprint,
-    idf_weights: &FxHashMap<u64, f32>,
-) {
+/// Apply IDF weights to a fingerprint's `weighted_ngram_hashes`.
+pub fn apply_idf_weights(fingerprint: &mut FunctionFingerprint, idf_weights: &FxHashMap<u64, f32>) {
     for (hash, weight) in &mut fingerprint.weighted_ngram_hashes {
         if let Some(&idf) = idf_weights.get(hash) {
             *weight = idf;
@@ -194,51 +195,289 @@ fn count_comment_bytes(node: Node<'_>, _source: &str) -> usize {
     }
 }
 
-/// Extract semantic markers from function body.
-/// These markers identify what APIs/patterns the function uses,
-/// helping discriminate between different vulnerability types.
-fn extract_semantic_markers(node: Node<'_>, source: &str) -> FxHashSet<u64> {
-    let mut markers = FxHashSet::default();
-    let body_text = &source[node.start_byte()..node.end_byte()];
+/// Extract control flow encoding from function body.
+/// Captures the sequence of control flow nodes (if, match, loop, return)
+/// to fingerprint patterns like check-then-act, early returns, nested conditionals.
+fn extract_control_flow(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+    let mut hashes = FxHashSet::default();
+    let mut path = Vec::new();
+    extract_cf_recursive(node, source, &mut path, &mut hashes);
+    hashes
+}
 
-    // Semantic categories and their keywords
-    let categories = [
-        // Database operations
-        ("db_query", &["query", "execute", "raw_query", "format_sql", "sql_query"] as &[&str]),
-        ("db_write", &["insert", "update", "upsert", "create"] as &[&str]),
-        // Command execution
-        ("cmd_exec", &["exec", "system", "spawn", "popen", "shell"] as &[&str]),
-        // Code evaluation
-        ("code_eval", &["eval", "Function(", "new Function"] as &[&str]),
-        // File operations
-        ("file_read", &["readFile", "readFileSync", "createReadStream", "read_to_string"] as &[&str]),
-        ("file_write", &["writeFile", "writeFileSync", "createWriteStream", "write"] as &[&str]),
-        // DOM manipulation
-        ("dom_xss", &["innerHTML", "outerHTML", "document.write", "insertAdjacentHTML"] as &[&str]),
-        // HTTP operations
-        ("http_request", &["fetch", "axios", "request", "http.get", "http.post"] as &[&str]),
-        // URL operations
-        ("url_redirect", &["location.href", "location.assign", "redirect", "res.redirect"] as &[&str]),
-        // Crypto operations
-        ("crypto_weak", &["md5", "sha1", "createHash"] as &[&str]),
-        ("crypto_strong", &["sha256", "sha512", "bcrypt", "argon2"] as &[&str]),
-        // Serialization
-        ("deserialize", &["JSON.parse", "from_str", "loads", "deserialize"] as &[&str]),
-        // Desensitization
-        ("sanitize", &["sanitize", "escape", "encode", "validate"] as &[&str]),
-        // Regex
-        ("regex", &["Regex::new", "new RegExp", "re.compile"] as &[&str]),
-        // Process
-        ("process", &["process.exit", "std::process", "child_process"] as &[&str]),
+fn extract_cf_recursive(
+    node: Node<'_>,
+    source: &str,
+    path: &mut Vec<String>,
+    hashes: &mut FxHashSet<u64>,
+) {
+    let kind = node.kind();
+
+    // Record control flow nodes
+    match kind {
+        "if_expression" | "if_statement" => {
+            path.push("if".to_string());
+            // Hash the condition text for condition-aware matching
+            if let Some(cond) = node.child_by_field_name("condition") {
+                let cond_text = &source[cond.start_byte()..cond.end_byte()];
+                let mut h = FxHasher::default();
+                "if_cond".hash(&mut h);
+                cond_text.len().hash(&mut h); // length as proxy for complexity
+                hashes.insert(h.finish());
+            }
+        }
+        "match_expression" | "match_statement" => {
+            path.push("match".to_string());
+            if let Some(body) = node.child_by_field_name("body") {
+                let arm_count = body.child_count();
+                let mut h = FxHasher::default();
+                "match_arms".hash(&mut h);
+                arm_count.hash(&mut h);
+                hashes.insert(h.finish());
+            }
+        }
+        "loop_expression" | "while_expression" | "for_expression" => {
+            path.push("loop".to_string());
+        }
+        "return_expression" | "return_statement" => {
+            path.push("return".to_string());
+        }
+        "break_expression" => {
+            path.push("break".to_string());
+        }
+        "try_expression" | "try_statement" => {
+            path.push("try".to_string());
+        }
+        "catch_clause" | "catch_block" => {
+            path.push("catch".to_string());
+        }
+        _ => {}
+    }
+
+    // Hash the path so far for each depth level
+    if !path.is_empty() && path.len() <= 10 {
+        let mut h = FxHasher::default();
+        path.hash(&mut h);
+        hashes.insert(h.finish());
+    }
+
+    // Recurse into children
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            extract_cf_recursive(child, source, path, hashes);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+
+    // Pop path when leaving control flow nodes
+    match kind {
+        "if_expression" | "if_statement" | "match_expression" | "match_statement"
+        | "loop_expression" | "while_expression" | "for_expression" | "return_expression"
+        | "return_statement" | "break_expression" | "try_expression" | "try_statement"
+        | "catch_clause" | "catch_block" => {
+            path.pop();
+        }
+        _ => {}
+    }
+}
+
+/// Extract API calls from function body using AST traversal.
+/// This replaces text-based keyword matching with actual call expression detection.
+fn extract_api_calls(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+    let mut calls = FxHashSet::default();
+    extract_calls_recursive(node, source, &mut calls);
+    calls
+}
+
+fn extract_calls_recursive(node: Node<'_>, source: &str, calls: &mut FxHashSet<u64>) {
+    let kind = node.kind();
+
+    // Match call expressions and extract the function name
+    if kind == "call_expression" {
+        if let Some(func) = node.child_by_field_name("function") {
+            let name = &source[func.start_byte()..func.end_byte()];
+            let mut h = FxHasher::default();
+            name.hash(&mut h);
+            calls.insert(h.finish());
+
+            // Also hash the "last segment" for method calls (e.g., "exec" from "child_process.exec")
+            if let Some(dot_pos) = name.rfind('.') {
+                let method = &name[dot_pos + 1..];
+                let mut h2 = FxHasher::default();
+                method.hash(&mut h2);
+                calls.insert(h2.finish());
+            }
+        }
+    }
+
+    // Also capture macro invocations (Rust)
+    if kind == "macro_invocation" {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = &source[name_node.start_byte()..name_node.end_byte()];
+            let mut h = FxHasher::default();
+            format!("macro_{name}").hash(&mut h);
+            calls.insert(h.finish());
+        }
+    }
+
+    // Recurse
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            extract_calls_recursive(child, source, calls);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+/// Extract object property accesses (e.g. `item.price`)
+fn extract_property_accesses(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+    let mut accesses = FxHashSet::default();
+    extract_properties_recursive(node, source, &mut accesses);
+    accesses
+}
+
+fn extract_properties_recursive(node: Node<'_>, source: &str, accesses: &mut FxHashSet<u64>) {
+    let kind = node.kind();
+    if kind == "member_expression" || kind == "field_expression" {
+        if let Some(prop) = node
+            .child_by_field_name("property")
+            .or_else(|| node.child_by_field_name("field"))
+        {
+            let name = &source[prop.start_byte()..prop.end_byte()];
+            let mut h = FxHasher::default();
+            name.hash(&mut h);
+            accesses.insert(h.finish());
+        }
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            extract_properties_recursive(cursor.node(), source, accesses);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+/// Extract semantic markers from function body using AST-aware API call detection.
+/// Uses actual call_expression nodes instead of text search to eliminate false positives
+/// from comments, strings, and variable names.
+fn extract_semantic_markers(
+    _node: Node<'_>,
+    _source: &str,
+    api_calls: &FxHashSet<u64>,
+    property_accesses: &FxHashSet<u64>,
+) -> FxHashSet<u64> {
+    let mut markers = FxHashSet::default();
+
+    // Semantic categories mapped to API call hashes
+    // Each category has a set of known-bad/good API names
+    let categories: &[(&str, &[&str])] = &[
+        (
+            "db_query",
+            &[
+                "query",
+                "execute",
+                "raw_query",
+                "format!",
+                "sql_query",
+                "execute_query",
+            ],
+        ),
+        (
+            "db_write",
+            &["insert", "update", "upsert", "execute", "bulk_write"],
+        ),
+        (
+            "cmd_exec",
+            &[
+                "exec",
+                "system",
+                "spawn",
+                "popen",
+                "Command::new",
+                "child_process",
+            ],
+        ),
+        ("code_eval", &["eval", "Function", "new Function"]),
+        (
+            "file_read",
+            &[
+                "readFile",
+                "readFileSync",
+                "createReadStream",
+                "read_to_string",
+                "fs::read",
+            ],
+        ),
+        (
+            "file_write",
+            &[
+                "writeFile",
+                "writeFileSync",
+                "createWriteStream",
+                "write",
+                "fs::write",
+            ],
+        ),
+        (
+            "dom_xss",
+            &[
+                "innerHTML",
+                "outerHTML",
+                "document.write",
+                "insertAdjacentHTML",
+            ],
+        ),
+        (
+            "http_request",
+            &["fetch", "axios", "request", "get", "post", "reqwest"],
+        ),
+        ("url_redirect", &["redirect", "location"]),
+        ("crypto_weak", &["md5", "sha1", "createHash", "Md5", "Sha1"]),
+        (
+            "crypto_strong",
+            &["sha256", "sha512", "bcrypt", "argon2", "Sha256"],
+        ),
+        (
+            "deserialize",
+            &[
+                "JSON.parse",
+                "from_str",
+                "loads",
+                "deserialize",
+                "serde_json",
+            ],
+        ),
+        ("sanitize", &["sanitize", "escape", "encode", "validate"]),
+        ("regex", &["Regex::new", "new RegExp", "re.compile"]),
+        ("process", &["exit", "std::process", "child_process"]),
+        ("auth_middleware", &["verify", "decode", "verifyToken"]),
+        ("weak_random", &["random"]), // For Math.random
+        (
+            "financial_calc",
+            &["price", "priceSnapshot", "total", "amount"],
+        ),
     ];
 
-    for (category, keywords) in &categories {
-        for keyword in *keywords {
-            if body_text.contains(keyword) {
-                let mut hasher = FxHasher::default();
-                category.hash(&mut hasher);
-                markers.insert(hasher.finish());
-                break; // Only need one match per category
+    for (category, api_names) in categories {
+        for api_name in *api_names {
+            let mut h = FxHasher::default();
+            api_name.hash(&mut h);
+            if api_calls.contains(&h.finish()) || property_accesses.contains(&h.finish()) {
+                let mut cat_h = FxHasher::default();
+                category.hash(&mut cat_h);
+                markers.insert(cat_h.finish());
+                break;
             }
         }
     }
@@ -280,7 +519,7 @@ pub fn extract_fingerprints(
     source_code: &str,
     path: &Path,
     fingerprints: &mut Vec<FunctionFingerprint>,
-    window_size: usize,
+    _window_size: usize,
 ) {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let language = crate::parser::ext_to_language(ext).to_string();
@@ -329,8 +568,17 @@ pub fn extract_fingerprints(
             let param_types = extract_param_types(node, source_code);
             let name_segments = split_name_segments(&function_name);
 
-            let positional_hashes = token_ngrams_positional(&tokens, window_size);
-            let semantic_markers = extract_semantic_markers(body, source_code);
+            // Multi-scale n-grams: combine window sizes 3, 5, and 8
+            let mut multi_scale_hashes = token_ngrams_positional(&tokens, 3);
+            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 5));
+            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 8));
+
+            // AST-aware features
+            let control_flow = extract_control_flow(body, source_code);
+            let api_calls = extract_api_calls(body, source_code);
+            let property_accesses = extract_property_accesses(body, source_code);
+            let semantic_markers =
+                extract_semantic_markers(body, source_code, &api_calls, &property_accesses);
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
 
             fingerprints.push(FunctionFingerprint {
@@ -338,8 +586,8 @@ pub fn extract_fingerprints(
                 function_name,
                 line: node.start_position().row + 1,
                 language: language.clone(),
-                ngram_hashes: positional_hashes.clone(),
-                weighted_ngram_hashes: positional_hashes.into_iter().map(|h| (h, 1.0)).collect(),
+                ngram_hashes: multi_scale_hashes.clone(),
+                weighted_ngram_hashes: multi_scale_hashes.into_iter().map(|h| (h, 1.0)).collect(),
                 signature_ngrams: token_ngrams(&sig_tokens, 3.min(sig_tokens.len().max(1))),
                 param_type_ngrams: token_ngrams(&param_types, 2.min(param_types.len().max(1))),
                 name_segments,
@@ -352,6 +600,9 @@ pub fn extract_fingerprints(
                 },
                 semantic_markers,
                 skeleton,
+                control_flow_hashes: control_flow,
+                api_calls,
+                property_accesses,
             });
         }
 

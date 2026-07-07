@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_MISSING_APK_NO_CACHE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Missing Apk No Cache."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_915_LARAVEL_DANGEROUS_MODEL_CONSTRUCTION"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 915 Laravel Dangerous Model Construction."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

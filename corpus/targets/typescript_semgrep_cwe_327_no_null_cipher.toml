@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_327_NO_NULL_CIPHER"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 327 No Null Cipher."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

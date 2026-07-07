@@ -1,5 +1,0 @@
-id = "TS_DESERIALIZATION"
-severity = "Warning"
-observation = "Untrusted data is deserialized using JSON.parse() without schema validation."
-impact = "Prototype pollution or injection attacks through crafted JSON payloads."
-improvement = "Validate deserialized data against a schema (e.g., Zod, Joi) before use."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_DETECT_GENERIC_AI_API"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Detect Generic Ai Api."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

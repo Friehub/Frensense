@@ -108,8 +108,14 @@ fn extract_calls(source: &str) -> Vec<(String, String)> {
     let re = regex::Regex::new(r"(\w+)\s*\(\s*(\w+)").unwrap();
 
     for cap in re.captures_iter(source) {
-        let caller = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-        let callee = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+        let caller = cap
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+        let callee = cap
+            .get(2)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
         calls.push((caller, callee));
     }
 
@@ -122,10 +128,10 @@ fn extract_functions(source: &str) -> HashMap<String, usize> {
     let re = regex::Regex::new(r"function\s+(\w+)").unwrap();
 
     for (i, line) in source.lines().enumerate() {
-        if let Some(cap) = re.captures(line) {
-            if let Some(name) = cap.get(1) {
-                funcs.insert(name.as_str().to_string(), i + 1);
-            }
+        if let Some(cap) = re.captures(line)
+            && let Some(name) = cap.get(1)
+        {
+            funcs.insert(name.as_str().to_string(), i + 1);
         }
     }
 
@@ -135,7 +141,11 @@ fn extract_functions(source: &str) -> HashMap<String, usize> {
 /// Get calls within a specific function.
 fn get_calls_in_function(source: &str, func_name: &str) -> Vec<String> {
     let mut calls = Vec::new();
-    let re = regex::Regex::new(&format!(r"function\s+{}\s*\([^)]*\)\s*\{{", regex::escape(func_name))).unwrap();
+    let re = regex::Regex::new(&format!(
+        r"function\s+{}\s*\([^)]*\)\s*\{{",
+        regex::escape(func_name)
+    ))
+    .unwrap();
 
     if let Some(m) = re.find(source) {
         let start = m.end();
@@ -182,7 +192,7 @@ fn analyze_changes(pos_calls: &[String], neg_calls: &[String]) -> Vec<AstChange>
         if !pos_set.contains(call) {
             changes.push(AstChange {
                 kind: ChangeKind::CallAdded,
-                description: format!("Added call: {}", call),
+                description: format!("Added call: {call}"),
             });
         }
     }
@@ -192,7 +202,7 @@ fn analyze_changes(pos_calls: &[String], neg_calls: &[String]) -> Vec<AstChange>
         if !neg_set.contains(call) {
             changes.push(AstChange {
                 kind: ChangeKind::CallRemoved,
-                description: format!("Removed call: {}", call),
+                description: format!("Removed call: {call}"),
             });
         }
     }

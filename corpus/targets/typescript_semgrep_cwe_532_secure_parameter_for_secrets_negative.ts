@@ -1,5 +1,0 @@
-// Fixed: Mark sensitive parameters with the @secure() decorator. This avoids logging the value or displaying it in the Azure portal, Azure CLI, or Azure PowerShell.
-// Apply appropriate sanitization
-function safe() {
-  // TODO: implement fix
-}

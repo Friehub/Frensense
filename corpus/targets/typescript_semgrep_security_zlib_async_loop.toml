@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_ZLIB_ASYNC_LOOP"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Zlib Async Loop."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

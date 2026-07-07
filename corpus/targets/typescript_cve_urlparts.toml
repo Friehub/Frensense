@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_CVE_URLPARTS"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Cve Urlparts."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

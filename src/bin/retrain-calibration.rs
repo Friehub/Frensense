@@ -9,7 +9,7 @@
 
 use frensense::engine::confidence_calibration::{CalibrationParams, save_calibration};
 use frensense_engine::corpus::loader::load_corpus;
-use frensense_engine::fingerprint::{compute_idf_weights, apply_idf_weights};
+use frensense_engine::fingerprint::{apply_idf_weights, compute_idf_weights};
 use frensense_engine::pattern::scorer::PatternScorer;
 use std::path::Path;
 
@@ -59,7 +59,8 @@ fn main() {
         }
     }
 
-    eprintln!("Generated {} labeled scores (TP={}, FP={})",
+    eprintln!(
+        "Generated {} labeled scores (TP={}, FP={})",
         scores.len(),
         scores.iter().filter(|(_, l)| *l).count(),
         scores.iter().filter(|(_, l)| !*l).count(),
@@ -86,7 +87,6 @@ fn main() {
 
     // Save to calibration.json
     let output_path = Path::new(&manifest_dir).join("calibration.json");
-    save_calibration(&params, &output_path)
-        .expect("Failed to save calibration");
+    save_calibration(&params, &output_path).expect("Failed to save calibration");
     eprintln!("\nSaved calibration to {}", output_path.display());
 }

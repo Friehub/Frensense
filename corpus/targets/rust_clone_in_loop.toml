@@ -1,5 +1,0 @@
-id = "RUST_CLONE_IN_LOOP"
-severity = "Warning"
-observation = "A .clone() call was found inside a loop body."
-impact = "Repeated allocation inside a loop degrades performance on hot paths."
-improvement = "Pull the clone outside the loop or use a reference instead."

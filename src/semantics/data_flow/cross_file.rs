@@ -8,11 +8,11 @@
 use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
-use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::data_flow::TaintOrigin;
+use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::symbols::SymbolRegistry;
-use frensense_engine::data_flow::DataFlowEngine;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
+use frensense_engine::data_flow::DataFlowEngine;
 
 /// Result of cross-file taint verification.
 #[derive(Debug, Clone)]
@@ -30,13 +30,20 @@ pub struct CrossFileResult {
 /// reaches dangerous sinks.
 pub struct CrossFileVerifier<'a> {
     source: &'a str,
-    tree: &'a tree_sitter::Tree,
-    file_path: String,
+    _tree: &'a tree_sitter::Tree,
+    _file_path: String,
     registry: TaintRegistry,
-    symbols: &'a SymbolRegistry,
-    data_flow: &'a DataFlowEngine,
-    file_trees: &'a HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
-    visited: HashSet<(String, usize)>,
+    _symbols: &'a SymbolRegistry,
+    _data_flow: &'a DataFlowEngine,
+    _file_trees: &'a HashMap<
+        String,
+        (
+            tree_sitter::Tree,
+            String,
+            Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+        ),
+    >,
+    _visited: HashSet<(String, usize)>,
     max_depth: usize,
     source_sink: &'a CorpusSourceSinkRegistry,
 }
@@ -48,18 +55,25 @@ impl<'a> CrossFileVerifier<'a> {
         file_path: &str,
         symbols: &'a SymbolRegistry,
         data_flow: &'a DataFlowEngine,
-        file_trees: &'a HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+        file_trees: &'a HashMap<
+            String,
+            (
+                tree_sitter::Tree,
+                String,
+                Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+            ),
+        >,
         source_sink: &'a CorpusSourceSinkRegistry,
     ) -> Self {
         Self {
             source,
-            tree,
-            file_path: file_path.to_string(),
+            _tree: tree,
+            _file_path: file_path.to_string(),
             registry: TaintRegistry::default(),
-            symbols,
-            data_flow,
-            file_trees,
-            visited: HashSet::new(),
+            _symbols: symbols,
+            _data_flow: data_flow,
+            _file_trees: file_trees,
+            _visited: HashSet::new(),
             max_depth: 5,
             source_sink,
         }
@@ -101,12 +115,14 @@ impl<'a> CrossFileVerifier<'a> {
     pub fn verify_flow(&mut self, fn_node: Node) -> CrossFileResult {
         let body = match fn_node.child_by_field_name("body") {
             Some(b) => b,
-            None => return CrossFileResult {
-                verified: false,
-                depth: 0,
-                path: Vec::new(),
-                detail: "No function body".to_string(),
-            },
+            None => {
+                return CrossFileResult {
+                    verified: false,
+                    depth: 0,
+                    path: Vec::new(),
+                    detail: "No function body".to_string(),
+                };
+            }
         };
 
         // Check if any parameter is tainted (AST-seeded, not name-based)
@@ -150,23 +166,23 @@ impl<'a> CrossFileVerifier<'a> {
             }
             // Track variable assignments
             "variable_declarator" | "lexical_declaration" => {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    if let Some(value_node) = node.child_by_field_name("value") {
-                        let name = &self.source[name_node.start_byte()..name_node.end_byte()];
-                        if self.is_node_tainted(value_node) {
-                            self.registry.taint(name, TaintOrigin::UserInput);
-                        }
+                if let Some(name_node) = node.child_by_field_name("name")
+                    && let Some(value_node) = node.child_by_field_name("value")
+                {
+                    let name = &self.source[name_node.start_byte()..name_node.end_byte()];
+                    if self.is_node_tainted(value_node) {
+                        self.registry.taint(name, TaintOrigin::UserInput);
                     }
                 }
             }
             // Track assignments
             "assignment_expression" => {
-                if let Some(left) = node.child_by_field_name("left") {
-                    if let Some(right) = node.child_by_field_name("right") {
-                        let name = &self.source[left.start_byte()..left.end_byte()];
-                        if self.is_node_tainted(right) {
-                            self.registry.taint(name, TaintOrigin::UserInput);
-                        }
+                if let Some(left) = node.child_by_field_name("left")
+                    && let Some(right) = node.child_by_field_name("right")
+                {
+                    let name = &self.source[left.start_byte()..left.end_byte()];
+                    if self.is_node_tainted(right) {
+                        self.registry.taint(name, TaintOrigin::UserInput);
                     }
                 }
             }
@@ -224,15 +240,12 @@ impl<'a> CrossFileVerifier<'a> {
                 }
                 if self.is_node_tainted(arg) {
                     let arg_text = &self.source[arg.start_byte()..arg.end_byte()];
-                    path.push(format!("{}({})", fn_name, arg_text));
+                    path.push(format!("{fn_name}({arg_text})"));
                     return Some(CrossFileResult {
                         verified: true,
                         depth,
                         path: path.clone(),
-                        detail: format!(
-                            "Tainted data reaches sink '{}'",
-                            fn_name
-                        ),
+                        detail: format!("Tainted data reaches sink '{fn_name}'"),
                     });
                 }
             }
@@ -249,9 +262,7 @@ impl<'a> CrossFileVerifier<'a> {
                 self.registry.is_tainted(name)
             }
             "member_expression" | "field_expression" => {
-                if let Some(object) = node.child_by_field_name("object")
-                    .or_else(|| node.child(0))
-                {
+                if let Some(object) = node.child_by_field_name("object").or_else(|| node.child(0)) {
                     return self.is_node_tainted(object);
                 }
                 false
@@ -279,7 +290,7 @@ impl<'a> CrossFileVerifier<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
+    use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 
     fn test_registry() -> CorpusSourceSinkRegistry {
         let mut reg = CorpusSourceSinkRegistry::default();

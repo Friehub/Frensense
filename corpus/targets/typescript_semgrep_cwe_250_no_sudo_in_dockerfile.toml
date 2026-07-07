@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_250_NO_SUDO_IN_DOCKERFILE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 250 No Sudo In Dockerfile."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

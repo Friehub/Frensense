@@ -36,7 +36,6 @@ fn test_symbol_shadowing() {
 }
 
 #[test]
-#[allow(clippy::items_after_statements)]
 fn test_taint_through_destructuring() {
     let content = r"
         let (a, b) = get_tainted_pair();
@@ -77,55 +76,13 @@ fn test_taint_through_destructuring() {
     // Manual source injection
     taint_reg.taint("get_tainted_pair", TaintOrigin::UserInput);
 
-    let source_re = regex::Regex::new("get_tainted_pair").unwrap();
-    let sink_re = regex::Regex::new("sink").unwrap();
+    let advisories = analyzer.analyze_block(tree.root_node(), &mut taint_reg);
 
-    // We need a dummy rule
-    struct DummyRule {
-        metadata: frensense::RuleMetadata,
-    }
-    impl frensense::FrensenseRule for DummyRule {
-        fn metadata(&self) -> &frensense::RuleMetadata {
-            &self.metadata
-        }
-        fn check<'a>(
-            &self,
-            _n: tree_sitter::Node<'a>,
-            _c: &FrensenseContext<'a>,
-        ) -> Vec<frensense::Advisory> {
-            vec![]
-        }
-        fn applies_to(&self, _ext: &str) -> bool {
-            true
-        }
-    }
-
-    let rule = DummyRule {
-        metadata: frensense::RuleMetadata {
-            id: "DUMMY".into(),
-            name: "Dummy".into(),
-            severity: frensense::Severity::Info,
-            observation: "Dummy finding".into(),
-            impact: "None".into(),
-            improvement: "None".into(),
-            tags: vec![],
-            category: "Test".into(),
-            confidence: 0.55,
-            precision: frensense::Precision::VeryHigh,
-        },
-    };
-
-    let advisories = analyzer.analyze_block(
-        tree.root_node(),
-        &source_re,
-        &sink_re,
-        &rule,
-        &mut taint_reg,
-    );
-    assert!(
-        !advisories.is_empty(),
-        "Taint should flow through destructuring to sink(a)"
-    );
+    // analyze_block now only propagates taint — it no longer emits advisories.
+    // Taint verification is handled by the corpus layer (CrossFileVerifier).
+    // This test verifies that analyze_block runs without panicking.
+    // Full taint detection is tested via corpus patterns.
+    let _ = advisories;
 }
 
 #[test]
@@ -221,30 +178,6 @@ fn test_sarif_output_properties() {
     assert_eq!(tags[1].as_str(), Some("rust"));
 }
 
-#[test]
-fn test_non_remediated_advisory_is_not_auto_fixable() {
-    let dir = tempfile::tempdir().unwrap();
-    let f = dir.path().join("leak.ts");
-    fs::write(
-        &f,
-        "function logPassword(password: string) { console.log(password); }",
-    )
-    .unwrap();
-
-    let mut engine = Engine::new();
-    let advisories = engine.run(&f).unwrap();
-    let leak_adv = advisories
-        .iter()
-        .find(|a| a.rule_id == "TAINT_CREDENTIAL_TO_LOG");
-
-    assert!(
-        leak_adv.is_some(),
-        "TAINT_CREDENTIAL_TO_LOG must fire on console.log(password)"
-    );
-    let adv = leak_adv.unwrap();
-    assert!(
-        !adv.auto_fixable,
-        "non-remediated advisory must not be auto_fixable"
-    );
-    assert!(adv.proposed_replacement.is_none());
-}
+// test_non_remediated_advisory_is_not_auto_fixable removed —
+// TAINT_CREDENTIAL_TO_LOG was a taint-as-detection rule that has been removed.
+// Taint detection is now corpus-driven. See corpus/targets/ for detection patterns.

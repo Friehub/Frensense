@@ -1,5 +1,0 @@
-id = "RUST_SEC_CMD_INJECTION_10"
-severity = "Critical"
-observation = "Corpus pattern: Rust Sec Cmd Injection 10."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_285_WP_AJAX_NO_AUTH_AND_AUTH_HOOKS_AUDIT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 285 Wp Ajax No Auth And Auth Hooks Audit."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

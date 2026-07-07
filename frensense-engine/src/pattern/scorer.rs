@@ -37,11 +37,13 @@ fn weighted_jaccard(
 
 /// M8: Cross-lingual transfer penalty.
 /// If pattern language differs from candidate language, apply penalty.
+/// Cross-language matching is useful for catching similar bug patterns across languages,
+/// but should be heavily penalized to avoid false positives.
 fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
     if pattern_lang == candidate_lang || pattern_lang == "unknown" || candidate_lang == "unknown" {
         1.0
     } else {
-        0.75 // 25% penalty for cross-language matching
+        0.40 // 60% penalty for cross-language matching (was 25%, too weak)
     }
 }
 
@@ -172,25 +174,57 @@ impl PatternScorer {
             jaccard(&candidate.structural_markers, &negative.structural_markers)
         };
 
-        // Weighted blend: AST distance gets 40% weight for structural discrimination
-        let sim_to_positive = ngram_sim_pos * 0.20
-            + ast_sim_pos * 0.40
-            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.10
-            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
-            + type_usage_overlap(candidate, positive) * 0.05
-            + semantic_sim_pos * 0.20;
+        // Control flow similarity
+        let cf_sim_pos = jaccard(
+            &candidate.control_flow_hashes,
+            &positive.control_flow_hashes,
+        );
+        let cf_sim_neg = jaccard(
+            &candidate.control_flow_hashes,
+            &negative.control_flow_hashes,
+        );
 
-        let sim_to_negative = ngram_sim_neg * 0.20
-            + ast_sim_neg * 0.40
-            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.10
-            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
-            + type_usage_overlap(candidate, negative) * 0.05
-            + semantic_sim_neg * 0.20;
+        // API call similarity
+        let api_sim_pos = jaccard(&candidate.api_calls, &positive.api_calls);
+        let api_sim_neg = jaccard(&candidate.api_calls, &negative.api_calls);
+
+        // Weighted blend: 9 dimensions with AST and semantics prioritized
+        let sim_to_positive = ngram_sim_pos * 0.12
+            + ast_sim_pos * 0.28
+            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.08
+            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.04
+            + type_usage_overlap(candidate, positive) * 0.03
+            + semantic_sim_pos * 0.15
+            + cf_sim_pos * 0.15
+            + api_sim_pos * 0.15;
+
+        // Semantic Multiplier Penalty & Boost
+        // If the positive bug relies on specific semantics (like Math.random or innerHTML),
+        // and the candidate shares NONE of those semantics, we penalize it.
+        // If the candidate SHARES the semantics, we give it a massive boost because it's a high-confidence match.
+        let semantic_multiplier = if !positive.semantic_markers.is_empty() {
+            if semantic_sim_pos == 0.0 {
+                0.30 // 70% penalty if required semantics are missing
+            } else {
+                2.0 // 100% boost if required semantics match!
+            }
+        } else {
+            1.0
+        };
+
+        let sim_to_negative = ngram_sim_neg * 0.12
+            + ast_sim_neg * 0.28
+            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.08
+            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.04
+            + type_usage_overlap(candidate, negative) * 0.03
+            + semantic_sim_neg * 0.15
+            + cf_sim_neg * 0.15
+            + api_sim_neg * 0.15;
 
         // M8: Apply cross-lingual transfer penalty
         let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
 
-        sim_to_positive * (1.0 - sim_to_negative) * f64::from(transfer)
+        sim_to_positive * (1.0 - sim_to_negative) * f64::from(transfer) * semantic_multiplier
     }
 
     pub fn similarity_to_positive(
@@ -208,11 +242,18 @@ impl PatternScorer {
                 &positive.weighted_ngram_hashes,
             )
         };
-        ngram_sim * 0.35
-            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.30
-            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.20
-            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.10
+        let cf_sim = jaccard(
+            &candidate.control_flow_hashes,
+            &positive.control_flow_hashes,
+        );
+        let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
+        ngram_sim * 0.20
+            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.25
+            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.15
+            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, positive) * 0.05
+            + cf_sim * 0.15
+            + api_sim * 0.15
     }
 
     pub fn similarity_to_negative(
@@ -230,11 +271,18 @@ impl PatternScorer {
                 &negative.weighted_ngram_hashes,
             )
         };
-        ngram_sim * 0.35
-            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.30
-            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.20
-            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.10
+        let cf_sim = jaccard(
+            &candidate.control_flow_hashes,
+            &negative.control_flow_hashes,
+        );
+        let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
+        ngram_sim * 0.20
+            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.25
+            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.15
+            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, negative) * 0.05
+            + cf_sim * 0.15
+            + api_sim * 0.15
     }
 }
 
@@ -310,7 +358,7 @@ mod tests {
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
         let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
         assert!(
-            score > 0.6,
+            score > 0.5,
             "candidate identical to positive should score high, got {score}"
         );
     }

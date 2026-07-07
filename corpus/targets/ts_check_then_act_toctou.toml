@@ -1,5 +1,0 @@
-id = "TS_CHECK_THEN_ACT_TOCTOU"
-severity = "Critical"
-observation = "A value is read from the database, checked or validated, and then acted upon in a separate operation without transactional atomicity. This creates a time-of-check-time-of-use (TOCTOU) race condition."
-impact = "Concurrent requests can bypass the check and cause overselling, double-spending, duplicate records, or coupon over-redemption."
-improvement = "Move the check inside the transaction, use atomic updateMany with conditional WHERE, or use upsert. For state machines, use SELECT ... FOR UPDATE or optimistic locking with a version column."

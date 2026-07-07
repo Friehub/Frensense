@@ -32,17 +32,105 @@ impl DependencyResolver {
     }
 
     pub fn load_project(&mut self, root: &Path) {
-        self.load_cargo_lock(root);
-        self.load_cargo_toml_deps(root);
-        self.load_package_json(root);
-        
+        // If root is a file, use its parent directory
+        let project_root = if root.is_file() {
+            root.parent().unwrap_or(root)
+        } else {
+            root
+        };
+
+        // Find workspace root for Rust projects
+        let workspace_root = Self::find_workspace_root(project_root);
+
+        if let Some(ref ws_root) = workspace_root {
+            self.load_cargo_lock(ws_root);
+            self.load_cargo_toml_deps(ws_root);
+        } else {
+            self.load_cargo_lock(project_root);
+            self.load_cargo_toml_deps(project_root);
+        }
+        self.load_package_json(project_root);
+
         // Also load package.json from common subdirectories (monorepo support)
-        self.load_package_json_from_dir(&root.join("apps"));
-        self.load_package_json_from_dir(&root.join("packages"));
-        self.load_package_json_from_dir(&root.join("services"));
+        self.load_package_json_from_dir(&project_root.join("apps"));
+        self.load_package_json_from_dir(&project_root.join("packages"));
+        self.load_package_json_from_dir(&project_root.join("services"));
+
+        // Try to load workspace patterns from pnpm-workspace.yaml or similar
+        self.load_workspace_packages(project_root);
+
+        // Traverse upward to find ALL package.json files in ancestor directories
+        // This handles monorepos where deps are spread across workspace roots
+        let mut current = project_root.to_path_buf();
+        for _ in 0..10 {
+            if !current.pop() {
+                break;
+            }
+            if current.join("package.json").exists() {
+                self.load_package_json(&current);
+                self.load_workspace_packages(&current);
+                self.load_package_json_from_dir(&current.join("apps"));
+                self.load_package_json_from_dir(&current.join("packages"));
+                self.load_package_json_from_dir(&current.join("services"));
+            }
+            // Also check for Cargo.toml (Rust workspace root)
+            if current.join("Cargo.toml").exists() {
+                self.load_cargo_lock(&current);
+                self.load_cargo_toml_deps(&current);
+            }
+            // Stop at git root
+            if current.join(".git").exists() {
+                break;
+            }
+        }
 
         if self.check_deps_enabled {
-            self.verify_cargo_metadata_available(root);
+            self.verify_cargo_metadata_available(project_root);
+        }
+    }
+
+    fn load_workspace_packages(&mut self, root: &Path) {
+        // Try pnpm-workspace.yaml
+        let pnpm_path = root.join("pnpm-workspace.yaml");
+        if let Ok(content) = fs::read_to_string(&pnpm_path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("- '") || trimmed.starts_with("- \"") {
+                    let pattern = trimmed
+                        .trim_start_matches("- ")
+                        .trim_matches('\'')
+                        .trim_matches('"');
+                    // Convert glob pattern to directory path (e.g., "apps/*" -> "apps")
+                    if let Some(star_pos) = pattern.find("/*") {
+                        let dir_name = &pattern[..star_pos];
+                        self.load_package_json_from_dir(&root.join(dir_name));
+                    } else if !pattern.contains('*') {
+                        self.load_package_json(&root.join(pattern));
+                    }
+                }
+            }
+        }
+
+        // Try yarn workspaces in package.json
+        let pkg_path = root.join("package.json");
+        if let Ok(content) = fs::read_to_string(&pkg_path) {
+            if let Some(ws_start) = content.find("\"workspaces\"") {
+                let ws_section = &content[ws_start..];
+                // Check if workspaces is an object with "packages" key
+                if let Some(packages_start) = ws_section.find("\"packages\"") {
+                    let packages_section = &ws_section[packages_start..];
+                    for line in packages_section.lines() {
+                        let trimmed = line.trim().trim_matches(',').trim_matches('"');
+                        if trimmed.starts_with("apps/")
+                            || trimmed.starts_with("packages/")
+                            || trimmed.starts_with("services/")
+                        {
+                            let dir = trimmed.trim_end_matches("/*");
+                            self.load_package_json_from_dir(&root.join(dir));
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -67,7 +155,9 @@ impl DependencyResolver {
             Ok(out) => {
                 let stderr = String::from_utf8_lossy(&out.stderr);
                 eprintln!("Warning: cargo metadata failed: {}", stderr.trim());
-                eprintln!("Dependency checking may be incomplete. Install Rust toolchain for full support.");
+                eprintln!(
+                    "Dependency checking may be incomplete. Install Rust toolchain for full support."
+                );
             }
             Err(e) => {
                 eprintln!("Warning: cargo not found on PATH: {e}");
@@ -76,16 +166,30 @@ impl DependencyResolver {
             }
         }
     }
-    
+
     fn load_package_json_from_dir(&mut self, dir: &Path) {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_dir() {
+                if path.is_dir() && !path.file_name().map_or(false, |n| n == "node_modules") {
                     self.load_package_json(&path);
+                    self.load_package_json_from_dir(&path);
                 }
             }
         }
+    }
+
+    fn _find_package_json_upward(start: &Path) -> Option<PathBuf> {
+        let mut current = start.to_path_buf();
+        for _ in 0..10 {
+            if current.join("package.json").exists() {
+                return Some(current);
+            }
+            if !current.pop() {
+                break;
+            }
+        }
+        None
     }
 
     fn find_workspace_root(root: &Path) -> Option<PathBuf> {
@@ -127,22 +231,32 @@ impl DependencyResolver {
 
         let mut in_deps = false;
         let mut in_dev = false;
+        let mut in_ws_deps = false;
         for line in content.lines() {
             let trimmed = line.trim();
 
             if trimmed == "[dependencies]" {
                 in_deps = true;
                 in_dev = false;
+                in_ws_deps = false;
                 continue;
             }
             if trimmed == "[dev-dependencies]" {
                 in_deps = false;
                 in_dev = true;
+                in_ws_deps = false;
+                continue;
+            }
+            if trimmed == "[workspace.dependencies]" {
+                in_deps = false;
+                in_dev = false;
+                in_ws_deps = true;
                 continue;
             }
             if trimmed.starts_with('[') && trimmed.ends_with(']') {
                 in_deps = false;
                 in_dev = false;
+                in_ws_deps = false;
                 continue;
             }
 
@@ -156,37 +270,14 @@ impl DependencyResolver {
                 continue;
             }
 
-            if in_deps || in_dev {
+            if in_deps || in_dev || in_ws_deps {
                 if let Some(name) = extract_dep_name(trimmed) {
                     self.cargo_deps.insert(name);
                 }
             }
         }
 
-        if let Some(workspace_root) = Self::find_workspace_root(root) {
-            if workspace_root != root {
-                let ws_toml = workspace_root.join("Cargo.toml");
-                if let Ok(ws) = fs::read_to_string(&ws_toml) {
-                    let mut in_ws = false;
-                    for line in ws.lines() {
-                        let t = line.trim();
-                        if t == "[workspace.dependencies]" {
-                            in_ws = true;
-                            continue;
-                        }
-                        if t.starts_with('[') && t.ends_with(']') {
-                            in_ws = false;
-                            continue;
-                        }
-                        if in_ws {
-                            if let Some(name) = extract_dep_name(t) {
-                                self.cargo_deps.insert(name);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // Note: [workspace.dependencies] is now handled in the same loop above
     }
 
     fn load_package_json(&mut self, root: &Path) {
@@ -212,7 +303,7 @@ impl DependencyResolver {
         if self.npm_deps.contains(package_name) {
             return true;
         }
-        
+
         // Handle subpath imports: "dotenv/config" → check "dotenv"
         if let Some(slash_pos) = package_name.find('/') {
             let base = &package_name[..slash_pos];
@@ -220,7 +311,7 @@ impl DependencyResolver {
                 return true;
             }
         }
-        
+
         // Handle scoped packages: "@fastify/cors" → already in deps as "@fastify/cors"
         // But also check if "@fastify" prefix matches any dep
         if package_name.starts_with('@') {
@@ -231,7 +322,7 @@ impl DependencyResolver {
                 }
             }
         }
-        
+
         false
     }
 
@@ -261,7 +352,10 @@ impl DependencyResolver {
                 }
                 "ts" | "tsx" | "js" | "jsx" => {
                     if let Some(import) = extract_ts_package(trimmed) {
-                        if !self.check_npm_import(&import) && !is_relative_import(&import) {
+                        if !self.check_npm_import(&import)
+                            && !is_relative_import(&import)
+                            && !is_nodejs_builtin(&import)
+                        {
                             hits.push(HallucinatedImport {
                                 import_name: import,
                                 line: line_num + 1,
@@ -283,7 +377,8 @@ fn parse_json_keys(text: &str, set: &mut HashSet<String>) {
     let mut in_object = false;
     for line in text.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with('{') {
+        // Handle both standalone `{` and `"key": {` patterns
+        if trimmed.contains('{') {
             in_object = true;
             continue;
         }
@@ -306,6 +401,13 @@ fn parse_json_keys(text: &str, set: &mut HashSet<String>) {
 fn extract_dep_name(line: &str) -> Option<String> {
     let trimmed = line.trim();
     if trimmed.is_empty() || trimmed.starts_with('[') || trimmed.starts_with('#') {
+        return None;
+    }
+    // Skip package metadata lines
+    if trimmed.starts_with("name = ")
+        || trimmed.starts_with("version = ")
+        || trimmed.starts_with("authors = ")
+    {
         return None;
     }
     let key = trimmed.split('=').next()?.trim();
@@ -335,6 +437,10 @@ fn extract_ts_package(line: &str) -> Option<String> {
         .strip_prefix("import ")
         .or_else(|| line.strip_prefix("from "))
     {
+        // Skip type-only imports: "import type { ... } from '...'"
+        if rest.trim_start().starts_with("type ") {
+            return None;
+        }
         let package = rest
             .rsplit("from ")
             .next()?
@@ -360,6 +466,53 @@ fn is_local_module(name: &str) -> bool {
 
 fn is_relative_import(name: &str) -> bool {
     name.starts_with('.') || name.starts_with('/') || name.starts_with("~/")
+}
+
+fn is_nodejs_builtin(name: &str) -> bool {
+    // Node.js built-in modules (v18+)
+    matches!(
+        name,
+        "assert"
+            | "async_hooks"
+            | "buffer"
+            | "child_process"
+            | "cluster"
+            | "console"
+            | "constants"
+            | "crypto"
+            | "dgram"
+            | "dns"
+            | "domain"
+            | "events"
+            | "fs"
+            | "http"
+            | "http2"
+            | "https"
+            | "inspector"
+            | "module"
+            | "net"
+            | "os"
+            | "path"
+            | "perf_hooks"
+            | "process"
+            | "punycode"
+            | "querystring"
+            | "readline"
+            | "repl"
+            | "stream"
+            | "string_decoder"
+            | "sys"
+            | "timers"
+            | "tls"
+            | "trace_events"
+            | "tty"
+            | "url"
+            | "util"
+            | "v8"
+            | "vm"
+            | "worker_threads"
+            | "zlib"
+    )
 }
 
 #[cfg(test)]
@@ -415,5 +568,75 @@ mod tests {
 
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].import_name, "fake_crate");
+    }
+
+    #[test]
+    fn test_nodejs_builtin_not_flagged() {
+        let mut resolver = DependencyResolver::new();
+        resolver.npm_deps.insert("express".to_string());
+
+        let source = r#"import crypto from 'crypto';
+import express from 'express';
+import fs from 'fs';
+"#;
+        let hits = resolver.scan_file(source, Path::new("test.ts"));
+
+        // Only express should be found (it's in deps), crypto and fs are builtins
+        assert_eq!(hits.len(), 0);
+    }
+
+    #[test]
+    fn test_type_import_not_flagged() {
+        let mut resolver = DependencyResolver::new();
+
+        let source =
+            "import type { Request } from 'express';\nimport { Response } from 'express';\n";
+        let hits = resolver.scan_file(source, Path::new("test.ts"));
+
+        // type import should not be flagged, but Response import should be (not in deps)
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].import_name, "express");
+    }
+
+    #[test]
+    fn test_monorepo_upward_traversal() {
+        // Create a temporary directory structure simulating a monorepo
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let root = tmp_dir.path();
+
+        // Create root package.json (multi-line to match real format)
+        std::fs::write(
+            root.join("package.json"),
+            "{\n  \"dependencies\": {\n    \"react\": \"^18.0.0\"\n  }\n}",
+        )
+        .unwrap();
+
+        // Create .git directory to mark as git root
+        std::fs::create_dir(root.join(".git")).unwrap();
+
+        // Create apps/web/package.json
+        std::fs::create_dir_all(root.join("apps/web")).unwrap();
+        std::fs::write(
+            root.join("apps/web/package.json"),
+            "{\n  \"dependencies\": {\n    \"next\": \"^14.0.0\"\n  }\n}",
+        )
+        .unwrap();
+
+        // Create a file in a deep directory
+        std::fs::create_dir_all(root.join("apps/web/src")).unwrap();
+        std::fs::write(root.join("apps/web/src/index.ts"), "").unwrap();
+
+        let mut resolver = DependencyResolver::new();
+        resolver.load_project(&root.join("apps/web/src/index.ts"));
+
+        // Should find both react (from root) and next (from apps/web)
+        assert!(
+            resolver.check_npm_import("react"),
+            "Should find react from root package.json"
+        );
+        assert!(
+            resolver.check_npm_import("next"),
+            "Should find next from apps/web/package.json"
+        );
     }
 }

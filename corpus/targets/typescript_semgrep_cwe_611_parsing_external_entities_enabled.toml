@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_611_PARSING_EXTERNAL_ENTITIES_ENABLED"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 611 Parsing External Entities Enabled."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,6 +1,6 @@
 [package]
 name = "frensense-engine"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Friehub Developers"]
 edition = "2024"
 description = "Frensense engine core — structural code analysis primitives (fingerprints, profiles, semantic graph, taint, temporal events)"
@@ -16,7 +16,6 @@ tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-javascript = { version = "0.23", optional = true }
-tree-sitter-c = { version = "0.23", optional = true }
 tree-sitter-python = { version = "0.23", optional = true }
 rustc-hash = "1.1"
 petgraph = "0.6"
@@ -32,7 +31,6 @@ toml = "0.8"
 default = ["rust", "typescript"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-c_lang = ["dep:tree-sitter-c"]
 python = ["dep:tree-sitter-python"]
 serialize = ["dep:serde", "dep:serde_json", "dep:bincode", "dep:blake3"]
 

@@ -220,13 +220,11 @@ Categories:
 
 | Limitation | Impact | Status |
 |------------|--------|--------|
-| TOCTOU detector Prisma-only | Misses TOCTOU in TypeORM, Sequelize, Knex, raw SQL | Open — needs corpus patterns |
-| 6 corpus patterns with FPs at threshold 0.32 | False positives on negatives | Open — needs richer negatives |
 | Severity mismatch (TOML "Critical" → output "Warning") | Misleading severity in output | Open — TOML severity not propagated |
 | Secret scanner gaps (no Azure, GitLab, npm, PyPI) | Misses some token types | Open |
 | Patcher TypeScript-only | Import injection won't work for Rust/Python | Open |
-| Temporal rules are hardcoded | lock/unlock, acquire/release only | Open — could be corpus-driven |
 | Semantic filters are manual AST constraints | Requires hand-written TOML per pattern | Open — could be deleted if scorer is strong enough |
+| Scorer false positives on trivial code | `fn main()` matches unrelated corpus patterns | Open — needs tighter scoring |
 
 ---
 
@@ -250,14 +248,17 @@ temporal = []
 **File:** `src/engine/findings/mod.rs`
 
 ```
-1. DeadBranch       — uses ReachabilityChecker
-2. UnusedVariable   — uses CFG def-use chains
-3. TemporalViolation — uses TemporalAnalyzer (hardcoded rules from TOML)
-4. HallucinatedImport — uses DependencyResolver
-5. CrossFileTaint    — NO-OP (handled by corpus layer)
-6. AtomicSection     — uses AtomicSectionAnalyzer (C lock/unlock)
-7. SemanticPatterns  — uses PatternRunner (CHECK_THEN_ACT_TOCTOU only)
+1. TemporalViolation — NO-OP (temporal detection is corpus-driven)
+2. HallucinatedImport — uses DependencyResolver
+3. CrossFileTaint    — NO-OP (handled by corpus layer)
+4. SemanticPatterns  — NO-OP (TOCTOU detection is corpus-driven)
 ```
+
+Removed commodity detectors (Clippy/GitLeaks do them better):
+- ~~DeadBranch~~ — Clippy catches `if false`
+- ~~UnusedVariable~~ — Clippy, rust-analyzer, tsc
+- ~~AtomicSection~~ — C-specific lock/unlock, too niche
+- ~~Secret scanning~~ — GitLeaks, TruffleHog have 100+ patterns
 
 ---
 

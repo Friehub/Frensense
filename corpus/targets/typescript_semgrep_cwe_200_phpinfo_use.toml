@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_200_PHPINFO_USE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 200 Phpinfo Use."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

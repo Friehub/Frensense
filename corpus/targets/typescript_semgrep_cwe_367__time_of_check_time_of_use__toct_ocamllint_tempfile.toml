@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_367__TIME_OF_CHECK_TIME_OF_USE__TOCT_OCAMLLINT_TEMPFILE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 367  Time Of Check Time Of Use  Toct Ocamllint Tempfile."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

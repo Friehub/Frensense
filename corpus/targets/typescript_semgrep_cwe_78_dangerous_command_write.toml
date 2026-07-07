@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_78_DANGEROUS_COMMAND_WRITE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 78 Dangerous Command Write."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

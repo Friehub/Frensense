@@ -69,8 +69,7 @@ pub fn simple_taint_check(
                     file_id,
                     file_path,
                     format!(
-                        "Source '{}' and sink '{}' found in same function (AST-direct check).",
-                        source_match, sink_match
+                        "Source '{source_match}' and sink '{sink_match}' found in same function (AST-direct check)."
                     ),
                 )
                 .with_line(body_line)
@@ -137,7 +136,10 @@ fn infer_rule_id(sink: &str) -> String {
         "TAINT_INPUT_TO_HTTP".to_string()
     } else if lower.contains("write") || lower.contains("create") || lower.contains("open") {
         "TAINT_INPUT_TO_FS".to_string()
-    } else if lower.contains("innerhtml") || lower.contains("outerhtml") || lower.contains("document.write") {
+    } else if lower.contains("innerhtml")
+        || lower.contains("outerhtml")
+        || lower.contains("document.write")
+    {
         "TAINT_INPUT_TO_DOM_XSS".to_string()
     } else if lower.contains("log") || lower.contains("print") || lower.contains("console") {
         "TAINT_CREDENTIAL_TO_LOG".to_string()
@@ -152,7 +154,8 @@ mod tests {
 
     #[test]
     fn test_simple_taint_check_detects_eval() {
-        let source = "function handler(req) {\n    const input = req.body.query;\n    eval(input);\n}";
+        let source =
+            "function handler(req) {\n    const input = req.body.query;\n    eval(input);\n}";
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())

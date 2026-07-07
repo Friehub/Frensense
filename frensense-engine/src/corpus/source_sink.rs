@@ -52,9 +52,10 @@ impl CorpusSourceSinkRegistry {
         }
     }
 
-    /// Prune entries below MIN_OCCURRENCES threshold.
+    /// Prune entries below `MIN_OCCURRENCES` threshold.
     pub fn prune(&mut self) {
-        self.source_types.retain(|_, count| *count >= MIN_OCCURRENCES);
+        self.source_types
+            .retain(|_, count| *count >= MIN_OCCURRENCES);
         self.sink_names.retain(|_, count| *count >= MIN_OCCURRENCES);
     }
 }
@@ -103,15 +104,13 @@ pub fn extract_param_info(param: tree_sitter::Node, source: &str) -> (String, St
     let mut cursor = param.walk();
     for child in param.children(&mut cursor) {
         match child.kind() {
-            "identifier" | "shorthand_field_identifier" | "field_identifier" => {
-                if name.is_empty() {
-                    name = source[child.start_byte()..child.end_byte()].to_string();
-                }
+            "identifier" | "shorthand_field_identifier" | "field_identifier" if name.is_empty() => {
+                name = source[child.start_byte()..child.end_byte()].to_string();
             }
-            "type_annotation" | "type_identifier" | "scoped_type_identifier" | "generic_type" => {
-                if ty.is_empty() {
-                    ty = source[child.start_byte()..child.end_byte()].to_string();
-                }
+            "type_annotation" | "type_identifier" | "scoped_type_identifier" | "generic_type"
+                if ty.is_empty() =>
+            {
+                ty = source[child.start_byte()..child.end_byte()].to_string();
             }
             _ => {}
         }
@@ -125,10 +124,16 @@ pub fn extract_param_info(param: tree_sitter::Node, source: &str) -> (String, St
             .and_then(|re| re.captures(text))
         {
             if name.is_empty() {
-                name = caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+                name = caps
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
             }
             if ty.is_empty() {
-                ty = caps.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+                ty = caps
+                    .get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
             }
         }
     }
@@ -287,9 +292,7 @@ fn extract_call_names(node: Node, source: &str, sinks: &mut Vec<String>) {
 /// Extract the name from a callee node (handles method calls, paths, etc.).
 fn extract_callee_name(node: Node, source: &str) -> String {
     match node.kind() {
-        "identifier" | "field_identifier" => {
-            source[node.start_byte()..node.end_byte()].to_string()
-        }
+        "identifier" | "field_identifier" => source[node.start_byte()..node.end_byte()].to_string(),
         "member_expression" => {
             // e.g., console.log → "log"
             if let Some(field) = node.child_by_field_name("field") {
@@ -318,19 +321,31 @@ mod tests {
     fn test_extract_sources_typescript() {
         let source = "function handler(req: Request, body: Json<User>) { }";
         let types = extract_sources_from_source(source);
-        assert!(types.contains(&"Request".to_string()), "should find Request type");
-        assert!(types.contains(&"Json<User>".to_string()), "should find Json<User> type");
+        assert!(
+            types.contains(&"Request".to_string()),
+            "should find Request type"
+        );
+        assert!(
+            types.contains(&"Json<User>".to_string()),
+            "should find Json<User> type"
+        );
     }
 
     #[test]
     fn test_extract_sources_rust() {
         let source = "fn handler(req: Query<Params>) -> Response {\n    let x = req;\n}";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let mut types = Vec::new();
         extract_param_types(tree.root_node(), source, &mut types);
-        assert!(!types.is_empty(), "should find at least one type, got: {:?}", types);
+        assert!(
+            !types.is_empty(),
+            "should find at least one type, got: {:?}",
+            types
+        );
     }
 
     #[test]
@@ -345,8 +360,14 @@ mod tests {
     fn test_extract_sinks_member_expression() {
         let source = "function handler() { console.log(msg); document.write(html); }";
         let sinks = extract_sinks_from_source(source);
-        assert!(sinks.contains(&"log".to_string()), "should find log from console.log");
-        assert!(sinks.contains(&"write".to_string()), "should find write from document.write");
+        assert!(
+            sinks.contains(&"log".to_string()),
+            "should find log from console.log"
+        );
+        assert!(
+            sinks.contains(&"write".to_string()),
+            "should find write from document.write"
+        );
     }
 
     #[test]
@@ -372,7 +393,15 @@ mod tests {
             "function process(input: Request) { exec(input.data); }".to_string(),
         ];
         let registry = build_registry(&files);
-        assert!(registry.source_types.contains_key("Request"), "Request should be a source type, got: {:?}", registry.source_types);
-        assert!(registry.sink_names.contains_key("exec"), "exec should be a sink, got: {:?}", registry.sink_names);
+        assert!(
+            registry.source_types.contains_key("Request"),
+            "Request should be a source type, got: {:?}",
+            registry.source_types
+        );
+        assert!(
+            registry.sink_names.contains_key("exec"),
+            "exec should be a sink, got: {:?}",
+            registry.sink_names
+        );
     }
 }

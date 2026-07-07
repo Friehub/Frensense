@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::corpus::loader::{CorpusPattern, load_corpus};
 use crate::corpus::source_sink::{CorpusSourceSinkRegistry, build_registry_from_dir};
-use crate::fingerprint::{FunctionFingerprint, compute_idf_weights, apply_idf_weights};
+use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::scorer::PatternScorer;
 use rustc_hash::FxHashMap;
@@ -80,10 +80,10 @@ impl PatternRegistry {
     pub fn load_from_bundle(&mut self, bytes: &[u8]) -> Result<usize, String> {
         let bundle_patterns = crate::corpus::bundle::load_bundle(bytes)?;
         let count = bundle_patterns.len();
-        
+
         // Load semantic filters
         let semantic_filters = crate::corpus::loader::load_semantic_filters();
-        
+
         self.patterns = bundle_patterns
             .into_iter()
             .map(|bp| CorpusPattern {
@@ -103,17 +103,18 @@ impl PatternRegistry {
 
     /// Compute IDF weights from corpus fingerprints and apply to all patterns.
     fn compute_and_apply_idf(&mut self) {
-        let all_positives: Vec<FunctionFingerprint> = self.patterns
+        let all_positives: Vec<FunctionFingerprint> = self
+            .patterns
             .iter()
             .flat_map(|p| p.positives.iter().cloned())
             .collect();
-        
+
         if all_positives.is_empty() {
             return;
         }
-        
+
         self.idf_weights = compute_idf_weights(&all_positives);
-        
+
         // Apply IDF weights to all corpus fingerprints
         for pattern in &mut self.patterns {
             for fp in &mut pattern.positives {
@@ -161,7 +162,12 @@ impl PatternRegistry {
         self.lsh_index = Some(index);
     }
 
-    pub fn scan_function(&self, fp: &FunctionFingerprint, func_node: Option<tree_sitter::Node<'_>>, source: Option<&str>) -> Vec<PatternMatch> {
+    pub fn scan_function(
+        &self,
+        fp: &FunctionFingerprint,
+        func_node: Option<tree_sitter::Node<'_>>,
+        source: Option<&str>,
+    ) -> Vec<PatternMatch> {
         let candidates: Vec<usize> = if let Some(ref lsh) = self.lsh_index {
             let sig = minhash_signature(&fp.ngram_hashes, 128);
             lsh.query(&sig)
@@ -182,25 +188,38 @@ impl PatternRegistry {
         let mut matches = Vec::new();
         for &idx in &candidates {
             let pattern = &self.patterns[idx];
-            
+
             // Apply semantic filter if present
-            if let (Some(filter), Some(node), Some(src)) = (&pattern.semantic_filter, func_node, source) {
+            if let (Some(filter), Some(node), Some(src)) =
+                (&pattern.semantic_filter, func_node, source)
+            {
                 if !filter.matches(node, src) {
                     continue;
                 }
             }
-            
+
+            // Semantic gate: skip trivially small functions that can't match complex patterns.
+            // Uses structural marker count as a proxy for function complexity.
+            // A function with < 3 structural markers is too simple to be a real vulnerability.
+            // Prevents fn main() {} from matching patterns that require actual logic.
+            if weighted_fp.structural_markers.len() < 3 {
+                continue;
+            }
+
+            // Skip functions with no control flow AND no API calls — trivial getters/setters
+            // But allow functions that have API calls (like eval()) even without control flow
+            if weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty() {
+                continue;
+            }
+
             let best_score = pattern
                 .positives
                 .iter()
                 .flat_map(|pos| {
-                    pattern
-                        .negatives
-                        .iter()
-                        .map({
-                            let weighted_fp_clone = weighted_fp.clone();
-                            move |neg| PatternScorer::score_against_corpus(&weighted_fp_clone, pos, neg)
-                        })
+                    pattern.negatives.iter().map({
+                        let weighted_fp_clone = weighted_fp.clone();
+                        move |neg| PatternScorer::score_against_corpus(&weighted_fp_clone, pos, neg)
+                    })
                 })
                 .fold(0.0f64, f64::max);
             let threshold = self.threshold_for_pattern(&pattern.id);

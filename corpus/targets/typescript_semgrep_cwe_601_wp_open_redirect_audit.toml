@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_601_WP_OPEN_REDIRECT_AUDIT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 601 Wp Open Redirect Audit."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

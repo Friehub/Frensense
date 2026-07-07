@@ -2,17 +2,6 @@
 #![allow(
     clippy::too_many_lines,
     clippy::too_many_arguments,
-    clippy::return_self_not_must_use,
-    clippy::missing_panics_doc,
-    clippy::module_inception
-)]
-#![warn(clippy::unwrap_used)]
-#![warn(clippy::print_stdout)]
-#![warn(clippy::print_stderr)]
-#![allow(
-    clippy::too_many_arguments,
-    clippy::regex_creation_in_loops,
-    clippy::must_use_candidate,
     clippy::cast_precision_loss
 )]
 
@@ -146,7 +135,7 @@ pub struct Advisory {
     pub auto_fixable: bool,
     pub requires_human: bool,
     pub tags: Vec<String>,
-    /// Taint branch ratio from TaintMetrics — higher means function actually branches on input.
+    /// Taint branch ratio from `TaintMetrics` — higher means function actually branches on input.
     /// Used by composition layer to suppress hollow validators.
     #[serde(default)]
     pub taint_branch_ratio: Option<f32>,
@@ -229,7 +218,7 @@ impl Advisory {
         self
     }
     pub fn with_tags<const N: usize>(mut self, tags: [&str; N]) -> Self {
-        self.tags = tags.iter().map(|s| s.to_string()).collect();
+        self.tags = tags.iter().map(std::string::ToString::to_string).collect();
         self
     }
     pub fn with_replacement(mut self, v: impl Into<String>) -> Self {

@@ -1,4 +1,3 @@
-#![allow(clippy::missing_errors_doc)]
 use super::options::CliOptions;
 use crate::reporter::Reporter;
 use crate::{Advisory, Engine, FrensenseError, Result};

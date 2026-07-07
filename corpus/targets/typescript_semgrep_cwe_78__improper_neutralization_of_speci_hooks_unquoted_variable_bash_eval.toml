@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_78__IMPROPER_NEUTRALIZATION_OF_SPECI_HOOKS_UNQUOTED_VARIABLE_BASH_EVAL"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 78  Improper Neutralization Of Speci Hooks Unquoted Variable Bash Eval."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -30,6 +30,7 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
         .filter(|e| e.file_type().is_file())
         .map(|e| e.path().to_path_buf())
         .filter(|p| ParserRegistry::is_supported(p))
+        .filter(|p| !is_test_file(p))
         .filter(|p| {
             if let Some(allowed) = language_filter {
                 let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
@@ -39,6 +40,45 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
             }
         })
         .collect()
+}
+
+fn is_test_file(path: &Path) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let stem = path.file_stem().and_then(|n| n.to_str()).unwrap_or("");
+
+    // Check filename patterns
+    if name.ends_with(".test.ts")
+        || name.ends_with(".test.tsx")
+        || name.ends_with(".test.js")
+        || name.ends_with(".test.jsx")
+        || name.ends_with(".spec.ts")
+        || name.ends_with(".spec.tsx")
+        || name.ends_with(".spec.js")
+        || name.ends_with(".spec.jsx")
+        || name.ends_with("_test.rs")
+        || name.ends_with(".test.rs")
+        || name == "mod.rs" && path.to_string_lossy().contains("/tests/")
+    {
+        return true;
+    }
+
+    // Check if in test directories
+    let path_str = path.to_string_lossy();
+    if path_str.contains("/tests/")
+        || path_str.contains("/test/")
+        || path_str.contains("__tests__/")
+        || path_str.contains("/__mocks__/")
+        || path_str.contains("/mocks/")
+    {
+        return true;
+    }
+
+    // Check for mock files
+    if stem.starts_with("mock") || stem.ends_with(".mock") {
+        return true;
+    }
+
+    false
 }
 
 pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSnapshot> {

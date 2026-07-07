@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_377_BAD_TMP_FILE_CREATION"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 377 Bad Tmp File Creation."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_79_INSECURE_INNERHTML"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 79 Insecure Innerhtml."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

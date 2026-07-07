@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_250_WILDCARD_ASSUME_ROLE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 250 Wildcard Assume Role."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

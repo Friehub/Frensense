@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_77__IMPROPER_NEUTRALIZATION_OF_SPECI_MCP_TOOL_POISONING_GENERIC"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 77  Improper Neutralization Of Speci Mcp Tool Poisoning Generic."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_116_INCOMPLETE_SANITIZATION"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 116 Incomplete Sanitization."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

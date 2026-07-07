@@ -4,36 +4,44 @@ use frensense::engine::project::Engine;
 use std::fs;
 use tempfile::tempdir;
 
+const CORPUS_BUNDLE: &[u8] = include_bytes!("../frensense-corpus.frc");
+
+fn engine_with_corpus() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_corpus_bundle(CORPUS_BUNDLE);
+    engine
+}
+
 #[test]
 fn test_e2e_suppress_file_respected() {
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    // Create a file with taint violation: credential -> log
-    let ts_file = root.join("leak.ts");
+    // Create a file with a corpus-matchable pattern
+    let ts_file = root.join("vuln.ts");
     fs::write(
         &ts_file,
-        "function logPassword(password: string) { console.log(password); }",
+        "function evalInput(input: string) { eval(input); }\n",
     )
     .unwrap();
 
-    // Verify it fires without suppression
-    let mut engine = Engine::new();
+    // Find what corpus rule fires
+    let mut engine = engine_with_corpus();
     let advisories = engine.run(root).unwrap();
-    let rule_id = "TAINT_CREDENTIAL_TO_LOG";
-    assert!(
-        advisories.iter().any(|a| a.rule_id == rule_id),
-        "Taint rule should fire before suppression"
-    );
+    let first_rule = advisories
+        .iter()
+        .find(|a| a.rule_id.starts_with("CORPUS_"))
+        .expect("At least one corpus finding should fire");
+    let rule_id = first_rule.rule_id.clone();
 
     // Setup suppress file
     let suppress_file = root.join(".frensense-suppress.yml");
     let suppress_content =
-        format!("suppressions:\n  - rule_id: {rule_id}\n    path: \"**/leak.ts\"\n");
+        format!("suppressions:\n  - rule_id: {rule_id}\n    path: \"**/vuln.ts\"\n");
     fs::write(suppress_file, suppress_content).unwrap();
 
     // Run again — should be suppressed
-    let mut engine2 = Engine::new();
+    let mut engine2 = engine_with_corpus();
     let advisories2 = engine2.run(root).unwrap();
     assert!(
         !advisories2.iter().any(|a| a.rule_id == rule_id),
@@ -46,26 +54,34 @@ fn test_e2e_severity_override() {
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    // Setup config with severity override
-    let config_dir = root.join(".frensense");
-    fs::create_dir_all(&config_dir).unwrap();
-    let rule_id = "TAINT_CREDENTIAL_TO_LOG";
-    let config_content = format!("severity_override:\n  {rule_id}: Critical\n");
-    fs::write(config_dir.join("config.yml"), config_content).unwrap();
-
-    // Create violation
-    let ts_file = root.join("leak.ts");
+    // Create a file that matches a corpus pattern
+    let ts_file = root.join("vuln.ts");
     fs::write(
         &ts_file,
-        "function logPassword(password: string) { console.log(password); }",
+        "function evalInput(input: string) { eval(input); }\n",
     )
     .unwrap();
 
-    // Run engine
-    let mut engine = Engine::new();
+    // Find what corpus rule fires
+    let mut engine = engine_with_corpus();
     let advisories = engine.run(root).unwrap();
+    let first_rule = advisories
+        .iter()
+        .find(|a| a.rule_id.starts_with("CORPUS_"))
+        .expect("At least one corpus finding should fire");
+    let rule_id = first_rule.rule_id.clone();
 
-    let adv = advisories
+    // Setup config with severity override
+    let config_dir = root.join(".frensense");
+    fs::create_dir_all(&config_dir).unwrap();
+    let config_content = format!("severity_override:\n  {rule_id}: Critical\n");
+    fs::write(config_dir.join("config.yml"), config_content).unwrap();
+
+    // Run engine again
+    let mut engine2 = engine_with_corpus();
+    let advisories2 = engine2.run(root).unwrap();
+
+    let adv = advisories2
         .iter()
         .find(|a| a.rule_id == rule_id)
         .expect("Rule should fire");
@@ -157,7 +173,7 @@ project_rules:
     )
     .unwrap();
 
-    let mut engine = Engine::new();
+    let mut engine = engine_with_corpus();
     let advisories = engine.run(root).unwrap();
 
     assert!(
@@ -168,33 +184,41 @@ project_rules:
 
 #[test]
 fn test_e2e_project_rule_severity_override() {
-    // Severity override config should apply to taint rules too.
+    // Severity override config should apply to corpus findings too.
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    let config_dir = root.join(".frensense");
-    fs::create_dir_all(&config_dir).unwrap();
-    fs::write(
-        config_dir.join("config.yml"),
-        "severity_override:\n  TAINT_INPUT_TO_EXEC: Info\n",
-    )
-    .unwrap();
-
-    // Create violation: input -> eval
+    // Create a file that matches a corpus pattern
     let ts_file = root.join("vuln.ts");
     fs::write(
         &ts_file,
-        "function handler() { var code = input(); eval(code); }",
+        "function evalInput(input: string) { eval(input); }\n",
     )
     .unwrap();
 
-    let mut engine = Engine::new();
+    // Find what corpus rule fires
+    let mut engine = engine_with_corpus();
     let advisories = engine.run(root).unwrap();
-
-    let adv = advisories
+    let first_rule = advisories
         .iter()
-        .find(|a| a.rule_id == "TAINT_INPUT_TO_EXEC")
-        .expect("Taint rule should fire");
+        .find(|a| a.rule_id.starts_with("CORPUS_"))
+        .expect("At least one corpus finding should fire");
+    let rule_id = first_rule.rule_id.clone();
+
+    // Setup config with severity override
+    let config_dir = root.join(".frensense");
+    fs::create_dir_all(&config_dir).unwrap();
+    let config_content = format!("severity_override:\n  {rule_id}: Info\n");
+    fs::write(config_dir.join("config.yml"), config_content).unwrap();
+
+    // Run engine again
+    let mut engine2 = engine_with_corpus();
+    let advisories2 = engine2.run(root).unwrap();
+
+    let adv = advisories2
+        .iter()
+        .find(|a| a.rule_id == rule_id)
+        .expect("Rule should fire");
 
     assert_eq!(
         adv.severity,
@@ -266,8 +290,8 @@ fn test_user_corpus_loaded_via_corpus_dir() {
 
     // Create a file that should match a corpus pattern
     fs::write(
-        root.join("leak.ts"),
-        "function logPassword(password: string) { console.log(password); }\n",
+        root.join("vuln.ts"),
+        "function evalInput(input: string) { eval(input); }\n",
     )
     .unwrap();
 
@@ -275,14 +299,14 @@ fn test_user_corpus_loaded_via_corpus_dir() {
     engine.set_corpus_dir(corpus_dir);
     let advisories = engine.run(root).unwrap();
 
-    // Taint rules should fire (proving the engine works), and corpus may also fire
-    let taint_hits: Vec<_> = advisories
+    // Corpus should fire at least one finding
+    let corpus_hits: Vec<_> = advisories
         .iter()
-        .filter(|a| a.rule_id.starts_with("TAINT_"))
+        .filter(|a| a.rule_id.starts_with("CORPUS_"))
         .collect();
     assert!(
-        !taint_hits.is_empty(),
-        "Engine should produce taint findings"
+        !corpus_hits.is_empty(),
+        "Engine should produce corpus findings"
     );
 }
 

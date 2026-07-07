@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_780_USE_WEAK_RSA_ENCRYPTION_PADDING"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 780 Use Weak Rsa Encryption Padding."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

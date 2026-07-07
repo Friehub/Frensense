@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_1323_NET_WEBCONFIG_TRACE_ENABLED"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 1323 Net Webconfig Trace Enabled."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

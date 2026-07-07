@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_310_GCM_NO_TAG_LENGTH"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 310 Gcm No Tag Length."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

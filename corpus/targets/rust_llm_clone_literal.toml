@@ -1,5 +1,0 @@
-id = "RUST_LLM_CLONE_LITERAL"
-severity = "Warning"
-observation = "Corpus pattern: Rust Llm Clone Literal."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

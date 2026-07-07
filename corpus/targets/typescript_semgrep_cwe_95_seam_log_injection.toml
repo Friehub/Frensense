@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_95_SEAM_LOG_INJECTION"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 95 Seam Log Injection."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

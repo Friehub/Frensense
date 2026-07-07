@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-#[cfg(feature = "fingerprinting")]
-use super::super::fingerprint::FunctionFingerprint;
 use super::Engine;
 use crate::{Advisory, FileId, SourceRegistry};
+#[cfg(feature = "fingerprinting")]
+use frensense_engine::fingerprint::FunctionFingerprint;
 use std::path::Path;
 
 impl Engine {

@@ -1,0 +1,29 @@
+{
+  "name": "frensense",
+  "version": "1.0.0",
+  "description": "Example-driven code analysis. Detects semantic bugs — code that compiles but doesn't do what it says it does — without YAML rules, regex patterns, or handwritten DSL.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Friehub/Frensense.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Friehub/Frensense/issues"
+  },
+  "homepage": "https://github.com/Friehub/Frensense#readme",
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

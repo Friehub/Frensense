@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_79_NO_INTERPOLATION_IN_TAG"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 79 No Interpolation In Tag."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

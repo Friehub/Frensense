@@ -18,11 +18,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         }
     }
 
-    pub fn analyze_block(
-        &self,
-        node: Node<'a>,
-        registry: &mut TaintRegistry,
-    ) -> Vec<Advisory> {
+    pub fn analyze_block(&self, node: Node<'a>, registry: &mut TaintRegistry) -> Vec<Advisory> {
         let mut advisories = Vec::new();
         let block_range = super::normalization::Range::from(node);
 
@@ -54,22 +50,16 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     args,
                     range,
                 } => {
-                    if let Some(call_advisories) = self.process_call(
-                        function_name,
-                        args,
-                        *range,
-                        block_range,
-                        registry,
-                    ) {
+                    if let Some(call_advisories) =
+                        self.process_call(function_name, args, *range, block_range, registry)
+                    {
                         advisories.extend(call_advisories);
                     }
                 }
                 SemanticOp::EnterBlock(body_range) => {
-                    if let Some(sub_advisories) = self.process_enter_block(
-                        *body_range,
-                        block_range,
-                        registry,
-                    ) {
+                    if let Some(sub_advisories) =
+                        self.process_enter_block(*body_range, block_range, registry)
+                    {
                         advisories.extend(sub_advisories);
                     }
                 }

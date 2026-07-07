@@ -1,5 +1,0 @@
-id = "RUST_CSA_FIND_NEVER_EMPTY"
-severity = "Warning"
-observation = "Function name implies a lookup that can fail (find_*) and the return type is Option<User>, but every not-found path (id == 0, empty query result, deleted record) synthesizes and returns Some(placeholder) instead of None."
-impact = "Callers that match on None to detect 'not found' never see it — invalid IDs and soft-deleted users are returned as if valid, masking missing-record bugs and bypassing deletion checks."
-improvement = "Return None on the invalid-id, not-found, and deleted-without-include_deleted branches instead of constructing a placeholder or returning a deleted record unconditionally."

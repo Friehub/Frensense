@@ -1,4 +1,3 @@
-#![allow(clippy::must_use_candidate, clippy::missing_errors_doc)]
 //! JSON-RPC protocol types and helpers for the MCP server.
 
 use serde::Deserialize;

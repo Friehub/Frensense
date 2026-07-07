@@ -1,5 +1,0 @@
-id = "RUST_TRANSMUTE"
-severity = "Warning"
-observation = "Corpus pattern: Rust Transmute."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

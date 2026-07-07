@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_770__ALLOCATION_OF_RESOURCES_WITHOUT_ANTHROPIC_MISSING_MAX_TOKENS_JAVASCRIPT"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 770  Allocation Of Resources Without Anthropic Missing Max Tokens Javascript."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_676_INSECURE_USE_GETS_FN"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 676 Insecure Use Gets Fn."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

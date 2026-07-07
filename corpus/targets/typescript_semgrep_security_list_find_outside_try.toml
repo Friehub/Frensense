@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_LIST_FIND_OUTSIDE_TRY"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security List Find Outside Try."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_CHANNEL_GUARDED_WITH_MUTEX"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Channel Guarded With Mutex."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

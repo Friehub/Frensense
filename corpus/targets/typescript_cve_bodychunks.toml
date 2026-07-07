@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_CVE_BODYCHUNKS"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Cve Bodychunks."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

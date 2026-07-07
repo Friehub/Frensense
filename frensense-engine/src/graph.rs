@@ -311,7 +311,9 @@ pub fn extract_temporal_events<'a>(
                 let is_let_binding = {
                     let mut p = node.parent();
                     while let Some(parent) = p {
-                        if parent.kind() == "let_declaration" || parent.kind() == "variable_declaration" {
+                        if parent.kind() == "let_declaration"
+                            || parent.kind() == "variable_declaration"
+                        {
                             break;
                         }
                         // If we hit a function body / block without hitting let_declaration,
@@ -325,7 +327,9 @@ pub fn extract_temporal_events<'a>(
                         }
                         p = parent.parent();
                     }
-                    p.map_or(false, |pt| pt.kind() == "let_declaration" || pt.kind() == "variable_declaration")
+                    p.is_some_and(|pt| {
+                        pt.kind() == "let_declaration" || pt.kind() == "variable_declaration"
+                    })
                 };
 
                 if !is_let_binding {

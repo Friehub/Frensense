@@ -14,7 +14,11 @@ use std::path::{Path, PathBuf};
 fn process_snapshots<'a>(
     auditor: &crate::engine::auditor::FrensenseAuditor,
     snapshots: &'a [FileSnapshot],
-) -> Result<(SymbolRegistry, Vec<(FileId, PathBuf)>, HashMap<FileId, &'a FileSnapshot>)> {
+) -> Result<(
+    SymbolRegistry,
+    Vec<(FileId, PathBuf)>,
+    HashMap<FileId, &'a FileSnapshot>,
+)> {
     let mut symbols = SymbolRegistry::new();
     let mut file_ids = Vec::new();
     let mut snapshot_map = HashMap::new();
@@ -40,20 +44,37 @@ fn process_snapshots<'a>(
     Ok((symbols, file_ids, snapshot_map))
 }
 
-/// Build file_trees map from snapshots.
-fn build_file_trees(snapshots: &[FileSnapshot]) -> HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)> {
+/// Build `file_trees` map from snapshots.
+fn build_file_trees(
+    snapshots: &[FileSnapshot],
+) -> HashMap<
+    String,
+    (
+        tree_sitter::Tree,
+        String,
+        Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+    ),
+> {
     let mut file_trees = HashMap::new();
     for snap in snapshots {
         file_trees.insert(
             snap.path.to_string_lossy().to_string(),
-            (snap.tree.clone(), snap.content.clone(), snap.semantic_ops.clone()),
+            (
+                snap.tree.clone(),
+                snap.content.clone(),
+                snap.semantic_ops.clone(),
+            ),
         );
     }
     file_trees
 }
 
 /// Merge config + CLI severity overrides (CLI wins) into advisories.
-fn apply_severity_overrides(advisories: &mut [Advisory], config_overrides: &Option<HashMap<String, crate::Severity>>, cli_overrides: &HashMap<String, crate::Severity>) {
+fn apply_severity_overrides(
+    advisories: &mut [Advisory],
+    config_overrides: &Option<HashMap<String, crate::Severity>>,
+    cli_overrides: &HashMap<String, crate::Severity>,
+) {
     let mut merged = config_overrides.clone().unwrap_or_default();
     for (rule_id, sev) in cli_overrides {
         merged.insert(rule_id.clone(), *sev);
@@ -70,7 +91,14 @@ fn run_findings_modules(
     root: &Path,
     snapshots: &[FileSnapshot],
     symbols: &SymbolRegistry,
-    _file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+    _file_trees: &HashMap<
+        String,
+        (
+            tree_sitter::Tree,
+            String,
+            Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+        ),
+    >,
     _extra_taint_rule_dirs: &[PathBuf],
     check_deps: bool,
     all_advisories: &mut Vec<Advisory>,
@@ -101,19 +129,30 @@ fn run_findings_modules(
 /// Run corpus pattern matching on snapshots.
 fn run_corpus_scan(
     engine: &Engine,
-    _root: &Path,
+    root: &Path,
     snapshots: &[FileSnapshot],
     symbols: &crate::semantics::symbols::SymbolRegistry,
     data_flow: &frensense_engine::data_flow::DataFlowEngine,
-    file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+    file_trees: &HashMap<
+        String,
+        (
+            tree_sitter::Tree,
+            String,
+            Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+        ),
+    >,
     all_advisories: &mut Vec<Advisory>,
 ) {
+    // Load suppressions from .frensense-suppress.yml
+    let suppressions = load_suppressions(root);
+
     let mut corpus_dirs: Vec<&Path> = Vec::new();
     if let Some(ref corpus_dir) = engine.corpus_dir {
         corpus_dirs.push(corpus_dir.as_path());
     }
 
-    let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(engine.corpus_threshold);
+    let mut registry =
+        frensense_engine::corpus::registry::PatternRegistry::new(engine.corpus_threshold);
     for (category, threshold) in &engine.threshold_overrides {
         registry.set_threshold_override(category.clone(), *threshold);
     }
@@ -148,23 +187,45 @@ fn run_corpus_scan(
     }
 
     for snap in snapshots {
+        // Skip test files for corpus scanning
+        if is_test_file(&snap.path) {
+            continue;
+        }
+
         let mut fps = Vec::new();
         frensense_engine::fingerprint::extract_fingerprints(
-            snap.tree.root_node(), &snap.content, &snap.path, &mut fps, engine.ngram_window_size,
+            snap.tree.root_node(),
+            &snap.content,
+            &snap.path,
+            &mut fps,
+            engine.ngram_window_size,
         );
         for fp in &fps {
-            let func_node = find_function_node(snap.tree.root_node(), &fp.function_name, fp.line, &snap.content);
+            let func_node = find_function_node(
+                snap.tree.root_node(),
+                &fp.function_name,
+                fp.line,
+                &snap.content,
+            );
             for m in registry.scan_function(fp, func_node, Some(&snap.content)) {
-                let impact = m.impact.unwrap_or_else(|| "Function shape matches a known violation pattern.".to_string());
-                let improvement = m.improvement.unwrap_or_else(|| "Review against corpus example.".to_string());
+                let impact = m.impact.unwrap_or_else(|| {
+                    "Function shape matches a known violation pattern.".to_string()
+                });
+                let improvement = m
+                    .improvement
+                    .unwrap_or_else(|| "Review against corpus example.".to_string());
                 let observation = m.observation.unwrap_or_else(|| {
-                    format!("Corpus pattern: {} (score {:.2}) in '{}'", m.pattern_id, m.score, fp.function_name)
+                    format!(
+                        "Corpus pattern: {} (score {:.2}) in '{}'",
+                        m.pattern_id, m.score, fp.function_name
+                    )
                 });
 
                 // Apply confidence calibration if available
                 // Extract category from pattern ID for per-category calibration
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
-                let mut confidence = if let Some(ref per_cat_cal) = engine.per_category_calibration {
+                let mut confidence = if let Some(ref per_cat_cal) = engine.per_category_calibration
+                {
                     per_cat_cal.calibrate(m.score, category) as f32
                 } else if let Some(ref params) = engine.calibration {
                     params.calibrate(m.score) as f32
@@ -181,9 +242,9 @@ fn run_corpus_scan(
                         &snap.content,
                         &snap.tree,
                         &snap.path,
-                        &symbols,
-                        &data_flow,
-                        &file_trees,
+                        symbols,
+                        data_flow,
+                        file_trees,
                         registry.source_sink_registry(),
                     );
                     if verification.verified {
@@ -192,6 +253,14 @@ fn run_corpus_scan(
                         // Boost confidence for verified findings
                         confidence = (confidence * 1.2).min(0.95);
                     }
+                }
+
+                // T-FIX-1 Composition Logic:
+                // If the structural score is below the high-confidence threshold (0.40),
+                // we REQUIRE the Taint Engine (Layer 2) to verify the data flow.
+                // If it fails to verify, this is a structural false positive and we drop it.
+                if !taint_verified && m.score < 0.40 {
+                    continue;
                 }
 
                 let mut advisory = Advisory::bare(
@@ -212,13 +281,50 @@ fn run_corpus_scan(
                 // Add taint verification info if available
                 if taint_verified {
                     advisory = advisory.with_tags(["corpus", "pattern", "taint-verified"]);
-                    advisory.impact = format!("{}\n\nTaint flow verified: {}", impact, taint_detail);
+                    advisory.impact = format!("{impact}\n\nTaint flow verified: {taint_detail}");
+                }
+
+                // Check suppressions
+                if is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap.path) {
+                    continue;
                 }
 
                 all_advisories.push(advisory);
             }
         }
     }
+}
+
+fn load_suppressions(root: &Path) -> Vec<(String, glob::Pattern)> {
+    let suppress_file = root.join(".frensense-suppress.yml");
+    if !suppress_file.exists() {
+        return Vec::new();
+    }
+    let Ok(content) = std::fs::read_to_string(&suppress_file) else {
+        return Vec::new();
+    };
+    let Ok(config) = serde_yaml::from_str::<crate::engine::suppression::SuppressConfig>(&content)
+    else {
+        return Vec::new();
+    };
+    config
+        .suppressions
+        .into_iter()
+        .filter_map(|s| glob::Pattern::new(&s.path).ok().map(|p| (s.rule_id, p)))
+        .collect()
+}
+
+fn is_corpus_suppressed(
+    suppressions: &[(String, glob::Pattern)],
+    rule_id: &str,
+    path: &std::path::Path,
+) -> bool {
+    for (sid, pattern) in suppressions {
+        if (sid == rule_id || sid == "all") && pattern.matches_path(path) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Verification result from taint flow analysis.
@@ -229,7 +335,7 @@ struct TaintVerification {
 
 /// Verify that taint actually flows from source to sink in a function.
 ///
-/// This uses the CrossFileVerifier to check if user-controlled data
+/// This uses the `CrossFileVerifier` to check if user-controlled data
 /// reaches a dangerous sink, following taint through function calls.
 /// Source types and sink names are learned from the corpus.
 fn verify_taint_flow(
@@ -239,7 +345,14 @@ fn verify_taint_flow(
     file_path: &Path,
     symbols: &crate::semantics::symbols::SymbolRegistry,
     data_flow: &frensense_engine::data_flow::DataFlowEngine,
-    file_trees: &HashMap<String, (tree_sitter::Tree, String, Vec<crate::semantics::data_flow::normalization::SemanticOp>)>,
+    file_trees: &HashMap<
+        String,
+        (
+            tree_sitter::Tree,
+            String,
+            Vec<crate::semantics::data_flow::normalization::SemanticOp>,
+        ),
+    >,
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
 ) -> TaintVerification {
     use crate::semantics::data_flow::cross_file::CrossFileVerifier;
@@ -304,8 +417,24 @@ impl Engine {
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
 
         self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
-        run_corpus_scan(self, root, &snapshots, &symbols, &data_flow, &file_trees, &mut all_advisories);
-        run_findings_modules(root, &snapshots, &symbols, &file_trees, &self.extra_taint_rule_dirs, self.check_deps, &mut all_advisories);
+        run_corpus_scan(
+            self,
+            root,
+            &snapshots,
+            &symbols,
+            &data_flow,
+            &file_trees,
+            &mut all_advisories,
+        );
+        run_findings_modules(
+            root,
+            &snapshots,
+            &symbols,
+            &file_trees,
+            &self.extra_taint_rule_dirs,
+            self.check_deps,
+            &mut all_advisories,
+        );
         self.apply_composition(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
@@ -324,7 +453,9 @@ impl Engine {
         };
         let id = self.source_registry.register(path, content.to_string());
         let (language, tree) = self.auditor.parse_source(path, content)?;
-        let symbols = self.auditor.discover_symbols(path, id, content, &language, &tree)?;
+        let symbols = self
+            .auditor
+            .discover_symbols(path, id, content, &language, &tree)?;
         let semantic_ops = self.auditor.extract_semantic_ops(path, content, &tree);
 
         let mut file_trees = HashMap::new();
@@ -337,13 +468,23 @@ impl Engine {
         for sym in symbols {
             registry.insert(sym);
         }
-        self.auditor.discover_events(path, content, &tree, &mut registry)?;
+        self.auditor
+            .discover_events(path, content, &tree, &mut registry)?;
 
         let opts = AuditOptions {
-            file_id: id, path, content, tree: &tree, semantic_ops: &semantic_ops,
-            symbols: &registry, graph: registry.graph(), file_trees: &file_trees,
-            category_filter: &self.enabled_categories, tag_filter: &self.enabled_tags,
-            suite: self.suite, env: self.environment, severity_filter: self.severity_filter,
+            file_id: id,
+            path,
+            content,
+            tree: &tree,
+            semantic_ops: &semantic_ops,
+            symbols: &registry,
+            graph: registry.graph(),
+            file_trees: &file_trees,
+            category_filter: &self.enabled_categories,
+            tag_filter: &self.enabled_tags,
+            suite: self.suite,
+            env: self.environment,
+            severity_filter: self.severity_filter,
             ngram_window_size: self.ngram_window_size,
             taint_confidence_interprocedural: self.taint_confidence_interprocedural,
             taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
@@ -351,13 +492,17 @@ impl Engine {
         };
 
         let mut advisories = self.auditor.audit(&opts)?.advisories;
-        apply_severity_overrides(&mut advisories, &config.severity_override, &self.severity_overrides);
+        apply_severity_overrides(
+            &mut advisories,
+            &config.severity_override,
+            &self.severity_overrides,
+        );
         self.apply_composition(&mut advisories);
         Ok(advisories)
     }
 
     /// Applies real composition to advisories, replacing the coincidence counter.
-    /// Uses LayerSignals to check if layers are causally related, not just co-located.
+    /// Uses `LayerSignals` to check if layers are causally related, not just co-located.
     fn apply_composition(&self, advisories: &mut [Advisory]) {
         crate::engine::composition::apply_composition(advisories);
     }
@@ -385,7 +530,11 @@ impl Engine {
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
-        apply_severity_overrides(&mut all_advisories, &config.severity_override, &self.severity_overrides);
+        apply_severity_overrides(
+            &mut all_advisories,
+            &config.severity_override,
+            &self.severity_overrides,
+        );
         self.apply_composition(&mut all_advisories);
 
         #[cfg(feature = "fingerprinting")]
@@ -394,20 +543,39 @@ impl Engine {
         self.load_calibration();
         // Create DataFlowEngine for cross-file taint verification
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
-        run_corpus_scan(self, root, &snapshots, &symbols, &data_flow, &file_trees, &mut all_advisories);
+        run_corpus_scan(
+            self,
+            root,
+            &snapshots,
+            &symbols,
+            &data_flow,
+            &file_trees,
+            &mut all_advisories,
+        );
         self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
-        run_findings_modules(root, &snapshots, &symbols, &file_trees, &self.extra_taint_rule_dirs, self.check_deps, &mut all_advisories);
+        run_findings_modules(
+            root,
+            &snapshots,
+            &symbols,
+            &file_trees,
+            &self.extra_taint_rule_dirs,
+            self.check_deps,
+            &mut all_advisories,
+        );
 
         // Apply severity overrides to all findings
-        apply_severity_overrides(&mut all_advisories, &config.severity_override, &self.severity_overrides);
+        apply_severity_overrides(
+            &mut all_advisories,
+            &config.severity_override,
+            &self.severity_overrides,
+        );
 
-        if let Some(ref baseline_path) = self.baseline_path {
-            if let Ok(prev) = std::fs::read_to_string(baseline_path) {
-                if let Ok(fingerprints) = serde_json::from_str::<Vec<String>>(&prev) {
-                    let baseline_set: HashSet<String> = fingerprints.into_iter().collect();
-                    all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
-                }
-            }
+        if let Some(ref baseline_path) = self.baseline_path
+            && let Ok(prev) = std::fs::read_to_string(baseline_path)
+            && let Ok(fingerprints) = serde_json::from_str::<Vec<String>>(&prev)
+        {
+            let baseline_set: HashSet<String> = fingerprints.into_iter().collect();
+            all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
         }
 
         self.file_cache.save(root, self.language_filter.as_deref());
@@ -434,14 +602,24 @@ impl Engine {
     }
 
     #[cfg(feature = "fingerprinting")]
-    fn run_profile_analysis(&self, snapshots: &[super::FileSnapshot], all_advisories: &mut Vec<Advisory>) {
-        let Some(ref profile) = self.profile else { return };
+    fn run_profile_analysis(
+        &self,
+        snapshots: &[super::FileSnapshot],
+        all_advisories: &mut Vec<Advisory>,
+    ) {
+        let Some(ref profile) = self.profile else {
+            return;
+        };
 
         let mut all_fingerprints = Vec::new();
         for snap in snapshots {
             let mut fps = Vec::new();
-            crate::engine::fingerprint::extract_fingerprints(
-                snap.tree.root_node(), &snap.content, &snap.path, &mut fps, self.ngram_window_size,
+            frensense_engine::fingerprint::extract_fingerprints(
+                snap.tree.root_node(),
+                &snap.content,
+                &snap.path,
+                &mut fps,
+                self.ngram_window_size,
             );
             all_fingerprints.extend(fps);
         }
@@ -493,7 +671,9 @@ impl Engine {
                 .with_confidence(0.8)
                 .with_line(u32::try_from(first.line).unwrap_or(u32::MAX))
                 .with_content(first.function_name.clone())
-                .with_impact("Copy-pasted code diverges over time — one copy may lack security fixes.")
+                .with_impact(
+                    "Copy-pasted code diverges over time — one copy may lack security fixes.",
+                )
                 .with_improvement("Consider extracting shared logic into a common function.")
                 .with_tags(["copy-paste", "duplicate", "cluster"]),
             );
@@ -529,7 +709,10 @@ impl Engine {
                     continue;
                 }
             };
-            let symbols = match self.auditor.discover_symbols(p, id, &content, &language, &tree) {
+            let symbols = match self
+                .auditor
+                .discover_symbols(p, id, &content, &language, &tree)
+            {
                 Ok(s) => s,
                 Err(e) => {
                     self.file_cache.remove(p);
@@ -547,7 +730,15 @@ impl Engine {
             };
             let semantic_ops = self.auditor.extract_semantic_ops(p, &content, &tree);
             self.file_cache.update(p, &content);
-            snapshots.push(FileSnapshot { id, path: p.clone(), content, tree, symbols, edges, semantic_ops });
+            snapshots.push(FileSnapshot {
+                id,
+                path: p.clone(),
+                content,
+                tree,
+                symbols,
+                edges,
+                semantic_ops,
+            });
         }
         snapshots
     }
@@ -627,49 +818,44 @@ fn find_function_node<'a>(
 ) -> Option<tree_sitter::Node<'a>> {
     let mut cursor = root.walk();
     let mut best_match: Option<tree_sitter::Node<'a>> = None;
-    
+
     loop {
         let node = cursor.node();
         let kind = node.kind();
-        
+
         if matches!(
             kind,
-            "function_item" | "function_declaration" | "method_definition" | "arrow_function"
-            | "function" | "formal_parameters"
+            "function_item"
+                | "function_declaration"
+                | "method_definition"
+                | "arrow_function"
+                | "function"
+                | "formal_parameters"
         ) {
             // Calculate line number for this node
-            let node_line = source[..node.start_byte()].chars().filter(|&c| c == '\n').count();
-            
+            let node_line = source[..node.start_byte()]
+                .chars()
+                .filter(|&c| c == '\n')
+                .count();
+
             // Skip if too far from target line
             if node_line > line + 5 {
-                if cursor.goto_first_child() { continue; }
+                if cursor.goto_first_child() {
+                    continue;
+                }
                 loop {
-                    if cursor.goto_next_sibling() { break; }
-                    if !cursor.goto_parent() { return best_match; }
+                    if cursor.goto_next_sibling() {
+                        break;
+                    }
+                    if !cursor.goto_parent() {
+                        return best_match;
+                    }
                 }
                 continue;
             }
-            
+
             // For named functions, check name match
-            if name != "anonymous" {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    let node_name = &source[name_node.start_byte()..name_node.end_byte()];
-                    if node_name == name && node_line.abs_diff(line) <= 2 {
-                        return Some(node);
-                    }
-                } else if kind == "arrow_function" {
-                    if let Some(parent) = node.parent() {
-                        if parent.kind() == "variable_declarator" {
-                            if let Some(name_node) = parent.child_by_field_name("name") {
-                                let node_name = &source[name_node.start_byte()..name_node.end_byte()];
-                                if node_name == name && node_line.abs_diff(line) <= 2 {
-                                    return Some(node);
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
+            if name == "anonymous" {
                 // For anonymous functions, find the closest function at the target line
                 // Arrow functions and function expressions are the priority
                 if node_line.abs_diff(line) <= 1 {
@@ -684,9 +870,25 @@ fn find_function_node<'a>(
                         best_match = Some(node);
                     }
                 }
+            } else {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let node_name = &source[name_node.start_byte()..name_node.end_byte()];
+                    if node_name == name && node_line.abs_diff(line) <= 2 {
+                        return Some(node);
+                    }
+                } else if kind == "arrow_function"
+                    && let Some(parent) = node.parent()
+                    && parent.kind() == "variable_declarator"
+                    && let Some(name_node) = parent.child_by_field_name("name")
+                {
+                    let node_name = &source[name_node.start_byte()..name_node.end_byte()];
+                    if node_name == name && node_line.abs_diff(line) <= 2 {
+                        return Some(node);
+                    }
+                }
             }
         }
-        
+
         if cursor.goto_first_child() {
             continue;
         }
@@ -706,11 +908,16 @@ fn has_function_child(node: tree_sitter::Node<'_>) -> bool {
     let mut cursor = node.walk();
     loop {
         let n = cursor.node();
-        if n != node && matches!(
-            n.kind(),
-            "function_item" | "function_declaration" | "method_definition" | "arrow_function"
-            | "function"
-        ) {
+        if n != node
+            && matches!(
+                n.kind(),
+                "function_item"
+                    | "function_declaration"
+                    | "method_definition"
+                    | "arrow_function"
+                    | "function"
+            )
+        {
             return true;
         }
         if cursor.goto_first_child() {
@@ -725,4 +932,42 @@ fn has_function_child(node: tree_sitter::Node<'_>) -> bool {
             }
         }
     }
+}
+
+fn is_test_file(path: &Path) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let stem = path.file_stem().and_then(|n| n.to_str()).unwrap_or("");
+
+    // Check filename patterns
+    if name.ends_with(".test.ts")
+        || name.ends_with(".test.tsx")
+        || name.ends_with(".test.js")
+        || name.ends_with(".test.jsx")
+        || name.ends_with(".spec.ts")
+        || name.ends_with(".spec.tsx")
+        || name.ends_with(".spec.js")
+        || name.ends_with(".spec.jsx")
+        || name.ends_with("_test.rs")
+        || name.ends_with(".test.rs")
+    {
+        return true;
+    }
+
+    // Check if in test directories
+    let path_str = path.to_string_lossy();
+    if path_str.contains("/tests/")
+        || path_str.contains("/test/")
+        || path_str.contains("__tests__/")
+        || path_str.contains("/__mocks__/")
+        || path_str.contains("/mocks/")
+    {
+        return true;
+    }
+
+    // Check for mock files
+    if stem.starts_with("mock") || stem.ends_with(".mock") {
+        return true;
+    }
+
+    false
 }

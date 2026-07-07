@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_326_BLOWFISH_INSUFFICIENT_KEY_SIZE"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 326 Blowfish Insufficient Key Size."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

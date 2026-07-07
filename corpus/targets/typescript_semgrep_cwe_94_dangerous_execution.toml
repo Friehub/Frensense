@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_94_DANGEROUS_EXECUTION"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 94 Dangerous Execution."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

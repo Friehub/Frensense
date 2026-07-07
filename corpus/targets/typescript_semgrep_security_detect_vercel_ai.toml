@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_DETECT_VERCEL_AI"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Security Detect Vercel Ai."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

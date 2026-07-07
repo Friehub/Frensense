@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_327_SSL_V3_IS_INSECURE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 327 Ssl V3 Is Insecure."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

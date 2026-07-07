@@ -1,0 +1,70 @@
+name: Vulnerability Benchmark
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Vulnerability Recall Benchmark
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Frensense
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Frensense
+        run: cargo build --release
+
+      - name: Checkout OWASP Juice Shop
+        run: git clone https://github.com/juice-shop/juice-shop.git /tmp/juice-shop
+
+      - name: Run Historical Benchmark
+        run: |
+          ./scripts/historical-benchmark.sh /tmp/juice-shop routes/ --last 10
+          
+          # Convert CSV to github-action-benchmark custom JSON format
+          python3 -c "
+          import csv, json, sys, glob
+          csv_files = glob.glob('historical-scan-juice-shop-*.csv')
+          if not csv_files:
+              print('No CSV file found!')
+              sys.exit(1)
+          
+          data = []
+          with open(csv_files[0]) as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  data.append({
+                      'name': f\"Juice Shop {row['tag']}\",
+                      'value': int(row['advisories']),
+                      'unit': 'advisories'
+                  })
+          
+          with open('benchmark-results.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          "
+          
+          cat benchmark-results.json
+
+      - name: Store and Publish Benchmark Results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'customBiggerIsBetter'
+          output-file-path: benchmark-results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          # Alert if our vulnerability recall drops by more than 5%
+          alert-threshold: '5%'
+          comment-on-alert: true
+          fail-on-alert: true

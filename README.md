@@ -72,15 +72,12 @@ cp fixed.rs     corpus/targets/rust_my_bug_negative.rs
 
 No YAML. No compiler changes. No DSL.
 
-### Other Detection Types
+## Detection Layers
 
-Frensense has 6 detection systems. See the [Developer Guide](docs/DEVELOPER_GUIDE.md) for:
-- **Taint rules** — source-to-sink data flow (`taint_rules.toml`)
-- **Temporal rules** — API ordering constraints (`temporal_rules.toml`)
-- **Corpus patterns** — function shape matching (`corpus/targets/`)
-- **Finding modules** — custom AST analysis (`src/engine/findings/`)
-- **Composition** — cross-layer confidence adjustment
-- **Secret scanning** — hardcoded credential detection
+All detection is corpus-driven. The engine also runs:
+- **Finding modules** — structural analysis (`src/engine/findings/`): dead branches, unused variables, hallucinated imports
+- **Composition** — cross-layer confidence adjustment (corpus match + taint verification = full confidence; corpus alone = down-weighted)
+- **Secret scanning** — regex + entropy-based hardcoded credential detection
 
 ## Corpus Data Sources
 

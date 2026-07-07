@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_326_USE_OF_WEAK_RSA_KEY"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 326 Use Of Weak Rsa Key."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

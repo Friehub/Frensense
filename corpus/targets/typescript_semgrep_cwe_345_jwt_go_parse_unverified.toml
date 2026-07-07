@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_345_JWT_GO_PARSE_UNVERIFIED"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 345 Jwt Go Parse Unverified."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

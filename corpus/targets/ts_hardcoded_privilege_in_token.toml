@@ -1,0 +1,7 @@
+id = "ts_hardcoded_privilege_in_token"
+name = "Hardcoded Privilege in Session Token"
+description = "Minting a session token with hardcoded lower privileges instead of reading the actual role from the database."
+severity = "Critical"
+impact = "Paying users or administrators will be permanently treated as free-tier users or normal users for every session-token-gated feature."
+improvement = "Look up the customer's current license tier/role at login and store the real tier in the session record."
+tags = ["security", "auth", "privilege-escalation"]

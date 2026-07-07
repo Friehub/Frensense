@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_329_NO_STATIC_INITIALIZATION_VECTOR"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 329 No Static Initialization Vector."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

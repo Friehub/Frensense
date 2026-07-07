@@ -1,0 +1,19 @@
+warning: unused variable: `node`
+   --> frensense-engine/src/fingerprint.rs:339:29
+    |
+339 | fn extract_semantic_markers(node: Node<'_>, source: &str, api_calls: &F...
+    |                             ^^^^ help: if this is intentional, prefix it with an underscore: `_node`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `source`
+   --> frensense-engine/src/fingerprint.rs:339:45
+    |
+339 | ..._markers(node: Node<'_>, source: &str, api_calls: &FxHashSet<u64>) -...
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_source`
+
+warning: `frensense-engine` (lib) generated 2 warnings (run `cargo fix --lib -p frensense-engine` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.68s
+     Running `target/debug/frensense ../ecommerce --corpus corpus/targets/ --threshold 0.10`
+Loaded 36 patterns from embedded bundle
+Loaded 36 patterns from corpus directory

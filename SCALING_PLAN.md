@@ -38,15 +38,15 @@ A pattern trained on Rust matches TypeScript via the AbstractKind taxonomy. 45k 
 
 ## What Exists Today vs What's Needed
 
-| Component | Today (89 patterns) | At 45k Patterns |
-|-----------|---------------------|-----------------|
-| FRC bundle | ~80KB, embedded | ~45MB, embedded |
+| Component | Today (597 patterns) | At 45k Patterns |
+|-----------|----------------------|-----------------|
+| FRC bundle | ~2.9MB, embedded | ~45MB, embedded |
 | LSH index | 16 bands × 4 rows | 32 bands × 4 rows (better recall) |
 | Corpus harvest | Manual (2 files per pattern) | Automated pipeline from CVE datasets |
 | Pattern clustering | None | MinHash deduplication on corpus itself |
 | Bundle build | Full rebuild | Incremental rebuild |
 | Scan time (100 files) | ~500ms | ~800ms (estimated) |
-| Memory at scan | ~1MB | ~50MB for LSH + fingerprints |
+| Memory at scan | ~5MB | ~50MB for LSH + fingerprints |
 
 ---
 

@@ -1,19 +1,15 @@
-async function handleLogin(req: Request, res: Response) {
-    const { username, password } = req.body;
+class LoginController {
+    private authService: any;
 
-    const user = await db.query('SELECT * FROM users WHERE username = $1', [username]);
-    if (!user.rows.length) {
-        structuredLogger.info('auth.login.failed', { username, reason: 'unknown_user' });
-        return res.status(401).json({ error: 'Invalid credentials' });
+    async processLogin(req: any, res: any) {
+        const payload = req.body;
+        try {
+            const session = await this.authService.authenticate(payload.username, payload.password);
+            structuredLogger.info("auth.login.success", { user: payload.username, id: session.userId });
+            return res.json({ token: session.token });
+        } catch (err: any) {
+            structuredLogger.info("auth.login.failed", { user: payload.username, error: err.message });
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
     }
-
-    const valid = await bcrypt.compare(password, user.rows[0].password_hash);
-    if (!valid) {
-        structuredLogger.info('auth.login.failed', { username, reason: 'bad_password' });
-        return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign({ userId: user.rows[0].id }, SECRET_KEY, { expiresIn: '24h' });
-    structuredLogger.info('auth.login.success', { username, userId: user.rows[0].id });
-    res.json({ token, userId: user.rows[0].id });
 }

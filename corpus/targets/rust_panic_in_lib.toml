@@ -1,5 +1,0 @@
-id = "RUST_PANIC_IN_LIB"
-severity = "Warning"
-observation = "Corpus pattern: Rust Panic In Lib."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

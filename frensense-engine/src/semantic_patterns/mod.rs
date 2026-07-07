@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-pub mod check_then_act;
 pub mod helpers;
 pub mod registry;
 
-pub use helpers::{has_ancestor_kind, node_text, find_parent_kind, is_inside_transaction, collect_calls_in_scope, AncestorIter};
-pub use registry::{SemanticPattern, PatternRegistry, PatternRunner};
-
-use tree_sitter::Node;
+pub use helpers::{
+    AncestorIter, collect_calls_in_scope, find_parent_kind, has_ancestor_kind,
+    is_inside_transaction, node_text,
+};
+pub use registry::{PatternRegistry, PatternRunner, SemanticPattern};
 
 /// Result of a semantic pattern match.
 #[derive(Debug, Clone)]

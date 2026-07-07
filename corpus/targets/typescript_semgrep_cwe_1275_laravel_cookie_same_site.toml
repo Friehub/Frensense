@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_1275_LARAVEL_COOKIE_SAME_SITE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 1275 Laravel Cookie Same Site."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

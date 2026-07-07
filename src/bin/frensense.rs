@@ -105,7 +105,7 @@ fn main() -> Result<()> {
             if let Ok(content) = std::fs::read_to_string(p) {
                 let mut fps = Vec::new();
                 if let Ok((_language, tree)) = engine.auditor().parse_source(p, &content) {
-                    frensense::engine::fingerprint::extract_fingerprints(
+                    frensense_engine::fingerprint::extract_fingerprints(
                         tree.root_node(),
                         &content,
                         p,
@@ -116,7 +116,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        let profile = frensense::engine::profile::ProjectProfile::learn(&all_fingerprints);
+        let profile = frensense_engine::profile::ProjectProfile::learn(&all_fingerprints);
         let profile_dir = if input_path.is_file() {
             input_path.parent().unwrap_or(&input_path)
         } else {
@@ -146,7 +146,7 @@ fn main() -> Result<()> {
             std::process::exit(1);
         }
         let profile =
-            frensense::engine::profile::ProjectProfile::load(&profile_path).map_err(|e| {
+            frensense_engine::profile::ProjectProfile::load(&profile_path).map_err(|e| {
                 frensense::FrensenseError::Config(format!("Failed to load profile: {e}"))
             })?;
         if let Some(threshold) = options.profile_threshold {
@@ -166,7 +166,7 @@ fn main() -> Result<()> {
             .unwrap_or_else(|| input_path.join(".frensense").join("profile.json"));
         if profile_path.exists() {
             let profile =
-                frensense::engine::profile::ProjectProfile::load(&profile_path).map_err(|e| {
+                frensense_engine::profile::ProjectProfile::load(&profile_path).map_err(|e| {
                     frensense::FrensenseError::Config(format!("Failed to load profile: {e}"))
                 })?;
             print_profile_stats(&profile);
@@ -310,16 +310,21 @@ fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
             if !result.learned_patterns.is_empty() {
                 eprintln!("Learned {} pattern(s):", result.learned_patterns.len());
                 for pattern in &result.learned_patterns {
-                    eprintln!("  - {:?}: {} in {}", pattern.kind, pattern.description, pattern.function);
+                    eprintln!(
+                        "  - {:?}: {} in {}",
+                        pattern.kind, pattern.description, pattern.function
+                    );
                 }
             }
 
             // Generate taint rules from metadata
-            let taint_rules = frensense::engine::learn::load_learned_taint_rules(&result.metadata_path);
+            let taint_rules =
+                frensense::engine::learn::load_learned_taint_rules(&result.metadata_path);
             eprintln!("Found {} taint rule(s) in metadata", taint_rules.len());
             if !taint_rules.is_empty() {
                 let taint_path = output_dir.join("learned_taint.toml");
-                let mut taint_toml = String::from("# Auto-generated taint rules from pattern learning\n\n");
+                let mut taint_toml =
+                    String::from("# Auto-generated taint rules from pattern learning\n\n");
                 for rule in &taint_rules {
                     taint_toml.push_str(&rule.to_toml());
                 }
@@ -334,7 +339,10 @@ fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
             eprintln!("     cargo run --bin build-corpus-bundle");
             eprintln!();
             eprintln!("  2. Or scan with learned rules:");
-            eprintln!("     frensense . --extra-taint-rules {}", output_dir.display());
+            eprintln!(
+                "     frensense . --extra-taint-rules {}",
+                output_dir.display()
+            );
         }
         Err(e) => {
             eprintln!("Error learning pattern: {}", e);

@@ -20,6 +20,8 @@ index.d.ts
 # Frensense caches
 .frensense/
 .gensense/
+docs/.vitepress/dist
+docs/.vitepress/cache
 
 # OS / IDE
 .DS_Store

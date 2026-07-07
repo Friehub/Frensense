@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_NOT_PORTABLE_TMP_STRING"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Not Portable Tmp String."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

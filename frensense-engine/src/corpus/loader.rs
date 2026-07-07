@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use crate::fingerprint::{FunctionFingerprint, extract_fingerprints};
 use crate::corpus::semantic::SemanticFilter;
+use crate::fingerprint::{FunctionFingerprint, extract_fingerprints};
 
 #[derive(Debug, Clone)]
 pub struct CorpusPattern {
@@ -19,7 +19,13 @@ pub struct CorpusPattern {
 }
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
-    type PatternEntry = (Vec<FunctionFingerprint>, Vec<FunctionFingerprint>, AdvisoryText);
+    type PatternEntry = (
+        Vec<FunctionFingerprint>,
+        Vec<FunctionFingerprint>,
+        AdvisoryText,
+        Vec<FunctionFeatures>, // positive features
+        Vec<FunctionFeatures>, // negative features
+    );
     let mut pairs: HashMap<String, PatternEntry> = HashMap::new();
 
     for entry in fs::read_dir(corpus_dir).map_err(|e| e.to_string())? {
@@ -62,22 +68,28 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             continue;
         }
 
+        // Collect features from all function nodes for semantic learning
+        let mut all_features = Vec::new();
+        collect_all_function_features(tree.root_node(), &source, &mut all_features);
+
         let pattern_name = extract_pattern_name(file_name);
         let entry = pairs.entry(pattern_name).or_default();
         if is_positive {
             entry.0.extend(fps);
+            entry.3.extend(all_features);
             // Extract [frensense] block from positive file — primary source of advisory text
             if entry.2.observation.is_none() {
                 entry.2 = parse_frensense_block(&source);
             }
         } else {
             entry.1.extend(fps);
+            entry.4.extend(all_features);
         }
     }
 
     let mut patterns = Vec::new();
     let semantic_filters = load_semantic_filters();
-    for (name, (pos, neg, comment_advisory)) in pairs {
+    for (name, (pos, neg, comment_advisory, pos_features, neg_features)) in pairs {
         if pos.is_empty() && neg.is_empty() {
             continue;
         }
@@ -92,18 +104,31 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
 
         // Priority: comment block > sidecar TOML > empty
         let toml_advisory = load_sidecar_toml(corpus_dir, &name);
-        let observation = comment_advisory.observation
-            .or(toml_advisory.observation);
-        let impact = comment_advisory.impact
-            .or(toml_advisory.impact);
-        let improvement = comment_advisory.improvement
-            .or(toml_advisory.improvement);
+        let observation = comment_advisory.observation.or(toml_advisory.observation);
+        let impact = comment_advisory.impact.or(toml_advisory.impact);
+        let improvement = comment_advisory.improvement.or(toml_advisory.improvement);
+
+        // Learn semantic constraints from positive/negative examples
+        let learned = if !pos_features.is_empty() && !neg_features.is_empty() {
+            learn_from_features(&pos_features, &neg_features)
+        } else {
+            crate::corpus::semantic::LearnedConstraints::default()
+        };
+
+        // Merge: TOML manual filter takes precedence over learned constraints
+        let filter = if let Some(manual) = semantic_filters.get(&name) {
+            Some(manual.clone())
+        } else if !learned.is_empty() {
+            Some(learned.to_filter())
+        } else {
+            None
+        };
 
         patterns.push(CorpusPattern {
             id: name.clone(),
             positives: pos,
             negatives: neg,
-            semantic_filter: semantic_filters.get(&name).cloned(),
+            semantic_filter: filter,
             observation,
             impact,
             improvement,
@@ -145,10 +170,8 @@ fn parse_frensense_block(source: &str) -> AdvisoryText {
             Some(c.trim())
         } else if let Some(c) = trimmed.strip_prefix("//") {
             Some(c.trim())
-        } else if let Some(c) = trimmed.strip_prefix("#") {
-            Some(c.trim())
         } else {
-            None
+            trimmed.strip_prefix("#").map(str::trim)
         };
 
         let Some(text) = content else {
@@ -196,43 +219,49 @@ fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> Adviso
     };
 
     AdvisoryText {
-        observation: doc.get("observation").and_then(|v| v.as_str()).map(String::from),
+        observation: doc
+            .get("observation")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         impact: doc.get("impact").and_then(|v| v.as_str()).map(String::from),
-        improvement: doc.get("improvement").and_then(|v| v.as_str()).map(String::from),
+        improvement: doc
+            .get("improvement")
+            .and_then(|v| v.as_str())
+            .map(String::from),
     }
 }
 
 /// Load semantic filters from the TOML file.
 pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilter> {
     let mut filters = std::collections::HashMap::new();
-    
+
     // Try to find the semantic_filters.toml file
     let possible_paths = [
         std::path::PathBuf::from("corpus/semantic_filters.toml"),
         std::path::PathBuf::from("../corpus/semantic_filters.toml"),
         std::path::PathBuf::from("../../corpus/semantic_filters.toml"),
     ];
-    
-    let content = possible_paths.iter()
-        .filter_map(|p| std::fs::read_to_string(p).ok())
-        .next();
-    
+
+    let content = possible_paths
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok());
+
     let Some(content) = content else {
         return filters;
     };
-    
+
     // Simple TOML parser for our filter format
     let mut current_pattern: Option<String> = None;
     let mut current_filter = SemanticFilter::default();
-    
+
     for line in content.lines() {
         let line = line.trim();
-        
+
         // Skip comments and empty lines
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        
+
         // Pattern header: [pattern_name]
         if line.starts_with('[') && line.ends_with(']') {
             // Save previous pattern
@@ -242,15 +271,15 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
                 }
                 current_filter = SemanticFilter::default();
             }
-            current_pattern = Some(line[1..line.len()-1].to_string());
+            current_pattern = Some(line[1..line.len() - 1].to_string());
             continue;
         }
-        
+
         // Key = value pairs
         if let Some((key, value)) = line.split_once('=') {
             let key = key.trim();
             let value = value.trim();
-            
+
             // Parse array values: ["item1", "item2"]
             let parse_array = |s: &str| -> Vec<String> {
                 s.trim_start_matches('[')
@@ -260,7 +289,7 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
                     .filter(|s| !s.is_empty())
                     .collect()
             };
-            
+
             match key {
                 "contains_call_to" => {
                     current_filter.contains_call_to = parse_array(value);
@@ -281,14 +310,14 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
             }
         }
     }
-    
+
     // Save last pattern
     if let Some(name) = current_pattern {
         if !current_filter.is_empty() {
             filters.insert(name, current_filter);
         }
     }
-    
+
     filters
 }
 
@@ -371,8 +400,8 @@ mod tests {
     #[test]
     fn test_unsupported_extension_skipped() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("test_positive.py"), "def foo(): pass").unwrap();
-        std::fs::write(dir.path().join("test_negative.py"), "def bar(): pass").unwrap();
+        std::fs::write(dir.path().join("test_positive.xyz"), "def foo(): pass").unwrap();
+        std::fs::write(dir.path().join("test_negative.xyz"), "def bar(): pass").unwrap();
         let patterns = load_corpus(dir.path()).unwrap();
         assert!(
             patterns.is_empty(),
@@ -430,27 +459,51 @@ fn validate(input: &str) -> bool {
     true
 }"#;
         let advisory = parse_frensense_block(source);
-        assert_eq!(advisory.observation.as_deref(), Some("Function always returns true regardless of input."));
-        assert_eq!(advisory.impact.as_deref(), Some("Malicious input passes validation unchecked."));
-        assert_eq!(advisory.improvement.as_deref(), Some("Branch on input and return false for invalid values."));
+        assert_eq!(
+            advisory.observation.as_deref(),
+            Some("Function always returns true regardless of input.")
+        );
+        assert_eq!(
+            advisory.impact.as_deref(),
+            Some("Malicious input passes validation unchecked.")
+        );
+        assert_eq!(
+            advisory.improvement.as_deref(),
+            Some("Branch on input and return false for invalid values.")
+        );
     }
 
     #[test]
     fn test_parse_frensense_block_typescript() {
         let source = "// [frensense]\n// observation: sanitize returns input unchanged.\n// impact: XSS payload passes through.\n// improvement: HTML-escape entities.\n";
         let advisory = parse_frensense_block(source);
-        assert_eq!(advisory.observation.as_deref(), Some("sanitize returns input unchanged."));
-        assert_eq!(advisory.impact.as_deref(), Some("XSS payload passes through."));
-        assert_eq!(advisory.improvement.as_deref(), Some("HTML-escape entities."));
+        assert_eq!(
+            advisory.observation.as_deref(),
+            Some("sanitize returns input unchanged.")
+        );
+        assert_eq!(
+            advisory.impact.as_deref(),
+            Some("XSS payload passes through.")
+        );
+        assert_eq!(
+            advisory.improvement.as_deref(),
+            Some("HTML-escape entities.")
+        );
     }
 
     #[test]
     fn test_parse_frensense_block_python() {
         let source = "# [frensense]\n# observation: No rejection on invalid token.\n# impact: Auth bypass.\n# improvement: Return None on failure.\n";
         let advisory = parse_frensense_block(source);
-        assert_eq!(advisory.observation.as_deref(), Some("No rejection on invalid token."));
+        assert_eq!(
+            advisory.observation.as_deref(),
+            Some("No rejection on invalid token.")
+        );
         assert_eq!(advisory.impact.as_deref(), Some("Auth bypass."));
-        assert_eq!(advisory.improvement.as_deref(), Some("Return None on failure."));
+        assert_eq!(
+            advisory.improvement.as_deref(),
+            Some("Return None on failure.")
+        );
     }
 
     #[test]
@@ -474,7 +527,10 @@ fn validate(input: &str) -> bool {
     fn test_parse_frensense_block_partial() {
         let source = "/// [frensense]\n/// observation: Only observation provided.\n";
         let advisory = parse_frensense_block(source);
-        assert_eq!(advisory.observation.as_deref(), Some("Only observation provided."));
+        assert_eq!(
+            advisory.observation.as_deref(),
+            Some("Only observation provided.")
+        );
         assert!(advisory.impact.is_none());
         assert!(advisory.improvement.is_none());
     }
@@ -524,5 +580,193 @@ fn validate(input: &str) -> bool {
             2,
             "should extract all 2 functions from negative"
         );
+    }
+}
+
+/// Collected features from a function node for constraint learning.
+#[derive(Debug, Clone, Default)]
+struct FunctionFeatures {
+    calls: Vec<String>,
+    node_types: Vec<String>,
+}
+
+/// Collect features from a function node.
+fn collect_function_features(node: tree_sitter::Node<'_>, source: &str) -> FunctionFeatures {
+    let mut features = FunctionFeatures::default();
+
+    // Collect call targets
+    let mut cursor = node.walk();
+    loop {
+        let n = cursor.node();
+        if n.kind() == "call_expression" {
+            if let Some(callee) = n
+                .child_by_field_name("function")
+                .or_else(|| n.child_by_field_name("callee"))
+            {
+                let target = source[callee.start_byte()..callee.end_byte()].to_string();
+                features.calls.push(target);
+            }
+        }
+
+        // Collect node types (only meaningful ones)
+        let kind = n.kind();
+        if !kind.is_empty() && !kind.starts_with("comment") {
+            features.node_types.push(kind.to_string());
+        }
+
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                break;
+            }
+        }
+        if !cursor.goto_first_child() {
+            break;
+        }
+    }
+
+    features.calls.sort();
+    features.calls.dedup();
+    features.node_types.sort();
+    features.node_types.dedup();
+    features
+}
+
+/// Collect features from all function nodes in an AST.
+fn collect_all_function_features(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    out: &mut Vec<FunctionFeatures>,
+) {
+    let kind = node.kind();
+    if kind == "function_item"
+        || kind == "function_declaration"
+        || kind == "method_definition"
+        || kind == "arrow_function"
+        || kind == "function"
+        || kind == "generator_function"
+        || kind == "function_signature"
+        || kind == "method_declaration"
+    {
+        out.push(collect_function_features(node, source));
+    }
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i) {
+            collect_all_function_features(child, source, out);
+        }
+    }
+}
+
+/// Learn semantic constraints from pre-collected features.
+fn learn_from_features(
+    pos_features: &[FunctionFeatures],
+    neg_features: &[FunctionFeatures],
+) -> crate::corpus::semantic::LearnedConstraints {
+    if pos_features.is_empty() || neg_features.is_empty() {
+        return crate::corpus::semantic::LearnedConstraints::default();
+    }
+
+    // Collect all call targets from positives and negatives
+    let pos_calls: Vec<&str> = pos_features
+        .iter()
+        .flat_map(|f| f.calls.iter().map(|s| s.as_str()))
+        .collect();
+    let neg_calls: Vec<&str> = neg_features
+        .iter()
+        .flat_map(|f| f.calls.iter().map(|s| s.as_str()))
+        .collect();
+
+    // Find calls in ALL positives but NOT in any negative
+    let required_calls: Vec<String> = pos_features[0]
+        .calls
+        .iter()
+        .filter(|call| {
+            pos_features.iter().all(|f| f.calls.contains(*call))
+                && !neg_calls.contains(&call.as_str())
+        })
+        .cloned()
+        .collect();
+
+    // Find calls in ALL negatives but NOT in any positive
+    let forbidden_calls: Vec<String> = neg_features[0]
+        .calls
+        .iter()
+        .filter(|call| {
+            neg_features.iter().all(|f| f.calls.contains(*call))
+                && !pos_calls.contains(&call.as_str())
+        })
+        .cloned()
+        .collect();
+
+    // Same for node types
+    let pos_nts: Vec<&str> = pos_features
+        .iter()
+        .flat_map(|f| f.node_types.iter().map(|s| s.as_str()))
+        .collect();
+    let neg_nts: Vec<&str> = neg_features
+        .iter()
+        .flat_map(|f| f.node_types.iter().map(|s| s.as_str()))
+        .collect();
+
+    // Filter out noise node types
+    let noise: std::collections::HashSet<&str> = [
+        "program",
+        "statement_block",
+        "expression_statement",
+        "return_statement",
+        "if_statement",
+        "variable_declaration",
+        "identifier",
+        "call_expression",
+        "member_expression",
+        "string",
+        "number",
+        "true",
+        "false",
+        "null",
+        "template_string",
+        "binary_expression",
+        "unary_expression",
+        "parenthesized_expression",
+        "comma_expression",
+        "formal_parameters",
+        "type_annotation",
+    ]
+    .iter()
+    .cloned()
+    .collect();
+
+    let required_node_types: Vec<String> = pos_features[0]
+        .node_types
+        .iter()
+        .filter(|nt| {
+            !noise.contains(nt.as_str())
+                && pos_features.iter().all(|f| f.node_types.contains(*nt))
+                && !neg_nts.contains(&nt.as_str())
+        })
+        .cloned()
+        .collect();
+
+    let forbidden_node_types: Vec<String> = neg_features[0]
+        .node_types
+        .iter()
+        .filter(|nt| {
+            !noise.contains(nt.as_str())
+                && neg_features.iter().all(|f| f.node_types.contains(*nt))
+                && !pos_nts.contains(&nt.as_str())
+        })
+        .cloned()
+        .collect();
+
+    crate::corpus::semantic::LearnedConstraints {
+        required_calls,
+        forbidden_calls,
+        required_node_types,
+        forbidden_node_types,
     }
 }

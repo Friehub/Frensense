@@ -1,9 +1,8 @@
-#![allow(clippy::missing_panics_doc, clippy::must_use_candidate)]
 use super::options::CliOptions;
 use crate::Advisory;
-#[cfg(feature = "fingerprinting")]
-use crate::engine::profile::ProjectProfile;
 use crate::patcher::PatchManager;
+#[cfg(feature = "fingerprinting")]
+use frensense_engine::profile::ProjectProfile;
 use std::path::{Path, PathBuf};
 
 pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path: &Path) {

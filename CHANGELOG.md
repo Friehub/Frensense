@@ -4,7 +4,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [Unreleased] — v0.3.1
+## [0.5.0] - 2026-07-07
+
+> **Note:** Versions 0.3.1 and 0.4.0 were major internal architectural iterations and were not published to NPM/Crates.io. Their changes are rolled into the 0.5.0 release, but their specific changelogs are preserved below for historical tracking.
+
+### Added
+- **Multi-Layered Composition**: Frensense now operates via a Layer 1 structural fast-pass and a Layer 2 semantic verification pass. False positives are drastically culled via the new `verify_taint_flow` integration into the `PatternScorer`.
+- **Harvested Real-World Vulnerabilities**: 6 new generalized vulnerability patterns derived directly from backend audit reports (e.g., Unauthenticated DB Writes, Hyphen Drop Regex, JWT Bypass).
+- **OWASP Juice Shop Proven**: Scanner generalizes to find 77 true-positive vulnerabilities in the unseen OWASP Juice Shop repository without explicit fine-tuning.
+
+### Changed
+- **Fully corpus-driven detection**: All detection is now driven by positive/negative example pairs. Removed hardcoded TOCTOU detector (`check_then_act.rs`), temporal rules TOML (empty), and taint-as-detection. Detection layers: corpus fingerprint match → taint verification → taint entropy → cross-function consistency.
+- **CorpusSourceSinkRegistry**: Sources and sinks are learned from corpus AST at load time. Replaces three inconsistent `framework_types` arrays and two duplicate `identify_sink()` functions.
+- **Temporal detection is corpus-driven**: `rust_temporal_lock_unlock`, `rust_temporal_lock_sleep`, `ts_temporal_open_close`, `ts_temporal_connect_disconnect` patterns replace hardcoded TOML rules.
+- **TOCTOU generalization**: `ts_toctou_typeorm`, `ts_toctou_sequelize` patterns extend detection beyond Prisma-only.
+- **Corpus suppression support**: `.frensense-suppress.yml` now applies to corpus findings.
+- **603 positive corpus patterns** (from 89 in v0.3.x). 1214 fingerprints. 3.0MB FRC bundle.
+
+### Removed
+- `check_then_act.rs` — hardcoded TOCTOU detector (replaced by corpus patterns)
+- `temporal_rules.toml` rules — replaced by corpus patterns (file retained as empty)
+- `ROADMAP.md` — superseded by tasks.md and SCALING_PLAN.md
+- Stale test references to `TAINT_CREDENTIAL_TO_LOG`, `TAINT_INPUT_TO_EXEC` (taint-as-detection removed)
+- Commodity detectors: `dead_branch.rs`, `unused_variable.rs`, `atomic_section.rs`, `secrets.rs` — Clippy/GitLeaks do them better
+- `reachability.rs` — only used by removed dead_branch detector
+
+## [0.4.0] - Unreleased / Internal
+
+## [0.3.1] - Unreleased / Internal
 
 ### Added
 - **`taint_max_depth` Rule DSL field**: Rules can set `taint_max_depth: <N>` in YAML to control cross-function taint chain length per-rule. Falls back to 5 (existing default) when unset.

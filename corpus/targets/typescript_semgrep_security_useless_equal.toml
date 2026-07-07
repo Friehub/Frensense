@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_USELESS_EQUAL"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Useless Equal."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

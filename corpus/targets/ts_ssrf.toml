@@ -1,5 +1,0 @@
-id = "TS_SSRF"
-severity = "Warning"
-observation = "Corpus pattern: Ts Ssrf."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

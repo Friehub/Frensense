@@ -60,7 +60,11 @@ pub fn collect_calls_in_scope<'a>(node: Node<'a>, source: &'a str) -> Vec<(Strin
     calls
 }
 
-fn collect_calls_recursive<'a>(node: Node<'a>, source: &'a str, calls: &mut Vec<(String, Node<'a>)>) {
+fn collect_calls_recursive<'a>(
+    node: Node<'a>,
+    source: &'a str,
+    calls: &mut Vec<(String, Node<'a>)>,
+) {
     if node.kind() == "call_expression" {
         if let Some(callee) = node.child_by_field_name("function") {
             let text = node_text(callee, source).to_string();
@@ -74,74 +78,6 @@ fn collect_calls_recursive<'a>(node: Node<'a>, source: &'a str, calls: &mut Vec<
     }
 }
 
-/// Check if a node is a database read operation (Prisma find*, findUnique, etc.).
-pub fn is_db_read(node: Node, source: &str) -> Option<String> {
-    if node.kind() != "call_expression" {
-        return None;
-    }
-    let text = node_text(node, source);
-    let read_methods = [
-        "findUnique", "findFirst", "findMany", "findUniqueOrThrow",
-        "findFirstOrThrow", "findFirst_", "findMany_",
-        "aggregate", "count", "groupBy",
-    ];
-    for method in &read_methods {
-        if text.contains(method) {
-            return Some(method.to_string());
-        }
-    }
-    None
-}
-
-/// Check if a node is a database write operation (Prisma create, update, etc.).
-pub fn is_db_write(node: Node, source: &str) -> Option<String> {
-    if node.kind() != "call_expression" {
-        return None;
-    }
-    let text = node_text(node, source);
-    let write_methods = [
-        "create", "createMany", "update", "updateMany",
-        "upsert", "delete", "deleteMany",
-        "executeRaw", "executeRawUnsafe",
-    ];
-    for method in &write_methods {
-        if text.contains(method) {
-            return Some(method.to_string());
-        }
-    }
-    None
-}
-
-/// Check if a node is a conditional check (if statement, ternary, etc.).
-pub fn is_conditional_check(node: Node) -> bool {
-    matches!(
-        node.kind(),
-        "if_statement" | "if_expression" | "conditional_expression"
-            | "switch_statement" | "match_expression"
-    )
-}
-
-/// Extract variable names referenced in a node's condition.
-pub fn extract_condition_refs<'a>(node: Node<'a>, source: &'a str) -> Vec<String> {
-    let mut refs = Vec::new();
-    extract_identifiers(node, source, &mut refs);
-    refs
-}
-
-fn extract_identifiers<'a>(node: Node<'a>, source: &'a str, refs: &mut Vec<String>) {
-    if node.kind() == "identifier" || node.kind() == "property_identifier" {
-        let name = node_text(node, source).to_string();
-        if !refs.contains(&name) {
-            refs.push(name);
-        }
-    }
-    for i in 0..node.child_count() {
-        if let Some(child) = node.child(i) {
-            extract_identifiers(child, source, refs);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,10 +86,11 @@ mod tests {
     fn test_ancestor_iter() {
         let source = "fn foo() { if true { bar(); } }";
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()).unwrap();
+        parser
+            .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
+            .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let root = tree.root_node();
-        // Find the innermost node
         let if_stmt = root.descendant_for_point_range(
             tree_sitter::Point { row: 0, column: 10 },
             tree_sitter::Point { row: 0, column: 20 },
@@ -162,25 +99,5 @@ mod tests {
             let ancestors: Vec<_> = AncestorIter::new(node).map(|n| n.kind()).collect();
             assert!(!ancestors.is_empty());
         }
-    }
-
-    #[test]
-    fn test_is_db_read() {
-        let source = "prisma.user.findUnique({ where: { id } })";
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()).unwrap();
-        let tree = parser.parse(source, None).unwrap();
-        let root = tree.root_node();
-        assert!(is_db_read(root, source).is_some());
-    }
-
-    #[test]
-    fn test_is_db_write() {
-        let source = "prisma.user.create({ data: { name } })";
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()).unwrap();
-        let tree = parser.parse(source, None).unwrap();
-        let root = tree.root_node();
-        assert!(is_db_write(root, source).is_some());
     }
 }

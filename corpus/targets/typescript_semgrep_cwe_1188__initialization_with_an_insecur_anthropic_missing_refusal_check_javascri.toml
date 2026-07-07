@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_1188__INITIALIZATION_WITH_AN_INSECUR_ANTHROPIC_MISSING_REFUSAL_CHECK_JAVASCRI"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 1188  Initialization With An Insecur Anthropic Missing Refusal Check Javascri."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TS_UNSAFE_CACHE_DESERIALIZATION"
-severity = "Warning"
-observation = "Data from a cache or message broker is deserialized with JSON.parse() without schema validation."
-impact = "If the cache is compromised or poisoned, attacker-controlled JSON can cause type confusion, prototype pollution, or injection when the parsed result is used."
-improvement = "Validate deserialized data against a schema (Zod, Joi, or manual type guards) before use. Never trust cached data blindly."

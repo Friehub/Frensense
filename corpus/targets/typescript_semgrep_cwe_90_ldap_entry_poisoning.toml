@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_90_LDAP_ENTRY_POISONING"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 90 Ldap Entry Poisoning."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

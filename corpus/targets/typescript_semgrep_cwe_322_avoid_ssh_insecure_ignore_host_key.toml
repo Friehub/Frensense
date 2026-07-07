@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_322_AVOID_SSH_INSECURE_IGNORE_HOST_KEY"
-severity = "Critical"
-observation = "Corpus pattern: Typescript Semgrep Cwe 322 Avoid Ssh Insecure Ignore Host Key."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_319_PLAINTEXT_HTTP_LINK"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 319 Plaintext Http Link."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

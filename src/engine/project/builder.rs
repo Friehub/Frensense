@@ -6,7 +6,7 @@ use crate::FrensenseEnvironment;
 impl Engine {
     #[cfg(feature = "fingerprinting")]
     #[must_use]
-    pub fn with_profile(mut self, profile: crate::engine::profile::ProjectProfile) -> Self {
+    pub fn with_profile(mut self, profile: frensense_engine::profile::ProjectProfile) -> Self {
         self.profile = Some(profile);
         self
     }
@@ -18,7 +18,7 @@ impl Engine {
 
     #[cfg(feature = "fingerprinting")]
     #[must_use]
-    pub fn profile(&self) -> Option<&crate::engine::profile::ProjectProfile> {
+    pub fn profile(&self) -> Option<&frensense_engine::profile::ProjectProfile> {
         self.profile.as_ref()
     }
 

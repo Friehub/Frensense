@@ -1,6 +1,6 @@
 # MCP Server
 
-Frensense ships with a **Model Context Protocol (MCP) server** — a lightweight JSON-RPC 2.0 interface over stdin/stdout that lets AI agents (Claude Code, Cursor, etc.) use Frensense as a first-class semantic analysis tool.
+GenSense ships with a **Model Context Protocol (MCP) server** — a lightweight JSON-RPC 2.0 interface over stdin/stdout that lets AI agents (Claude Code, Cursor, etc.) use GenSense as a first-class semantic analysis tool.
 
 ## Quick Start
 
@@ -9,20 +9,20 @@ Frensense ships with a **Model Context Protocol (MCP) server** — a lightweight
 cargo build --features mcp
 
 # Run it (reads JSON-RPC from stdin, writes responses to stdout)
-./target/debug/frensense-mcp
+./target/debug/gensense-mcp
 ```
 
 ## Supported Clients
 
-Any MCP-compatible AI agent can connect to `frensense-mcp`. The server is transport-agnostic — it speaks JSON-RPC 2.0 over stdin/stdout, so it works with any MCP host that supports stdio-based servers.
+Any MCP-compatible AI agent can connect to `gensense-mcp`. The server is transport-agnostic — it speaks JSON-RPC 2.0 over stdin/stdout, so it works with any MCP host that supports stdio-based servers.
 
 ### Claude Code
 
 ```json
 {
   "mcpServers": {
-    "frensense": {
-      "command": "frensense-mcp",
+    "gensense": {
+      "command": "gensense-mcp",
       "args": []
     }
   }
@@ -32,13 +32,13 @@ Any MCP-compatible AI agent can connect to `frensense-mcp`. The server is transp
 ### Cursor
 
 In Cursor settings, add a new MCP server with:
-- **Name:** `frensense`
+- **Name:** `gensense`
 - **Type:** `stdio`
-- **Command:** `frensense-mcp`
+- **Command:** `gensense-mcp`
 
 ## Exposed Tools
 
-### `frensense_audit`
+### `gensense_audit`
 
 Run semantic analysis on a file or directory. This is the only tool the server exposes.
 
@@ -94,7 +94,7 @@ Run semantic analysis on a file or directory. This is the only tool the server e
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "frensense_audit",
+    "name": "gensense_audit",
     "arguments": {
       "path": "src/main.rs"
     }
@@ -107,7 +107,7 @@ Run semantic analysis on a file or directory. This is the only tool the server e
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "frensense_audit",
+    "name": "gensense_audit",
     "arguments": {
       "path": "/project/src",
       "severity_threshold": "critical",
@@ -149,8 +149,8 @@ The server implements the standard MCP lifecycle:
 | `notifications/cancelled` | Cancels pending request (no response) |
 | `shutdown` | Graceful shutdown — returns `null` |
 | `exit` | Exits the process |
-| `tools/list` | Returns the available tools (`frensense_audit`) |
-| `tools/call` | Invokes `frensense_audit` with the given arguments |
+| `tools/list` | Returns the available tools (`gensense_audit`) |
+| `tools/call` | Invokes `gensense_audit` with the given arguments |
 
 ### JSON-RPC 2.0 Compliance
 
@@ -168,16 +168,16 @@ The server implements the standard MCP lifecycle:
 The server writes diagnostic information to stderr:
 
 ```
-frensense-mcp v0.3.0 starting
-frensense-mcp: cwd=/project, rules=70, threshold="warning"
-frensense-mcp: exiting
+gensense-mcp v0.3.0 starting
+gensense-mcp: cwd=/project, rules=70, threshold="warning"
+gensense-mcp: exiting
 ```
 
 Clients can capture stderr for debugging without interfering with the JSON-RPC protocol on stdout.
 
 ## Troubleshooting
 
-**Server exits immediately with no output:** Ensure `frensense-mcp` was built with the `mcp` feature. Build with `cargo build --features mcp` or `cargo build --features cli` (which includes `mcp`).
+**Server exits immediately with no output:** Ensure `gensense-mcp` was built with the `mcp` feature. Build with `cargo build --features mcp` or `cargo build --features cli` (which includes `mcp`).
 
 **"Method not found" on known method:** Verify the client is sending valid JSON-RPC 2.0 — the server requires `"jsonrpc": "2.0"` in every request.
 

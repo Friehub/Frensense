@@ -12,13 +12,13 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tree_sitter::{Language, Node, Query, QueryCursor, Tree};
 
-#[cfg(feature = "fingerprinting")]
-use super::fingerprint::{FunctionFingerprint, extract_fingerprints};
 use super::suppression::{SuppressConfig, is_suppressed};
 use crate::{
     Advisory, FileId, FrensenseContext, FrensenseError, FrensenseRule, Result, TaintCache,
     parser::ParserRegistry, semantics::SymbolRegistry,
 };
+#[cfg(feature = "fingerprinting")]
+use frensense_engine::fingerprint::{FunctionFingerprint, extract_fingerprints};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct ScanResult {
@@ -95,6 +95,11 @@ impl FrensenseAuditor {
     }
 
     #[must_use]
+    pub fn suppressions(&self) -> &[(String, Pattern)] {
+        &self.suppressions
+    }
+
+    #[must_use]
     pub fn rules(&self) -> &[Box<dyn FrensenseRule>] {
         &self.rules
     }
@@ -161,10 +166,10 @@ impl FrensenseAuditor {
         if !meta.meets_suite(suite) {
             return false;
         }
-        if let Some(threshold) = severity_filter {
-            if !meta.severity.meets_threshold(threshold) {
-                return false;
-            }
+        if let Some(threshold) = severity_filter
+            && !meta.severity.meets_threshold(threshold)
+        {
+            return false;
         }
         true
     }
@@ -202,11 +207,23 @@ impl FrensenseAuditor {
             let taint_cache = TaintCache::default();
             let context = self.build_context(opts, &taint_cache);
             for rule in &self.rules {
-                if !self.is_rule_enabled(rule.as_ref(), opts.category_filter, opts.tag_filter, opts.suite, opts.env, opts.severity_filter) {
+                if !self.is_rule_enabled(
+                    rule.as_ref(),
+                    opts.category_filter,
+                    opts.tag_filter,
+                    opts.suite,
+                    opts.env,
+                    opts.severity_filter,
+                ) {
                     continue;
                 }
                 if rule.applies_to(ext) && rule.query().is_none() {
-                    self.walk_tree(opts.tree.root_node(), rule.as_ref(), &context, &mut advisories);
+                    self.walk_tree(
+                        opts.tree.root_node(),
+                        rule.as_ref(),
+                        &context,
+                        &mut advisories,
+                    );
                 }
             }
         }
@@ -215,19 +232,40 @@ impl FrensenseAuditor {
         let taint_cache = TaintCache::default();
         let file_context = self.build_context(opts, &taint_cache);
         for rule in &self.rules {
-            if !self.is_rule_enabled(rule.as_ref(), opts.category_filter, opts.tag_filter, opts.suite, opts.env, opts.severity_filter) {
+            if !self.is_rule_enabled(
+                rule.as_ref(),
+                opts.category_filter,
+                opts.tag_filter,
+                opts.suite,
+                opts.env,
+                opts.severity_filter,
+            ) {
                 continue;
             }
             advisories.extend(rule.file_check(&file_context));
         }
 
         #[cfg(feature = "fingerprinting")]
-        extract_fingerprints(opts.tree.root_node(), opts.content, opts.path, &mut fingerprints, opts.ngram_window_size);
+        extract_fingerprints(
+            opts.tree.root_node(),
+            opts.content,
+            opts.path,
+            &mut fingerprints,
+            opts.ngram_window_size,
+        );
 
-        Ok(ScanResult { advisories, #[cfg(feature = "fingerprinting")] fingerprints })
+        Ok(ScanResult {
+            advisories,
+            #[cfg(feature = "fingerprinting")]
+            fingerprints,
+        })
     }
 
-    fn build_context<'a>(&self, opts: &'a AuditOptions<'_>, taint_cache: &'a TaintCache) -> FrensenseContext<'a> {
+    fn build_context<'a>(
+        &self,
+        opts: &'a AuditOptions<'_>,
+        taint_cache: &'a TaintCache,
+    ) -> FrensenseContext<'a> {
         FrensenseContext {
             file_id: opts.file_id,
             file_path: opts.path,
@@ -273,13 +311,20 @@ impl FrensenseAuditor {
 
         let capture_names = combined_query.capture_names();
         let mut cursor = QueryCursor::new();
-        let query_matches = cursor.matches(combined_query, opts.tree.root_node(), opts.content.as_bytes());
+        let query_matches = cursor.matches(
+            combined_query,
+            opts.tree.root_node(),
+            opts.content.as_bytes(),
+        );
 
         let mut seen = HashSet::new();
 
         for m in query_matches {
             for capture in m.captures {
-                let capture_name = capture_names.get(capture.index as usize).copied().unwrap_or("");
+                let capture_name = capture_names
+                    .get(capture.index as usize)
+                    .copied()
+                    .unwrap_or("");
                 let Some((rule_id, kind)) = capture_name.split_once('.') else {
                     continue;
                 };
@@ -291,7 +336,14 @@ impl FrensenseAuditor {
                 };
                 let rule = &self.rules[rule_idx];
 
-                if !self.is_rule_enabled(rule.as_ref(), opts.category_filter, opts.tag_filter, opts.suite, opts.env, opts.severity_filter) {
+                if !self.is_rule_enabled(
+                    rule.as_ref(),
+                    opts.category_filter,
+                    opts.tag_filter,
+                    opts.suite,
+                    opts.env,
+                    opts.severity_filter,
+                ) {
                     continue;
                 }
 
@@ -300,7 +352,13 @@ impl FrensenseAuditor {
                     continue;
                 }
 
-                if !is_suppressed(&self.suppressions, capture.node, rule.id(), opts.content, opts.path) {
+                if !is_suppressed(
+                    &self.suppressions,
+                    capture.node,
+                    rule.id(),
+                    opts.content,
+                    opts.path,
+                ) {
                     advisories.extend(rule.check(capture.node, &context));
                 }
             }

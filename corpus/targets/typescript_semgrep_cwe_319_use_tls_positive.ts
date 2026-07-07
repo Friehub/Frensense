@@ -1,5 +1,0 @@
-// Vulnerable: Found an HTTP server without TLS. Use 'http.ListenAndServeTLS' instead. See https://golang.org/pkg/net/http/#ListenAndServeTLS for more information.
-// Pattern: http.ListenAndServe($ADDR, $HANDLER)
-function vulnerable() {
-  // TODO: implement pattern match
-}

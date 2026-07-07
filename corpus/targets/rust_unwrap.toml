@@ -1,5 +1,0 @@
-id = "RUST_UNWRAP"
-severity = "Warning"
-observation = "Corpus pattern: Rust Unwrap."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

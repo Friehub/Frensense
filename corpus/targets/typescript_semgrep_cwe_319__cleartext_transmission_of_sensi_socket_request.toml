@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_319__CLEARTEXT_TRANSMISSION_OF_SENSI_SOCKET_REQUEST"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 319  Cleartext Transmission Of Sensi Socket Request."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

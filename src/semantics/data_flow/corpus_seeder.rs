@@ -74,7 +74,10 @@ mod tests {
         let source_sink = test_source_sink();
         seed_from_corpus_match(fn_node, source, &mut registry, &source_sink);
 
-        assert!(registry.is_tainted("req"), "req with Request type should be tainted");
+        assert!(
+            registry.is_tainted("req"),
+            "req with Request type should be tainted"
+        );
     }
 
     #[test]
@@ -91,6 +94,9 @@ mod tests {
         let source_sink = test_source_sink();
         seed_from_corpus_match(fn_node, source, &mut registry, &source_sink);
 
-        assert!(!registry.is_tainted("input"), "input without framework type should NOT be tainted");
+        assert!(
+            !registry.is_tainted("input"),
+            "input without framework type should NOT be tainted"
+        );
     }
 }

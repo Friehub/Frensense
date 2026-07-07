@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_200_SPRING_ACTUATOR_DANGEROUS_ENDPOINTS_ENAB"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 200 Spring Actuator Dangerous Endpoints Enab."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

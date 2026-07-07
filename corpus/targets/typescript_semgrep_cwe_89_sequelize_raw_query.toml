@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_89_SEQUELIZE_RAW_QUERY"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 89 Sequelize Raw Query."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

@@ -1,5 +1,0 @@
-// Vulnerable: You should not re-raise exceptions using 'raise' because it loses track of where the exception was raised originally, leading to a useless and possibly confusing stack trace. Instead, you should obtain a stack backtrace as soon as the exception is caught using 'try ... with exn -> let trace = Printexc.get_raw_backtrace () in ...', and keep it around until you re-raise the exception using 'Printexc.raise_with_backtrace exn trace'. You must collect the stack backtrace before calling another function which might internally raise and catch exceptions. To avoid false positives from Semgrep, write 'raise (Foo args)' instead of 'let e = Foo args in raise e'.
-// Pattern: raise $EXN
-function vulnerable() {
-  // TODO: implement pattern match
-}

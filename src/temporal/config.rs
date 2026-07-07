@@ -22,7 +22,10 @@ static BUILTIN_TEMPORAL_RULES: LazyLock<Vec<TemporalRuleToml>> =
 
 fn parse_rule_from_table(table: &toml::Value) -> Option<TemporalRuleToml> {
     let id = table.get("id")?.as_str()?.to_string();
-    let sequence = table.get("sequence")?.as_array()?.iter()
+    let sequence = table
+        .get("sequence")?
+        .as_array()?
+        .iter()
         .filter_map(|v| v.as_str().map(String::from))
         .collect();
     let behavior = table.get("behavior")?.as_str()?.to_string();
@@ -30,12 +33,26 @@ fn parse_rule_from_table(table: &toml::Value) -> Option<TemporalRuleToml> {
     let observation = table.get("observation")?.as_str()?.to_string();
     let impact = table.get("impact")?.as_str()?.to_string();
     let improvement = table.get("improvement")?.as_str()?.to_string();
-    let tags = table.get("tags")
+    let tags = table
+        .get("tags")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
-    Some(TemporalRuleToml { id, sequence, behavior, severity, observation, impact, improvement, tags })
+    Some(TemporalRuleToml {
+        id,
+        sequence,
+        behavior,
+        severity,
+        observation,
+        impact,
+        improvement,
+        tags,
+    })
 }
 
 fn load_temporal_rules_from_str(content: &str) -> Vec<TemporalRuleToml> {
@@ -82,15 +99,8 @@ mod tests {
     #[test]
     fn test_load_builtin_temporal_rules() {
         let rules = load_all_temporal_rules(&[]);
-        assert_eq!(rules.len(), 5);
-
-        let lock_unlock = rules.iter().find(|r| r.id == "lock_unlock").unwrap();
-        assert_eq!(lock_unlock.sequence, vec!["lock", "unlock"]);
-        assert_eq!(lock_unlock.behavior, "must_follow");
-        assert_eq!(lock_unlock.severity, "error");
-
-        let lock_sleep = rules.iter().find(|r| r.id == "RUST_LOCK_SLEEP").unwrap();
-        assert_eq!(lock_sleep.behavior, "must_not_follow");
+        // Temporal rules are now corpus-driven — no hardcoded rules remain
+        assert_eq!(rules.len(), 0);
     }
 
     #[test]

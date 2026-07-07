@@ -1,5 +1,0 @@
-id = "TS_SEC_CMD_INJECTION_1"
-severity = "Critical"
-observation = "Corpus pattern: Ts Sec Cmd Injection 1."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

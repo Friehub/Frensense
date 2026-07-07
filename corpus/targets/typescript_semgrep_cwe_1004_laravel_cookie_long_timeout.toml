@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_1004_LARAVEL_COOKIE_LONG_TIMEOUT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 1004 Laravel Cookie Long Timeout."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

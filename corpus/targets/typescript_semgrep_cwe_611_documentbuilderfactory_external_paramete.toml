@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_611_DOCUMENTBUILDERFACTORY_EXTERNAL_PARAMETE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 611 Documentbuilderfactory External Paramete."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

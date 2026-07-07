@@ -1,5 +1,0 @@
-// Fixed: User-controllable argument $DATAVAL to $METHOD passed to Axios via internal handler $INNERFUNC. This could be a server-side request forgery. A user could call a restricted API or leak internal headers to an unauthorized party. Validate your user arguments against an allowlist of known URLs, or consider refactoring so that user-controlled data is not necessary.
-// Apply appropriate sanitization
-function safe() {
-  // TODO: implement fix
-}

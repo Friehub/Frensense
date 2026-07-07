@@ -1,5 +1,0 @@
-id = "TS_AS_ANY_ESCAPE"
-severity = "Warning"
-observation = "A value is cast to 'any' type, bypassing TypeScript's type system."
-impact = "Type safety is lost, allowing runtime errors from invalid property access or method calls."
-improvement = "Use 'unknown' type with explicit type guards, or define proper interfaces for the data."

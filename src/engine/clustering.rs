@@ -2,10 +2,10 @@
 
 //! Near-duplicate function clustering using Union-Find.
 //!
-//! Groups functions into clusters based on MinHash similarity.
+//! Groups functions into clusters based on `MinHash` similarity.
 //! Identifies inconsistent implementations within clusters.
 
-use crate::engine::fingerprint::FunctionFingerprint;
+use frensense_engine::fingerprint::FunctionFingerprint;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -118,7 +118,7 @@ pub fn cluster_functions(
             .iter()
             .map(|&idx| {
                 let fp = &fingerprints[idx];
-                let role = classify_member_role(fp, &fingerprints, &members);
+                let role = classify_member_role(fp, fingerprints, &members);
                 ClusterMember {
                     fingerprint: fp.clone(),
                     cluster_role: role,
@@ -190,9 +190,7 @@ fn classify_member_role(
 }
 
 /// Generate advisories from clusters with inconsistencies.
-pub fn cluster_to_advisories(
-    clusters: &[FunctionCluster],
-) -> Vec<crate::Advisory> {
+pub fn cluster_to_advisories(clusters: &[FunctionCluster]) -> Vec<crate::Advisory> {
     let mut advisories = Vec::new();
 
     for cluster in clusters {
@@ -227,10 +225,10 @@ pub fn cluster_to_advisories(
                     "Function '{}' is structurally similar to other functions in cluster {} but differs in implementation.{}",
                     member.fingerprint.function_name,
                     cluster.id,
-                    if !safe_names.is_empty() {
-                        format!(" Safe versions exist: {}", safe_names.join(", "))
-                    } else {
+                    if safe_names.is_empty() {
                         String::new()
+                    } else {
+                        format!(" Safe versions exist: {}", safe_names.join(", "))
                     }
                 ),
             )

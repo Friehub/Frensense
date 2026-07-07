@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_778__INSUFFICIENT_LOGGING_ANTHROPIC_MISSING_METADATA_USER_ID_JAVAS"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 778  Insufficient Logging Anthropic Missing Metadata User Id Javas."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

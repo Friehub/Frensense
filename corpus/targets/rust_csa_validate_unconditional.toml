@@ -1,5 +1,0 @@
-id = "RUST_CSA_VALIDATE_UNCONDITIONAL"
-severity = "Warning"
-observation = "Function name implies validation (validate_*) but every check only logs a warning; the result struct's valid field is hardcoded to true regardless of which fields failed."
-impact = "Callers branch on validation.valid to decide whether to proceed, so malformed host, port, timeout, retry count, or disabled TLS all reach the network call unrejected."
-improvement = "Push failures into the result's error list and set valid = errors.is_empty(), so an invalid field actually flips the field callers branch on."

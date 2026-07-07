@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_326_WEAK_SSL_CONTEXT"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 326 Weak Ssl Context."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

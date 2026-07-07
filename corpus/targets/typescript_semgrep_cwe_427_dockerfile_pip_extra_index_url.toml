@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_CWE_427_DOCKERFILE_PIP_EXTRA_INDEX_URL"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Cwe 427 Dockerfile Pip Extra Index Url."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

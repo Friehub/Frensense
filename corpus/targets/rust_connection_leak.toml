@@ -1,5 +1,0 @@
-id = "RUST_CONNECTION_LEAK"
-severity = "Warning"
-observation = "Corpus pattern: Rust Connection Leak."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

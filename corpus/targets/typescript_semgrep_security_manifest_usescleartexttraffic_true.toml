@@ -1,5 +1,0 @@
-id = "TYPESCRIPT_SEMGREP_SECURITY_MANIFEST_USESCLEARTEXTTRAFFIC_TRUE"
-severity = "Warning"
-observation = "Corpus pattern: Typescript Semgrep Security Manifest Usescleartexttraffic True."
-impact = "Function shape matches a known violation pattern."
-improvement = "Review against corpus example."

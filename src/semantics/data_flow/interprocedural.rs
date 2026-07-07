@@ -8,8 +8,8 @@
 use std::collections::HashSet;
 use tree_sitter::Node;
 
-use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::data_flow::TaintOrigin;
+use crate::semantics::data_flow::TaintRegistry;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 
 /// Result of interprocedural taint verification.
@@ -27,20 +27,24 @@ pub struct InterproceduralResult {
 /// to verify that user-controlled data reaches dangerous sinks.
 pub struct InterproceduralVerifier<'a> {
     source: &'a str,
-    tree: &'a tree_sitter::Tree,
+    _tree: &'a tree_sitter::Tree,
     registry: TaintRegistry,
-    visited: HashSet<(String, usize)>,
+    _visited: HashSet<(String, usize)>,
     max_depth: usize,
     source_sink: &'a CorpusSourceSinkRegistry,
 }
 
 impl<'a> InterproceduralVerifier<'a> {
-    pub fn new(source: &'a str, tree: &'a tree_sitter::Tree, source_sink: &'a CorpusSourceSinkRegistry) -> Self {
+    pub fn new(
+        source: &'a str,
+        tree: &'a tree_sitter::Tree,
+        source_sink: &'a CorpusSourceSinkRegistry,
+    ) -> Self {
         Self {
             source,
-            tree,
+            _tree: tree,
             registry: TaintRegistry::default(),
-            visited: HashSet::new(),
+            _visited: HashSet::new(),
             max_depth: 5,
             source_sink,
         }
@@ -84,12 +88,14 @@ impl<'a> InterproceduralVerifier<'a> {
     pub fn verify_flow(&mut self, fn_node: Node) -> InterproceduralResult {
         let body = match fn_node.child_by_field_name("body") {
             Some(b) => b,
-            None => return InterproceduralResult {
-                verified: false,
-                depth: 0,
-                path: Vec::new(),
-                detail: "No function body".to_string(),
-            },
+            None => {
+                return InterproceduralResult {
+                    verified: false,
+                    depth: 0,
+                    path: Vec::new(),
+                    detail: "No function body".to_string(),
+                };
+            }
         };
 
         // Check if any parameter is tainted
@@ -159,34 +165,34 @@ impl<'a> InterproceduralVerifier<'a> {
             }
             // Track variable assignments
             "variable_declarator" | "lexical_declaration" => {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    if let Some(value_node) = node.child_by_field_name("value") {
-                        let name = &self.source[name_node.start_byte()..name_node.end_byte()];
-                        // Check if value is tainted
-                        if self.is_node_tainted(value_node) {
-                            self.registry.taint(name, TaintOrigin::UserInput);
-                        }
+                if let Some(name_node) = node.child_by_field_name("name")
+                    && let Some(value_node) = node.child_by_field_name("value")
+                {
+                    let name = &self.source[name_node.start_byte()..name_node.end_byte()];
+                    // Check if value is tainted
+                    if self.is_node_tainted(value_node) {
+                        self.registry.taint(name, TaintOrigin::UserInput);
                     }
                 }
             }
             // Track assignments
             "assignment_expression" => {
-                if let Some(left) = node.child_by_field_name("left") {
-                    if let Some(right) = node.child_by_field_name("right") {
-                        let name = &self.source[left.start_byte()..left.end_byte()];
-                        if self.is_node_tainted(right) {
-                            self.registry.taint(name, TaintOrigin::UserInput);
-                        }
+                if let Some(left) = node.child_by_field_name("left")
+                    && let Some(right) = node.child_by_field_name("right")
+                {
+                    let name = &self.source[left.start_byte()..left.end_byte()];
+                    if self.is_node_tainted(right) {
+                        self.registry.taint(name, TaintOrigin::UserInput);
                     }
                 }
             }
             // Track await expressions
             "await_expression" => {
-                if let Some(arg) = node.child(0) {
-                    if self.is_node_tainted(arg) {
-                        // The awaited value is tainted
-                        // Continue tracking in parent context
-                    }
+                if let Some(arg) = node.child(0)
+                    && self.is_node_tainted(arg)
+                {
+                    // The awaited value is tainted
+                    // Continue tracking in parent context
                 }
             }
             _ => {}
@@ -243,15 +249,12 @@ impl<'a> InterproceduralVerifier<'a> {
                 }
                 if self.is_node_tainted(arg) {
                     let arg_text = &self.source[arg.start_byte()..arg.end_byte()];
-                    path.push(format!("{}({})", fn_name, arg_text));
+                    path.push(format!("{fn_name}({arg_text})"));
                     return Some(InterproceduralResult {
                         verified: true,
                         depth,
                         path: path.clone(),
-                        detail: format!(
-                            "Tainted data reaches sink '{}'",
-                            fn_name
-                        ),
+                        detail: format!("Tainted data reaches sink '{fn_name}'"),
                     });
                 }
             }
@@ -295,30 +298,24 @@ impl<'a> InterproceduralVerifier<'a> {
                                 verified: true,
                                 depth: result.depth,
                                 path: result.path,
-                                detail: format!(
-                                    "Tainted data flows through callback to {}",
-                                    fn_name
-                                ),
+                                detail: format!("Tainted data flows through callback to {fn_name}"),
                             });
                         }
                     }
                 }
 
                 // Check if argument is a function expression
-                if arg.kind() == "function" {
-                    if let Some(body) = arg.child_by_field_name("body") {
-                        let result = self.follow_taint(body, depth + 1, path);
-                        if result.verified {
-                            return Some(InterproceduralResult {
-                                verified: true,
-                                depth: result.depth,
-                                path: result.path,
-                                detail: format!(
-                                    "Tainted data flows through callback to {}",
-                                    fn_name
-                                ),
-                            });
-                        }
+                if arg.kind() == "function"
+                    && let Some(body) = arg.child_by_field_name("body")
+                {
+                    let result = self.follow_taint(body, depth + 1, path);
+                    if result.verified {
+                        return Some(InterproceduralResult {
+                            verified: true,
+                            depth: result.depth,
+                            path: result.path,
+                            detail: format!("Tainted data flows through callback to {fn_name}"),
+                        });
                     }
                 }
             }
@@ -360,12 +357,12 @@ impl<'a> InterproceduralVerifier<'a> {
         }
 
         // Check if the receiver is tainted (e.g., `getData()` returns tainted data)
-        if let Some(object) = callee.child_by_field_name("object")
+        if let Some(object) = callee
+            .child_by_field_name("object")
             .or_else(|| callee.child(0))
+            && !self.is_node_tainted(object)
         {
-            if !self.is_node_tainted(object) {
-                return None;
-            }
+            return None;
         }
 
         // Check if the callback argument receives the resolved value
@@ -380,19 +377,21 @@ impl<'a> InterproceduralVerifier<'a> {
                 if arg.kind() == "arrow_function" {
                     // The first parameter of the callback receives the resolved value
                     // Mark it as tainted
-                    if let Some(params) = arg.child_by_field_name("parameters")
+                    if let Some(params) = arg
+                        .child_by_field_name("parameters")
                         .or_else(|| arg.child_by_field_name("formal_parameters"))
                     {
                         let mut param_cursor = params.walk();
-                        if let Some(first_param) = params.children(&mut param_cursor)
+                        if let Some(first_param) = params
+                            .children(&mut param_cursor)
                             .find(|p| !matches!(p.kind(), "(" | ")" | "," | ";"))
-                        {
-                            if let Some(name_node) = first_param.child_by_field_name("name")
+                            && let Some(name_node) = first_param
+                                .child_by_field_name("name")
                                 .or_else(|| first_param.child(0))
-                            {
-                                let param_name = &self.source[name_node.start_byte()..name_node.end_byte()];
-                                self.registry.taint(param_name, TaintOrigin::UserInput);
-                            }
+                        {
+                            let param_name =
+                                &self.source[name_node.start_byte()..name_node.end_byte()];
+                            self.registry.taint(param_name, TaintOrigin::UserInput);
                         }
                     }
 
@@ -405,8 +404,7 @@ impl<'a> InterproceduralVerifier<'a> {
                                 depth: result.depth,
                                 path: result.path,
                                 detail: format!(
-                                    "Tainted data flows through .{}() callback",
-                                    method_name
+                                    "Tainted data flows through .{method_name}() callback"
                                 ),
                             });
                         }
@@ -417,15 +415,16 @@ impl<'a> InterproceduralVerifier<'a> {
                 if arg.kind() == "function" {
                     if let Some(params) = arg.child_by_field_name("parameters") {
                         let mut param_cursor = params.walk();
-                        if let Some(first_param) = params.children(&mut param_cursor)
+                        if let Some(first_param) = params
+                            .children(&mut param_cursor)
                             .find(|p| !matches!(p.kind(), "(" | ")" | "," | ";"))
-                        {
-                            if let Some(name_node) = first_param.child_by_field_name("name")
+                            && let Some(name_node) = first_param
+                                .child_by_field_name("name")
                                 .or_else(|| first_param.child(0))
-                            {
-                                let param_name = &self.source[name_node.start_byte()..name_node.end_byte()];
-                                self.registry.taint(param_name, TaintOrigin::UserInput);
-                            }
+                        {
+                            let param_name =
+                                &self.source[name_node.start_byte()..name_node.end_byte()];
+                            self.registry.taint(param_name, TaintOrigin::UserInput);
                         }
                     }
 
@@ -437,8 +436,7 @@ impl<'a> InterproceduralVerifier<'a> {
                                 depth: result.depth,
                                 path: result.path,
                                 detail: format!(
-                                    "Tainted data flows through .{}() callback",
-                                    method_name
+                                    "Tainted data flows through .{method_name}() callback"
                                 ),
                             });
                         }
@@ -459,20 +457,19 @@ impl<'a> InterproceduralVerifier<'a> {
             }
             "member_expression" | "field_expression" => {
                 // Check if the object is tainted
-                if let Some(object) = node.child_by_field_name("object")
-                    .or_else(|| node.child(0))
-                {
+                if let Some(object) = node.child_by_field_name("object").or_else(|| node.child(0)) {
                     return self.is_node_tainted(object);
                 }
                 false
             }
             "call_expression" => {
                 // Check if the function returns tainted data
-                if let Some(callee) = node.child_by_field_name("function")
+                if let Some(callee) = node
+                    .child_by_field_name("function")
                     .or_else(|| node.child_by_field_name("callee"))
                     .or_else(|| node.child(0))
                 {
-                    let fn_name = &self.source[callee.start_byte()..callee.end_byte()];
+                    let _fn_name = &self.source[callee.start_byte()..callee.end_byte()];
 
                     // Check if any argument is tainted
                     if let Some(args_list) = node.child_by_field_name("arguments") {
@@ -503,12 +500,12 @@ impl<'a> InterproceduralVerifier<'a> {
                 if cursor.goto_first_child() {
                     loop {
                         let child = cursor.node();
-                        if child.kind() == "template_substitution" {
-                            if let Some(expr) = child.child(1) {
-                                // Skip the ${ and }
-                                if self.is_node_tainted(expr) {
-                                    return true;
-                                }
+                        if child.kind() == "template_substitution"
+                            && let Some(expr) = child.child(1)
+                        {
+                            // Skip the ${ and }
+                            if self.is_node_tainted(expr) {
+                                return true;
                             }
                         }
                         if !cursor.goto_next_sibling() {
