@@ -2,7 +2,7 @@ import subprocess
 import json
 import os
 
-GENSENSE_BIN = "./target/release/frensense"
+FRENSENSE_BIN = "./target/release/frensense"
 
 POSITIVE_TESTS = [
     {
@@ -30,8 +30,8 @@ NEGATIVE_TESTS = [
     }
 ]
 
-def run_gensense(file_path):
-    result = subprocess.run([GENSENSE_BIN, file_path, "--json"], capture_output=True, text=True)
+def run_frensense(file_path):
+    result = subprocess.run([FRENSENSE_BIN, file_path, "--json"], capture_output=True, text=True)
     if result.returncode != 0:
         return []
     try:
@@ -40,7 +40,7 @@ def run_gensense(file_path):
         return []
 
 def main():
-    print("# GenSense Correctness Benchmark")
+    print("# Frensense Correctness Benchmark")
     print(f"| Test Case | Expected | Result | Status |")
     print(f"| :--- | :--- | :--- | :--- |")
 
@@ -50,7 +50,7 @@ def main():
     false_negatives = 0
 
     for test in POSITIVE_TESTS:
-        advisories = run_gensense(test["file"])
+        advisories = run_frensense(test["file"])
         rule_ids = [a["rule_id"] for a in advisories]
         if test["expected_rule"] in rule_ids:
             status = "✅ PASS"
@@ -61,7 +61,7 @@ def main():
         print(f"| {test['file']} | {test['expected_rule']} | {', '.join(rule_ids) if rule_ids else 'None'} | {status} |")
 
     for test in NEGATIVE_TESTS:
-        advisories = run_gensense(test["file"])
+        advisories = run_frensense(test["file"])
         rule_ids = [a["rule_id"] for a in advisories]
         if test["unexpected_rule"] not in rule_ids:
             status = "✅ PASS"

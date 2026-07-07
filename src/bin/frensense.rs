@@ -23,6 +23,35 @@ fn main() -> Result<()> {
     let input_path = get_input_path(&args);
     let options = parse_options(&args);
 
+    // Handle build-bundle
+    if options.build_bundle {
+        let corpus_dir = options
+            .corpus_dir
+            .clone()
+            .unwrap_or_else(|| input_path.clone());
+        let output_path = options
+            .build_bundle_output
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("frensense-corpus.frc"));
+
+        eprintln!("Building FRC bundle from {}...", corpus_dir.display());
+        match frensense_engine::corpus::bundle::build_bundle(&corpus_dir) {
+            Ok(bytes) => {
+                std::fs::write(&output_path, &bytes)?;
+                eprintln!(
+                    "Successfully built {} ({} bytes)",
+                    output_path.display(),
+                    bytes.len()
+                );
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("Error building bundle: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
     // Handle learn mode
     if options.learn_mode {
         return handle_learn_mode(&options);
@@ -336,7 +365,7 @@ fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
             eprintln!();
             eprintln!("Next steps:");
             eprintln!("  1. Rebuild bundle:");
-            eprintln!("     cargo run --bin build-corpus-bundle");
+            eprintln!("     frensense --build-bundle corpus/targets/");
             eprintln!();
             eprintln!("  2. Or scan with learned rules:");
             eprintln!(

@@ -1,5 +1,5 @@
 #!/bin/bash
-# GenSense Memory Stability Benchmark
+# Frensense Memory Stability Benchmark
 # Runs the engine 20 times and logs RSS to detect leaks.
 
 set -e

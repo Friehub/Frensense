@@ -10,7 +10,9 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| env::current_dir().unwrap());
     let corpus_dir = manifest_dir.join("corpus").join("targets");
     let output_path = manifest_dir.join("frensense-corpus.frc");
 

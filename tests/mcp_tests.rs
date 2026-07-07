@@ -627,7 +627,7 @@ fn test_mcp_audit_large_project_does_not_deadlock() {
 #[test]
 #[ignore = "slow in debug mode (>60s with full src/); run with --release or audit a smaller dir"]
 fn test_mcp_audit_self_source_directory() {
-    // Audit GenSense's own source code to validate the MCP server handles
+    // Audit Frensense's own source code to validate the MCP server handles
     // real-world workloads without error. Must be run with --release to complete
     // in a reasonable time.
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));

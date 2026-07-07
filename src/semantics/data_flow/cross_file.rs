@@ -289,7 +289,7 @@ impl<'a> CrossFileVerifier<'a> {
 
 #[cfg(test)]
 mod tests {
-    
+
     use frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry;
 
     fn test_registry() -> CorpusSourceSinkRegistry {

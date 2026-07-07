@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "GenSense Rule Definition Schema (v0.3.0)",
-  "description": "Schema for defining high-precision semantic rules for GenSense.",
+  "title": "Frensense Rule Definition Schema (v0.3.0)",
+  "description": "Schema for defining high-precision semantic rules for Frensense.",
   "type": "object",
   "properties": {
     "rules": {

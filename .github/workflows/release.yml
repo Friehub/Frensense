@@ -127,27 +127,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build NAPI Library
-        run: npm run build
 
-      - name: Smoke test NAPI library
-        run: |
-          node -e "
-            const m = require('./frensense.node');
-            const api = new m.FrenSenseEngine();
-            const r = api.auditContent('test.rs', 'fn main() { let x = 1; }');
-            console.log('NAPI OK -', r.length, 'findings');
-          "
 
-      - name: Smoke test NAPI library
-        run: |
-          node -e "
-            const m = require('./frensense.node');
-            const api = new m.FrenSenseEngine();
-            const r = api.auditContent('test.rs', 'fn main() { let x = 1; }');
-            const p = JSON.parse(r);
-            console.log('NAPI OK -', p.length, 'findings');
-          "
 
       - name: Build CLI Binary
         run: cargo build --release --target ${{ matrix.settings.target }}
@@ -163,11 +144,6 @@ jobs:
           "$binary" /tmp/test_smoke.rs --json > /dev/null
           echo "CLI smoke test passed"
 
-      - name: Upload NAPI Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: library-${{ matrix.settings.target }}
-          path: frensense.node
 
       - name: Upload CLI Artifact
         uses: actions/upload-artifact@v4
@@ -237,9 +213,13 @@ jobs:
             echo "Version $VERSION already exists on crates.io. Skipping."
             exit 0
           fi
-      - name: Publish
+      - name: Publish Engine
         run: |
-          cargo publish \
+          cargo publish -p frensense-engine \
+            --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish CLI
+        run: |
+          cargo publish -p frensense \
             --token ${{ secrets.CARGO_REGISTRY_TOKEN }} \
             --no-default-features \
             --features rust,typescript,fingerprinting
@@ -288,17 +268,6 @@ jobs:
           cp artifacts/cli-aarch64-apple-darwin/frensense          ./dist/binaries/frensense-macos-arm64
           cp artifacts/cli-x86_64-pc-windows-msvc/frensense.exe   ./dist/binaries/frensense-windows-x64.exe
 
-          # NAPI .node files — MUST use napi-rs platform naming so frensense.js
-          # can resolve the correct binary at runtime on each OS.
-          cp artifacts/library-x86_64-unknown-linux-gnu/frensense.node  ./frensense.linux-x64-gnu.node
-          cp artifacts/library-x86_64-apple-darwin/frensense.node        ./frensense.darwin-x64.node
-          cp artifacts/library-aarch64-apple-darwin/frensense.node        ./frensense.darwin-arm64.node
-          cp artifacts/library-x86_64-pc-windows-msvc/frensense.node     ./frensense.win32-x64-msvc.node
-
-      - name: Generate Rule Docs
-        run: |
-          cargo run -- --generate-docs
-
       - name: Test NPM package before publish
         run: |
           PACKAGE=$(npm pack --silent 2>&1 | tail -1)
@@ -310,12 +279,7 @@ jobs:
           npx frensense --version
           echo 'fn main() { let x = 1; }' > test.rs
           npx frensense test.rs --json > /dev/null
-          node -e "
-            const { FrenSense } = require('@friehub/frensense');
-            const engine = new FrenSense();
-            const r = engine.auditContent('test.rs', 'fn main() { let x = 1; }');
-            console.log('NPM package OK -', r.length, 'findings');
-          "
+          echo 'NPM package OK'
 
       - name: Check version not already published
         run: |

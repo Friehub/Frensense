@@ -203,6 +203,7 @@ fn main() -> frensense::Result<()> {
 
 ```
 frensense <path> [options]
+frensense <corpus_path> --build-bundle [--build-bundle-output <out.frc>]
 frensense --learn <positive_file> <negative_file> --learn-output <bundle.frc>
 frensense --version
 ```
@@ -221,6 +222,8 @@ frensense --version
 | `--fix [<scope>]` | Apply automated remediations where available (`style`, `security`, `all`). |
 | `--diff [<scope>]` | Preview proposed fixes as a unified diff. |
 | `--diff-only` | Only output the diff, silencing all other stdout (useful for CI formatters). |
+| `--build-bundle` | Compiles a custom `.frc` bundle from the specified corpus directory path. |
+| `--build-bundle-output <path>` | Path to save the compiled bundle (default: `frensense-corpus.frc`). |
 
 ### Confidence & Taint Thresholds
 

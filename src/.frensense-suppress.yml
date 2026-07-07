@@ -1,4 +1,4 @@
-# GenSense Self-Audit Baseline Suppression
+# Frensense Self-Audit Baseline Suppression
 #
 # These findings are acknowledged as technical debt in the v0.3.0 baseline.
 # By suppressing them here, the self-audit CI job will pass, but any NEW

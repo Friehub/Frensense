@@ -1,22 +1,22 @@
 # Writing Custom Rules
 
-GenSense is designed so that any developer can add new rules without modifying the engine or recompiling from source. Rules are declarative YAML files that the engine discovers and loads at runtime.
+Frensense is designed so that any developer can add new rules without modifying the engine or recompiling from source. Rules are declarative YAML files that the engine discovers and loads at runtime.
 
 ---
 
 ## How Rule Loading Works
 
-GenSense uses a two-tier loading system:
+Frensense uses a two-tier loading system:
 
 | Tier | Source | Who controls it |
 | :--- | :--- | :--- |
-| **Embedded rules** | Baked into the binary at compile time | GenSense core team |
+| **Embedded rules** | Baked into the binary at compile time | Frensense core team |
 | **User rules** | Read from disk at runtime, no recompile needed | You |
 
 At startup, the engine reads user rules from:
 
-1. **`.gensense/rules/`** in the project root — rules committed alongside your code
-2. **`~/.gensense/rules/`** — global rules that apply to every project on your machine
+1. **`.frensense/rules/`** in the project root — rules committed alongside your code
+2. **`~/.frensense/rules/`** — global rules that apply to every project on your machine
 3. **`--rules-dir <path>`** — any additional path you pass on the command line
 
 All rule sets are merged into one pipeline. If a user rule has the same `id` as an embedded rule, the user rule wins (override semantics).
@@ -25,7 +25,7 @@ All rule sets are merged into one pipeline. If a user rule has the same `id` as 
 
 ## Writing a YAML Rule
 
-Create a `.yml` file in `.gensense/rules/` with this structure:
+Create a `.yml` file in `.frensense/rules/` with this structure:
 
 ```yaml
 # Optional: declare the YAML format version (defaults to 0.3.0 if absent)
@@ -85,10 +85,10 @@ If omitted, the engine assumes the latest version (currently **0.3.0**). If an u
 
 ## Finding the Right `on_node` Value
 
-Run `gensense --debug <file>` to dump the full tree-sitter AST of any file. Find the node kind that wraps the pattern you want to detect.
+Run `frensense --debug <file>` to dump the full tree-sitter AST of any file. Find the node kind that wraps the pattern you want to detect.
 
 ```bash
-gensense --debug src/main.rs
+frensense --debug src/main.rs
 ```
 
 Common node kinds:
@@ -119,7 +119,7 @@ on_node: "[ (function_declaration) (arrow_function) (method_definition) ] @node"
 Before deploying a rule to your project, verify it with the `test-rule` command:
 
 ```bash
-gensense test-rule .gensense/rules/my_rules.yml \
+frensense test-rule .frensense/rules/my_rules.yml \
   --fixture tests/samples/bad_code.rs \
   --expect-finding MYCO_NO_PRINTLN \
   --expect-line 5
@@ -142,8 +142,8 @@ You should always write two fixture files:
 Run the test against both:
 
 ```bash
-gensense test-rule .gensense/rules/my_rules.yml --fixture bad_code.rs --expect-finding MYCO_NO_PRINTLN
-gensense test-rule .gensense/rules/my_rules.yml --fixture good_code.rs  # expects no findings
+frensense test-rule .frensense/rules/my_rules.yml --fixture bad_code.rs --expect-finding MYCO_NO_PRINTLN
+frensense test-rule .frensense/rules/my_rules.yml --fixture good_code.rs  # expects no findings
 ```
 
 ---
@@ -323,11 +323,11 @@ project_rules:
 
 ## Project Configuration
 
-Create `.gensense/config.yml` in your project root to configure engine behavior without CLI flags:
+Create `.frensense/config.yml` in your project root to configure engine behavior without CLI flags:
 
 ```yaml
 version: 1
-rules_dir: .gensense/rules/
+rules_dir: .frensense/rules/
 
 # Disable specific embedded rules for this project
 disabled_rules:
@@ -346,7 +346,7 @@ severity_override:
 To run exclusively your own rules and suppress all embedded defaults:
 
 ```bash
-gensense . --rules-dir .gensense/rules/ --no-builtin-rules
+frensense . --rules-dir .frensense/rules/ --no-builtin-rules
 ```
 
 This is useful for organizations that want full control over which rules are active and prefer to curate their own ruleset from scratch.

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "GenSense Rule Definition Schema (v0.2.2)",
+  "title": "Frensense Rule Definition Schema (v0.2.2)",
   "description": "Legacy schema for v0.2.2 diagnostic rules. Does not support auto-remediation or CSA project rules.",
   "type": "object",
   "properties": {

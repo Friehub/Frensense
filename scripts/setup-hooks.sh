@@ -1,5 +1,5 @@
 #!/bin/bash
-# GenSense Hook Installer
+# Frensense Hook Installer
 # Links local hooks to the .git directory.
 
 set -e

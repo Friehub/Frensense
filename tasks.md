@@ -7,7 +7,7 @@ Sources: `frensense_audit_v0.4.0.md`, `CORPUS_CURATION_GUIDE.md`, `CORPUS_BAKING
 ## Session Progress (2026-06-17)
 
 ### Completed This Session
-- **MCP test suite fixed (T1)**: Renamed gensense→frensense in all 20 failing tests, fixed severity threshold defaults (UNUSED_VARIABLE is Info, not Warning), updated stale rule expectations (RUST_PANIC_IN_LIB doesn't exist). 36/36 MCP tests pass.
+- **MCP test suite fixed (T1)**: Renamed frensense→frensense in all 20 failing tests, fixed severity threshold defaults (UNUSED_VARIABLE is Info, not Warning), updated stale rule expectations (RUST_PANIC_IN_LIB doesn't exist). 36/36 MCP tests pass.
 - **rule_tests rewritten (T1)**: Converted from inline snippets to corpus-fixture-based tests. Added configurable `corpus_threshold` on Engine. Set threshold to 0.32 for current corpus quality. 25/25 non-ignored tests pass.
 - **patcher tests created (T3)**: 6 new tests for PatchManager — apply_fix, apply_fixes (multi-patch), context mismatch, generate_diff, empty advisory noop. All pass.
 - **Multi-example corpus loader (S1)**: CorpusPattern stores `Vec<FunctionFingerprint>` for positives/negatives. Loader extracts ALL functions per file. `scan_function` takes max score across all pos/neg pairs. 14 engine tests pass.
@@ -60,10 +60,10 @@ Sources: `frensense_audit_v0.4.0.md`, `CORPUS_CURATION_GUIDE.md`, `CORPUS_BAKING
 - **File:** `src/cli/commands.rs`
 - **Fix:** Removed `RulesWrapper` struct.
 
-### B6 — Stale GenSense Name References
+### B6 — Stale Frensense Name References
 - **Status:** Done
 - **Priority:** Medium
-- **Fix:** Renamed all `gensense`/`GenSense` to `frensense`/`Frensense` across source, tests, docs, Makefile, MCP tooling.
+- **Fix:** Renamed all `frensense`/`Frensense` to `frensense`/`Frensense` across source, tests, docs, Makefile, MCP tooling.
 
 ### B7 — L3 Taint Entropy Wired to Nothing
 - **Status:** Done
@@ -372,7 +372,7 @@ Sources: `frensense_audit_v0.4.0.md`, `CORPUS_CURATION_GUIDE.md`, `CORPUS_BAKING
 
 ## Documentation & Naming Cleanup
 
-### D1 — Rename All GenSense References to Frensense
+### D1 — Rename All Frensense References to Frensense
 - **Status:** Done
 - **Priority:** Medium
 - **Depends on:** B6

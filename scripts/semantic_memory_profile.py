@@ -2,7 +2,7 @@ import subprocess
 import os
 import time
 
-GENSENSE_BIN = "./target/release/frensense"
+FRENSENSE_BIN = "./target/release/frensense"
 
 def generate_large_ts(size_kb):
     path = f"bench_samples/memory_stress.ts"
@@ -19,7 +19,7 @@ def generate_large_ts(size_kb):
 def profile_run(path):
     # Start the process
     start_time = time.time()
-    proc = subprocess.Popen([GENSENSE_BIN, path, "--json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen([FRENSENSE_BIN, path, "--json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     
     max_rss = 0
     while proc.poll() is None:
@@ -37,7 +37,7 @@ def profile_run(path):
     return max_rss, end_time - start_time
 
 def main():
-    print("# GenSense Semantic Memory Profile")
+    print("# Frensense Semantic Memory Profile")
     print("| Size (KB) | Max RSS (MB) | Time (s) |")
     print("| :--- | :--- | :--- |")
     

@@ -93,7 +93,7 @@ fn test_suppression_correctness() {
         panic!("unsuppressed");
     "#;
     // This test requires a real rule that matches panic!
-    // Since we are doing engine-level tests, we verify GenSenseAuditor::audit suppression logic.
+    // Since we are doing engine-level tests, we verify FrensenseAuditor::audit suppression logic.
 }
 
 #[test]

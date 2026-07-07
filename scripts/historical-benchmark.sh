@@ -53,8 +53,8 @@ if [ ! -d "$TARGET_REPO/.git" ]; then
   exit 1
 fi
 
-GENSENSE="$(dirname "$0")/../target/release/frensense"
-if [ ! -x "$GENSENSE" ]; then
+FRENSENSE="$(dirname "$0")/../target/release/frensense"
+if [ ! -x "$FRENSENSE" ]; then
   echo "Building frensense release binary..."
   cargo build --release --manifest-path "$(dirname "$0")/../Cargo.toml"
 fi
@@ -89,7 +89,7 @@ for TAG in "${TAGS[@]}"; do
   (cd "$TARGET_REPO" && git checkout --quiet "$TAG" 2>/dev/null)
 
   # Run frensense with --json, suppress frensense's own stdout/stderr
-  JSON=$("$GENSENSE" "$TARGET_REPO/$SCAN_PATH" --json 2>/dev/null || echo '{"advisories":[],"advisory_count":0}')
+  JSON=$("$FRENSENSE" "$TARGET_REPO/$SCAN_PATH" --json 2>/dev/null || echo '{"advisories":[],"advisory_count":0}')
 
   TOTAL=$(echo "$JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('advisory_count',0))")
   CRIT=$(echo "$JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(1 for a in d.get('advisories',[]) if a.get('severity')=='Critical'))")

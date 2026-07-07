@@ -18,10 +18,29 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
     WalkDir::new(root)
         .into_iter()
         .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
             if e.file_type().is_dir() {
-                let name = e.file_name().to_string_lossy();
                 if e.path() != root {
-                    return name != "target" && name != "node_modules" && !name.starts_with('.');
+                    return name != "target"
+                        && name != "node_modules"
+                        && name != "dist"
+                        && name != "build"
+                        && name != "vendor"
+                        && name != "out"
+                        && !name.starts_with('.');
+                }
+            } else if e.file_type().is_file() {
+                // Skip files larger than 1MB
+                if let Ok(meta) = e.metadata() {
+                    if meta.len() > 1_000_000 {
+                        return false;
+                    }
+                }
+                if name.ends_with(".min.js")
+                    || name.ends_with(".bundle.js")
+                    || name.ends_with(".chunk.js")
+                {
+                    return false;
                 }
             }
             true

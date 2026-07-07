@@ -44,6 +44,8 @@ pub struct CliOptions {
     pub learn_positive: Option<PathBuf>,
     pub learn_negative: Option<PathBuf>,
     pub learn_output: Option<PathBuf>,
+    pub build_bundle: bool,
+    pub build_bundle_output: Option<PathBuf>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -91,6 +93,8 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         learn_positive: None,
         learn_negative: None,
         learn_output: None,
+        build_bundle: false,
+        build_bundle_output: None,
     };
 
     let mut i = 1;
@@ -412,6 +416,13 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--learn-output" => {
                 if let Some(val) = args.get(i + 1) {
                     options.learn_output = Some(PathBuf::from(val));
+                    i += 1;
+                }
+            }
+            "--build-bundle" => options.build_bundle = true,
+            "--build-bundle-output" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.build_bundle_output = Some(PathBuf::from(val));
                     i += 1;
                 }
             }
