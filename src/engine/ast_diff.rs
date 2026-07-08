@@ -60,6 +60,9 @@ pub struct CallDiff {
 }
 
 /// Diff two source files at the AST level.
+///
+/// # Errors
+/// Returns an error if the ASTs cannot be parsed or analyzed.
 pub fn diff_ast(
     positive_source: &str,
     negative_source: &str,
@@ -102,26 +105,32 @@ pub fn diff_ast(
     })
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Extract function calls from source code.
 fn extract_calls(source: &str) -> Vec<(String, String)> {
     let mut calls = Vec::new();
     let re = regex::Regex::new(r"(\w+)\s*\(\s*(\w+)").unwrap();
 
     for cap in re.captures_iter(source) {
-        let caller = cap
+        let source_func = cap
             .get(1)
             .map(|m| m.as_str().to_string())
             .unwrap_or_default();
-        let callee = cap
+        let target_func = cap
             .get(2)
             .map(|m| m.as_str().to_string())
             .unwrap_or_default();
-        calls.push((caller, callee));
+        calls.push((source_func, target_func));
     }
 
     calls
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Extract function declarations from source code.
 fn extract_functions(source: &str) -> HashMap<String, usize> {
     let mut funcs = HashMap::new();
@@ -138,6 +147,9 @@ fn extract_functions(source: &str) -> HashMap<String, usize> {
     funcs
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Get calls within a specific function.
 fn get_calls_in_function(source: &str, func_name: &str) -> Vec<String> {
     let mut calls = Vec::new();
@@ -181,6 +193,9 @@ fn get_calls_in_function(source: &str, func_name: &str) -> Vec<String> {
     calls
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Analyze changes between two sets of calls.
 fn analyze_changes(pos_calls: &[String], neg_calls: &[String]) -> Vec<AstChange> {
     let mut changes = Vec::new();
@@ -210,6 +225,9 @@ fn analyze_changes(pos_calls: &[String], neg_calls: &[String]) -> Vec<AstChange>
     changes
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Analyze call graph differences.
 fn analyze_call_diffs(
     pos_calls: &[(String, String)],
@@ -234,6 +252,7 @@ fn analyze_call_diffs(
 }
 
 /// Extract learned patterns from AST diff.
+#[must_use]
 pub fn extract_patterns_from_diff(diff: &AstDiff) -> Vec<LearnedPattern> {
     let mut patterns = Vec::new();
 
@@ -282,19 +301,19 @@ mod tests {
 
     #[test]
     fn test_diff_ast_basic() {
-        let positive = r#"
+        let positive = r"
 function handler(req) {
     const input = req.body.query;
     eval(input);
 }
-"#;
-        let negative = r#"
+";
+        let negative = r"
 function handler(req) {
     const input = req.body.query;
     const clean = sanitize(input);
     eval(clean);
 }
-"#;
+";
 
         let diff = diff_ast(positive, negative, "test.ts", "test.ts").unwrap();
 

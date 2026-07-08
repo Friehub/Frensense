@@ -163,11 +163,11 @@ mod tests {
 
     #[test]
     fn test_hollow_validator_detection() {
-        let source = r#"
+        let source = r"
 fn validate_input(x: &str) -> bool {
     x.len() > 0
 }
-"#;
+";
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&tree_sitter_rust::LANGUAGE.into())

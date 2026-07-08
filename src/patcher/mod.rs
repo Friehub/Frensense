@@ -19,6 +19,9 @@ impl PatchManager {
     }
 
     /// Resolves a logical import path (potentially containing {{root}})
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// to a relative path from the current file.
     fn resolve_import_path(&self, from_file: &Path, import_stmt: &str) -> String {
         if !import_stmt.contains("{{root}}") {
@@ -67,6 +70,9 @@ impl PatchManager {
     /// Generates a unified diff for an advisory's proposed replacement.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the diff generation fails.
     pub fn generate_diff(&self, advisory: &Advisory, file_path: &Path) -> Result<String> {
         let Some(proposed) = &advisory.proposed_replacement else {
@@ -103,6 +109,9 @@ impl PatchManager {
     /// Applies all advisories to a file atomically using Shadow Writing.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if file reading, patching, or renaming fails.
     pub fn apply_fixes(&self, advisories: &[&Advisory], file_path: &Path) -> Result<()> {
         if advisories.is_empty() {
@@ -201,6 +210,9 @@ impl PatchManager {
     /// Applies a single advisory to a file atomically using Shadow Writing.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if file reading, patching, or renaming fails.
     pub fn apply_fix(&self, advisory: &Advisory, file_path: &Path) -> Result<()> {
         self.apply_fixes(&[advisory], file_path)

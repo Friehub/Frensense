@@ -125,8 +125,7 @@ fn test_context_mismatch_returns_error() {
     let result = patcher.apply_fix(&advisory, &file);
     assert!(
         result.is_err(),
-        "mismatched context should fail: {:?}",
-        result
+        "mismatched context should fail: {result:?}"
     );
 }
 

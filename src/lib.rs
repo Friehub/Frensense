@@ -87,12 +87,12 @@ pub struct RuleMetadata {
     #[serde(alias = "domain")]
     pub category: Cow<'static, str>,
     #[serde(default = "default_confidence")]
-    pub confidence: f32,
+    pub confidence: f64,
     #[serde(default = "default_precision")]
     pub precision: Precision,
 }
 
-const fn default_confidence() -> f32 {
+const fn default_confidence() -> f64 {
     0.55
 }
 
@@ -112,12 +112,13 @@ impl RuleMetadata {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+#[must_use]
 pub struct Advisory {
     pub rule_id: String,
     pub file_id: FileId,
     pub file_path: String,
     pub severity: Severity,
-    pub confidence: f32,
+    pub confidence: f64,
     pub observation: String,
     pub impact: String,
     pub improvement: String,
@@ -138,7 +139,7 @@ pub struct Advisory {
     /// Taint branch ratio from `TaintMetrics` — higher means function actually branches on input.
     /// Used by composition layer to suppress hollow validators.
     #[serde(default)]
-    pub taint_branch_ratio: Option<f32>,
+    pub taint_branch_ratio: Option<f64>,
 }
 
 /// Lossless usize → u32, saturating at `u32::MAX`.
@@ -150,8 +151,10 @@ pub fn to_u32(n: usize) -> u32 {
 
 impl Advisory {
     /// Create an advisory with common defaults pre-filled.
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Only set the fields that differ per finding.
-    #[must_use]
     pub fn bare(
         rule_id: impl Into<String>,
         severity: Severity,
@@ -184,7 +187,7 @@ impl Advisory {
         }
     }
 
-    pub fn with_confidence(mut self, v: f32) -> Self {
+    pub fn with_confidence(mut self, v: f64) -> Self {
         self.confidence = v;
         self
     }
@@ -226,7 +229,7 @@ impl Advisory {
         self
     }
 
-    pub fn with_taint_branch_ratio(mut self, v: f32) -> Self {
+    pub fn with_taint_branch_ratio(mut self, v: f64) -> Self {
         self.taint_branch_ratio = Some(v);
         self
     }
@@ -311,6 +314,7 @@ pub struct TaintCache {
 }
 
 impl TaintCache {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: RefCell::new(HashMap::new()),
@@ -358,8 +362,8 @@ pub struct FrensenseContext<'a> {
             Vec<crate::semantics::data_flow::normalization::SemanticOp>,
         ),
     >,
-    pub taint_confidence_interprocedural: f32,
-    pub taint_confidence_intraprocedural: f32,
+    pub taint_confidence_interprocedural: f64,
+    pub taint_confidence_intraprocedural: f64,
     pub default_taint_max_depth: usize,
     pub ngram_window_size: usize,
 }
@@ -374,6 +378,9 @@ pub type FileTreeMap = HashMap<
 >;
 
 impl<'a> FrensenseContext<'a> {
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Create a context with sensible defaults for taint analysis parameters.
     pub fn new(
         file_id: FileId,
@@ -403,6 +410,7 @@ impl<'a> FrensenseContext<'a> {
 
     /// Create a context for interprocedural resolution, overriding file-level fields
     /// while inheriting taint parameters from the parent context.
+    #[must_use]
     pub fn for_interprocedural(
         parent: &'a Self,
         file_id: FileId,
@@ -433,28 +441,46 @@ impl<'a> FrensenseContext<'a> {
 pub trait FrensenseRule: Send + Sync {
     fn metadata(&self) -> &RuleMetadata;
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// The core logic for verifying a finding.
     fn check<'a>(&self, node: Node<'a>, context: &FrensenseContext<'a>) -> Vec<Advisory>;
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Helper to get rule ID
     fn id(&self) -> &str {
         self.metadata().id.as_ref()
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Helper to check file applicability
     fn applies_to(&self, extension: &str) -> bool;
 
     /// File-level check (not per-node). Fires once per file.
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Default no-op — override for rules like file-length limits.
     fn file_check(&self, _context: &FrensenseContext<'_>) -> Vec<Advisory> {
         Vec::new()
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Helper for query-based matching
     fn query(&self) -> Option<&str> {
         None
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// DRY Helper: Create a new advisory for this rule.
     fn new_advisory(
         &self,
@@ -507,7 +533,7 @@ pub trait FrensenseRule: Send + Sync {
         adv
     }
 
-    fn with_confidence(&self, mut advisory: Advisory, confidence: f32) -> Advisory {
+    fn with_confidence(&self, mut advisory: Advisory, confidence: f64) -> Advisory {
         advisory.confidence = confidence;
         advisory
     }
@@ -520,6 +546,9 @@ pub use crate::engine::source::SourceRegistry;
 pub trait ProjectRule: Send + Sync {
     fn metadata(&self) -> &RuleMetadata;
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// The core logic. Receives the complete project graph (read-only).
     fn check_project(&self, symbols: &SymbolRegistry, sources: &SourceRegistry) -> Vec<Advisory>;
 

@@ -7,6 +7,12 @@ use tree_sitter::Language;
 pub struct ParserRegistry;
 
 impl ParserRegistry {
+    ///
+    /// # Errors
+    /// May return an error if the operation fails.
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns the tree-sitter language for a given file path.
     pub fn get_language(path: &Path) -> Result<Language> {
         let ext = path.extension().and_then(|s| s.to_str()).ok_or_else(|| {

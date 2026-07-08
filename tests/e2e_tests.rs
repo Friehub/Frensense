@@ -232,11 +232,11 @@ fn test_cli_json_output() {
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    // Write a file with a taint violation
+    // Write a file with a corpus-matchable pattern
     let ts_file = root.join("leak.ts");
     fs::write(
         &ts_file,
-        "function logPassword(password: string) { console.log(password); }",
+        "function evalInput(input: string) { eval(input); }",
     )
     .unwrap();
 

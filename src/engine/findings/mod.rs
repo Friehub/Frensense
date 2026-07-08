@@ -44,6 +44,7 @@ impl FindingModule for SemanticPatterns {
 }
 
 /// Returns the registered finding modules in execution order.
+#[must_use]
 pub fn registered_modules() -> Vec<Box<dyn FindingModule>> {
     vec![
         Box::new(TemporalViolation),

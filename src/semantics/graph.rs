@@ -239,6 +239,9 @@ impl SemanticGraph {
         events
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Records a taint flow finding and optionally materializes it as a `TaintFlow` edge.
     pub fn record_taint_flow(&mut self, record: TaintFlowRecord) {
         let func_name = record.function_name.clone();
@@ -312,6 +315,7 @@ impl SemanticGraph {
 }
 
 /// Extract temporal events (lock/await/release) from a tree-sitter AST.
+#[must_use]
 pub fn extract_temporal_events<'a>(
     root: tree_sitter::Node<'a>,
     source: &'a str,

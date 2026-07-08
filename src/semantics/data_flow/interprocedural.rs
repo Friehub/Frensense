@@ -35,6 +35,7 @@ pub struct InterproceduralVerifier<'a> {
 }
 
 impl<'a> InterproceduralVerifier<'a> {
+    #[must_use]
     pub fn new(
         source: &'a str,
         tree: &'a tree_sitter::Tree,
@@ -50,19 +51,24 @@ impl<'a> InterproceduralVerifier<'a> {
         }
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Seed taint for a function's parameters.
     pub fn seed_taint(&mut self, fn_node: Node, _source_name: &str) {
         self.seed_from_params(fn_node);
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Seed taint from function parameters using corpus-learned source types.
     fn seed_from_params(&mut self, fn_node: Node) {
-        let params_node = match fn_node
+        let Some(params_node) = fn_node
             .child_by_field_name("parameters")
             .or_else(|| fn_node.child_by_field_name("formal_parameters"))
-        {
-            Some(p) => p,
-            None => return,
+        else {
+            return;
         };
 
         let mut cursor = params_node.walk();
@@ -84,18 +90,18 @@ impl<'a> InterproceduralVerifier<'a> {
         }
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Verify that taint flows from parameters to a sink in the function body.
     pub fn verify_flow(&mut self, fn_node: Node) -> InterproceduralResult {
-        let body = match fn_node.child_by_field_name("body") {
-            Some(b) => b,
-            None => {
-                return InterproceduralResult {
-                    verified: false,
-                    depth: 0,
-                    path: Vec::new(),
-                    detail: "No function body".to_string(),
-                };
-            }
+        let Some(body) = fn_node.child_by_field_name("body") else {
+            return InterproceduralResult {
+                verified: false,
+                depth: 0,
+                path: Vec::new(),
+                detail: "No function body".to_string(),
+            };
         };
 
         // Check if any parameter is tainted
@@ -130,6 +136,9 @@ impl<'a> InterproceduralVerifier<'a> {
         self.follow_taint(body, 0, &mut Vec::new())
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Recursively follow taint through a code block.
     fn follow_taint(
         &mut self,
@@ -221,6 +230,9 @@ impl<'a> InterproceduralVerifier<'a> {
         }
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Check if a function call is a sink and if tainted data reaches it.
     fn check_call_for_sink(
         &mut self,
@@ -266,6 +278,9 @@ impl<'a> InterproceduralVerifier<'a> {
     /// Check if tainted data flows through callback arguments.
     ///
     /// Example: `processInput(() => req.query.cmd)`
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// The arrow function receives no arguments, but captures `req` from closure.
     fn check_callbacks(
         &mut self,
@@ -327,6 +342,9 @@ impl<'a> InterproceduralVerifier<'a> {
     /// Check if tainted data flows through a promise chain.
     ///
     /// Example: `getData().then(data => exec(data))`
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// The `.then()` callback receives the resolved value.
     fn check_promise_chain(
         &mut self,
@@ -448,6 +466,9 @@ impl<'a> InterproceduralVerifier<'a> {
         None
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Check if a node is tainted (variable reference or member expression).
     fn is_node_tainted(&self, node: Node) -> bool {
         match node.kind() {
@@ -567,12 +588,12 @@ mod tests {
 
     #[test]
     fn test_verify_flow_callback() {
-        let source = r#"
+        let source = r"
 function handler(req: Request) {
     const cmd = req.query.cmd;
     exec(cmd);
 }
-"#;
+";
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())

@@ -190,11 +190,11 @@ mod tests {
             .set_language(&tree_sitter_rust::LANGUAGE.into())
             .unwrap();
         let tree_a = parser.parse(source_a, None).unwrap();
-        let tree_a_root = tree_a.root_node();
+        let root_node_a = tree_a.root_node();
         let tree_b = parser.parse(source_b, None).unwrap();
-        let tree_b_root = tree_b.root_node();
-        let pattern = PatternCompiler::compile_node(tree_a_root, source_a);
-        let result = PatternMatcher::match_node(&pattern, tree_b_root, source_b);
+        let root_node_b = tree_b.root_node();
+        let pattern = PatternCompiler::compile_node(root_node_a, source_a);
+        let result = PatternMatcher::match_node(&pattern, root_node_b, source_b);
         assert!(!result.matched);
     }
 }

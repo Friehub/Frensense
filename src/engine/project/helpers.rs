@@ -115,8 +115,9 @@ impl Engine {
             } else {
                 (ngram_sizes[j], ngram_sizes[i])
             };
-            #[allow(clippy::cast_precision_loss)]
-            let max_possible = small as f64 / large as f64;
+            let small_f64 = f64::from(u32::try_from(small).unwrap_or(u32::MAX));
+            let large_f64 = f64::from(u32::try_from(large).unwrap_or(u32::MAX));
+            let max_possible = small_f64 / large_f64;
             if max_possible < threshold {
                 continue;
             }
@@ -124,21 +125,20 @@ impl Engine {
             let intersection = f1.ngram_hashes.intersection(&f2.ngram_hashes).count();
 
             // Exact bound check: intersection / min(s1,s2) < threshold → can't reach threshold
-            #[allow(clippy::cast_precision_loss)]
-            if (intersection as f64 / small as f64) < threshold {
+            let intersection_f64 = f64::from(u32::try_from(intersection).unwrap_or(u32::MAX));
+            if (intersection_f64 / small_f64) < threshold {
                 continue;
             }
 
             let union = f1.ngram_hashes.union(&f2.ngram_hashes).count();
-            #[allow(clippy::cast_precision_loss)]
-            let similarity = intersection as f64 / union as f64;
+            let union_f64 = f64::from(u32::try_from(union).unwrap_or(u32::MAX));
+            let similarity = intersection_f64 / union_f64;
 
             if similarity >= threshold {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let sim_pct = (similarity * 100.0) as u32;
+                let sim_pct = similarity * 100.0;
                 advisories.push(
-                    Advisory::bare("REDUNDANT_BOILERPLATE", crate::Severity::Warning, FileId(0), std::path::Path::new(&f1.file_path), format!("Redundant Boilerplate: Block '{}' is {}% similar to '{}' in {}:{}.", f1.function_name, sim_pct, f2.function_name, f2.file_path, f2.line))
-                        .with_confidence(similarity as f32)
+                    Advisory::bare("REDUNDANT_BOILERPLATE", crate::Severity::Warning, FileId(0), std::path::Path::new(&f1.file_path), format!("Redundant Boilerplate: Block '{}' is {:.0}% similar to '{}' in {}:{}.", f1.function_name, sim_pct, f2.function_name, f2.file_path, f2.line))
+                        .with_confidence(similarity)
                         .with_line(u32::try_from(f1.line).unwrap_or(u32::MAX))
                         .with_content(sources.get_by_path(std::path::Path::new(&f1.file_path)).and_then(|src| src.content.lines().nth(f1.line.saturating_sub(1)).map(str::trim).map(std::string::String::from)).unwrap_or_else(|| f1.function_name.clone()))
                         .with_enclosing_symbol(f1.function_name.clone())

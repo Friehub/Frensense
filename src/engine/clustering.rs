@@ -62,18 +62,19 @@ impl UnionFind {
             return;
         }
 
-        if self.rank[x_root] < self.rank[y_root] {
-            self.parent[x_root] = y_root;
-        } else if self.rank[x_root] > self.rank[y_root] {
-            self.parent[y_root] = x_root;
-        } else {
-            self.parent[y_root] = x_root;
-            self.rank[x_root] += 1;
+        match self.rank[x_root].cmp(&self.rank[y_root]) {
+            std::cmp::Ordering::Less => self.parent[x_root] = y_root,
+            std::cmp::Ordering::Greater => self.parent[y_root] = x_root,
+            std::cmp::Ordering::Equal => {
+                self.parent[y_root] = x_root;
+                self.rank[x_root] += 1;
+            }
         }
     }
 }
 
 /// Cluster functions by near-duplicate similarity.
+#[must_use]
 pub fn cluster_functions(
     fingerprints: &[FunctionFingerprint],
     similarity_threshold: f64,
@@ -142,6 +143,9 @@ pub fn cluster_functions(
     clusters
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Classify a function's role within its cluster.
 fn classify_member_role(
     fp: &FunctionFingerprint,
@@ -190,6 +194,7 @@ fn classify_member_role(
 }
 
 /// Generate advisories from clusters with inconsistencies.
+#[must_use]
 pub fn cluster_to_advisories(clusters: &[FunctionCluster]) -> Vec<crate::Advisory> {
     let mut advisories = Vec::new();
 

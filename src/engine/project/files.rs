@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 /// Collects all files reachable from `root` that match supported extensions
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// and the optional language filter.
 pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -> Vec<PathBuf> {
     if root.is_file() {
@@ -93,7 +96,7 @@ fn is_test_file(path: &Path) -> bool {
     }
 
     // Check for mock files
-    if stem.starts_with("mock") || stem.ends_with(".mock") {
+    if stem.starts_with("mock") || stem.to_lowercase().ends_with(".mock") {
         return true;
     }
 

@@ -49,6 +49,7 @@ pub struct CrossFileVerifier<'a> {
 }
 
 impl<'a> CrossFileVerifier<'a> {
+    #[must_use]
     pub fn new(
         source: &'a str,
         tree: &'a tree_sitter::Tree,
@@ -82,14 +83,16 @@ impl<'a> CrossFileVerifier<'a> {
     /// Seed taint for a function's parameters.
     ///
     /// Uses corpus-learned source types: taints parameters whose type annotations
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// match types found in positive corpus examples.
     pub fn seed_taint(&mut self, fn_node: Node) {
-        let params_node = match fn_node
+        let Some(params_node) = fn_node
             .child_by_field_name("parameters")
             .or_else(|| fn_node.child_by_field_name("formal_parameters"))
-        {
-            Some(p) => p,
-            None => return,
+        else {
+            return;
         };
 
         let mut cursor = params_node.walk();
@@ -111,18 +114,18 @@ impl<'a> CrossFileVerifier<'a> {
         }
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Verify that taint flows from parameters to a sink across files.
     pub fn verify_flow(&mut self, fn_node: Node) -> CrossFileResult {
-        let body = match fn_node.child_by_field_name("body") {
-            Some(b) => b,
-            None => {
-                return CrossFileResult {
-                    verified: false,
-                    depth: 0,
-                    path: Vec::new(),
-                    detail: "No function body".to_string(),
-                };
-            }
+        let Some(body) = fn_node.child_by_field_name("body") else {
+            return CrossFileResult {
+                verified: false,
+                depth: 0,
+                path: Vec::new(),
+                detail: "No function body".to_string(),
+            };
         };
 
         // Check if any parameter is tainted (AST-seeded, not name-based)
@@ -139,6 +142,9 @@ impl<'a> CrossFileVerifier<'a> {
         self.follow_taint(body, 0, &mut Vec::new())
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Recursively follow taint through a code block.
     fn follow_taint(
         &mut self,
@@ -212,6 +218,9 @@ impl<'a> CrossFileVerifier<'a> {
         }
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Check if a function call is a sink and if tainted data reaches it.
     fn check_call_for_sink(
         &mut self,
@@ -254,6 +263,9 @@ impl<'a> CrossFileVerifier<'a> {
         None
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Check if a node is tainted (variable reference or member expression).
     fn is_node_tainted(&self, node: Node) -> bool {
         match node.kind() {

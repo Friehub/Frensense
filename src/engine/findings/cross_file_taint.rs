@@ -1,6 +1,7 @@
 use crate::Advisory;
 use frensense_engine::data_flow::DataFlowEngine;
 
+#[must_use]
 pub fn find(
     _symbols: &crate::semantics::symbols::SymbolRegistry,
     _snap: &crate::engine::project::FileSnapshot,

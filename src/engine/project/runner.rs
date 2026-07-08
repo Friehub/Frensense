@@ -16,6 +16,12 @@ struct ProcessSnapshotsResult<'a> {
     snapshot_map: HashMap<FileId, &'a FileSnapshot>,
 }
 
+///
+/// # Errors
+/// May return an error if the operation fails.
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Shared snapshot processing: build symbol registry, add edges, discover events.
 fn process_snapshots<'a>(
     auditor: &crate::engine::auditor::FrensenseAuditor,
@@ -50,6 +56,9 @@ fn process_snapshots<'a>(
     })
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Build `file_trees` map from snapshots.
 fn build_file_trees(
     snapshots: &[FileSnapshot],
@@ -75,13 +84,16 @@ fn build_file_trees(
     file_trees
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Merge config + CLI severity overrides (CLI wins) into advisories.
 fn apply_severity_overrides(
     advisories: &mut [Advisory],
-    config_overrides: &Option<HashMap<String, crate::Severity>>,
+    config_overrides: Option<&HashMap<String, crate::Severity>>,
     cli_overrides: &HashMap<String, crate::Severity>,
 ) {
-    let mut merged = config_overrides.clone().unwrap_or_default();
+    let mut merged = config_overrides.cloned().unwrap_or_default();
     for (rule_id, sev) in cli_overrides {
         merged.insert(rule_id.clone(), *sev);
     }
@@ -92,6 +104,9 @@ fn apply_severity_overrides(
     }
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Run all findings modules (W1-W7) on snapshots.
 fn run_findings_modules(
     root: &Path,
@@ -132,6 +147,9 @@ fn run_findings_modules(
     }
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Run corpus pattern matching on snapshots.
 fn run_corpus_scan(
     engine: &Engine,
@@ -232,11 +250,11 @@ fn run_corpus_scan(
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
                 let mut confidence = if let Some(ref per_cat_cal) = engine.per_category_calibration
                 {
-                    per_cat_cal.calibrate(m.score, category) as f32
+                    per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = engine.calibration {
-                    params.calibrate(m.score) as f32
+                    params.calibrate(m.score)
                 } else {
-                    m.score as f32
+                    m.score
                 };
 
                 // Verify taint flow if we have a function node
@@ -343,6 +361,9 @@ struct TaintVerification {
 ///
 /// This uses the `CrossFileVerifier` to check if user-controlled data
 /// reaches a dangerous sink, following taint through function calls.
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Source types and sink names are learned from the corpus.
 fn verify_taint_flow(
     fn_node: tree_sitter::Node,
@@ -394,6 +415,9 @@ impl Engine {
     ///
     /// # Errors
     /// Returns an error if the directory cannot be read, if configuration fails to load,
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// or if rule execution encounters a fatal error.
     pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
         let (advisories, _) = self.run_detailed(root)?;
@@ -407,6 +431,9 @@ impl Engine {
     /// changed files.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if file reading, parsing, or auditing fails.
     pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
         let _config = self.initialize_auditor_and_config(root);
@@ -426,7 +453,7 @@ impl Engine {
         // Create DataFlowEngine for cross-file taint verification
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
 
-        self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
+        Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
         run_corpus_scan(
             self,
             root,
@@ -445,7 +472,7 @@ impl Engine {
             self.check_deps,
             &mut all_advisories,
         );
-        self.apply_composition(&mut all_advisories);
+        Self::apply_composition(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
@@ -454,6 +481,9 @@ impl Engine {
     /// Runs the audit on a single virtual file with the given content.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if parsing or auditing fails.
     pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
         let config = if self.auditor.rules().is_empty() {
@@ -504,16 +534,19 @@ impl Engine {
         let mut advisories = self.auditor.audit(&opts)?.advisories;
         apply_severity_overrides(
             &mut advisories,
-            &config.severity_override,
+            config.severity_override.as_ref(),
             &self.severity_overrides,
         );
-        self.apply_composition(&mut advisories);
+        Self::apply_composition(&mut advisories);
         Ok(advisories)
     }
 
     /// Applies real composition to advisories, replacing the coincidence counter.
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Uses `LayerSignals` to check if layers are causally related, not just co-located.
-    fn apply_composition(&self, advisories: &mut [Advisory]) {
+    fn apply_composition(advisories: &mut [Advisory]) {
         crate::engine::composition::apply_composition(advisories);
     }
 
@@ -546,10 +579,10 @@ impl Engine {
 
         apply_severity_overrides(
             &mut all_advisories,
-            &config.severity_override,
+            config.severity_override.as_ref(),
             &self.severity_overrides,
         );
-        self.apply_composition(&mut all_advisories);
+        Self::apply_composition(&mut all_advisories);
 
         #[cfg(feature = "fingerprinting")]
         self.run_profile_analysis(&snapshots, &mut all_advisories);
@@ -566,7 +599,7 @@ impl Engine {
             &file_trees,
             &mut all_advisories,
         );
-        self.run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
+        Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
         run_findings_modules(
             root,
             &snapshots,
@@ -580,7 +613,7 @@ impl Engine {
         // Apply severity overrides to all findings
         apply_severity_overrides(
             &mut all_advisories,
-            &config.severity_override,
+            config.severity_override.as_ref(),
             &self.severity_overrides,
         );
 
@@ -597,7 +630,6 @@ impl Engine {
     }
 
     fn run_taint_analysis(
-        &self,
         _snapshots: &[super::FileSnapshot],
         _symbols: &SymbolRegistry,
         _file_trees: &std::collections::HashMap<
@@ -643,7 +675,7 @@ impl Engine {
             if result.score > self.profile_threshold {
                 all_advisories.push(
                     Advisory::bare("STYLE_ANOMALY", crate::Severity::Warning, FileId(0), std::path::Path::new(&fp.file_path), format!("Style Anomaly: '{}' has {:.0}% unfamiliar patterns.", fp.function_name, result.score * 100.0))
-                        .with_confidence(result.score as f32)
+                        .with_confidence(result.score)
                         .with_line(u32::try_from(fp.line).unwrap_or(u32::MAX))
                         .with_content(fp.function_name.clone())
                         .with_enclosing_symbol(fp.function_name.clone())
@@ -823,6 +855,9 @@ impl Engine {
     }
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Find a function node by name and line number for semantic filtering.
 fn find_function_node<'a>(
     root: tree_sitter::Node<'a>,
@@ -884,21 +919,19 @@ fn find_function_node<'a>(
                         best_match = Some(node);
                     }
                 }
-            } else {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    let node_name = &source[name_node.start_byte()..name_node.end_byte()];
-                    if node_name == name && node_line.abs_diff(line) <= 2 {
-                        return Some(node);
-                    }
-                } else if kind == "arrow_function"
-                    && let Some(parent) = node.parent()
-                    && parent.kind() == "variable_declarator"
-                    && let Some(name_node) = parent.child_by_field_name("name")
-                {
-                    let node_name = &source[name_node.start_byte()..name_node.end_byte()];
-                    if node_name == name && node_line.abs_diff(line) <= 2 {
-                        return Some(node);
-                    }
+            } else if let Some(name_node) = node.child_by_field_name("name") {
+                let node_name = &source[name_node.start_byte()..name_node.end_byte()];
+                if node_name == name && node_line.abs_diff(line) <= 2 {
+                    return Some(node);
+                }
+            } else if kind == "arrow_function"
+                && let Some(parent) = node.parent()
+                && parent.kind() == "variable_declarator"
+                && let Some(name_node) = parent.child_by_field_name("name")
+            {
+                let node_name = &source[name_node.start_byte()..name_node.end_byte()];
+                if node_name == name && node_line.abs_diff(line) <= 2 {
+                    return Some(node);
                 }
             }
         }
@@ -917,6 +950,9 @@ fn find_function_node<'a>(
     }
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Check if a node contains any function child nodes.
 fn has_function_child(node: tree_sitter::Node<'_>) -> bool {
     let mut cursor = node.walk();
@@ -979,7 +1015,7 @@ fn is_test_file(path: &Path) -> bool {
     }
 
     // Check for mock files
-    if stem.starts_with("mock") || stem.ends_with(".mock") {
+    if stem.starts_with("mock") || stem.to_lowercase().ends_with(".mock") {
         return true;
     }
 

@@ -128,7 +128,7 @@ fn extract_function_name(node: Node<'_>, source: &str) -> Option<String> {
                 // TypeScript function_declaration name
                 return Some(source[child.start_byte()..child.end_byte()].to_string());
             }
-            _ => continue,
+            _ => {}
         }
     }
 
@@ -234,7 +234,7 @@ impl LearnedConstraints {
             && self.forbidden_node_types.is_empty()
     }
 
-    /// Convert to a SemanticFilter for use in pattern matching.
+    /// Convert to a `SemanticFilter` for use in pattern matching.
     pub fn to_filter(&self) -> SemanticFilter {
         SemanticFilter {
             contains_call_to: self.required_calls.clone(),
@@ -292,8 +292,11 @@ pub fn learn_constraints(
     }
 
     // Find call targets in ALL positives
-    let pos_call_universe: std::collections::HashSet<&str> =
-        pos_call_sets.iter().flatten().map(|s| s.as_str()).collect();
+    let pos_call_universe: std::collections::HashSet<&str> = pos_call_sets
+        .iter()
+        .flatten()
+        .map(std::string::String::as_str)
+        .collect();
 
     let required_calls: Vec<String> = pos_call_universe
         .iter()
@@ -303,12 +306,15 @@ pub fn learn_constraints(
                 // Must NOT be in ANY negative
                 && !neg_call_sets.iter().any(|set| set.iter().any(|c| c == *call))
         })
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
 
     // Find call targets in ALL negatives (but not in positives)
-    let neg_call_universe: std::collections::HashSet<&str> =
-        neg_call_sets.iter().flatten().map(|s| s.as_str()).collect();
+    let neg_call_universe: std::collections::HashSet<&str> = neg_call_sets
+        .iter()
+        .flatten()
+        .map(std::string::String::as_str)
+        .collect();
 
     let forbidden_calls: Vec<String> = neg_call_universe
         .iter()
@@ -320,12 +326,15 @@ pub fn learn_constraints(
                     .iter()
                     .any(|set| set.iter().any(|c| c == *call))
         })
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
 
     // Same for node types
-    let pos_node_universe: std::collections::HashSet<&str> =
-        pos_node_sets.iter().flatten().map(|s| s.as_str()).collect();
+    let pos_node_universe: std::collections::HashSet<&str> = pos_node_sets
+        .iter()
+        .flatten()
+        .map(std::string::String::as_str)
+        .collect();
 
     let required_node_types: Vec<String> = pos_node_universe
         .iter()
@@ -333,11 +342,14 @@ pub fn learn_constraints(
             pos_node_sets.iter().all(|set| set.iter().any(|t| t == *nt))
                 && !neg_node_sets.iter().any(|set| set.iter().any(|t| t == *nt))
         })
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
 
-    let neg_node_universe: std::collections::HashSet<&str> =
-        neg_node_sets.iter().flatten().map(|s| s.as_str()).collect();
+    let neg_node_universe: std::collections::HashSet<&str> = neg_node_sets
+        .iter()
+        .flatten()
+        .map(std::string::String::as_str)
+        .collect();
 
     let forbidden_node_types: Vec<String> = neg_node_universe
         .iter()
@@ -345,7 +357,7 @@ pub fn learn_constraints(
             neg_node_sets.iter().all(|set| set.iter().any(|t| t == *nt))
                 && !pos_node_sets.iter().any(|set| set.iter().any(|t| t == *nt))
         })
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
 
     // Filter out noise: skip very common node types that don't discriminate
@@ -371,7 +383,7 @@ pub fn learn_constraints(
         "comma_expression",
     ]
     .iter()
-    .cloned()
+    .copied()
     .collect();
 
     LearnedConstraints {

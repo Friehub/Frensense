@@ -20,6 +20,7 @@ pub struct FindingKey {
 }
 
 impl FindingKey {
+    #[must_use]
     pub fn from_advisory(adv: &Advisory) -> Self {
         Self {
             rule_id: adv.rule_id.clone(),
@@ -186,6 +187,12 @@ impl ConsistencyCheck {
     }
 }
 
+///
+/// # Errors
+/// May return an error if the operation fails.
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Save divergence metrics to a JSON baseline file.
 pub fn save_baseline(metrics: &DivergenceMetrics, path: &Path) -> Result<(), String> {
     let json = serde_json::to_string_pretty(metrics).map_err(|e| e.to_string())?;
@@ -193,6 +200,7 @@ pub fn save_baseline(metrics: &DivergenceMetrics, path: &Path) -> Result<(), Str
 }
 
 /// Load divergence metrics from a JSON baseline file.
+#[must_use]
 pub fn load_baseline(path: &Path) -> Option<DivergenceMetrics> {
     let content = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&content).ok()

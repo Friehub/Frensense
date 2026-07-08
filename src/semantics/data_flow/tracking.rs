@@ -51,14 +51,14 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
                     range,
                 } => {
                     if let Some(call_advisories) =
-                        self.process_call(function_name, args, *range, block_range, registry)
+                        Self::process_call(function_name, args, *range, block_range, registry)
                     {
                         advisories.extend(call_advisories);
                     }
                 }
                 SemanticOp::EnterBlock(body_range) => {
                     if let Some(sub_advisories) =
-                        self.process_enter_block(*body_range, block_range, registry)
+                        Self::process_enter_block(*body_range, block_range, registry)
                     {
                         advisories.extend(sub_advisories);
                     }

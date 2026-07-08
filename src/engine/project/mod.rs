@@ -26,7 +26,7 @@ pub struct FileSnapshot {
 pub struct Engine {
     auditor: FrensenseAuditor,
     source_registry: SourceRegistry,
-    min_confidence: f32,
+    min_confidence: f64,
     environment: FrensenseEnvironment,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
@@ -38,13 +38,13 @@ pub struct Engine {
 
     // Tunable parameters
     jaccard_threshold: f64,
-    confidence_boost_rate: f32,
-    confidence_boost_max: f32,
+    confidence_boost_rate: f64,
+    confidence_boost_max: f64,
     max_source_lines: Option<usize>,
     ngram_window_size: usize,
     min_ngram_count: usize,
-    taint_confidence_interprocedural: f32,
-    taint_confidence_intraprocedural: f32,
+    taint_confidence_interprocedural: f64,
+    taint_confidence_intraprocedural: f64,
     default_taint_max_depth: usize,
 
     // CLI-driven rule overrides (merged with config file)

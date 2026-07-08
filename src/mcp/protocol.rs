@@ -24,6 +24,7 @@ pub enum RequestId {
 }
 
 impl RequestId {
+    #[must_use]
     pub fn into_response(self) -> Option<Value> {
         match self {
             RequestId::Absent => None,
@@ -33,6 +34,10 @@ impl RequestId {
     }
 }
 
+/// Deserialize a request id.
+///
+/// # Errors
+/// Returns an error if deserialization fails.
 pub fn deserialize_request_id<'de, D>(d: D) -> Result<RequestId, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -63,6 +68,7 @@ pub struct JsonRpcError {
     data: Option<Value>,
 }
 
+#[must_use]
 pub fn rpc_error(id: RequestId, code: i32, message: String) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0",
@@ -76,6 +82,7 @@ pub fn rpc_error(id: RequestId, code: i32, message: String) -> JsonRpcResponse {
     }
 }
 
+#[must_use]
 pub fn rpc_result(id: RequestId, result: Value) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0",
@@ -85,6 +92,7 @@ pub fn rpc_result(id: RequestId, result: Value) -> JsonRpcResponse {
     }
 }
 
+#[must_use]
 pub fn rpc_no_response() -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0",

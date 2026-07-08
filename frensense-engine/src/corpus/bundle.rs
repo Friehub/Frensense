@@ -154,7 +154,7 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     build_bundle_from_patterns(&bundle_patterns)
 }
 
-/// Build a bundle from pre-built BundlePatterns.
+/// Build a bundle from pre-built `BundlePatterns`.
 pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>, String> {
     let data = bincode::serialize(patterns).map_err(|e| e.to_string())?;
 
@@ -215,7 +215,11 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
         for entry in entries.flatten() {
             let path = entry.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.ends_with(".toml") && name != ".bundle_manifest.toml" {
+                if std::path::Path::new(name)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+                    && name != ".bundle_manifest.toml"
+                {
                     continue;
                 }
                 if let Ok(metadata) = std::fs::metadata(&path) {
@@ -223,8 +227,7 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
                         .modified()
                         .ok()
                         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
+                        .map_or(0, |d| d.as_secs());
                     if let Ok(content) = std::fs::read(&path) {
                         let content_hash = blake3::hash(&content).into();
                         manifest.update_entry(

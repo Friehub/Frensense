@@ -98,7 +98,7 @@ fn test_json_output_format() {
     assert!(
         parsed
             .get("advisory_count")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap()
             > 0,
         "Should have at least one finding"
@@ -158,7 +158,7 @@ fn test_emit_and_compare_baseline() {
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let count = parsed
         .get("advisory_count")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     assert!(
         count > 0,
@@ -177,7 +177,7 @@ fn test_language_filter() {
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let count = parsed
         .get("advisory_count")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     assert_eq!(
         count, 0,

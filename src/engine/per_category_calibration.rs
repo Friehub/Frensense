@@ -44,18 +44,21 @@ impl Default for CalibrationParams {
 impl PerCategoryCalibration {
     /// Calibrate a raw score using category-specific parameters.
     /// Falls back to global parameters if category not found.
+    #[must_use]
     pub fn calibrate(&self, raw_score: f64, category: &str) -> f64 {
         let params = self.categories.get(category).unwrap_or(&self.global);
         params.calibrate(raw_score)
     }
 
     /// Calibrate using global parameters only.
+    #[must_use]
     pub fn calibrate_global(&self, raw_score: f64) -> f64 {
         self.global.calibrate(raw_score)
     }
 
     /// Train per-category calibration parameters from labeled data.
     /// `scores_and_labels` is a map of category -> (scores, labels).
+    #[must_use]
     pub fn train(scores_and_labels: &[(String, Vec<f64>, Vec<bool>)]) -> Self {
         // Train global parameters from all data
         let all_scores: Vec<f64> = scores_and_labels
@@ -82,6 +85,7 @@ impl PerCategoryCalibration {
     }
 
     /// Get calibration summary for reporting.
+    #[must_use]
     pub fn summary(&self) -> String {
         let mut lines = Vec::new();
         lines.push(format!(
@@ -100,28 +104,30 @@ impl PerCategoryCalibration {
 
 impl CalibrationParams {
     /// Calibrate a raw score to a probability using Platt scaling.
+    #[must_use]
     pub fn calibrate(&self, raw_score: f64) -> f64 {
         let z = self.a * raw_score + self.b;
         1.0 / (1.0 + (-z).exp())
     }
 
     /// Train calibration parameters from labeled data.
+    #[must_use]
     pub fn train(scores: &[f64], labels: &[bool]) -> Self {
         if scores.is_empty() || labels.is_empty() || scores.len() != labels.len() {
             return Self::default();
         }
 
-        let n = scores.len() as f64;
+        let n_total = scores.len() as f64;
         let n_pos = labels.iter().filter(|&&l| l).count() as f64;
-        let n_neg = n - n_pos;
+        let n_neg = n_total - n_pos;
 
         if n_pos == 0.0 || n_neg == 0.0 {
             return Self::default();
         }
 
         // Platt scaling: fit logistic regression using maximum likelihood
-        let mut a = 0.0;
-        let mut b = ((n_neg + 1.0) / (n_pos + 1.0)).ln();
+        let mut param_a = 0.0;
+        let mut param_b = ((n_neg + 1.0) / (n_pos + 1.0)).ln();
 
         // Gradient descent to minimize cross-entropy loss
         let learning_rate = 0.1;
@@ -132,16 +138,16 @@ impl CalibrationParams {
             let mut grad_b = 0.0;
 
             for (x, &y) in scores.iter().zip(labels.iter()) {
-                let z = a * x + b;
-                let p = 1.0 / (1.0 + (-z).exp());
+                let z_score = param_a * x + param_b;
+                let probability = 1.0 / (1.0 + (-z_score).exp());
                 let target = if y { 1.0 } else { 0.0 };
 
-                grad_a += (p - target) * x;
-                grad_b += p - target;
+                grad_a += (probability - target) * x;
+                grad_b += probability - target;
             }
 
-            a -= learning_rate * grad_a / n;
-            b -= learning_rate * grad_b / n;
+            param_a -= learning_rate * grad_a / n_total;
+            param_b -= learning_rate * grad_b / n_total;
         }
 
         // Calculate accuracy
@@ -149,15 +155,15 @@ impl CalibrationParams {
             .iter()
             .zip(labels.iter())
             .filter(|(x, y)| {
-                let p = 1.0 / (1.0 + (-(a * **x + b)).exp());
-                (p >= 0.5) == **y
+                let probability = 1.0 / (1.0 + (-(param_a * **x + param_b)).exp());
+                (probability >= 0.5) == **y
             })
             .count();
-        let accuracy = correct as f64 / n;
+        let accuracy = correct as f64 / n_total;
 
         Self {
-            a,
-            b,
+            a: param_a,
+            b: param_b,
             n_samples: scores.len(),
             accuracy,
         }
@@ -165,11 +171,18 @@ impl CalibrationParams {
 }
 
 /// Load per-category calibration from a JSON file.
+#[must_use]
 pub fn load_per_category_calibration(path: &std::path::Path) -> Option<PerCategoryCalibration> {
     let content = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&content).ok()
 }
 
+///
+/// # Errors
+/// May return an error if the operation fails.
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Save per-category calibration to a JSON file.
 pub fn save_per_category_calibration(
     cal: &PerCategoryCalibration,
@@ -208,10 +221,10 @@ mod tests {
     #[test]
     fn test_train_per_category() {
         // Need at least 20 samples per category for reliable calibration
-        let scores_injection: Vec<f64> = (0..25).map(|i| 0.3 + i as f64 * 0.02).collect();
+        let scores_injection: Vec<f64> = (0..25).map(|i| 0.3 + f64::from(i) * 0.02).collect();
         let labels_injection: Vec<bool> = (0..25).map(|i| i >= 10).collect();
 
-        let scores_sql: Vec<f64> = (0..25).map(|i| 0.2 + i as f64 * 0.03).collect();
+        let scores_sql: Vec<f64> = (0..25).map(|i| 0.2 + f64::from(i) * 0.03).collect();
         let labels_sql: Vec<bool> = (0..25).map(|i| i >= 12).collect();
 
         let data = vec![

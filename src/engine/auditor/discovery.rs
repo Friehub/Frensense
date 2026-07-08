@@ -9,6 +9,9 @@ impl FrensenseAuditor {
     /// Discovers symbols in a given file.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the tree-sitter query fails to compile.
     pub fn discover_symbols(
         &self,
@@ -96,6 +99,9 @@ impl FrensenseAuditor {
     /// Scans for call edges in a given file.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the tree-sitter query fails to compile.
     pub fn scan_for_edges(
         &self,
@@ -142,6 +148,9 @@ impl FrensenseAuditor {
     /// Discovers events in a given file and links them to the registry.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// This method currently returns `Ok(())` but is marked as `Result` for consistency.
     pub fn discover_events(
         &self,

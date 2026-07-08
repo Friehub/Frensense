@@ -178,12 +178,12 @@ fn reassign() {
 
     #[test]
     fn test_no_kill_preserves_confidence() {
-        let source = r#"
+        let source = r"
 fn no_kill() {
     let data = get_password();
     store_in_db(data);
 }
-"#;
+";
         let confidence = TaintConfidenceAdjuster::adjust_confidence(
             source,
             Path::new("test.rs"),
@@ -201,6 +201,9 @@ fn no_kill() {
     fn test_unknown_language_returns_original() {
         let confidence =
             TaintConfidenceAdjuster::adjust_confidence("", Path::new("test.abc"), 1, "", 0.90);
-        assert_eq!(confidence, 0.90, "unknown language should return original");
+        assert!(
+            (confidence - 0.90).abs() < f32::EPSILON,
+            "unknown language should return original"
+        );
     }
 }

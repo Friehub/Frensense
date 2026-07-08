@@ -422,12 +422,12 @@ mod tests {
 
     #[test]
     fn test_no_duplicate_uses() {
-        let source = r#"
+        let source = r"
 fn no_dup() {
     let x = get_password();
     store_in_db(x);
 }
-"#;
+";
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&tree_sitter_rust::LANGUAGE.into())

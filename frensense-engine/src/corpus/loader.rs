@@ -451,13 +451,13 @@ mod tests {
 
     #[test]
     fn test_parse_frensense_block_rust() {
-        let source = r#"/// [frensense]
+        let source = r"/// [frensense]
 /// observation: Function always returns true regardless of input.
 /// impact: Malicious input passes validation unchecked.
 /// improvement: Branch on input and return false for invalid values.
 fn validate(input: &str) -> bool {
     true
-}"#;
+}";
         let advisory = parse_frensense_block(source);
         assert_eq!(
             advisory.observation.as_deref(),
@@ -674,11 +674,11 @@ fn learn_from_features(
     // Collect all call targets from positives and negatives
     let pos_calls: Vec<&str> = pos_features
         .iter()
-        .flat_map(|f| f.calls.iter().map(|s| s.as_str()))
+        .flat_map(|f| f.calls.iter().map(std::string::String::as_str))
         .collect();
     let neg_calls: Vec<&str> = neg_features
         .iter()
-        .flat_map(|f| f.calls.iter().map(|s| s.as_str()))
+        .flat_map(|f| f.calls.iter().map(std::string::String::as_str))
         .collect();
 
     // Find calls in ALL positives but NOT in any negative
@@ -706,11 +706,11 @@ fn learn_from_features(
     // Same for node types
     let pos_nts: Vec<&str> = pos_features
         .iter()
-        .flat_map(|f| f.node_types.iter().map(|s| s.as_str()))
+        .flat_map(|f| f.node_types.iter().map(std::string::String::as_str))
         .collect();
     let neg_nts: Vec<&str> = neg_features
         .iter()
-        .flat_map(|f| f.node_types.iter().map(|s| s.as_str()))
+        .flat_map(|f| f.node_types.iter().map(std::string::String::as_str))
         .collect();
 
     // Filter out noise node types
@@ -738,7 +738,7 @@ fn learn_from_features(
         "type_annotation",
     ]
     .iter()
-    .cloned()
+    .copied()
     .collect();
 
     let required_node_types: Vec<String> = pos_features[0]

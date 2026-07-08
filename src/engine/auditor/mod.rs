@@ -56,8 +56,8 @@ pub struct AuditOptions<'a> {
     pub env: crate::FrensenseEnvironment,
     pub severity_filter: Option<crate::Severity>,
     pub ngram_window_size: usize,
-    pub taint_confidence_interprocedural: f32,
-    pub taint_confidence_intraprocedural: f32,
+    pub taint_confidence_interprocedural: f64,
+    pub taint_confidence_intraprocedural: f64,
     pub default_taint_max_depth: usize,
 }
 
@@ -127,6 +127,9 @@ impl FrensenseAuditor {
         self.combined_queries.borrow_mut().clear();
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Remove the first rule with the given ID. Returns `true` if removed.
     pub fn remove_rule(&mut self, id: &str) -> bool {
         let before = self.rules.len();
@@ -139,6 +142,9 @@ impl FrensenseAuditor {
         removed
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Append a single rule.
     pub fn add_rule(&mut self, rule: Box<dyn FrensenseRule>) {
         self.rule_index
@@ -148,7 +154,6 @@ impl FrensenseAuditor {
     }
 
     fn is_rule_enabled(
-        &self,
         rule: &dyn FrensenseRule,
         category_filter: &std::collections::HashSet<String>,
         tag_filter: &std::collections::HashSet<String>,
@@ -188,6 +193,9 @@ impl FrensenseAuditor {
     /// ```
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Currently this method always returns `Ok`, but it is marked as `Result` for potential future error conditions.
     pub fn audit(&self, opts: &AuditOptions<'_>) -> Result<ScanResult> {
         let mut advisories = Vec::new();
@@ -205,9 +213,9 @@ impl FrensenseAuditor {
         // Phase 2: walk-tree fallback for any rules without queries
         if self.has_walk_rules(ext) {
             let taint_cache = TaintCache::default();
-            let context = self.build_context(opts, &taint_cache);
+            let context = Self::build_context(opts, &taint_cache);
             for rule in &self.rules {
-                if !self.is_rule_enabled(
+                if !Self::is_rule_enabled(
                     rule.as_ref(),
                     opts.category_filter,
                     opts.tag_filter,
@@ -230,9 +238,9 @@ impl FrensenseAuditor {
 
         // Phase 3: file-level checks (max_file_lines, etc.)
         let taint_cache = TaintCache::default();
-        let file_context = self.build_context(opts, &taint_cache);
+        let file_context = Self::build_context(opts, &taint_cache);
         for rule in &self.rules {
-            if !self.is_rule_enabled(
+            if !Self::is_rule_enabled(
                 rule.as_ref(),
                 opts.category_filter,
                 opts.tag_filter,
@@ -262,7 +270,6 @@ impl FrensenseAuditor {
     }
 
     fn build_context<'a>(
-        &self,
         opts: &'a AuditOptions<'_>,
         taint_cache: &'a TaintCache,
     ) -> FrensenseContext<'a> {
@@ -307,7 +314,7 @@ impl FrensenseAuditor {
         };
 
         let taint_cache = TaintCache::default();
-        let context = self.build_context(opts, &taint_cache);
+        let context = Self::build_context(opts, &taint_cache);
 
         let capture_names = combined_query.capture_names();
         let mut cursor = QueryCursor::new();
@@ -336,7 +343,7 @@ impl FrensenseAuditor {
                 };
                 let rule = &self.rules[rule_idx];
 
-                if !self.is_rule_enabled(
+                if !Self::is_rule_enabled(
                     rule.as_ref(),
                     opts.category_filter,
                     opts.tag_filter,
@@ -434,6 +441,9 @@ impl FrensenseAuditor {
     /// Parses source code into a tree-sitter tree.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the language is not supported or if the parser fails to initialize.
     pub fn parse_source(&self, path: &Path, content: &str) -> crate::Result<(Language, Tree)> {
         let language = ParserRegistry::get_language(path)?;

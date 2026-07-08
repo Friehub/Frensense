@@ -85,7 +85,7 @@ impl DependencyResolver {
         }
 
         if self.check_deps_enabled {
-            self.verify_cargo_metadata_available(project_root);
+            Self::verify_cargo_metadata_available(project_root);
         }
     }
 
@@ -134,7 +134,7 @@ impl DependencyResolver {
         }
     }
 
-    fn verify_cargo_metadata_available(&self, root: &Path) {
+    fn verify_cargo_metadata_available(root: &Path) {
         // Check if this is a Rust project (has Cargo.toml)
         if !root.join("Cargo.toml").exists() {
             return;
@@ -575,10 +575,10 @@ mod tests {
         let mut resolver = DependencyResolver::new();
         resolver.npm_deps.insert("express".to_string());
 
-        let source = r#"import crypto from 'crypto';
+        let source = r"import crypto from 'crypto';
 import express from 'express';
 import fs from 'fs';
-"#;
+";
         let hits = resolver.scan_file(source, Path::new("test.ts"));
 
         // Only express should be found (it's in deps), crypto and fs are builtins

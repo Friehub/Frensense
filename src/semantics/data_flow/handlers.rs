@@ -74,7 +74,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
 
     #[allow(clippy::too_many_arguments)]
     pub(super) fn process_call(
-        &self,
         _function_name: &'a str,
         _args: &[super::normalization::Range],
         _range: super::normalization::Range,
@@ -87,7 +86,6 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
 
     #[allow(clippy::too_many_arguments)]
     pub(super) fn process_enter_block(
-        &self,
         _body_range: super::normalization::Range,
         _block_range: super::normalization::Range,
         _registry: &mut TaintRegistry,

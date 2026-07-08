@@ -87,7 +87,7 @@ fn longest_common_subsequence(a: &[String], b: &[String]) -> usize {
             }
         }
         std::mem::swap(&mut prev, &mut curr);
-        curr.iter_mut().for_each(|x| *x = 0);
+        curr.fill(0);
     }
 
     prev[n]

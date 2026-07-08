@@ -26,11 +26,11 @@ impl Engine {
         self.jaccard_threshold = val;
     }
 
-    pub const fn set_confidence_boost_rate(&mut self, val: f32) {
+    pub const fn set_confidence_boost_rate(&mut self, val: f64) {
         self.confidence_boost_rate = val;
     }
 
-    pub const fn set_confidence_boost_max(&mut self, val: f32) {
+    pub const fn set_confidence_boost_max(&mut self, val: f64) {
         self.confidence_boost_max = val;
     }
 
@@ -46,11 +46,11 @@ impl Engine {
         self.min_ngram_count = val;
     }
 
-    pub const fn set_taint_confidence_interprocedural(&mut self, val: f32) {
+    pub const fn set_taint_confidence_interprocedural(&mut self, val: f64) {
         self.taint_confidence_interprocedural = val;
     }
 
-    pub const fn set_taint_confidence_intraprocedural(&mut self, val: f32) {
+    pub const fn set_taint_confidence_intraprocedural(&mut self, val: f64) {
         self.taint_confidence_intraprocedural = val;
     }
 
@@ -67,7 +67,7 @@ impl Engine {
             .insert(rule_id.to_string(), severity);
     }
 
-    pub const fn set_min_confidence(&mut self, val: f32) {
+    pub const fn set_min_confidence(&mut self, val: f64) {
         self.min_confidence = val;
     }
 

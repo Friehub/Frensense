@@ -343,8 +343,7 @@ mod tests {
         extract_param_types(tree.root_node(), source, &mut types);
         assert!(
             !types.is_empty(),
-            "should find at least one type, got: {:?}",
-            types
+            "should find at least one type, got: {types:?}"
         );
     }
 

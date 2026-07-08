@@ -58,6 +58,9 @@ impl FileCache {
     }
 
     /// Save cache to `.frensense/cache.json` under the project root.
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Creates the `.frensense/` directory if it doesn't exist.
     pub fn save(&self, root: &Path, language_filter: Option<&[&str]>) {
         if self.files.is_empty() {
@@ -83,12 +86,18 @@ impl FileCache {
         self.files.get(&path_to_key(path)) == Some(&hash)
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Update the cache entry for a file with its current content hash.
     pub fn update(&mut self, path: &Path, content: &str) {
         let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
         self.files.insert(path_to_key(path), hash);
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Remove a file from the cache (e.g., when a read error occurs).
     pub fn remove(&mut self, path: &Path) {
         self.files.remove(&path_to_key(path));

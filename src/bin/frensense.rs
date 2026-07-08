@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     let options = parse_options(&args);
 
     // Handle build-bundle
-    if options.build_bundle {
+    if options.build_bundle.is_yes() {
         let corpus_dir = options
             .corpus_dir
             .clone()
@@ -46,15 +46,16 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             Err(e) => {
-                eprintln!("Error building bundle: {}", e);
+                eprintln!("Error building bundle: {e}");
                 std::process::exit(1);
             }
         }
     }
 
     // Handle learn mode
-    if options.learn_mode {
-        return handle_learn_mode(&options);
+    if options.learn_mode.is_yes() {
+        handle_learn_mode(&options);
+        return Ok(());
     }
 
     let mut engine = Engine::new();
@@ -110,7 +111,7 @@ fn main() -> Result<()> {
     if !options.extra_taint_rule_dirs.is_empty() {
         engine.set_extra_taint_rule_dirs(options.extra_taint_rule_dirs.clone());
     }
-    if options.check_deps {
+    if options.check_deps.is_yes() {
         engine.set_check_deps(true);
     }
 
@@ -126,7 +127,7 @@ fn main() -> Result<()> {
     }
 
     #[cfg(feature = "fingerprinting")]
-    if options.learn_profile {
+    if options.learn_profile.is_yes() {
         let mut all_fingerprints = Vec::new();
         let files = Engine::collect_files(&input_path, None);
         let wsize = options.ngram_window_size.unwrap_or(5);
@@ -157,14 +158,14 @@ fn main() -> Result<()> {
             "[OK] Profile learned and saved to {}",
             profile_path.display()
         );
-        if options.profile_stats {
+        if options.profile_stats.is_yes() {
             print_profile_stats(&profile);
         }
         return Ok(());
     }
 
     #[cfg(feature = "fingerprinting")]
-    if options.check_profile {
+    if options.check_profile.is_yes() {
         let profile_path = find_profile(&input_path)
             .unwrap_or_else(|| input_path.join(".frensense").join("profile.json"));
         if !profile_path.exists() {
@@ -182,7 +183,7 @@ fn main() -> Result<()> {
             engine.set_profile_threshold(threshold);
         }
         engine = engine.with_profile(profile);
-        if options.profile_stats
+        if options.profile_stats.is_yes()
             && let Some(profile) = engine.profile()
         {
             print_profile_stats(profile);
@@ -190,7 +191,10 @@ fn main() -> Result<()> {
     }
 
     #[cfg(feature = "fingerprinting")]
-    if options.profile_stats && !options.learn_profile && !options.check_profile {
+    if options.profile_stats.is_yes()
+        && !options.learn_profile.is_yes()
+        && !options.check_profile.is_yes()
+    {
         let profile_path = find_profile(&input_path)
             .unwrap_or_else(|| input_path.join(".frensense").join("profile.json"));
         if profile_path.exists() {
@@ -205,7 +209,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut filtered_advisories = if options.diff_only {
+    let mut filtered_advisories = if options.diff_only.is_yes() {
         let repo_dir = if input_path.is_dir() {
             input_path.clone()
         } else {
@@ -276,28 +280,26 @@ fn main() -> Result<()> {
         handle_remediation(&filtered_advisories, &options, &input_path);
     }
 
-    if regression_detected || (options.is_strict && !filtered_advisories.is_empty()) {
+    if regression_detected || (options.is_strict.is_yes() && !filtered_advisories.is_empty()) {
         std::process::exit(1);
     }
 
     Ok(())
 }
 
-fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
-    let positive_path = match options.learn_positive.as_ref() {
-        Some(p) => p.clone(),
-        None => {
-            eprintln!("Error: --learn requires a positive (buggy) file");
-            std::process::exit(1);
-        }
+fn handle_learn_mode(options: &frensense::cli::CliOptions) {
+    let positive_path = if let Some(p) = options.learn_positive.as_ref() {
+        p.clone()
+    } else {
+        eprintln!("Error: --learn requires a positive (buggy) file");
+        std::process::exit(1);
     };
 
-    let negative_path = match options.learn_negative.as_ref() {
-        Some(p) => p.clone(),
-        None => {
-            eprintln!("Error: --learn requires a negative (fixed) file");
-            std::process::exit(1);
-        }
+    let negative_path = if let Some(p) = options.learn_negative.as_ref() {
+        p.clone()
+    } else {
+        eprintln!("Error: --learn requires a negative (fixed) file");
+        std::process::exit(1);
     };
 
     // Generate pattern ID from filename
@@ -309,11 +311,10 @@ fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
 
     let output_dir = options
         .learn_output
-        .as_ref()
-        .cloned()
+        .clone()
         .unwrap_or_else(|| PathBuf::from("learned_rules"));
 
-    eprintln!("Learning pattern: {}", pattern_id);
+    eprintln!("Learning pattern: {pattern_id}");
     eprintln!("  Positive: {}", positive_path.display());
     eprintln!("  Negative: {}", negative_path.display());
     eprintln!();
@@ -374,10 +375,8 @@ fn handle_learn_mode(options: &frensense::cli::CliOptions) -> Result<()> {
             );
         }
         Err(e) => {
-            eprintln!("Error learning pattern: {}", e);
+            eprintln!("Error learning pattern: {e}");
             std::process::exit(1);
         }
     }
-
-    Ok(())
 }

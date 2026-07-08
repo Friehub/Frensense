@@ -5,6 +5,10 @@ use crate::patcher::PatchManager;
 use frensense_engine::profile::ProjectProfile;
 use std::path::{Path, PathBuf};
 
+/// Handle remediation.
+///
+/// # Panics
+/// May panic if directory operations fail.
 pub fn handle_remediation(advisories: &[Advisory], options: &CliOptions, input_path: &Path) {
     let mut project_root = input_path.to_path_buf();
     if project_root.is_file() {
@@ -74,6 +78,7 @@ fn filter_by_scope(advisories: &mut Vec<Advisory>, scope: &str) {
 }
 
 #[cfg(feature = "fingerprinting")]
+#[must_use]
 pub fn find_profile(path: &Path) -> Option<PathBuf> {
     let mut current = Some(path);
     while let Some(p) = current {

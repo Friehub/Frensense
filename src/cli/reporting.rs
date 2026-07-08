@@ -4,6 +4,10 @@ use crate::{Advisory, Engine, FrensenseError, Result};
 use std::collections::HashSet;
 use std::path::Path;
 
+/// Print the results of the analysis in the requested format.
+///
+/// # Errors
+/// Returns an error if the output cannot be serialized or written.
 pub fn print_results(
     filtered_advisories: &[Advisory],
     format: &str,
@@ -77,6 +81,10 @@ pub fn print_results(
     Ok(())
 }
 
+/// Compare the current findings against a baseline.
+///
+/// # Errors
+/// Returns an error if the baseline file cannot be read or parsed.
 pub fn compare_baseline(filtered_advisories: &[Advisory], path: &str) -> Result<bool> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| FrensenseError::Config(format!("Failed to read baseline: {e}")))?;
@@ -135,6 +143,10 @@ pub fn compare_baseline(filtered_advisories: &[Advisory], path: &str) -> Result<
     Ok(regression_detected)
 }
 
+/// Save the current findings as a baseline.
+///
+/// # Errors
+/// Returns an error if the baseline file cannot be written.
 pub fn save_baseline(advisories: &[Advisory], path: &str) -> Result<()> {
     let content = serde_json::to_string_pretty(advisories)
         .map_err(|e| FrensenseError::Config(format!("JSON error: {e}")))?;

@@ -1,61 +1,77 @@
 use crate::{Severity, Suite};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flag {
+    Yes,
+    No,
+}
+impl Flag {
+    #[must_use]
+    pub fn is_yes(&self) -> bool {
+        matches!(self, Flag::Yes)
+    }
+}
+
 pub struct CliOptions {
     pub format: String,
-    pub is_strict: bool,
+    pub is_strict: Flag,
     pub fix_scope: Option<String>,
     pub diff_scope: Option<String>,
-    pub diff_only: bool,
+    pub diff_only: Flag,
     pub severity_filter: Option<Severity>,
     pub enabled_tags: Vec<String>,
     pub emit_baseline_path: Option<String>,
     pub compare_baseline_path: Option<String>,
-    pub min_confidence: f32,
+    pub min_confidence: f64,
     pub language_filter: Option<String>,
     pub suite: Suite,
     pub jaccard_threshold: Option<f64>,
-    pub confidence_boost_rate: Option<f32>,
-    pub confidence_boost_max: Option<f32>,
+    pub confidence_boost_rate: Option<f64>,
+    pub confidence_boost_max: Option<f64>,
     pub max_source_lines: Option<usize>,
     pub ngram_window_size: Option<usize>,
     pub min_ngram_count: Option<usize>,
-    pub taint_confidence_interprocedural: Option<f32>,
-    pub taint_confidence_intraprocedural: Option<f32>,
+    pub taint_confidence_interprocedural: Option<f64>,
+    pub taint_confidence_intraprocedural: Option<f64>,
     pub default_taint_max_depth: Option<usize>,
     pub disabled_rules: Vec<String>,
     pub severity_overrides: Vec<(String, Severity)>,
     #[cfg(feature = "fingerprinting")]
-    pub learn_profile: bool,
+    pub learn_profile: Flag,
     #[cfg(feature = "fingerprinting")]
-    pub check_profile: bool,
+    pub check_profile: Flag,
     #[cfg(feature = "fingerprinting")]
     pub profile_threshold: Option<f64>,
     #[cfg(feature = "fingerprinting")]
-    pub profile_stats: bool,
+    pub profile_stats: Flag,
     pub corpus_dir: Option<PathBuf>,
     pub corpus_threshold: f64,
     pub threshold_overrides: Vec<(String, f64)>,
     pub baseline_path: Option<PathBuf>,
-    pub update_baseline: bool,
+    pub update_baseline: Flag,
     pub extra_taint_rule_dirs: Vec<PathBuf>,
-    pub check_deps: bool,
-    pub learn_mode: bool,
+    pub check_deps: Flag,
+    pub learn_mode: Flag,
     pub learn_positive: Option<PathBuf>,
     pub learn_negative: Option<PathBuf>,
     pub learn_output: Option<PathBuf>,
-    pub build_bundle: bool,
+    pub build_bundle: Flag,
     pub build_bundle_output: Option<PathBuf>,
 }
 
 #[allow(clippy::too_many_lines)]
+/// Parse options.
+///
+/// # Panics
+/// May panic if parsing fails.
 pub fn parse_options(args: &[String]) -> CliOptions {
     let mut options = CliOptions {
         format: "text".to_string(),
-        is_strict: false,
+        is_strict: Flag::No,
         fix_scope: None,
         diff_scope: None,
-        diff_only: false,
+        diff_only: Flag::No,
         severity_filter: None,
         enabled_tags: Vec::new(),
         emit_baseline_path: None,
@@ -75,25 +91,25 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         disabled_rules: Vec::new(),
         severity_overrides: Vec::new(),
         #[cfg(feature = "fingerprinting")]
-        learn_profile: false,
+        learn_profile: Flag::No,
         #[cfg(feature = "fingerprinting")]
-        check_profile: false,
+        check_profile: Flag::No,
         #[cfg(feature = "fingerprinting")]
         profile_threshold: None,
         #[cfg(feature = "fingerprinting")]
-        profile_stats: false,
+        profile_stats: Flag::No,
         corpus_dir: None,
         corpus_threshold: 0.40,
         threshold_overrides: Vec::new(),
         baseline_path: None,
-        update_baseline: false,
+        update_baseline: Flag::No,
         extra_taint_rule_dirs: Vec::new(),
-        check_deps: false,
-        learn_mode: false,
+        check_deps: Flag::No,
+        learn_mode: Flag::No,
         learn_positive: None,
         learn_negative: None,
         learn_output: None,
-        build_bundle: false,
+        build_bundle: Flag::No,
         build_bundle_output: None,
     };
 
@@ -102,7 +118,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         match args[i].as_str() {
             "--json" => options.format = "json".to_string(),
             "--sarif" => options.format = "sarif".to_string(),
-            "--strict" => options.is_strict = true,
+            "--strict" => options.is_strict = Flag::Yes,
             "--fix" => {
                 let scope = args.get(i + 1).map(std::string::String::as_str);
                 match scope {
@@ -123,10 +139,10 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                     _ => options.diff_scope = Some("all".to_string()),
                 }
             }
-            "--diff-only" => options.diff_only = true,
+            "--diff-only" => options.diff_only = Flag::Yes,
             "--min-confidence" => {
                 if let Some(val) = args.get(i + 1) {
-                    if let Ok(c) = val.parse::<f32>() {
+                    if let Ok(c) = val.parse::<f64>() {
                         options.min_confidence = c;
                     }
                     i += 1;
@@ -214,7 +230,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             }
             "--confidence-boost-rate" => {
                 if let Some(val) = args.get(i + 1) {
-                    options.confidence_boost_rate = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                    options.confidence_boost_rate = Some(val.parse::<f64>().unwrap_or_else(|_| {
                         eprintln!("Error: Invalid --confidence-boost-rate value '{val}'");
                         std::process::exit(1);
                     }));
@@ -223,7 +239,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             }
             "--confidence-boost-max" => {
                 if let Some(val) = args.get(i + 1) {
-                    options.confidence_boost_max = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                    options.confidence_boost_max = Some(val.parse::<f64>().unwrap_or_else(|_| {
                         eprintln!("Error: Invalid --confidence-boost-max value '{val}'");
                         std::process::exit(1);
                     }));
@@ -260,7 +276,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--taint-conf-inter" => {
                 if let Some(val) = args.get(i + 1) {
                     options.taint_confidence_interprocedural =
-                        Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        Some(val.parse::<f64>().unwrap_or_else(|_| {
                             eprintln!("Error: Invalid --taint-conf-inter value '{val}'");
                             std::process::exit(1);
                         }));
@@ -270,7 +286,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--taint-conf-intra" => {
                 if let Some(val) = args.get(i + 1) {
                     options.taint_confidence_intraprocedural =
-                        Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        Some(val.parse::<f64>().unwrap_or_else(|_| {
                             eprintln!("Error: Invalid --taint-conf-intra value '{val}'");
                             std::process::exit(1);
                         }));
@@ -318,9 +334,9 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 }
             }
             #[cfg(feature = "fingerprinting")]
-            "--learn-profile" => options.learn_profile = true,
+            "--learn-profile" => options.learn_profile = Flag::Yes,
             #[cfg(feature = "fingerprinting")]
-            "--check-profile" => options.check_profile = true,
+            "--check-profile" => options.check_profile = Flag::Yes,
             #[cfg(feature = "fingerprinting")]
             "--profile-threshold" => {
                 if let Some(val) = args.get(i + 1) {
@@ -332,7 +348,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 }
             }
             #[cfg(feature = "fingerprinting")]
-            "--profile-stats" => options.profile_stats = true,
+            "--profile-stats" => options.profile_stats = Flag::Yes,
             "--corpus" => {
                 if let Some(val) = args.get(i + 1) {
                     options.corpus_dir = Some(PathBuf::from(val));
@@ -393,16 +409,16 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                     i += 1;
                 }
             }
-            "--update-baseline" => options.update_baseline = true,
+            "--update-baseline" => options.update_baseline = Flag::Yes,
             "--extra-taint-rules" => {
                 if let Some(val) = args.get(i + 1) {
                     options.extra_taint_rule_dirs.push(PathBuf::from(val));
                     i += 1;
                 }
             }
-            "--check-deps" => options.check_deps = true,
+            "--check-deps" => options.check_deps = Flag::Yes,
             "--learn" => {
-                options.learn_mode = true;
+                options.learn_mode = Flag::Yes;
                 // Next two args are positive and negative files
                 if let Some(pos) = args.get(i + 1) {
                     options.learn_positive = Some(PathBuf::from(pos));
@@ -419,7 +435,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                     i += 1;
                 }
             }
-            "--build-bundle" => options.build_bundle = true,
+            "--build-bundle" => options.build_bundle = Flag::Yes,
             "--build-bundle-output" => {
                 if let Some(val) = args.get(i + 1) {
                     options.build_bundle_output = Some(PathBuf::from(val));
@@ -433,6 +449,11 @@ pub fn parse_options(args: &[String]) -> CliOptions {
     options
 }
 
+#[must_use]
+/// Get input path.
+///
+/// # Panics
+/// May panic if current directory cannot be determined.
 pub fn get_input_path(args: &[String]) -> PathBuf {
     let input_path_str = match args.get(1) {
         Some(path) if !path.starts_with("--") => path.clone(),

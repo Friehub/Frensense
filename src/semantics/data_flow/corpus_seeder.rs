@@ -15,6 +15,9 @@ use tree_sitter::Node;
 /// Seed taint for a function based on corpus pattern matching.
 ///
 /// Uses the corpus-learned source type registry: taints parameters whose
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// type annotations match types found in positive corpus examples.
 pub fn seed_from_corpus_match(
     fn_node: Node,
@@ -22,12 +25,11 @@ pub fn seed_from_corpus_match(
     registry: &mut TaintRegistry,
     source_sink: &CorpusSourceSinkRegistry,
 ) {
-    let params_node = match fn_node
+    let Some(params_node) = fn_node
         .child_by_field_name("parameters")
         .or_else(|| fn_node.child_by_field_name("formal_parameters"))
-    {
-        Some(p) => p,
-        None => return,
+    else {
+        return;
     };
 
     let mut cursor = params_node.walk();

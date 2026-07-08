@@ -32,20 +32,22 @@ impl Default for CalibrationParams {
 
 impl CalibrationParams {
     /// Calibrate a raw score to a probability using Platt scaling.
+    #[must_use]
     pub fn calibrate(&self, raw_score: f64) -> f64 {
         let z = self.a * raw_score + self.b;
         1.0 / (1.0 + (-z).exp())
     }
 
     /// Train calibration parameters from labeled data.
+    #[must_use]
     pub fn train(scores: &[f64], labels: &[bool]) -> Self {
         if scores.is_empty() || labels.is_empty() || scores.len() != labels.len() {
             return Self::default();
         }
 
-        let n = scores.len() as f64;
+        let n_total = scores.len() as f64;
         let n_pos = labels.iter().filter(|&&l| l).count() as f64;
-        let n_neg = n - n_pos;
+        let n_neg = n_total - n_pos;
 
         if n_pos == 0.0 || n_neg == 0.0 {
             return Self::default();
@@ -53,8 +55,8 @@ impl CalibrationParams {
 
         // Platt scaling: fit logistic regression using maximum likelihood
         // Initialize with prior probabilities
-        let mut a = 0.0;
-        let mut b = ((n_neg + 1.0) / (n_pos + 1.0)).ln();
+        let mut param_a = 0.0;
+        let mut param_b = ((n_neg + 1.0) / (n_pos + 1.0)).ln();
 
         // Gradient descent to minimize cross-entropy loss
         let learning_rate = 0.1;
@@ -65,16 +67,16 @@ impl CalibrationParams {
             let mut grad_b = 0.0;
 
             for (x, &y) in scores.iter().zip(labels.iter()) {
-                let z = a * x + b;
-                let p = 1.0 / (1.0 + (-z).exp());
+                let z_score = param_a * x + param_b;
+                let probability = 1.0 / (1.0 + (-z_score).exp());
                 let target = if y { 1.0 } else { 0.0 };
 
-                grad_a += (p - target) * x;
-                grad_b += p - target;
+                grad_a += (probability - target) * x;
+                grad_b += probability - target;
             }
 
-            a -= learning_rate * grad_a / n;
-            b -= learning_rate * grad_b / n;
+            param_a -= learning_rate * grad_a / n_total;
+            param_b -= learning_rate * grad_b / n_total;
         }
 
         // Calculate accuracy
@@ -82,15 +84,15 @@ impl CalibrationParams {
             .iter()
             .zip(labels.iter())
             .filter(|(x, y)| {
-                let p = 1.0 / (1.0 + (-(a * **x + b)).exp());
-                (p >= 0.5) == **y
+                let probability = 1.0 / (1.0 + (-(param_a * **x + param_b)).exp());
+                (probability >= 0.5) == **y
             })
             .count();
-        let accuracy = correct as f64 / n;
+        let accuracy = correct as f64 / n_total;
 
         Self {
-            a,
-            b,
+            a: param_a,
+            b: param_b,
             n_samples: scores.len(),
             accuracy,
         }
@@ -98,11 +100,18 @@ impl CalibrationParams {
 }
 
 /// Load calibration parameters from a JSON file.
+#[must_use]
 pub fn load_calibration(path: &std::path::Path) -> Option<CalibrationParams> {
     let content = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&content).ok()
 }
 
+///
+/// # Errors
+/// May return an error if the operation fails.
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Save calibration parameters to a JSON file.
 pub fn save_calibration(params: &CalibrationParams, path: &std::path::Path) -> Result<(), String> {
     let json = serde_json::to_string_pretty(params).map_err(|e| e.to_string())?;

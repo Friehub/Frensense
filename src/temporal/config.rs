@@ -65,6 +65,7 @@ fn load_temporal_rules_from_str(content: &str) -> Vec<TemporalRuleToml> {
     rules.iter().filter_map(parse_rule_from_table).collect()
 }
 
+#[must_use]
 pub fn load_temporal_rules_from_file(path: &Path) -> Vec<TemporalRuleToml> {
     let Ok(content) = std::fs::read_to_string(path) else {
         return Vec::new();

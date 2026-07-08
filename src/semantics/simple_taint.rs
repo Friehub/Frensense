@@ -26,6 +26,7 @@ pub struct SimpleFinding {
 /// This performs single-function analysis: within each function body,
 /// it checks if any source pattern appears and any sink pattern appears.
 /// No interprocedural tracking, no graph traversal.
+#[must_use]
 pub fn simple_taint_check(
     source: &str,
     tree: &tree_sitter::Tree,
@@ -41,13 +42,12 @@ pub fn simple_taint_check(
     let functions = collect_functions(root);
 
     for func in functions {
-        let body = match func.child_by_field_name("body") {
-            Some(b) => b,
-            None => continue,
+        let Some(body) = func.child_by_field_name("body") else {
+            continue;
         };
 
         let body_text = &source[body.start_byte()..body.end_byte()];
-        let body_line = body.start_position().row as u32 + 1;
+        let body_line = u32::try_from(body.start_position().row).unwrap_or(0) + 1;
 
         // Check for source patterns in function body
         let has_source = source_re.is_match(body_text);
@@ -84,6 +84,9 @@ pub fn simple_taint_check(
     findings
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Collect all function/method nodes from the AST.
 fn collect_functions(root: Node) -> Vec<Node> {
     let mut functions = Vec::new();
@@ -118,6 +121,9 @@ fn collect_functions(root: Node) -> Vec<Node> {
     }
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Find the first match of a regex in text.
 fn find_first_match(text: &str, re: &Regex) -> String {
     re.find(text)
@@ -125,6 +131,9 @@ fn find_first_match(text: &str, re: &Regex) -> String {
         .unwrap_or_default()
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Infer a rule ID based on the sink pattern.
 fn infer_rule_id(sink: &str) -> String {
     let lower = sink.to_lowercase();

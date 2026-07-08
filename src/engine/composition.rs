@@ -15,7 +15,7 @@ pub struct LayerSignals {
     /// Taint flow confirmed (Layer 2)
     pub taint_flow: bool,
     /// Taint branch ratio - high means function actually branches on input (Layer 3)
-    pub taint_branch_ratio: Option<f32>,
+    pub taint_branch_ratio: Option<f64>,
     /// Near-duplicate inconsistency detected (Layer 4)
     pub near_duplicate: bool,
 }
@@ -27,7 +27,8 @@ pub struct LayerSignals {
 /// - L1 alone: structural match with no dataflow → down-weight
 /// - L3 can suppress L1: high branch ratio means function is a real validator
 /// - L4 can boost or suppress: inconsistency across duplicates
-pub fn compose_confidence(signals: &LayerSignals, base_score: f32) -> f32 {
+#[must_use]
+pub fn compose_confidence(signals: &LayerSignals, base_score: f64) -> f64 {
     let mut score = base_score;
 
     // L2 confirms L1: tainted data actually reaches a sink this function's shape implies
@@ -55,6 +56,7 @@ pub fn compose_confidence(signals: &LayerSignals, base_score: f32) -> f32 {
 }
 
 /// Collect layer signals for a given advisory from all advisories on the same function.
+#[must_use]
 pub fn collect_signals(advisory: &Advisory, all_advisories: &[Advisory]) -> LayerSignals {
     let key = (advisory.file_id.0, advisory.line);
     let mut signals = LayerSignals::default();
@@ -83,6 +85,9 @@ pub fn collect_signals(advisory: &Advisory, all_advisories: &[Advisory]) -> Laye
     signals
 }
 
+///
+/// # Panics
+/// May panic if internal assertions fail.
 /// Apply real composition to advisories, replacing the coincidence counter.
 pub fn apply_composition(advisories: &mut [Advisory]) {
     // Clone advisories to read from while mutating
