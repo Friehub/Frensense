@@ -407,14 +407,6 @@ fn regex_match(text: &str, pattern: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn parse_rust(code: &str) -> tree_sitter::Tree {
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&tree_sitter_rust::LANGUAGE.into())
-            .unwrap();
-        parser.parse(code, None).unwrap()
-    }
-
     fn parse_ts(code: &str) -> tree_sitter::Tree {
         let mut parser = tree_sitter::Parser::new();
         parser

@@ -171,7 +171,7 @@ impl DependencyResolver {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_dir() && !path.file_name().map_or(false, |n| n == "node_modules") {
+                if path.is_dir() && path.file_name().is_none_or(|n| n != "node_modules") {
                     self.load_package_json(&path);
                     self.load_package_json_from_dir(&path);
                 }
@@ -314,8 +314,8 @@ impl DependencyResolver {
 
         // Handle scoped packages: "@fastify/cors" → already in deps as "@fastify/cors"
         // But also check if "@fastify" prefix matches any dep
-        if package_name.starts_with('@') {
-            if let Some(slash_pos) = package_name[1..].find('/') {
+        if let Some(stripped) = package_name.strip_prefix('@') {
+            if let Some(slash_pos) = stripped.find('/') {
                 let scope = &package_name[..=slash_pos]; // e.g., "@fastify"
                 if self.npm_deps.iter().any(|d| d.starts_with(scope)) {
                     return true;
@@ -587,7 +587,7 @@ import fs from 'fs';
 
     #[test]
     fn test_type_import_not_flagged() {
-        let mut resolver = DependencyResolver::new();
+        let resolver = DependencyResolver::new();
 
         let source =
             "import type { Request } from 'express';\nimport { Response } from 'express';\n";

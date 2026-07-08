@@ -537,8 +537,6 @@ fn bench_fingerprinting(c: &mut Criterion) {
 // ── Group 7: Schema Contract Checker ─────────────────────────────────────────
 // The SchemaContractChecker walks source files and validates against
 // extracted Prisma schema sets. Measures extractor + checker together.
-
-#[allow(clippy::too_many_lines)]
 #[cfg(feature = "disabled_yaml_rules")]
 fn bench_schema_contract(c: &mut Criterion) {
     use frensense::rules::schema_contract::prisma_extractor::PrismaExtractor;
@@ -671,14 +669,6 @@ fn bench_schema_contract(c: &mut Criterion) {
     });
 
     group.finish();
-}
-
-fn pascal_case(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
 }
 
 // ── Group 8: N-gram Post-Processing (Jaccard Similarity) ─────────────────────

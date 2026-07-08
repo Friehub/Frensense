@@ -119,6 +119,7 @@ impl PatchManager {
         sorted_advisories.sort_by_key(|b| std::cmp::Reverse(b.start_byte));
 
         let mut updated_content = content.clone();
+        let import_re = regex::Regex::new(r"(?m)^import\s+.*").ok();
 
         for advisory in sorted_advisories {
             let Some(proposed) = &advisory.proposed_replacement else {
@@ -158,7 +159,7 @@ impl PatchManager {
                 let import_stmt = self.resolve_import_path(file_path, import_template);
                 if !updated_content.contains(&import_stmt) {
                     let mut insertion_offset = 0;
-                    if let Ok(re) = regex::Regex::new(r"(?m)^import\s+.*")
+                    if let Some(re) = &import_re
                         && let Some(last_match) = re.find_iter(&updated_content).last()
                         && let Some(line_end) = updated_content[last_match.end()..].find('\n')
                     {

@@ -9,14 +9,14 @@ use tree_sitter::Node;
 
 /// Extract the structural skeleton from an AST node.
 /// Returns a list of node kinds (identifiers and literals removed).
-pub fn extract_skeleton(root: Node, source: &str) -> Vec<String> {
+pub fn extract_skeleton(root: Node, _source: &str) -> Vec<String> {
     let mut skeleton = Vec::new();
-    extract_skeleton_recursive(root, source, &mut skeleton);
+    extract_skeleton_recursive(root, &mut skeleton);
     skeleton
 }
 
 /// Recursively extract node kinds, skipping identifiers and literals.
-fn extract_skeleton_recursive(node: Node, source: &str, skeleton: &mut Vec<String>) {
+fn extract_skeleton_recursive(node: Node, skeleton: &mut Vec<String>) {
     let kind = node.kind();
 
     // Skip leaf nodes that are identifiers or literals
@@ -41,7 +41,7 @@ fn extract_skeleton_recursive(node: Node, source: &str, skeleton: &mut Vec<Strin
     if cursor.goto_first_child() {
         loop {
             let child = cursor.node();
-            extract_skeleton_recursive(child, source, skeleton);
+            extract_skeleton_recursive(child, skeleton);
             if !cursor.goto_next_sibling() {
                 break;
             }

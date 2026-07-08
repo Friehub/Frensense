@@ -137,12 +137,13 @@ impl ConsistencyCheck {
     #[must_use]
     pub fn metrics(&self) -> DivergenceMetrics {
         let div = self.detect_divergence();
-        let mut metrics = DivergenceMetrics::default();
-
-        metrics.total_graph = self.path_graph.len();
-        metrics.total_ast = self.path_ast.len();
-        metrics.total_missing = div.missing_in_graph.len();
-        metrics.total_extra = div.extra_in_graph.len();
+        let mut metrics = DivergenceMetrics {
+            total_graph: self.path_graph.len(),
+            total_ast: self.path_ast.len(),
+            total_missing: div.missing_in_graph.len(),
+            total_extra: div.extra_in_graph.len(),
+            ..Default::default()
+        };
 
         // Per-rule metrics from graph path
         for adv in &self.path_graph {

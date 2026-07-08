@@ -10,15 +10,17 @@ use crate::{Advisory, FileId, Result};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+struct ProcessSnapshotsResult<'a> {
+    symbols: SymbolRegistry,
+    file_ids: Vec<(FileId, PathBuf)>,
+    snapshot_map: HashMap<FileId, &'a FileSnapshot>,
+}
+
 /// Shared snapshot processing: build symbol registry, add edges, discover events.
 fn process_snapshots<'a>(
     auditor: &crate::engine::auditor::FrensenseAuditor,
     snapshots: &'a [FileSnapshot],
-) -> Result<(
-    SymbolRegistry,
-    Vec<(FileId, PathBuf)>,
-    HashMap<FileId, &'a FileSnapshot>,
-)> {
+) -> Result<ProcessSnapshotsResult<'a>> {
     let mut symbols = SymbolRegistry::new();
     let mut file_ids = Vec::new();
     let mut snapshot_map = HashMap::new();
@@ -41,7 +43,11 @@ fn process_snapshots<'a>(
         auditor.discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
     }
 
-    Ok((symbols, file_ids, snapshot_map))
+    Ok(ProcessSnapshotsResult {
+        symbols,
+        file_ids,
+        snapshot_map,
+    })
 }
 
 /// Build `file_trees` map from snapshots.
@@ -407,7 +413,11 @@ impl Engine {
         self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
 
         let snapshots = self.snapshot_files(root, files);
-        let (mut symbols, file_ids, snapshot_map) = process_snapshots(&self.auditor, &snapshots)?;
+        let ProcessSnapshotsResult {
+            mut symbols,
+            file_ids,
+            snapshot_map,
+        } = process_snapshots(&self.auditor, &snapshots)?;
         let file_trees = build_file_trees(&snapshots);
 
         let mut all_advisories =
@@ -524,7 +534,11 @@ impl Engine {
 
         let config = self.initialize_auditor_and_config(root);
         let snapshots = self.collect_and_snapshot_files(root);
-        let (mut symbols, file_ids, snapshot_map) = process_snapshots(&self.auditor, &snapshots)?;
+        let ProcessSnapshotsResult {
+            mut symbols,
+            file_ids,
+            snapshot_map,
+        } = process_snapshots(&self.auditor, &snapshots)?;
         let file_trees = build_file_trees(&snapshots);
 
         let mut all_advisories =
