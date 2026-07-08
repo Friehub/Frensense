@@ -369,7 +369,7 @@ fn extract_properties_recursive(node: Node<'_>, source: &str, accesses: &mut FxH
 }
 
 /// Extract semantic markers from function body using AST-aware API call detection.
-/// Uses actual call_expression nodes instead of text search to eliminate false positives
+/// Uses actual `call_expression` nodes instead of text search to eliminate false positives
 /// from comments, strings, and variable names.
 fn extract_semantic_markers(
     _node: Node<'_>,

@@ -202,14 +202,14 @@ impl PatternScorer {
         // If the positive bug relies on specific semantics (like Math.random or innerHTML),
         // and the candidate shares NONE of those semantics, we penalize it.
         // If the candidate SHARES the semantics, we give it a massive boost because it's a high-confidence match.
-        let semantic_multiplier = if !positive.semantic_markers.is_empty() {
+        let semantic_multiplier = if positive.semantic_markers.is_empty() {
+            1.0
+        } else {
             if semantic_sim_pos == 0.0 {
                 0.30 // 70% penalty if required semantics are missing
             } else {
                 2.0 // 100% boost if required semantics match!
             }
-        } else {
-            1.0
         };
 
         let sim_to_negative = ngram_sim_neg * 0.12
