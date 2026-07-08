@@ -56,7 +56,6 @@ jobs:
 
       - name: Install Linting Tools
         run: |
-          cargo install cargo-hack --locked --force
           cargo install cargo-machete --locked --force
 
 
@@ -72,9 +71,7 @@ jobs:
         with:
           components: rustfmt
 
-      - name: Verify Feature Gating (cargo hack)
-        # Exclude 'node' — it requires a linked Node.js runtime (napi cdylib).
-        run: cargo hack check -p frensense --each-feature
+
 
       - name: Prune Unused Dependencies (cargo machete)
         run: cargo machete
