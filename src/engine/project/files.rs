@@ -32,9 +32,10 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
             } else if e.file_type().is_file() {
                 // Skip files larger than 1MB
                 if let Ok(meta) = e.metadata()
-                    && meta.len() > 1_000_000 {
-                        return false;
-                    }
+                    && meta.len() > 1_000_000
+                {
+                    return false;
+                }
                 if name.ends_with(".min.js")
                     || name.ends_with(".bundle.js")
                     || name.ends_with(".chunk.js")
