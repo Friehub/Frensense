@@ -54,11 +54,6 @@ jobs:
       - name: Enforce Style (rustfmt)
         run: cargo fmt --all -- --check
 
-      - name: Install Linting Tools
-        run: |
-          cargo install cargo-machete --locked --force
-
-
       - name: Lint (Clippy)
         run: cargo clippy --all-features -- -W clippy::pedantic -D warnings
 
@@ -72,11 +67,6 @@ jobs:
           components: rustfmt
 
 
-
-      - name: Prune Unused Dependencies (cargo machete)
-        run: cargo machete
-
-  # --- Supply Chain Audit ---
   security:
     name: Supply Chain Audit
     runs-on: ubuntu-latest
