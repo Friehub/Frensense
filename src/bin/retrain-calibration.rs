@@ -44,18 +44,16 @@ fn main() {
 
         // Score positive examples against their own pattern (should be high = TP)
         for pos in &pos_fps {
-            for neg in &neg_fps {
-                let score = PatternScorer::score_against_corpus(pos, pos, neg);
-                scores.push((score, true));
-            }
+            let score =
+                PatternScorer::score_against_corpus(pos, &pos_fps, &neg_fps, None, None, 0.05);
+            scores.push((score, true));
         }
 
         // Score negative examples against positive pattern (should be low = FP)
         for neg in &neg_fps {
-            for pos in &pos_fps {
-                let score = PatternScorer::score_against_corpus(neg, pos, neg);
-                scores.push((score, false));
-            }
+            let score =
+                PatternScorer::score_against_corpus(neg, &pos_fps, &neg_fps, None, None, 0.05);
+            scores.push((score, false));
         }
     }
 

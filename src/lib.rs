@@ -90,6 +90,7 @@ pub struct RuleMetadata {
     pub confidence: f64,
     #[serde(default = "default_precision")]
     pub precision: Precision,
+    pub expected_context: Option<frensense_engine::context::FileContext>,
 }
 
 const fn default_confidence() -> f64 {
@@ -362,6 +363,7 @@ pub struct FrensenseContext<'a> {
             Vec<crate::semantics::data_flow::normalization::SemanticOp>,
         ),
     >,
+    pub file_context: frensense_engine::context::FileContext,
     pub taint_confidence_interprocedural: f64,
     pub taint_confidence_intraprocedural: f64,
     pub default_taint_max_depth: usize,
@@ -401,6 +403,7 @@ impl<'a> FrensenseContext<'a> {
             semantic_ops: &[],
             taint_cache,
             file_trees,
+            file_context: frensense_engine::context::FileContext::extract(file_path, source_code),
             taint_confidence_interprocedural: 0.80,
             taint_confidence_intraprocedural: 0.90,
             default_taint_max_depth: 5,
@@ -429,6 +432,7 @@ impl<'a> FrensenseContext<'a> {
             semantic_ops,
             taint_cache: parent.taint_cache,
             file_trees: parent.file_trees,
+            file_context: frensense_engine::context::FileContext::extract(file_path, source_code),
             taint_confidence_interprocedural: parent.taint_confidence_interprocedural,
             taint_confidence_intraprocedural: parent.taint_confidence_intraprocedural,
             default_taint_max_depth: parent.default_taint_max_depth,

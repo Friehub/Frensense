@@ -5,3 +5,10 @@ severity = "Critical"
 impact = "Paying users or administrators will be permanently treated as free-tier users or normal users for every session-token-gated feature."
 improvement = "Look up the customer's current license tier/role at login and store the real tier in the session record."
 tags = ["security", "auth", "privilege-escalation"]
+
+[expected_context]
+environment = "Unknown"
+sensitivity = "High"
+frameworks = []
+
+

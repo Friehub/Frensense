@@ -52,6 +52,11 @@ impl CrossFileTaintResolver {
                 }
             }
         }
+
+        eprintln!(
+            "DEBUG CROSS_FILE_TAINT: build_from_symbols generated {} keys in call_graph",
+            self.call_graph.len()
+        );
     }
 
     pub fn register_exposed_taint(
@@ -157,12 +162,9 @@ impl CrossFileTaintResolver {
     }
 }
 
-pub fn build_resolver(project_symbols: &[(&Symbol, &SemanticGraph)]) -> CrossFileTaintResolver {
+pub fn build_resolver(all_symbols: &[&Symbol], graph: &SemanticGraph) -> CrossFileTaintResolver {
     let mut resolver = CrossFileTaintResolver::new();
-    let all_symbol_refs: Vec<&Symbol> = project_symbols.iter().map(|(s, _)| *s).collect();
-    for (_sym, graph) in project_symbols {
-        resolver.build_from_symbols(&all_symbol_refs, graph);
-    }
+    resolver.build_from_symbols(all_symbols, graph);
     resolver
 }
 

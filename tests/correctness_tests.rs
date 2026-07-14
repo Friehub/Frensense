@@ -63,6 +63,7 @@ fn test_taint_through_destructuring() {
         semantic_ops: &ops,
         taint_cache: &taint_cache,
         file_trees: &HashMap::new(),
+        file_context: frensense_engine::context::FileContext::extract(path, content),
         taint_confidence_interprocedural: 0.80,
         taint_confidence_intraprocedural: 0.90,
         default_taint_max_depth: 5,

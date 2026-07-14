@@ -7,9 +7,9 @@ pub mod rules;
 pub use project_auditor::ProjectAuditor;
 
 use glob::Pattern;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::RwLock;
 use tree_sitter::{Language, Node, Query, QueryCursor, Tree};
 
 use super::suppression::{SuppressConfig, is_suppressed};
@@ -31,7 +31,7 @@ pub struct FrensenseAuditor {
     rules: Vec<Box<dyn FrensenseRule>>,
     suppressions: Vec<(String, Pattern)>,
     rule_index: HashMap<String, usize>,
-    combined_queries: RefCell<HashMap<String, Option<Query>>>,
+    combined_queries: std::sync::RwLock<HashMap<String, Option<Query>>>,
 }
 
 pub struct AuditOptions<'a> {
@@ -68,7 +68,7 @@ impl FrensenseAuditor {
             rule_index: Self::build_rule_index(&rules),
             rules,
             suppressions: Vec::new(),
-            combined_queries: RefCell::new(HashMap::new()),
+            combined_queries: RwLock::new(HashMap::new()),
         }
     }
 
@@ -107,7 +107,7 @@ impl FrensenseAuditor {
     pub fn set_rules(&mut self, rules: Vec<Box<dyn FrensenseRule>>) {
         self.rule_index = Self::build_rule_index(&rules);
         self.rules = rules;
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
     pub fn add_rules(&mut self, extra: Vec<Box<dyn FrensenseRule>>) {
@@ -115,7 +115,7 @@ impl FrensenseAuditor {
             self.rule_index.insert(r.id().to_string(), self.rules.len());
         }
         self.rules.extend(extra);
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
     pub fn retain_rules<F>(&mut self, mut f: F)
@@ -124,7 +124,7 @@ impl FrensenseAuditor {
     {
         self.rules.retain(&mut f);
         self.rule_index = Self::build_rule_index(&self.rules);
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
     ///
@@ -137,7 +137,7 @@ impl FrensenseAuditor {
         let removed = self.rules.len() < before;
         if removed {
             self.rule_index = Self::build_rule_index(&self.rules);
-            self.combined_queries.borrow_mut().clear();
+            self.combined_queries.write().unwrap().clear();
         }
         removed
     }
@@ -150,7 +150,7 @@ impl FrensenseAuditor {
         self.rule_index
             .insert(rule.id().to_string(), self.rules.len());
         self.rules.push(rule);
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
     fn is_rule_enabled(
@@ -283,6 +283,7 @@ impl FrensenseAuditor {
             semantic_ops: opts.semantic_ops,
             taint_cache,
             file_trees: opts.file_trees,
+            file_context: frensense_engine::context::FileContext::extract(opts.path, opts.content),
             taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
             taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
             default_taint_max_depth: opts.default_taint_max_depth,
@@ -301,14 +302,14 @@ impl FrensenseAuditor {
         };
 
         {
-            let mut cache = self.combined_queries.borrow_mut();
+            let mut cache = self.combined_queries.write().unwrap();
             if !cache.contains_key(ext) {
                 let q = self.build_combined_query(ext, &language);
                 cache.insert(ext.to_string(), q);
             }
         }
 
-        let cache = self.combined_queries.borrow();
+        let cache = self.combined_queries.read().unwrap();
         let Some(combined_query) = cache.get(ext).and_then(|q| q.as_ref()) else {
             return;
         };

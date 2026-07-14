@@ -16,6 +16,7 @@ pub struct CorpusPattern {
     pub observation: Option<String>,
     pub impact: Option<String>,
     pub improvement: Option<String>,
+    pub expected_context: Option<crate::context::FileContext>,
 }
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
@@ -35,8 +36,9 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             continue;
         };
 
-        let is_positive = file_name.contains("_positive.");
-        let is_negative = file_name.contains("_negative.");
+        let is_positive = file_name.contains("_positive");
+        // M1: Support _negative, _negative2, _negative3 ... for diverse negatives
+        let is_negative = is_negative_file(file_name);
 
         if !is_positive && !is_negative {
             continue;
@@ -81,6 +83,11 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             if entry.2.observation.is_none() {
                 entry.2 = parse_frensense_block(&source);
             }
+            // M4: Auto-infer expected_context from the positive file path+content — no TOML needed
+            if entry.2.expected_context.is_none() {
+                entry.2.expected_context =
+                    Some(crate::context::FileContext::extract(&path, &source));
+            }
         } else {
             entry.1.extend(fps);
             entry.4.extend(all_features);
@@ -102,18 +109,40 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             continue;
         }
 
-        // Priority: comment block > sidecar TOML > empty
+        // Priority: comment block > sidecar TOML (optional override) > synthesized
+        // The sidecar TOML is NEVER required — it is only an escape hatch for edge cases.
         let toml_advisory = load_sidecar_toml(corpus_dir, &name);
-        let observation = comment_advisory.observation.or(toml_advisory.observation);
-        let impact = comment_advisory.impact.or(toml_advisory.impact);
-        let improvement = comment_advisory.improvement.or(toml_advisory.improvement);
 
         // Learn semantic constraints from positive/negative examples
         let learned = if !pos_features.is_empty() && !neg_features.is_empty() {
+            // M2: Pass taint source awareness into constraint learning
             learn_from_features(&pos_features, &neg_features)
         } else {
             crate::corpus::semantic::LearnedConstraints::default()
         };
+
+        // M3: Synthesize advisory text from learned constraints when no comment block is present
+        let synthesized =
+            synthesize_advisory(&name, &learned.required_calls, &learned.forbidden_calls);
+
+        let observation = comment_advisory
+            .observation
+            .or(toml_advisory.observation)
+            .or(synthesized.observation);
+        let impact = comment_advisory
+            .impact
+            .or(toml_advisory.impact)
+            .or(synthesized.impact);
+        let improvement = comment_advisory
+            .improvement
+            .or(toml_advisory.improvement)
+            .or(synthesized.improvement);
+
+        // M4: Auto-context is already in comment_advisory.expected_context (set during file scan).
+        // Sidecar TOML is a manual override; auto-inferred value is the fallback.
+        let expected_context = toml_advisory
+            .expected_context
+            .or(comment_advisory.expected_context);
 
         // Merge: TOML manual filter takes precedence over learned constraints
         let filter = if let Some(manual) = semantic_filters.get(&name) {
@@ -132,6 +161,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             observation,
             impact,
             improvement,
+            expected_context,
         });
     }
 
@@ -143,6 +173,41 @@ struct AdvisoryText {
     observation: Option<String>,
     impact: Option<String>,
     improvement: Option<String>,
+    expected_context: Option<crate::context::FileContext>,
+}
+
+/// M3: Synthesize advisory text from what the AST diff already tells us.
+/// Used as a fallback when no `[frensense]` comment block is present in the positive file.
+fn synthesize_advisory(
+    pattern_id: &str,
+    required_calls: &[String],
+    forbidden_calls: &[String],
+) -> AdvisoryText {
+    // Convert pattern_id like "ts_jwt_bypass" to a readable label
+    let label = pattern_id.replace('_', " ");
+    let observation = if required_calls.is_empty() {
+        format!("Pattern '{label}' matches a known vulnerability shape.")
+    } else {
+        format!(
+            "Function calls {}. This matches a known vulnerability ({label}).",
+            required_calls.join(", ")
+        )
+    };
+    let improvement = if forbidden_calls.is_empty() {
+        "Review the function against the corpus positive example.".to_string()
+    } else {
+        format!(
+            "Replace {} with {} and validate all inputs.",
+            required_calls.join(" / "),
+            forbidden_calls.join(" / ")
+        )
+    };
+    AdvisoryText {
+        observation: Some(observation),
+        impact: None,
+        improvement: Some(improvement),
+        expected_context: None,
+    }
 }
 
 /// Parse a `/// [frensense]` / `// [frensense]` / `# [frensense]` block from source.
@@ -218,6 +283,52 @@ fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> Adviso
         return AdvisoryText::default();
     };
 
+    let expected_context = doc
+        .get("expected_context")
+        .and_then(|t| t.as_table())
+        .map(|t| {
+            let env_str = t
+                .get("environment")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
+            let sens_str = t
+                .get("sensitivity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
+
+            let env = match env_str {
+                "Test" => crate::context::Environment::Test,
+                "Mock" => crate::context::Environment::Mock,
+                "RouteHandler" => crate::context::Environment::RouteHandler,
+                "Utility" => crate::context::Environment::Utility,
+                "Config" => crate::context::Environment::Config,
+                _ => crate::context::Environment::Unknown,
+            };
+
+            let sens = match sens_str {
+                "Low" => crate::context::DataSensitivity::Low,
+                "Medium" => crate::context::DataSensitivity::Medium,
+                "High" => crate::context::DataSensitivity::High,
+                _ => crate::context::DataSensitivity::Unknown,
+            };
+
+            let frameworks = t
+                .get("frameworks")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            crate::context::FileContext {
+                environment: env,
+                sensitivity: sens,
+                frameworks,
+            }
+        });
+
     AdvisoryText {
         observation: doc
             .get("observation")
@@ -228,6 +339,7 @@ fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> Adviso
             .get("improvement")
             .and_then(|v| v.as_str())
             .map(String::from),
+        expected_context,
     }
 }
 
@@ -321,13 +433,39 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
     filters
 }
 
+/// Returns true if a file name represents any negative variant:
+/// `_negative.ts`, `_negative2.ts`, `_negative3.ts`, etc.
+fn is_negative_file(file_name: &str) -> bool {
+    // Strip the extension first, then check suffix
+    let stem = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
+    if stem.ends_with("_negative") {
+        return true;
+    }
+    // Match _negative2, _negative3, ... _negative9
+    if let Some(prefix) = stem.strip_suffix(|c: char| c.is_ascii_digit()) {
+        if prefix.ends_with("_negative") {
+            return true;
+        }
+    }
+    false
+}
+
 fn extract_pattern_name(file_name: &str) -> String {
     let without_ext = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
 
-    without_ext
-        .trim_end_matches("_positive")
-        .trim_end_matches("_negative")
-        .to_string()
+    // Strip _positive suffix
+    let s = without_ext.trim_end_matches("_positive");
+
+    // Strip _negative, _negative2 ... _negative9
+    let s = if s.ends_with("_negative") {
+        s.trim_end_matches("_negative")
+    } else if let Some(prefix) = s.strip_suffix(|c: char| c.is_ascii_digit()) {
+        prefix.trim_end_matches("_negative")
+    } else {
+        s
+    };
+
+    s.to_string()
 }
 
 #[cfg(test)]
@@ -583,11 +721,33 @@ fn validate(input: &str) -> bool {
     }
 }
 
+/// Known taint source access patterns — user-controlled input entry points.
+/// If a positive example contains these and the negative does not, the pattern
+/// requires taint access to match (auto-promotes to SemanticFilter.contains_call_to).
+const TAINT_SOURCE_PATTERNS: &[&str] = &[
+    "req.query",
+    "req.body",
+    "req.params",
+    "req.headers",
+    "req.cookies",
+    "ctx.request",
+    "ctx.query",
+    "ctx.params",
+    "ctx.body",
+    "event.body",
+    "request.body",
+    "request.query",
+    "process.argv",
+    "c.req",
+];
+
 /// Collected features from a function node for constraint learning.
 #[derive(Debug, Clone, Default)]
 struct FunctionFeatures {
     calls: Vec<String>,
     node_types: Vec<String>,
+    /// M2: Set if the function reads from a recognized taint source (user-controlled input)
+    taint_sources: Vec<String>,
 }
 
 /// Collect features from a function node.
@@ -634,6 +794,17 @@ fn collect_function_features(node: tree_sitter::Node<'_>, source: &str) -> Funct
     features.calls.dedup();
     features.node_types.sort();
     features.node_types.dedup();
+
+    // M2: Detect taint sources by scanning the raw source text of this function's span
+    let func_src = &source[node.start_byte()..node.end_byte().min(source.len())];
+    for &pattern in TAINT_SOURCE_PATTERNS {
+        if func_src.contains(pattern) {
+            features.taint_sources.push(pattern.to_string());
+        }
+    }
+    features.taint_sources.sort();
+    features.taint_sources.dedup();
+
     features
 }
 
@@ -682,7 +853,7 @@ fn learn_from_features(
         .collect();
 
     // Find calls in ALL positives but NOT in any negative
-    let required_calls: Vec<String> = pos_features[0]
+    let mut required_calls: Vec<String> = pos_features[0]
         .calls
         .iter()
         .filter(|call| {
@@ -691,6 +862,25 @@ fn learn_from_features(
         })
         .cloned()
         .collect();
+
+    // M2: Auto-promote taint sources to required_calls when positives have taint
+    // and negatives do not — eliminates FP on non-user-controlled code paths.
+    let pos_has_taint = pos_features.iter().any(|f| !f.taint_sources.is_empty());
+    let neg_has_taint = neg_features.iter().any(|f| !f.taint_sources.is_empty());
+    if pos_has_taint && !neg_has_taint {
+        // Collect taint sources present in any positive but absent from all negatives
+        let neg_taint: std::collections::HashSet<&str> = neg_features
+            .iter()
+            .flat_map(|f| f.taint_sources.iter().map(std::string::String::as_str))
+            .collect();
+        for f in pos_features {
+            for src in &f.taint_sources {
+                if !neg_taint.contains(src.as_str()) && !required_calls.contains(src) {
+                    required_calls.push(src.clone());
+                }
+            }
+        }
+    }
 
     // Find calls in ALL negatives but NOT in any positive
     let forbidden_calls: Vec<String> = neg_features[0]
@@ -768,5 +958,6 @@ fn learn_from_features(
         forbidden_calls,
         required_node_types,
         forbidden_node_types,
+        required_taint_flows: Vec::new(),
     }
 }

@@ -7,6 +7,7 @@ use crate::engine::suppression::SuppressConfig;
 
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -122,7 +123,9 @@ fn run_findings_modules(
     >,
     _extra_taint_rule_dirs: &[PathBuf],
     check_deps: bool,
+    source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     all_advisories: &mut Vec<Advisory>,
+    use_data_flow: bool,
 ) {
     use crate::engine::findings::{FindingContext, registered_modules};
 
@@ -135,11 +138,223 @@ fn run_findings_modules(
     // Create a DataFlowEngine for cross-file taint analysis
     let data_flow_engine = frensense_engine::data_flow::DataFlowEngine::new();
 
+    // Instantiate dormant modules
+    let alias_tracker = frensense_engine::data_flow::AliasTracker::new();
+    let all_symbols = symbols.query_all();
+    let mut cross_file_taint =
+        frensense_engine::data_flow::cross_file::build_resolver(&all_symbols, symbols.graph());
+    let mut exposed_count = 0;
+
+    // Seed the cross-file taint resolver with user input sources
+    if use_data_flow {
+        for snap in snapshots {
+            let root = snap.tree.root_node();
+            let mut stack = vec![root];
+            while let Some(node) = stack.pop() {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    stack.push(child);
+                }
+
+                if node.kind() == "function_declaration"
+                    || node.kind() == "arrow_function"
+                    || node.kind() == "method_definition"
+                    || node.kind() == "function"
+                {
+                    let mut fn_name_str = String::new();
+                    if let Some(name_node) = node.child_by_field_name("name") {
+                        if let Ok(name) = name_node.utf8_text(snap.content.as_bytes()) {
+                            fn_name_str = name.to_string();
+                        }
+                    } else if let Some(parent) = node.parent() {
+                        // Try to get name from variable declarator: `const myFunc = () => {}`
+                        if parent.kind() == "variable_declarator" {
+                            if let Some(name_node) = parent.child_by_field_name("name") {
+                                if let Ok(name) = name_node.utf8_text(snap.content.as_bytes()) {
+                                    fn_name_str = name.to_string();
+                                }
+                            }
+                        } else if parent.kind() == "pair" || parent.kind() == "property_identifier"
+                        {
+                            if let Some(key_node) = parent.child_by_field_name("key") {
+                                if let Ok(name) = key_node.utf8_text(snap.content.as_bytes()) {
+                                    fn_name_str = name.to_string();
+                                }
+                            }
+                        }
+                    }
+
+                    if fn_name_str.is_empty() {
+                        fn_name_str = format!(
+                            "anon_{}_{}",
+                            node.start_position().row,
+                            node.start_position().column
+                        );
+                    }
+
+                    if let Some(params_node) = node
+                        .child_by_field_name("parameters")
+                        .or_else(|| node.child_by_field_name("formal_parameters"))
+                    {
+                        let mut p_cursor = params_node.walk();
+                        let mut is_source = false;
+                        for param in params_node.children(&mut p_cursor) {
+                            if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
+                                continue;
+                            }
+                            let (param_name, param_type) =
+                                frensense_engine::corpus::source_sink::extract_param_info(
+                                    param,
+                                    &snap.content,
+                                );
+                            let clean_type = param_type.trim_start_matches(':').trim();
+
+                            if source_sink.is_source_type(clean_type)
+                                || param_name.to_lowercase() == "req"
+                                || param_name.to_lowercase() == "request"
+                                || param_name.to_lowercase() == "event"
+                            {
+                                is_source = true;
+                            }
+                        }
+
+                        if is_source {
+                            cross_file_taint.register_exposed_taint(
+                                &fn_name_str,
+                                &snap.path.to_string_lossy(),
+                                frensense_engine::data_flow::TaintOrigin::UserInput,
+                            );
+                            exposed_count += 1;
+                        }
+
+                        // Intra-procedural fallback for anonymous functions
+                        let mut body_stack = vec![node];
+                        let mut is_db_source = false;
+
+                        while let Some(b_node) = body_stack.pop() {
+                            let mut b_cursor = b_node.walk();
+                            for b_child in b_node.children(&mut b_cursor) {
+                                body_stack.push(b_child);
+                            }
+
+                            if b_node.kind() == "call_expression"
+                                || b_node.kind() == "member_expression"
+                            {
+                                if let Ok(expr_text) = b_node.utf8_text(snap.content.as_bytes()) {
+                                    let expr_lower = expr_text.to_lowercase();
+                                    if expr_lower.contains("request.headers")
+                                        || expr_lower.contains("req.header")
+                                        || expr_lower.contains("req.headers")
+                                        || expr_lower == "headers()"
+                                        || expr_lower.contains("headers.get")
+                                    {
+                                        if !is_source {
+                                            is_source = true;
+                                            cross_file_taint.register_exposed_taint(
+                                                &fn_name_str,
+                                                &snap.path.to_string_lossy(),
+                                                frensense_engine::data_flow::TaintOrigin::UserInput,
+                                            );
+                                            exposed_count += 1;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if b_node.kind() == "call_expression" {
+                                if let Some(func_node) = b_node.child_by_field_name("function") {
+                                    if let Ok(call_name) =
+                                        func_node.utf8_text(snap.content.as_bytes())
+                                    {
+                                        let lower = call_name.to_lowercase();
+
+                                        let is_safe_base = call_name.starts_with("Object.")
+                                            || call_name.starts_with("Array.")
+                                            || call_name.starts_with("String.")
+                                            || call_name.starts_with("Math.")
+                                            || call_name.starts_with("JSON.")
+                                            || call_name.starts_with("console.")
+                                            || call_name.starts_with("process.");
+
+                                        let mut is_sink = false;
+
+                                        if !is_safe_base {
+                                            // Second-order DB taint: mark DB read calls
+                                            if lower.ends_with(".findbypk")
+                                                || lower.ends_with(".findone")
+                                                || lower.ends_with(".findall")
+                                                || lower.ends_with(".find")
+                                                || lower.ends_with(".query")
+                                            {
+                                                is_db_source = true;
+                                            }
+
+                                            is_sink = lower == "eval"
+                                                || lower == "exec"
+                                                || lower.ends_with(".query")
+                                                || lower == "query"
+                                                || lower.ends_with(".send")
+                                                || lower == "send"
+                                                || lower.ends_with(".json")
+                                                || lower == "json"
+                                                || lower.ends_with(".sendfile")
+                                                || lower == "sendfile"
+                                                || lower.ends_with(".sendstatus")
+                                                || lower == "sendstatus"
+                                                || lower.ends_with(".find")
+                                                || lower.ends_with(".findone")
+                                                || lower.ends_with(".create")
+                                                || lower.ends_with(".insert")
+                                                || lower.ends_with(".update")
+                                                || lower.ends_with(".remove");
+                                        }
+
+                                        if is_source && is_sink {
+                                            all_advisories.push(Advisory::bare(
+                                            "CROSS_FILE_TAINT",
+                                            crate::Severity::Critical,
+                                            snap.id,
+                                            &snap.path,
+                                            format!("User input flows to sensitive sink {} in {}", call_name, fn_name_str),
+                                        )
+                                        .with_impact("Unvalidated user input reaches a sensitive execution context.")
+                                        .with_improvement("Add validation or sanitization to the source before passing data."));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if is_db_source && !is_source {
+                            cross_file_taint.register_exposed_taint(
+                                &fn_name_str,
+                                &snap.path.to_string_lossy(),
+                                frensense_engine::data_flow::TaintOrigin::Database,
+                            );
+                            exposed_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        eprintln!(
+            "DEBUG CROSS_FILE_TAINT: registered {} exposed sources",
+            exposed_count
+        );
+    }
+
+    let mut temporal_analyzer = frensense_engine::temporal::TemporalAnalyzer::new();
+    temporal_analyzer.add_default_rules();
+
     for snap in snapshots {
         let mut ctx = FindingContext {
             symbols,
             dep_resolver: Some(&mut dep_resolver),
             data_flow_engine: Some(&data_flow_engine),
+            alias_tracker: Some(&alias_tracker),
+            cross_file_taint: Some(&cross_file_taint),
+            temporal_analyzer: Some(&temporal_analyzer),
         };
         for module in &modules {
             all_advisories.extend(module.run(snap, &mut ctx));
@@ -166,7 +381,7 @@ fn run_corpus_scan(
         ),
     >,
     all_advisories: &mut Vec<Advisory>,
-) {
+) -> frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry {
     // Load suppressions from .frensense-suppress.yml
     let suppressions = load_suppressions(root);
 
@@ -175,8 +390,10 @@ fn run_corpus_scan(
         corpus_dirs.push(corpus_dir.as_path());
     }
 
-    let mut registry =
-        frensense_engine::corpus::registry::PatternRegistry::new(engine.corpus_threshold);
+    let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(
+        engine.corpus_threshold,
+        engine.ngram_sim_threshold,
+    );
     for (category, threshold) in &engine.threshold_overrides {
         registry.set_threshold_override(category.clone(), *threshold);
     }
@@ -207,38 +424,107 @@ fn run_corpus_scan(
     }
 
     if !corpus_loaded {
-        return;
+        return frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry::default();
     }
+    let ngram_window_size = engine.ngram_window_size;
+    let per_category_calibration = engine.per_category_calibration.clone();
+    let calibration = engine.calibration.clone();
 
-    for snap in snapshots {
-        // Skip test files for corpus scanning
-        if is_test_file(&snap.path) {
-            continue;
-        }
+    let mut dep_resolver =
+        frensense_engine::deps::DependencyResolver::with_check_deps(engine.check_deps);
+    dep_resolver.load_project(root);
+    let npm_deps = dep_resolver.npm_deps().clone();
 
-        let mut fps = Vec::new();
-        frensense_engine::fingerprint::extract_fingerprints(
-            snap.tree.root_node(),
-            &snap.content,
-            &snap.path,
-            &mut fps,
-            engine.ngram_window_size,
-        );
-        for fp in &fps {
-            let func_node = find_function_node(
+    let all_fps: Vec<(
+        frensense_engine::fingerprint::FunctionFingerprint,
+        tree_sitter::Node<'_>,
+        &FileSnapshot,
+        frensense_engine::context::FileContext,
+    )> = snapshots
+        .par_iter()
+        .flat_map(|snap| {
+            if is_test_file(&snap.path) {
+                return Vec::new();
+            }
+            let start_time = std::time::Instant::now();
+            let ctx = frensense_engine::context::FileContext::extract(&snap.path, &snap.content);
+            let mut fps = Vec::new();
+
+            eprintln!("Extracting fingerprints for: {}", snap.path.display());
+
+            frensense_engine::fingerprint::extract_fingerprints_with_nodes(
                 snap.tree.root_node(),
-                &fp.function_name,
-                fp.line,
                 &snap.content,
+                &snap.path,
+                &mut fps,
+                ngram_window_size,
             );
-            for m in registry.scan_function(fp, func_node, Some(&snap.content)) {
-                let impact = m.impact.unwrap_or_else(|| {
-                    "Function shape matches a known violation pattern.".to_string()
+            if start_time.elapsed().as_millis() > 500 {
+                eprintln!(
+                    "Slow fingerprinting for {}: {}ms",
+                    snap.path.display(),
+                    start_time.elapsed().as_millis()
+                );
+            }
+            fps.into_iter()
+                .map(move |(fp, node)| (fp, node, snap, ctx.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    eprintln!(
+        "Fingerprinting completed for {} functions. Beginning scoring pipeline...",
+        all_fps.len()
+    );
+    let scoring_start_time = std::time::Instant::now();
+
+    let new_advisories: Vec<Advisory> = all_fps.into_par_iter().flat_map(|(fp, func_node, snap, actual_context)| {
+        let mut local_advisories = Vec::new();
+
+        thread_local! {
+            static AST_CACHE: std::cell::RefCell<rustc_hash::FxHashMap<u64, Vec<frensense_engine::corpus::registry::PatternMatch>>> = std::cell::RefCell::new(rustc_hash::FxHashMap::default());
+        }
+            let mut cache_hasher = rustc_hash::FxHasher::default();
+            std::hash::Hash::hash(&fp.ngram_hashes, &mut cache_hasher);
+            std::hash::Hash::hash(&fp.structural_markers, &mut cache_hasher);
+            std::hash::Hash::hash(&fp.api_calls, &mut cache_hasher);
+            std::hash::Hash::hash(&fp.control_flow_hashes, &mut cache_hasher);
+            let fp_hash = std::hash::Hasher::finish(&cache_hasher);
+
+            let matches = AST_CACHE.with(|cache| {
+                if let Some(cached) = cache.borrow().get(&fp_hash) {
+                    return Some(cached.clone());
+                }
+                None
+            });
+
+            let start_time = std::time::Instant::now();
+            let use_data_flow = engine.use_data_flow;
+            let matches = if let Some(m) = matches {
+                m
+            } else {
+                let m = registry.scan_function(&fp, Some(func_node), Some(&snap.content), Some(&actual_context));
+                AST_CACHE.with(|cache| {
+                    cache.borrow_mut().insert(fp_hash, m.clone());
                 });
-                let improvement = m
-                    .improvement
+                m
+            };
+            let elapsed = start_time.elapsed().as_millis();
+            if elapsed > 500 {
+                eprintln!("Slow scoring for {} in {}: {}ms", fp.function_name, snap.path.display(), elapsed);
+            }
+
+            if matches.is_empty() {
+                return local_advisories;
+            }
+
+            for m in matches {
+                let impact = m.impact.clone().unwrap_or_else(|| {
+                    "Function shape matches a known violation pattern. Unsanitized data from `{{ source }}` reaches the `{{ sink }}` execution context.".to_string()
+                });
+                let improvement = m.improvement.clone()
                     .unwrap_or_else(|| "Review against corpus example.".to_string());
-                let observation = m.observation.unwrap_or_else(|| {
+                let observation = m.observation.clone().unwrap_or_else(|| {
                     format!(
                         "Corpus pattern: {} (score {:.2}) in '{}'",
                         m.pattern_id, m.score, fp.function_name
@@ -248,10 +534,10 @@ fn run_corpus_scan(
                 // Apply confidence calibration if available
                 // Extract category from pattern ID for per-category calibration
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
-                let mut confidence = if let Some(ref per_cat_cal) = engine.per_category_calibration
+                let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration
                 {
                     per_cat_cal.calibrate(m.score, category)
-                } else if let Some(ref params) = engine.calibration {
+                } else if let Some(ref params) = calibration {
                     params.calibrate(m.score)
                 } else {
                     m.score
@@ -260,9 +546,11 @@ fn run_corpus_scan(
                 // Verify taint flow if we have a function node
                 let mut taint_verified = false;
                 let mut taint_detail = String::new();
-                if let Some(fn_node) = func_node {
+                let mut source_name = None;
+                let mut sink_name = None;
+                if use_data_flow {
                     let verification = verify_taint_flow(
-                        fn_node,
+                        func_node,
                         &snap.content,
                         &snap.tree,
                         &snap.path,
@@ -270,20 +558,39 @@ fn run_corpus_scan(
                         data_flow,
                         file_trees,
                         registry.source_sink_registry(),
+                        &npm_deps,
                     );
                     if verification.verified {
                         taint_verified = true;
                         taint_detail = verification.detail;
+                        source_name = verification.source_name;
+                        sink_name = verification.sink_name;
                         // Boost confidence for verified findings
                         confidence = (confidence * 1.2).min(0.95);
                     }
                 }
 
+                let mut impact = impact;
+                let mut improvement = improvement;
+
+                let src_str = source_name.as_deref().unwrap_or("user input");
+                let snk_str = sink_name.as_deref().unwrap_or("execution sink");
+
+                impact = impact.replace("{{ source }}", src_str);
+                impact = impact.replace("{{ sink }}", snk_str);
+                impact = impact.replace("{{source}}", src_str);
+                impact = impact.replace("{{sink}}", snk_str);
+
+                improvement = improvement.replace("{{ source }}", src_str);
+                improvement = improvement.replace("{{ sink }}", snk_str);
+                improvement = improvement.replace("{{source}}", src_str);
+                improvement = improvement.replace("{{sink}}", snk_str);
+
                 // T-FIX-1 Composition Logic:
-                // If the structural score is below the high-confidence threshold (0.40),
+                // If the structural score is below the high-confidence threshold (0.20),
                 // we REQUIRE the Taint Engine (Layer 2) to verify the data flow.
                 // If it fails to verify, this is a structural false positive and we drop it.
-                if !taint_verified && m.score < 0.40 {
+                if !taint_verified && m.score < 0.20 {
                     continue;
                 }
 
@@ -313,10 +620,19 @@ fn run_corpus_scan(
                     continue;
                 }
 
-                all_advisories.push(advisory);
+                local_advisories.push(advisory);
             }
-        }
-    }
+        local_advisories
+    }).collect();
+
+    eprintln!(
+        "Scoring pipeline completed in {}ms.",
+        scoring_start_time.elapsed().as_millis()
+    );
+
+    all_advisories.extend(new_advisories);
+
+    registry.source_sink_registry().clone()
 }
 
 fn load_suppressions(root: &Path) -> Vec<(String, glob::Pattern)> {
@@ -355,6 +671,8 @@ fn is_corpus_suppressed(
 struct TaintVerification {
     verified: bool,
     detail: String,
+    source_name: Option<String>,
+    sink_name: Option<String>,
 }
 
 /// Verify that taint actually flows from source to sink in a function.
@@ -381,6 +699,7 @@ fn verify_taint_flow(
         ),
     >,
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
+    deps: &std::collections::HashSet<String>,
 ) -> TaintVerification {
     use crate::semantics::data_flow::cross_file::CrossFileVerifier;
 
@@ -393,6 +712,7 @@ fn verify_taint_flow(
         data_flow,
         file_trees,
         source_sink,
+        deps,
     );
     verifier.seed_taint(fn_node);
     let result = verifier.verify_flow(fn_node);
@@ -401,11 +721,15 @@ fn verify_taint_flow(
         TaintVerification {
             verified: true,
             detail: result.detail,
+            source_name: result.source_name,
+            sink_name: result.sink_name,
         }
     } else {
         TaintVerification {
             verified: false,
             detail: result.detail,
+            source_name: None,
+            sink_name: None,
         }
     }
 }
@@ -454,7 +778,7 @@ impl Engine {
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
 
         Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
-        run_corpus_scan(
+        let source_sink = run_corpus_scan(
             self,
             root,
             &snapshots,
@@ -470,7 +794,9 @@ impl Engine {
             &file_trees,
             &self.extra_taint_rule_dirs,
             self.check_deps,
+            &source_sink,
             &mut all_advisories,
+            self.use_data_flow,
         );
         Self::apply_composition(&mut all_advisories);
 
@@ -590,7 +916,7 @@ impl Engine {
         self.load_calibration();
         // Create DataFlowEngine for cross-file taint verification
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
-        run_corpus_scan(
+        let source_sink = run_corpus_scan(
             self,
             root,
             &snapshots,
@@ -607,7 +933,9 @@ impl Engine {
             &file_trees,
             &self.extra_taint_rule_dirs,
             self.check_deps,
+            &source_sink,
             &mut all_advisories,
+            self.use_data_flow,
         );
 
         // Apply severity overrides to all findings
@@ -887,20 +1215,10 @@ fn find_function_node<'a>(
                 .filter(|&c| c == '\n')
                 .count();
 
-            // Skip if too far from target line
+            // If we've passed the target line significantly, we can stop searching.
+            // Nodes are ordered by start byte/line, so we will never find it.
             if node_line > line + 5 {
-                if cursor.goto_first_child() {
-                    continue;
-                }
-                loop {
-                    if cursor.goto_next_sibling() {
-                        break;
-                    }
-                    if !cursor.goto_parent() {
-                        return best_match;
-                    }
-                }
-                continue;
+                return best_match;
             }
 
             // For named functions, check name match

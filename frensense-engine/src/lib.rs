@@ -18,6 +18,7 @@
 
 pub mod ast_distance;
 pub mod cfg;
+pub mod context;
 pub mod corpus;
 pub mod data_flow;
 pub mod deps;

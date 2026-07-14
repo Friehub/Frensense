@@ -71,7 +71,7 @@ use crate::corpus::loader::load_corpus;
 use crate::fingerprint::FunctionFingerprint;
 
 pub const BUNDLE_MAGIC: &[u8; 4] = b"FRC1";
-pub const BUNDLE_VERSION: u32 = 1;
+pub const BUNDLE_VERSION: u32 = 2;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct BundleHeader {
@@ -87,11 +87,15 @@ pub struct BundlePattern {
     pub positives: Vec<FunctionFingerprint>,
     pub negatives: Vec<FunctionFingerprint>,
     #[serde(default)]
+    pub semantic_filter: Option<crate::corpus::semantic::SemanticFilter>,
+    #[serde(default)]
     pub observation: Option<String>,
     #[serde(default)]
     pub impact: Option<String>,
     #[serde(default)]
     pub improvement: Option<String>,
+    #[serde(default)]
+    pub expected_context: Option<crate::context::FileContext>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -145,9 +149,11 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
             id: p.id,
             positives: p.positives,
             negatives: p.negatives,
+            semantic_filter: p.semantic_filter,
             observation: p.observation,
             impact: p.impact,
             improvement: p.improvement,
+            expected_context: p.expected_context,
         })
         .collect();
 
@@ -188,9 +194,11 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
             id: p.id,
             positives: p.positives,
             negatives: p.negatives,
+            semantic_filter: p.semantic_filter,
             observation: p.observation,
             impact: p.impact,
             improvement: p.improvement,
+            expected_context: p.expected_context,
         })
         .collect();
 

@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: MIT
-
-#[cfg(feature = "serialize")]
 pub mod bundle;
+pub mod data_flow_extractor;
 pub mod loader;
 pub mod registry;
 pub mod semantic;

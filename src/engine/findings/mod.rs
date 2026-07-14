@@ -10,6 +10,10 @@ pub struct FindingContext<'a> {
     pub symbols: &'a crate::semantics::symbols::SymbolRegistry,
     pub dep_resolver: Option<&'a mut frensense_engine::deps::DependencyResolver>,
     pub data_flow_engine: Option<&'a frensense_engine::data_flow::DataFlowEngine>,
+    pub alias_tracker: Option<&'a frensense_engine::data_flow::AliasTracker>,
+    pub cross_file_taint:
+        Option<&'a frensense_engine::data_flow::cross_file::CrossFileTaintResolver>,
+    pub temporal_analyzer: Option<&'a frensense_engine::temporal::TemporalAnalyzer>,
 }
 
 /// Trait for pluggable finding modules.
@@ -26,14 +30,14 @@ struct CrossFileTaint;
 struct SemanticPatterns;
 
 impl FindingModule for TemporalViolation {
-    fn run(&self, _snap: &FileSnapshot, _ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        Vec::new()
+    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
+        temporal_violation::find(snap, ctx)
     }
 }
 
 impl FindingModule for CrossFileTaint {
-    fn run(&self, _snap: &FileSnapshot, _ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        Vec::new()
+    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
+        cross_file_taint::find(snap, ctx)
     }
 }
 

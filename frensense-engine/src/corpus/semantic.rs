@@ -14,6 +14,7 @@ use tree_sitter::Node;
 
 /// Semantic constraint for a corpus pattern.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct SemanticFilter {
     /// Only match functions containing calls to these targets.
     /// E.g., `["fetch", ".then"]` for promise patterns.
@@ -33,6 +34,10 @@ pub struct SemanticFilter {
 
     /// Only match if the function does NOT contain these node types.
     pub must_not_contain_node_type: Vec<String>,
+
+    /// Optional list of data flow paths that must exist in the function.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub required_taint_flows: Vec<(String, String)>,
 }
 
 impl SemanticFilter {
@@ -45,8 +50,12 @@ impl SemanticFilter {
             && self.must_not_contain_node_type.is_empty()
     }
 
-    /// Check if a candidate function matches all semantic constraints.
-    pub fn matches(&self, func_node: Node<'_>, source: &str) -> bool {
+    pub fn matches(
+        &self,
+        func_node: Node<'_>,
+        source: &str,
+        extracted_flows: Option<&std::collections::HashSet<(String, String)>>,
+    ) -> bool {
         if self.is_empty() {
             return true;
         }
@@ -107,6 +116,22 @@ impl SemanticFilter {
                 .iter()
                 .any(|nt| node_types.iter().any(|t| t == nt));
             if has_forbidden {
+                return false;
+            }
+        }
+
+        if !self.required_taint_flows.is_empty() {
+            if let Some(flows) = extracted_flows {
+                for req_flow in &self.required_taint_flows {
+                    if !flows.contains(req_flow) {
+                        eprintln!(
+                            "DEBUG: semantic rejected, missing taint flow {:?}",
+                            req_flow
+                        );
+                        return false;
+                    }
+                }
+            } else {
                 return false;
             }
         }
@@ -224,6 +249,8 @@ pub struct LearnedConstraints {
     pub required_node_types: Vec<String>,
     /// Node types that appear in ALL negatives but NOT in positives.
     pub forbidden_node_types: Vec<String>,
+    /// Data flow edges that appear in ALL positives.
+    pub required_taint_flows: Vec<(String, String)>,
 }
 
 impl LearnedConstraints {
@@ -232,6 +259,7 @@ impl LearnedConstraints {
             && self.forbidden_calls.is_empty()
             && self.required_node_types.is_empty()
             && self.forbidden_node_types.is_empty()
+            && self.required_taint_flows.is_empty()
     }
 
     /// Convert to a `SemanticFilter` for use in pattern matching.
@@ -241,6 +269,7 @@ impl LearnedConstraints {
             must_not_contain_call_to: self.forbidden_calls.clone(),
             contains_node_type: self.required_node_types.clone(),
             must_not_contain_node_type: self.forbidden_node_types.clone(),
+            required_taint_flows: self.required_taint_flows.clone(),
             function_name_regex: None,
         }
     }
@@ -264,6 +293,7 @@ pub fn learn_constraints(
     // Collect features from all positives
     let mut pos_call_sets: Vec<Vec<String>> = Vec::new();
     let mut pos_node_sets: Vec<Vec<String>> = Vec::new();
+    let mut pos_flow_sets: Vec<Vec<(String, String)>> = Vec::new();
     for (node, source) in positive_nodes {
         let mut calls: Vec<String> = collect_call_targets(*node, source);
         calls.sort();
@@ -274,11 +304,19 @@ pub fn learn_constraints(
         nodes.sort();
         nodes.dedup();
         pos_node_sets.push(nodes);
+
+        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source)
+            .into_iter()
+            .collect::<Vec<_>>();
+        flows.sort();
+        flows.dedup();
+        pos_flow_sets.push(flows);
     }
 
     // Collect features from all negatives
     let mut neg_call_sets: Vec<Vec<String>> = Vec::new();
     let mut neg_node_sets: Vec<Vec<String>> = Vec::new();
+    let mut neg_flow_sets: Vec<Vec<(String, String)>> = Vec::new();
     for (node, source) in negative_nodes {
         let mut calls: Vec<String> = collect_call_targets(*node, source);
         calls.sort();
@@ -289,6 +327,13 @@ pub fn learn_constraints(
         nodes.sort();
         nodes.dedup();
         neg_node_sets.push(nodes);
+
+        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source)
+            .into_iter()
+            .collect::<Vec<_>>();
+        flows.sort();
+        flows.dedup();
+        neg_flow_sets.push(flows);
     }
 
     // Find call targets in ALL positives
@@ -386,7 +431,7 @@ pub fn learn_constraints(
     .copied()
     .collect();
 
-    LearnedConstraints {
+    let mut c = LearnedConstraints {
         required_calls,
         forbidden_calls,
         required_node_types: required_node_types
@@ -397,7 +442,28 @@ pub fn learn_constraints(
             .into_iter()
             .filter(|nt| !noise_nodes.contains(nt.as_str()))
             .collect(),
+        required_taint_flows: Vec::new(),
+    };
+
+    // Data flow constraints
+    let pos_flow_universe: std::collections::HashSet<&(String, String)> =
+        pos_flow_sets.iter().flatten().collect();
+
+    c.required_taint_flows = pos_flow_universe
+        .into_iter()
+        .filter(|flow| {
+            pos_flow_sets
+                .iter()
+                .all(|set| set.iter().any(|f| f == *flow))
+        })
+        .cloned()
+        .collect();
+
+    if !c.required_taint_flows.is_empty() {
+        eprintln!("[DEBUG] Learned data flows: {:?}", c.required_taint_flows);
     }
+
+    c
 }
 
 /// Simple regex match (supports ^ and $ anchors).
@@ -438,7 +504,8 @@ mod tests {
         };
         assert!(filter.matches(
             func,
-            "function sanitizeHtml(input: string) { return input; }"
+            "function sanitizeHtml(input: string) { return input; }",
+            None
         ));
 
         let filter2 = SemanticFilter {
@@ -447,7 +514,8 @@ mod tests {
         };
         assert!(!filter2.matches(
             func,
-            "function sanitizeHtml(input: string) { return input; }"
+            "function sanitizeHtml(input: string) { return input; }",
+            None
         ));
     }
 
@@ -462,7 +530,8 @@ mod tests {
         };
         assert!(filter.matches(
             func,
-            "function foo() { fetch('/api').then(r => r.json()); }"
+            "function foo() { fetch('/api').then(r => r.json()); }",
+            None
         ));
 
         let filter2 = SemanticFilter {
@@ -471,7 +540,8 @@ mod tests {
         };
         assert!(!filter2.matches(
             func,
-            "function foo() { fetch('/api').then(r => r.json()); }"
+            "function foo() { fetch('/api').then(r => r.json()); }",
+            None
         ));
     }
 
@@ -487,7 +557,8 @@ mod tests {
         };
         assert!(filter.matches(
             func,
-            "function foo() { fetch('/api').then(r => r.json()); }"
+            "function foo() { fetch('/api').then(r => r.json()); }",
+            None
         ));
 
         let tree2 =
@@ -495,7 +566,8 @@ mod tests {
         let func2 = tree2.root_node().child(0).unwrap();
         assert!(!filter.matches(
             func2,
-            "function foo() { fetch('/api').then(r => r.json()).catch(e => {}); }"
+            "function foo() { fetch('/api').then(r => r.json()).catch(e => {}); }",
+            None
         ));
     }
 }

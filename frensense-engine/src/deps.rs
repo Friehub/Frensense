@@ -31,6 +31,10 @@ impl DependencyResolver {
         }
     }
 
+    pub fn npm_deps(&self) -> &HashSet<String> {
+        &self.npm_deps
+    }
+
     pub fn load_project(&mut self, root: &Path) {
         // If root is a file, use its parent directory
         let project_root = if root.is_file() {

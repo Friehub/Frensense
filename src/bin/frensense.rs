@@ -114,6 +114,11 @@ fn main() -> Result<()> {
     if options.check_deps.is_yes() {
         engine.set_check_deps(true);
     }
+    engine.set_use_data_flow(options.scan_mode == "taint");
+
+    if let Some(val) = options.ngram_sim_threshold {
+        engine.set_ngram_sim_threshold(val);
+    }
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = frensense::parser::ParserRegistry::extensions_for(lang_arg) {

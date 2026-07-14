@@ -25,17 +25,19 @@ pub struct PatternRegistry {
     patterns: Vec<CorpusPattern>,
     lsh_index: Option<LSHIndex>,
     threshold: f64,
+    ngram_sim_threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
     idf_weights: FxHashMap<u64, f32>,
     source_sink: CorpusSourceSinkRegistry,
 }
 
 impl PatternRegistry {
-    pub fn new(threshold: f64) -> Self {
+    pub fn new(threshold: f64, ngram_sim_threshold: f64) -> Self {
         Self {
             patterns: Vec::new(),
             lsh_index: None,
             threshold,
+            ngram_sim_threshold,
             threshold_overrides: std::collections::HashMap::new(),
             idf_weights: FxHashMap::default(),
             source_sink: CorpusSourceSinkRegistry::default(),
@@ -81,19 +83,17 @@ impl PatternRegistry {
         let bundle_patterns = crate::corpus::bundle::load_bundle(bytes)?;
         let count = bundle_patterns.len();
 
-        // Load semantic filters
-        let semantic_filters = crate::corpus::loader::load_semantic_filters();
-
         self.patterns = bundle_patterns
             .into_iter()
             .map(|bp| CorpusPattern {
                 id: bp.id.clone(),
                 positives: bp.positives,
                 negatives: bp.negatives,
-                semantic_filter: semantic_filters.get(&bp.id).cloned(),
+                semantic_filter: bp.semantic_filter,
                 observation: bp.observation,
                 impact: bp.impact,
                 improvement: bp.improvement,
+                expected_context: bp.expected_context,
             })
             .collect();
         self.compute_and_apply_idf();
@@ -149,13 +149,14 @@ impl PatternRegistry {
             return;
         }
         let num_hashes = 128;
-        // Scale bands with pattern count: more bands = better recall at high pattern counts
-        let num_bands = if self.patterns.len() > 1000 { 32 } else { 16 };
+        // Maximize recall for sub-graph containment by setting bands=128, rows=1
+        let num_bands = 128;
         let rows_per_band = num_hashes / num_bands;
         let mut index = LSHIndex::new(num_bands, rows_per_band);
         for (i, pattern) in self.patterns.iter().enumerate() {
             if let Some(first_pos) = pattern.positives.first() {
-                let sig = minhash_signature(&first_pos.ngram_hashes, num_hashes);
+                // Use structural_markers (AST types) for robust Locality Sensitive Hashing instead of exact lexemes
+                let sig = minhash_signature(&first_pos.structural_markers, num_hashes);
                 index.insert(&sig, i as u64);
             }
         }
@@ -167,9 +168,10 @@ impl PatternRegistry {
         fp: &FunctionFingerprint,
         func_node: Option<tree_sitter::Node<'_>>,
         source: Option<&str>,
+        actual_context: Option<&crate::context::FileContext>,
     ) -> Vec<PatternMatch> {
         let candidates: Vec<usize> = if let Some(ref lsh) = self.lsh_index {
-            let sig = minhash_signature(&fp.ngram_hashes, 128);
+            let sig = minhash_signature(&fp.structural_markers, 128);
             lsh.query(&sig)
                 .iter()
                 .map(|&id| id as usize)
@@ -185,15 +187,32 @@ impl PatternRegistry {
             apply_idf_weights(&mut weighted_fp, &self.idf_weights);
         }
 
+        let mut extracted_flows: Option<std::collections::HashSet<(String, String)>> = None;
+
+        // eprintln!("DEBUG: fp.name = {:?}, candidates count = {}, struct_markers = {}, control_flow = {}, api_calls = {}", fp.function_name, candidates.len(), fp.structural_markers.len(), fp.control_flow_hashes.len(), fp.api_calls.len());
+
         let mut matches = Vec::new();
         for &idx in &candidates {
             let pattern = &self.patterns[idx];
+            // eprintln!("DEBUG: checking pattern {}", pattern.id);
+            if pattern.id.contains("blocking_io") {
+                // eprintln!("DEBUG: found pattern {} is candidate.", pattern.id);
+            }
 
             // Apply semantic filter if present
             if let (Some(filter), Some(node), Some(src)) =
                 (&pattern.semantic_filter, func_node, source)
             {
-                if !filter.matches(node, src) {
+                if !filter.required_taint_flows.is_empty() && extracted_flows.is_none() {
+                    extracted_flows = Some(crate::corpus::data_flow_extractor::extract_data_flows(
+                        node, src,
+                    ));
+                }
+
+                if !filter.matches(node, src, extracted_flows.as_ref()) {
+                    if pattern.id == "rust_async_blocking_io" || pattern.id.contains("async") {
+                        // eprintln!("DEBUG: pattern {} rejected by semantic filter!", pattern.id);
+                    }
                     continue;
                 }
             }
@@ -212,17 +231,31 @@ impl PatternRegistry {
                 continue;
             }
 
-            let best_score = pattern
-                .positives
-                .iter()
-                .flat_map(|pos| {
-                    pattern.negatives.iter().map({
-                        let weighted_fp_clone = weighted_fp.clone();
-                        move |neg| PatternScorer::score_against_corpus(&weighted_fp_clone, pos, neg)
-                    })
-                })
-                .fold(0.0f64, f64::max);
+            // Fast early exit: if the candidate shares almost no structural markers with the primary positive example,
+            // it's highly unlikely to be a match. We can skip the expensive full scoring.
+            if let Some(first_pos) = pattern.positives.first() {
+                let struct_sim = crate::minhash::overlap_coefficient_sorted(
+                    &weighted_fp.structural_markers,
+                    &first_pos.structural_markers,
+                );
+
+                if struct_sim < self.ngram_sim_threshold {
+                    continue; // Prune this candidate early
+                }
+            }
+
+            let best_score = PatternScorer::score_against_corpus(
+                &weighted_fp,
+                &pattern.positives,
+                &pattern.negatives,
+                pattern.expected_context.as_ref(),
+                actual_context,
+                self.ngram_sim_threshold,
+            );
             let threshold = self.threshold_for_pattern(&pattern.id);
+            if pattern.id == "rust_async_blocking_io" || pattern.id.contains("async") {
+                // eprintln!("DEBUG: pattern {}, best_score {}, threshold {}", pattern.id, best_score, threshold);
+            }
             if best_score >= threshold {
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),

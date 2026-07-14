@@ -58,6 +58,8 @@ pub struct CliOptions {
     pub learn_output: Option<PathBuf>,
     pub build_bundle: Flag,
     pub build_bundle_output: Option<PathBuf>,
+    pub scan_mode: String,
+    pub ngram_sim_threshold: Option<f64>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -111,6 +113,8 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         learn_output: None,
         build_bundle: Flag::No,
         build_bundle_output: None,
+        scan_mode: "fast".to_string(),
+        ngram_sim_threshold: None,
     };
 
     let mut i = 1;
@@ -140,6 +144,30 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 }
             }
             "--diff-only" => options.diff_only = Flag::Yes,
+            "--mode" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scan_mode = match val.to_lowercase().as_str() {
+                        "fast" => "fast".to_string(),
+                        "taint" => "taint".to_string(),
+                        _ => {
+                            eprintln!("Error: Unknown mode '{}'. Valid: fast, taint", val);
+                            std::process::exit(1);
+                        }
+                    };
+                    i += 1;
+                }
+            }
+            "--ngram-sim-threshold" => {
+                if let Some(val) = args.get(i + 1) {
+                    if let Ok(c) = val.parse::<f64>() {
+                        options.ngram_sim_threshold = Some(c);
+                    } else {
+                        eprintln!("Error: Invalid --ngram-sim-threshold value '{val}'");
+                        std::process::exit(1);
+                    }
+                    i += 1;
+                }
+            }
             "--min-confidence" => {
                 if let Some(val) = args.get(i + 1) {
                     if let Ok(c) = val.parse::<f64>() {

@@ -12,7 +12,7 @@ use crate::pattern::matcher::MatchResult;
 pub struct PatternScorer;
 
 /// M1: Weighted Jaccard — IDF-weighted intersection / union.
-fn weighted_jaccard(
+pub fn weighted_jaccard(
     a: &rustc_hash::FxHashMap<u64, f32>,
     b: &rustc_hash::FxHashMap<u64, f32>,
 ) -> f64 {
@@ -131,105 +131,135 @@ impl PatternScorer {
 
     pub fn score_against_corpus(
         candidate: &FunctionFingerprint,
-        positive: &FunctionFingerprint,
-        negative: &FunctionFingerprint,
+        positives: &[FunctionFingerprint],
+        negatives: &[FunctionFingerprint],
+        expected_context: Option<&crate::context::FileContext>,
+        actual_context: Option<&crate::context::FileContext>,
+        ngram_sim_threshold: f64,
     ) -> f64 {
-        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
+        let mut best_pos_score = 0.0f64;
 
-        // M1: Use weighted Jaccard for n-grams when weights are available
-        let ngram_sim_pos = if candidate.weighted_ngram_hashes.is_empty()
-            || positive.weighted_ngram_hashes.is_empty()
+        // 1. Find the best matching positive
+        for positive in positives {
+            let sim_pos = Self::compute_similarity(candidate, positive, true, ngram_sim_threshold);
+            let semantic_multiplier = if positive.semantic_markers.is_empty() {
+                1.0
+            } else if minhash::jaccard_similarity_sorted(
+                &candidate.semantic_markers,
+                &positive.semantic_markers,
+            ) == 0.0
+            {
+                0.30
+            } else {
+                2.0
+            };
+            let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
+
+            let pos_score = sim_pos * f64::from(transfer) * semantic_multiplier;
+            if pos_score > best_pos_score {
+                best_pos_score = pos_score;
+            }
+        }
+
+        // Fast path: if the best positive score is already too low to meet any reasonable threshold, return early
+        // We know the minimum threshold is 0.5 usually, but even if it's 0.2, if best_pos_score < 0.1, we skip
+        if best_pos_score < 0.1 {
+            return best_pos_score;
+        }
+
+        // 2. Find the highest negative similarity (the worst penalty)
+        let mut max_neg_sim = 0.0f64;
+        for negative in negatives {
+            let sim_neg = Self::compute_similarity(candidate, negative, false, ngram_sim_threshold);
+            if sim_neg > max_neg_sim {
+                max_neg_sim = sim_neg;
+            }
+        }
+
+        // 3. Context Featurization Penalty
+        let context_multiplier = match (expected_context, actual_context) {
+            (Some(exp), Some(act)) => {
+                let mut penalty = 1.0;
+                if exp.sensitivity == crate::context::DataSensitivity::High
+                    && act.sensitivity != crate::context::DataSensitivity::High
+                {
+                    penalty *= 0.5;
+                }
+                if exp.environment == crate::context::Environment::RouteHandler
+                    && (act.environment == crate::context::Environment::Test
+                        || act.environment == crate::context::Environment::Utility)
+                {
+                    penalty *= 0.5;
+                }
+                penalty
+            }
+            _ => 1.0,
+        };
+
+        let neg_penalty = if max_neg_sim >= best_pos_score {
+            (1.0 - max_neg_sim).max(0.1)
+        } else {
+            1.0 - (max_neg_sim * 0.3)
+        };
+
+        best_pos_score * neg_penalty * context_multiplier
+    }
+
+    fn compute_similarity(
+        candidate: &FunctionFingerprint,
+        target: &FunctionFingerprint,
+        _is_positive: bool,
+        ngram_sim_threshold: f64,
+    ) -> f64 {
+        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
+        let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
+
+        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
+            || target.weighted_ngram_hashes.is_empty()
         {
-            jaccard(&candidate.ngram_hashes, &positive.ngram_hashes)
+            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
         } else {
             weighted_jaccard(
                 &candidate.weighted_ngram_hashes,
-                &positive.weighted_ngram_hashes,
+                &target.weighted_ngram_hashes,
             )
         };
-        let ngram_sim_neg = if candidate.weighted_ngram_hashes.is_empty()
-            || negative.weighted_ngram_hashes.is_empty()
+
+        // We used to early exit if ngram_sim < ngram_sim_threshold here.
+        // However, in a structural-first architecture, variable names (ngrams) might be completely
+        // different while the AST skeleton is identical. So we must not prune purely on lexical differences.
+
+        let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
+
+        let ast_sim = if !candidate.skeleton_hashes.is_empty() && !target.skeleton_hashes.is_empty()
         {
-            jaccard(&candidate.ngram_hashes, &negative.ngram_hashes)
-        } else {
-            weighted_jaccard(
-                &candidate.weighted_ngram_hashes,
-                &negative.weighted_ngram_hashes,
+            1.0 - crate::ast_distance::tree_edit_distance(
+                &candidate.skeleton_hashes,
+                &target.skeleton_hashes,
             )
-        };
-
-        // Semantic similarity: how many API categories overlap
-        let semantic_sim_pos = jaccard(&candidate.semantic_markers, &positive.semantic_markers);
-        let semantic_sim_neg = jaccard(&candidate.semantic_markers, &negative.semantic_markers);
-
-        // M2: AST edit distance (structural similarity)
-        let ast_sim_pos = if !candidate.skeleton.is_empty() && !positive.skeleton.is_empty() {
-            1.0 - crate::ast_distance::tree_edit_distance(&candidate.skeleton, &positive.skeleton)
         } else {
-            jaccard(&candidate.structural_markers, &positive.structural_markers)
-        };
-        let ast_sim_neg = if !candidate.skeleton.is_empty() && !negative.skeleton.is_empty() {
-            1.0 - crate::ast_distance::tree_edit_distance(&candidate.skeleton, &negative.skeleton)
-        } else {
-            jaccard(&candidate.structural_markers, &negative.structural_markers)
+            jaccard(&candidate.structural_markers, &target.structural_markers)
         };
 
-        // Control flow similarity
-        let cf_sim_pos = jaccard(
-            &candidate.control_flow_hashes,
-            &positive.control_flow_hashes,
-        );
-        let cf_sim_neg = jaccard(
-            &candidate.control_flow_hashes,
-            &negative.control_flow_hashes,
-        );
+        let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
+        let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
 
-        // API call similarity
-        let api_sim_pos = jaccard(&candidate.api_calls, &positive.api_calls);
-        let api_sim_neg = jaccard(&candidate.api_calls, &negative.api_calls);
-
-        // Weighted blend: 9 dimensions with AST and semantics prioritized
-        let sim_to_positive = ngram_sim_pos * 0.12
-            + ast_sim_pos * 0.28
-            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.08
-            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.04
-            + type_usage_overlap(candidate, positive) * 0.03
-            + semantic_sim_pos * 0.15
-            + cf_sim_pos * 0.15
-            + api_sim_pos * 0.15;
-
-        // Semantic Multiplier Penalty & Boost
-        // If the positive bug relies on specific semantics (like Math.random or innerHTML),
-        // and the candidate shares NONE of those semantics, we penalize it.
-        // If the candidate SHARES the semantics, we give it a massive boost because it's a high-confidence match.
-        let semantic_multiplier = if positive.semantic_markers.is_empty() {
-            1.0
-        } else if semantic_sim_pos == 0.0 {
-            0.30 // 70% penalty if required semantics are missing
-        } else {
-            2.0 // 100% boost if required semantics match!
-        };
-
-        let sim_to_negative = ngram_sim_neg * 0.12
-            + ast_sim_neg * 0.28
-            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.08
-            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.04
-            + type_usage_overlap(candidate, negative) * 0.03
-            + semantic_sim_neg * 0.15
-            + cf_sim_neg * 0.15
-            + api_sim_neg * 0.15;
-
-        // M8: Apply cross-lingual transfer penalty
-        let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
-
-        sim_to_positive * (1.0 - sim_to_negative) * f64::from(transfer) * semantic_multiplier
+        ngram_sim * 0.12
+            + ast_sim * 0.28
+            + jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams) * 0.08
+            + jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams) * 0.04
+            + type_usage_overlap(candidate, target) * 0.03
+            + semantic_sim * 0.15
+            + cf_sim * 0.15
+            + api_sim * 0.15
     }
 
     pub fn similarity_to_positive(
         candidate: &FunctionFingerprint,
         positive: &FunctionFingerprint,
     ) -> f64 {
-        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
+        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
+        let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
             || positive.weighted_ngram_hashes.is_empty()
         {
@@ -247,8 +277,8 @@ impl PatternScorer {
         let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
         ngram_sim * 0.20
             + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.25
-            + jaccard(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.15
-            + jaccard(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
+            + jaccard_sorted(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.15
+            + jaccard_sorted(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, positive) * 0.05
             + cf_sim * 0.15
             + api_sim * 0.15
@@ -258,7 +288,8 @@ impl PatternScorer {
         candidate: &FunctionFingerprint,
         negative: &FunctionFingerprint,
     ) -> f64 {
-        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity(a, b);
+        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
+        let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
             || negative.weighted_ngram_hashes.is_empty()
         {
@@ -276,8 +307,8 @@ impl PatternScorer {
         let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
         ngram_sim * 0.20
             + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.25
-            + jaccard(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.15
-            + jaccard(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
+            + jaccard_sorted(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.15
+            + jaccard_sorted(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, negative) * 0.05
             + cf_sim * 0.15
             + api_sim * 0.15
@@ -354,7 +385,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
-        let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
+        let score = PatternScorer::score_against_corpus(&cand, &pos, &neg, None, None);
         assert!(
             score > 0.5,
             "candidate identical to positive should score high, got {score}"
@@ -366,7 +397,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
-        let score = PatternScorer::score_against_corpus(&cand, &pos, &neg);
+        let score = PatternScorer::score_against_corpus(&cand, &pos, &neg, None, None);
         assert!(score < 0.6, "candidate closer to negative should score low");
     }
 }

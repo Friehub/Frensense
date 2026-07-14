@@ -42,8 +42,11 @@ pub fn learn_pattern(
     // Extract learned patterns from diff
     let learned_patterns = extract_patterns_from_diff(&diff);
 
-    // Generate metadata from diff
-    let metadata = generate_metadata(&diff, &learned_patterns);
+    // Generate metadata from diff and positive source context
+    let expected_context =
+        frensense_engine::context::FileContext::extract(positive_path, &positive_source);
+    let mut metadata = generate_metadata(&diff, &learned_patterns);
+    metadata.expected_context = Some(expected_context);
 
     // Create output directory
     std::fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
@@ -105,6 +108,7 @@ fn generate_metadata(
         source_pattern: None,
         sink_pattern: None,
         confidence: 0.5,
+        expected_context: None,
     };
 
     // Analyze patterns to determine bug type
@@ -172,6 +176,17 @@ fn generate_toml(
     let _ = writeln!(toml, "id = \"{}\"", pattern_id.to_uppercase());
     let _ = writeln!(toml, "bug_type = \"{}\"", metadata.bug_type);
     let _ = writeln!(toml, "confidence = {}\n", metadata.confidence);
+
+    if let Some(ctx) = &metadata.expected_context {
+        let _ = writeln!(toml, "# Automatically inferred context from positive file");
+        let _ = writeln!(toml, "[expected_context]");
+        let _ = writeln!(toml, "environment = \"{:?}\"", ctx.environment);
+        let _ = writeln!(toml, "sensitivity = \"{:?}\"", ctx.sensitivity);
+        if !ctx.frameworks.is_empty() {
+            let _ = writeln!(toml, "frameworks = {:?}", ctx.frameworks);
+        }
+        let _ = writeln!(toml, "");
+    }
 
     // Advisory text (auto-generated from diff analysis)
     let _ = writeln!(toml, "# Advisory text - what to tell the developer");
@@ -460,6 +475,7 @@ pub struct PatternMetadata {
     pub source_pattern: Option<String>,
     pub sink_pattern: Option<String>,
     pub confidence: f64,
+    pub expected_context: Option<frensense_engine::context::FileContext>,
 }
 
 pub use crate::engine::ast_diff::LearnedPattern;

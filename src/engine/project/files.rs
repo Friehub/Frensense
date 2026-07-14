@@ -30,18 +30,26 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
                         && name != "build"
                         && name != "vendor"
                         && name != "out"
+                        && name != ".next"
+                        && name != ".nuxt"
+                        && name != ".cache"
+                        && name != "coverage"
+                        && name != "cypress"
+                        && name != "playwright"
+                        && name != "storybook-static"
                         && !name.starts_with('.');
                 }
             } else if e.file_type().is_file() {
-                // Skip files larger than 1MB
+                // Skip files larger than 500KB (likely bundled or generated)
                 if let Ok(meta) = e.metadata()
-                    && meta.len() > 1_000_000
+                    && meta.len() > 500_000
                 {
                     return false;
                 }
                 if name.ends_with(".min.js")
                     || name.ends_with(".bundle.js")
                     || name.ends_with(".chunk.js")
+                    || name.ends_with(".debug.js")
                 {
                     return false;
                 }
@@ -104,8 +112,11 @@ fn is_test_file(path: &Path) -> bool {
 }
 
 pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSnapshot> {
+    use rayon::prelude::*;
     let files = collect_files(root, engine.language_filter.as_ref());
-    let mut snapshots = Vec::new();
+
+    // Phase 1: Read files and register IDs synchronously (very fast)
+    let mut file_work = Vec::new();
     for p in files {
         let content = match std::fs::read_to_string(&p) {
             Ok(c) => c,
@@ -116,48 +127,80 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSn
             }
         };
         let id = engine.source_registry.register(&p, content.clone());
-        let auditor = &engine.auditor;
-        if engine.file_cache.is_unchanged(&p, &content) {
-            if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
+        let unchanged = engine.file_cache.is_unchanged(&p, &content);
+        file_work.push((id, p, content, unchanged));
+    }
+
+    // Phase 2: Parse and discover symbols/edges in parallel (heavy lifting)
+    let auditor = &engine.auditor;
+    let parsed_results: Vec<_> = file_work
+        .into_par_iter()
+        .map(|(id, p, content, unchanged)| {
+            if unchanged {
+                if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
+                    return Ok((
+                        id,
+                        p,
+                        content,
+                        tree,
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                        true,
+                    ));
+                }
+                return Err(p);
+            }
+
+            match auditor.parse_source(&p, &content) {
+                Ok((language, tree)) => {
+                    let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree);
+                    let edges = auditor.scan_for_edges(&p, &content, &language, &tree);
+                    let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
+
+                    if let (Ok(symbols), Ok(edges)) = (symbols, edges) {
+                        Ok((id, p, content, tree, symbols, edges, semantic_ops, false))
+                    } else {
+                        tracing::warn!("symbol or edge discovery failed for {}", p.display());
+                        Err(p)
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("skipping unparseable file {}: {e}", p.display());
+                    Err(p)
+                }
+            }
+        })
+        .collect();
+
+    // Phase 3: Update cache and build snapshots synchronously
+    let mut snapshots = Vec::new();
+    for res in parsed_results {
+        match res {
+            Ok((id, p, content, tree, symbols, edges, semantic_ops, was_unchanged)) => {
+                if !was_unchanged {
+                    engine.file_cache.update(&p, &content);
+                }
                 snapshots.push(FileSnapshot {
                     id,
                     path: p,
                     content,
                     tree,
-                    symbols: Vec::new(),
-                    edges: Vec::new(),
-                    semantic_ops: Vec::new(),
+                    symbols,
+                    edges,
+                    semantic_ops,
                 });
             }
-            continue;
-        }
-        match auditor.parse_source(&p, &content) {
-            Ok((language, tree)) => {
-                let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree);
-                let edges = auditor.scan_for_edges(&p, &content, &language, &tree);
-                let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
-                if let (Ok(symbols), Ok(edges)) = (symbols, edges) {
-                    engine.file_cache.update(&p, &content);
-                    snapshots.push(FileSnapshot {
-                        id,
-                        path: p,
-                        content,
-                        tree,
-                        symbols,
-                        edges,
-                        semantic_ops,
-                    });
-                } else {
-                    engine.file_cache.remove(&p);
-                    tracing::warn!("symbol or edge discovery failed for {}", p.display());
-                }
-            }
-            Err(e) => {
+            Err(p) => {
                 engine.file_cache.remove(&p);
-                tracing::warn!("skipping unparseable file {}: {e}", p.display());
             }
         }
     }
+
+    eprintln!(
+        "Finished collect_files_impl with {} snapshots.",
+        snapshots.len()
+    );
     snapshots
 }
 
@@ -175,8 +218,10 @@ pub(crate) fn parallel_audit_impl(
         ),
     >,
 ) -> Result<Vec<Advisory>> {
+    use rayon::prelude::*;
+
     let results: Result<Vec<ScanResult>> = file_ids
-        .iter()
+        .par_iter()
         .map(|(id, p)| {
             let snap = snapshot_map.get(id).ok_or_else(|| {
                 crate::FrensenseError::Engine(format!(
@@ -204,31 +249,24 @@ pub(crate) fn parallel_audit_impl(
                 taint_confidence_intraprocedural: engine.taint_confidence_intraprocedural,
                 default_taint_max_depth: engine.default_taint_max_depth,
             };
-            let result = engine.auditor.audit(&opts)?;
-
-            for adv in &result.advisories {
-                if let Some(ref sym) = adv.enclosing_symbol {
-                    let graph = symbols.graph_mut();
-                    graph.record_taint_flow(crate::semantics::graph::TaintFlowRecord {
-                        function_name: sym.clone(),
-                        file_path: adv.file_path.clone(),
-                        source_pattern: String::new(),
-                        sink_pattern: String::new(),
-                        rule_id: adv.rule_id.clone(),
-                    });
-                }
-            }
-
-            Ok(ScanResult {
-                advisories: result.advisories,
-                #[cfg(feature = "fingerprinting")]
-                fingerprints: result.fingerprints,
-            })
+            engine.auditor.audit(&opts)
         })
         .collect();
 
     let mut all_advisories = Vec::new();
     for result in results? {
+        for adv in &result.advisories {
+            if let Some(ref sym) = adv.enclosing_symbol {
+                let graph = symbols.graph_mut();
+                graph.record_taint_flow(crate::semantics::graph::TaintFlowRecord {
+                    function_name: sym.clone(),
+                    file_path: adv.file_path.clone(),
+                    source_pattern: String::new(),
+                    sink_pattern: String::new(),
+                    rule_id: adv.rule_id.clone(),
+                });
+            }
+        }
         for a in result.advisories {
             if a.confidence >= engine.min_confidence {
                 all_advisories.push(a);

@@ -5,3 +5,10 @@ severity = "Critical"
 impact = "A free-tier customer can call the endpoint in a loop and get unlimited cloud compute or LLM generations for free, leading to financial exhaustion."
 improvement = "Add a tier check and a per-loop-iteration credit deduction before the expensive operations are invoked."
 tags = ["security", "billing", "rate-limiting"]
+
+[expected_context]
+environment = "Unknown"
+sensitivity = "Medium"
+frameworks = []
+
+

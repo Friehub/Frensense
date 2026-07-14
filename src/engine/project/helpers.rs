@@ -122,17 +122,10 @@ impl Engine {
                 continue;
             }
 
-            let intersection = f1.ngram_hashes.intersection(&f2.ngram_hashes).count();
-
-            // Exact bound check: intersection / min(s1,s2) < threshold → can't reach threshold
-            let intersection_f64 = f64::from(u32::try_from(intersection).unwrap_or(u32::MAX));
-            if (intersection_f64 / small_f64) < threshold {
-                continue;
-            }
-
-            let union = f1.ngram_hashes.union(&f2.ngram_hashes).count();
-            let union_f64 = f64::from(u32::try_from(union).unwrap_or(u32::MAX));
-            let similarity = intersection_f64 / union_f64;
+            let similarity = frensense_engine::minhash::jaccard_similarity_sorted(
+                &f1.ngram_hashes,
+                &f2.ngram_hashes,
+            );
 
             if similarity >= threshold {
                 let sim_pct = similarity * 100.0;

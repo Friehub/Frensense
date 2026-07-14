@@ -14,24 +14,26 @@ pub struct FunctionFingerprint {
     pub function_name: String,
     pub line: usize,
     pub language: String,
-    pub ngram_hashes: FxHashSet<u64>,
+    pub ngram_hashes: Vec<u64>,
     pub weighted_ngram_hashes: FxHashMap<u64, f32>,
-    pub signature_ngrams: FxHashSet<u64>,
-    pub param_type_ngrams: FxHashSet<u64>,
+    pub signature_ngrams: Vec<u64>,
+    pub param_type_ngrams: Vec<u64>,
     pub name_segments: Vec<String>,
-    pub structural_markers: FxHashSet<u64>,
+    pub structural_markers: Vec<u64>,
     pub type_usages: Vec<String>,
     pub comment_density: f64,
-    pub semantic_markers: FxHashSet<u64>,
+    pub semantic_markers: Vec<u64>,
     pub skeleton: Vec<String>,
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub skeleton_hashes: Vec<u64>,
     /// Control flow encoding: hashes of control flow paths through the function
     /// Captures if/else, match, loop, return patterns that fingerprint race conditions, TOCTOU, etc.
-    pub control_flow_hashes: FxHashSet<u64>,
+    pub control_flow_hashes: Vec<u64>,
     /// API calls: hashes of function call names used in the body
     /// Used for AST-aware semantic matching (replaces text-based keyword search)
-    pub api_calls: FxHashSet<u64>,
+    pub api_calls: Vec<u64>,
     /// Property accesses: hashes of object property access names (e.g., 'price' in 'item.price')
-    pub property_accesses: FxHashSet<u64>,
+    pub property_accesses: Vec<u64>,
 }
 
 /// M1: Compute IDF weights for n-grams from a set of fingerprints.
@@ -63,9 +65,9 @@ pub fn apply_idf_weights(fingerprint: &mut FunctionFingerprint, idf_weights: &Fx
 
 /// M9: Position-weighted n-gram hashing.
 /// Combines position with token hash so that `return` at line 5 differs from `return` at line 50.
-fn token_ngrams_positional(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
+fn token_ngrams_positional(tokens: &[String], window_size: usize) -> Vec<u64> {
     if tokens.len() < window_size {
-        return FxHashSet::default();
+        return Vec::new();
     }
     let mut hashes = FxHashSet::default();
     let total = tokens.len();
@@ -86,7 +88,9 @@ fn token_ngrams_positional(tokens: &[String], window_size: usize) -> FxHashSet<u
         position_bits.hash(&mut final_hasher);
         hashes.insert(final_hasher.finish());
     }
-    hashes
+    let mut vec: Vec<u64> = hashes.into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 fn token_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
@@ -100,6 +104,12 @@ fn token_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
         hashes.insert(fx_hasher.finish());
     }
     hashes
+}
+
+fn token_ngrams_sorted(tokens: &[String], window_size: usize) -> Vec<u64> {
+    let mut vec: Vec<u64> = token_ngrams(tokens, window_size).into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 fn split_name_segments(name: &str) -> Vec<String> {
@@ -121,7 +131,7 @@ fn split_name_segments(name: &str) -> Vec<String> {
     segments
 }
 
-fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language) -> FxHashSet<u64> {
+fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language) -> Vec<u64> {
     let mut markers = FxHashSet::default();
     let mut cursor = node.walk();
     let mut hasher = FxHasher::default();
@@ -144,7 +154,9 @@ fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language)
                 break;
             }
             if !cursor.goto_parent() {
-                return markers;
+                let mut vec: Vec<u64> = markers.into_iter().collect();
+                vec.sort_unstable();
+                return vec;
             }
         }
     }
@@ -198,11 +210,13 @@ fn count_comment_bytes(node: Node<'_>, _source: &str) -> usize {
 /// Extract control flow encoding from function body.
 /// Captures the sequence of control flow nodes (if, match, loop, return)
 /// to fingerprint patterns like check-then-act, early returns, nested conditionals.
-fn extract_control_flow(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+fn extract_control_flow(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut hashes = FxHashSet::default();
     let mut path = Vec::new();
     extract_cf_recursive(node, source, &mut path, &mut hashes);
-    hashes
+    let mut vec: Vec<u64> = hashes.into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 fn extract_cf_recursive(
@@ -287,10 +301,12 @@ fn extract_cf_recursive(
 
 /// Extract API calls from function body using AST traversal.
 /// This replaces text-based keyword matching with actual call expression detection.
-fn extract_api_calls(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+fn extract_api_calls(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut calls = FxHashSet::default();
     extract_calls_recursive(node, source, &mut calls);
-    calls
+    let mut vec: Vec<u64> = calls.into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 fn extract_calls_recursive(node: Node<'_>, source: &str, calls: &mut FxHashSet<u64>) {
@@ -338,10 +354,12 @@ fn extract_calls_recursive(node: Node<'_>, source: &str, calls: &mut FxHashSet<u
 }
 
 /// Extract object property accesses (e.g. `item.price`)
-fn extract_property_accesses(node: Node<'_>, source: &str) -> FxHashSet<u64> {
+fn extract_property_accesses(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut accesses = FxHashSet::default();
     extract_properties_recursive(node, source, &mut accesses);
-    accesses
+    let mut vec: Vec<u64> = accesses.into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 fn extract_properties_recursive(node: Node<'_>, source: &str, accesses: &mut FxHashSet<u64>) {
@@ -374,9 +392,9 @@ fn extract_properties_recursive(node: Node<'_>, source: &str, accesses: &mut FxH
 fn extract_semantic_markers(
     _node: Node<'_>,
     _source: &str,
-    api_calls: &FxHashSet<u64>,
-    property_accesses: &FxHashSet<u64>,
-) -> FxHashSet<u64> {
+    api_calls: &[u64],
+    property_accesses: &[u64],
+) -> Vec<u64> {
     let mut markers = FxHashSet::default();
 
     // Semantic categories mapped to API call hashes
@@ -473,7 +491,9 @@ fn extract_semantic_markers(
         for api_name in *api_names {
             let mut h = FxHasher::default();
             api_name.hash(&mut h);
-            if api_calls.contains(&h.finish()) || property_accesses.contains(&h.finish()) {
+            if api_calls.binary_search(&h.finish()).is_ok()
+                || property_accesses.binary_search(&h.finish()).is_ok()
+            {
                 let mut cat_h = FxHasher::default();
                 category.hash(&mut cat_h);
                 markers.insert(cat_h.finish());
@@ -482,7 +502,9 @@ fn extract_semantic_markers(
         }
     }
 
-    markers
+    let mut vec: Vec<u64> = markers.into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 fn extract_signature_tokens(node: Node<'_>, source: &str) -> Vec<String> {
@@ -512,6 +534,123 @@ fn extract_param_types(node: Node<'_>, source: &str) -> Vec<String> {
         }
     }
     types
+}
+
+pub fn extract_fingerprints_with_nodes<'a>(
+    root: Node<'a>,
+    source_code: &str,
+    path: &Path,
+    fingerprints: &mut Vec<(FunctionFingerprint, Node<'a>)>,
+    _window_size: usize,
+) {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let language = crate::parser::ext_to_language(ext).to_string();
+
+    let lang: Language = match ext {
+        "rs" => Language::Rust,
+        "ts" | "tsx" => Language::TypeScript,
+        "js" | "jsx" => Language::JavaScript,
+        "c" | "h" => Language::C,
+        "py" | "pyi" => Language::Python,
+        _ => return,
+    };
+
+    let mut cursor = root.walk();
+    loop {
+        let node = cursor.node();
+        let kind = node.kind();
+        if matches!(
+            kind,
+            "function_item" | "function_declaration" | "method_definition" | "arrow_function"
+        ) && let Some(body) = node.child_by_field_name("body")
+        {
+            let mut function_name = "anonymous".to_string();
+            if let Some(name_node) = node.child_by_field_name("name") {
+                function_name =
+                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
+            } else if kind == "arrow_function"
+                && let Some(parent) = node.parent()
+                && parent.kind() == "variable_declarator"
+                && let Some(name_node) = parent.child_by_field_name("name")
+            {
+                function_name =
+                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
+            }
+
+            let body_code = &source_code[body.start_byte()..body.end_byte()];
+            let tokens: Vec<String> = body_code
+                .split_whitespace()
+                .filter(|t| !t.is_empty() && !t.starts_with("//"))
+                .map(String::from)
+                .collect();
+
+            let total_bytes = body.end_byte() - body.start_byte();
+            let comment_bytes = count_comment_bytes(body, source_code);
+            let sig_tokens = extract_signature_tokens(node, source_code);
+            let param_types = extract_param_types(node, source_code);
+            let name_segments = split_name_segments(&function_name);
+
+            // Multi-scale n-grams: combine window sizes 3, 5, and 8
+            let mut multi_scale_hashes = token_ngrams_positional(&tokens, 3);
+            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 5));
+            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 8));
+
+            // AST-aware features
+            let control_flow = extract_control_flow(body, source_code);
+            let api_calls = extract_api_calls(body, source_code);
+            let property_accesses = extract_property_accesses(body, source_code);
+            let semantic_markers =
+                extract_semantic_markers(body, source_code, &api_calls, &property_accesses);
+            let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
+            let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
+            for s in &skeleton {
+                let mut hasher = rustc_hash::FxHasher::default();
+                std::hash::Hash::hash(s, &mut hasher);
+                skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
+            }
+
+            let fp = FunctionFingerprint {
+                file_path: path.to_string_lossy().to_string(),
+                function_name,
+                line: node.start_position().row + 1,
+                language: language.clone(),
+                ngram_hashes: multi_scale_hashes.clone(),
+                weighted_ngram_hashes: multi_scale_hashes.into_iter().map(|h| (h, 1.0)).collect(),
+                signature_ngrams: token_ngrams_sorted(&sig_tokens, 3.min(sig_tokens.len().max(1))),
+                param_type_ngrams: token_ngrams_sorted(
+                    &param_types,
+                    2.min(param_types.len().max(1)),
+                ),
+                name_segments,
+                structural_markers: collect_structural_markers(body, source_code, lang),
+                type_usages: collect_type_usages(body, source_code),
+                comment_density: if total_bytes > 0 {
+                    comment_bytes as f64 / total_bytes as f64
+                } else {
+                    0.0
+                },
+                semantic_markers,
+                skeleton,
+                skeleton_hashes,
+                control_flow_hashes: control_flow,
+                api_calls,
+                property_accesses,
+            };
+            fingerprints.push((fp, node));
+        }
+
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return;
+            }
+        }
+    }
 }
 
 pub fn extract_fingerprints(
@@ -580,6 +719,12 @@ pub fn extract_fingerprints(
             let semantic_markers =
                 extract_semantic_markers(body, source_code, &api_calls, &property_accesses);
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
+            let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
+            for s in &skeleton {
+                let mut hasher = rustc_hash::FxHasher::default();
+                std::hash::Hash::hash(s, &mut hasher);
+                skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
+            }
 
             fingerprints.push(FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
@@ -588,8 +733,11 @@ pub fn extract_fingerprints(
                 language: language.clone(),
                 ngram_hashes: multi_scale_hashes.clone(),
                 weighted_ngram_hashes: multi_scale_hashes.into_iter().map(|h| (h, 1.0)).collect(),
-                signature_ngrams: token_ngrams(&sig_tokens, 3.min(sig_tokens.len().max(1))),
-                param_type_ngrams: token_ngrams(&param_types, 2.min(param_types.len().max(1))),
+                signature_ngrams: token_ngrams_sorted(&sig_tokens, 3.min(sig_tokens.len().max(1))),
+                param_type_ngrams: token_ngrams_sorted(
+                    &param_types,
+                    2.min(param_types.len().max(1)),
+                ),
                 name_segments,
                 structural_markers: collect_structural_markers(body, source_code, lang),
                 type_usages: collect_type_usages(body, source_code),
@@ -600,6 +748,7 @@ pub fn extract_fingerprints(
                 },
                 semantic_markers,
                 skeleton,
+                skeleton_hashes,
                 control_flow_hashes: control_flow,
                 api_calls,
                 property_accesses,

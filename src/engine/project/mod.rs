@@ -62,7 +62,9 @@ pub struct Engine {
     corpus_bundle: Option<&'static [u8]>,
     baseline_path: Option<PathBuf>,
     extra_taint_rule_dirs: Vec<PathBuf>,
-    check_deps: bool,
+    pub check_deps: bool,
+    pub use_data_flow: bool,
+    pub ngram_sim_threshold: f64,
     calibration: Option<crate::engine::confidence_calibration::CalibrationParams>,
     per_category_calibration:
         Option<crate::engine::per_category_calibration::PerCategoryCalibration>,
@@ -105,6 +107,8 @@ impl Engine {
             baseline_path: None,
             extra_taint_rule_dirs: Vec::new(),
             check_deps: false,
+            use_data_flow: false,
+            ngram_sim_threshold: 0.05,
             calibration: None,
             per_category_calibration: None,
         }
@@ -136,6 +140,14 @@ impl Engine {
 
     pub fn set_extra_taint_rule_dirs(&mut self, dirs: Vec<PathBuf>) {
         self.extra_taint_rule_dirs = dirs;
+    }
+
+    pub fn set_use_data_flow(&mut self, enable: bool) {
+        self.use_data_flow = enable;
+    }
+
+    pub fn set_ngram_sim_threshold(&mut self, threshold: f64) {
+        self.ngram_sim_threshold = threshold;
     }
 
     pub fn load_calibration(&mut self) {

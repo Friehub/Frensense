@@ -46,8 +46,11 @@ Frensense is highly optimized for large codebases. To maintain sub-second scan t
 # Basic scan
 frensense .
 
-# With corpus pattern detection
+# With corpus pattern detection (Standard)
 frensense . --corpus corpus/targets/ --threshold 0.65
+
+# Data-Flow (Taint) Mode with fine-tuned structural boundaries
+frensense . --corpus corpus/targets/ --mode taint --ngram-sim-threshold 0.05 --threshold 0.00 --min-confidence 0.65
 
 # Only critical findings
 frensense . --severity critical --strict
@@ -77,16 +80,32 @@ cp my_bug.ts    corpus/targets/ts_my_bug_positive.ts
 cp fixed.ts     corpus/targets/ts_my_bug_negative.ts
 ```
 
-**You do not write TOML or YAML.** Instead, you provide the advisory text directly inside the `_positive` source code file using a `[frensense]` comment block:
+**You do not write TOML or YAML.** Instead, you provide the advisory text directly inside the `_positive` source code file using a `[frensense]` comment block. The engine supports template interpolation for dynamic advisory generation (e.g., `{{ source }}` and `{{ sink }}`).
+
+### The Positive Example (`ts_my_bug_positive.ts`)
+This file represents the vulnerable code shape.
 
 ```typescript
 // [frensense]
 // observation: Writing user-provided data directly to a datastore...
-// impact: Any user can overwrite or corrupt data...
-// improvement: Call a central auth resolver...
+// impact: Unsanitized data from `{{ source }}` reaches the `{{ sink }}` execution context, allowing attackers to manipulate queries.
+// improvement: Call a central auth resolver or use parameterized bindings before passing `{{ source }}` to `{{ sink }}`.
 
-export async function handleDataSync(request: Request, db: Database) {
-  // Bad code here...
+export async function handleDataSync(req: Request, db: Database) {
+  // Vulnerable pattern
+  const filter = req.query.filter;
+  db.collection('users').find({ $where: filter });
+}
+```
+
+### The Negative Example (`ts_my_bug_negative.ts`)
+This file represents the structurally identical, but safe code shape. It prevents false positives.
+
+```typescript
+export async function handleDataSync(req: Request, db: Database) {
+  // Safe pattern (properly sanitized/parameterized)
+  const filter = sanitize(req.query.filter);
+  db.collection('users').find({ $where: filter });
 }
 ```
 

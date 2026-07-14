@@ -21,6 +21,8 @@ pub struct CrossFileResult {
     pub depth: usize,
     pub path: Vec<String>,
     pub detail: String,
+    pub source_name: Option<String>,
+    pub sink_name: Option<String>,
 }
 
 /// Cross-file taint verifier.
@@ -46,6 +48,8 @@ pub struct CrossFileVerifier<'a> {
     _visited: HashSet<(String, usize)>,
     max_depth: usize,
     source_sink: &'a CorpusSourceSinkRegistry,
+    deps: &'a std::collections::HashSet<String>,
+    pub source_name: Option<String>,
 }
 
 impl<'a> CrossFileVerifier<'a> {
@@ -65,6 +69,7 @@ impl<'a> CrossFileVerifier<'a> {
             ),
         >,
         source_sink: &'a CorpusSourceSinkRegistry,
+        deps: &'a std::collections::HashSet<String>,
     ) -> Self {
         Self {
             source,
@@ -77,6 +82,8 @@ impl<'a> CrossFileVerifier<'a> {
             _visited: HashSet::new(),
             max_depth: 5,
             source_sink,
+            deps,
+            source_name: None,
         }
     }
 
@@ -109,6 +116,7 @@ impl<'a> CrossFileVerifier<'a> {
             let clean_type = param_type.trim_start_matches(':').trim();
             if self.source_sink.is_source_type(clean_type) {
                 self.registry.taint(&param_name, TaintOrigin::UserInput);
+                self.source_name = Some(param_name);
                 return;
             }
         }
@@ -125,6 +133,8 @@ impl<'a> CrossFileVerifier<'a> {
                 depth: 0,
                 path: Vec::new(),
                 detail: "No function body".to_string(),
+                source_name: None,
+                sink_name: None,
             };
         };
 
@@ -135,6 +145,8 @@ impl<'a> CrossFileVerifier<'a> {
                 depth: 0,
                 path: Vec::new(),
                 detail: "No tainted parameters detected".to_string(),
+                source_name: None,
+                sink_name: None,
             };
         }
 
@@ -158,6 +170,8 @@ impl<'a> CrossFileVerifier<'a> {
                 depth,
                 path: path.clone(),
                 detail: "Maximum depth reached".to_string(),
+                source_name: None,
+                sink_name: None,
             };
         }
 
@@ -215,6 +229,8 @@ impl<'a> CrossFileVerifier<'a> {
             depth,
             path: path.clone(),
             detail: "No sink found in function body".to_string(),
+            source_name: None,
+            sink_name: None,
         }
     }
 
@@ -233,10 +249,29 @@ impl<'a> CrossFileVerifier<'a> {
             .or_else(|| call_node.child_by_field_name("callee"))
             .or_else(|| call_node.child(0))?;
 
-        let fn_name = &self.source[callee.start_byte()..callee.end_byte()];
+        let fn_name_full = &self.source[callee.start_byte()..callee.end_byte()];
+
+        let mut fn_name_field = fn_name_full;
+        if callee.kind() == "member_expression" || callee.kind() == "field_expression" {
+            if let Some(field) = callee.child_by_field_name("field") {
+                fn_name_field = &self.source[field.start_byte()..field.end_byte()];
+            }
+        }
 
         // Check if this is a corpus-learned sink
-        if !self.source_sink.is_sink(fn_name) {
+        if !self.source_sink.is_sink(fn_name_field) {
+            return None;
+        }
+
+        // Apply safe-base filtering to avoid false positives on native objects
+        if fn_name_full.starts_with("Object.")
+            || fn_name_full.starts_with("Array.")
+            || fn_name_full.starts_with("String.")
+            || fn_name_full.starts_with("Math.")
+            || fn_name_full.starts_with("JSON.")
+            || fn_name_full.starts_with("console.")
+            || fn_name_full.starts_with("process.")
+        {
             return None;
         }
 
@@ -249,12 +284,14 @@ impl<'a> CrossFileVerifier<'a> {
                 }
                 if self.is_node_tainted(arg) {
                     let arg_text = &self.source[arg.start_byte()..arg.end_byte()];
-                    path.push(format!("{fn_name}({arg_text})"));
+                    path.push(format!("{fn_name_full}({arg_text})"));
                     return Some(CrossFileResult {
                         verified: true,
                         depth,
                         path: path.clone(),
-                        detail: format!("Tainted data reaches sink '{fn_name}'"),
+                        detail: format!("Tainted data reaches sink '{fn_name_full}'"),
+                        source_name: self.source_name.clone(),
+                        sink_name: Some(fn_name_full.to_string()),
                     });
                 }
             }

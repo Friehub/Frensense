@@ -17,6 +17,10 @@ pub fn extract_skeleton(root: Node, _source: &str) -> Vec<String> {
 
 /// Recursively extract node kinds, skipping identifiers and literals.
 fn extract_skeleton_recursive(node: Node, skeleton: &mut Vec<String>) {
+    if skeleton.len() > 256 {
+        return;
+    }
+
     let kind = node.kind();
 
     // Skip leaf nodes that are identifiers or literals
@@ -53,7 +57,7 @@ fn extract_skeleton_recursive(node: Node, skeleton: &mut Vec<String>) {
 /// Returns a normalized score between 0.0 (identical) and 1.0 (completely different).
 ///
 /// This uses a greedy approximation of the Zhang-Shasha algorithm for efficiency.
-pub fn tree_edit_distance(skeleton_a: &[String], skeleton_b: &[String]) -> f64 {
+pub fn tree_edit_distance(skeleton_a: &[u64], skeleton_b: &[u64]) -> f64 {
     if skeleton_a.is_empty() && skeleton_b.is_empty() {
         return 0.0;
     }
@@ -70,7 +74,7 @@ pub fn tree_edit_distance(skeleton_a: &[String], skeleton_b: &[String]) -> f64 {
 }
 
 /// Compute longest common subsequence length.
-fn longest_common_subsequence(a: &[String], b: &[String]) -> usize {
+fn longest_common_subsequence(a: &[u64], b: &[u64]) -> usize {
     let m = a.len();
     let n = b.len();
 
@@ -98,7 +102,19 @@ fn longest_common_subsequence(a: &[String], b: &[String]) -> usize {
 pub fn compute_ast_distance(node_a: Node, node_b: Node, source_a: &str, source_b: &str) -> f64 {
     let skeleton_a = extract_skeleton(node_a, source_a);
     let skeleton_b = extract_skeleton(node_b, source_b);
-    tree_edit_distance(&skeleton_a, &skeleton_b)
+    let mut hash_a = Vec::with_capacity(skeleton_a.len());
+    for s in &skeleton_a {
+        let mut hasher = rustc_hash::FxHasher::default();
+        std::hash::Hash::hash(s, &mut hasher);
+        hash_a.push(std::hash::Hasher::finish(&hasher));
+    }
+    let mut hash_b = Vec::with_capacity(skeleton_b.len());
+    for s in &skeleton_b {
+        let mut hasher = rustc_hash::FxHasher::default();
+        std::hash::Hash::hash(s, &mut hasher);
+        hash_b.push(std::hash::Hasher::finish(&hasher));
+    }
+    tree_edit_distance(&hash_a, &hash_b)
 }
 
 #[cfg(test)]
@@ -121,37 +137,32 @@ mod tests {
         assert!(!skeleton.contains(&"identifier".to_string()));
     }
 
+    fn hash(s: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = rustc_hash::FxHasher::default();
+        s.hash(&mut hasher);
+        hasher.finish()
+    }
+
     #[test]
     fn test_tree_edit_distance_identical() {
-        let a = vec![
-            "function".to_string(),
-            "block".to_string(),
-            "return".to_string(),
-        ];
-        let b = vec![
-            "function".to_string(),
-            "block".to_string(),
-            "return".to_string(),
-        ];
+        let a = vec![hash("function"), hash("block"), hash("return")];
+        let b = vec![hash("function"), hash("block"), hash("return")];
         assert!((tree_edit_distance(&a, &b) - 0.0).abs() < 0.001);
     }
 
     #[test]
     fn test_tree_edit_distance_different() {
-        let a = vec![
-            "function".to_string(),
-            "block".to_string(),
-            "return".to_string(),
-        ];
-        let b = vec!["if".to_string(), "block".to_string(), "while".to_string()];
+        let a = vec![hash("function"), hash("block"), hash("return")];
+        let b = vec![hash("if"), hash("block"), hash("while")];
         let dist = tree_edit_distance(&a, &b);
         assert!(dist > 0.5);
     }
 
     #[test]
     fn test_tree_edit_distance_empty() {
-        let a: Vec<String> = vec![];
-        let b = vec!["function".to_string()];
+        let a: Vec<u64> = vec![];
+        let b = vec![hash("function")];
         assert!((tree_edit_distance(&a, &b) - 1.0).abs() < 0.001);
     }
 }

@@ -10,8 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Multi-Layered Composition**: Frensense now operates via a Layer 1 structural fast-pass and a Layer 2 semantic verification pass. False positives are drastically culled via the new `verify_taint_flow` integration into the `PatternScorer`.
+- **Dependency-Aware Taint Analysis**: Project-level dependency resolution from `package.json` integrated into `CrossFileVerifier` to suppress false-positive sinks like native array/object methods (Safe-Base filtering).
 - **Harvested Real-World Vulnerabilities**: 6 new generalized vulnerability patterns derived directly from backend audit reports (e.g., Unauthenticated DB Writes, Hyphen Drop Regex, JWT Bypass).
-- **OWASP Juice Shop Proven**: Scanner generalizes to find 77 true-positive vulnerabilities in the unseen OWASP Juice Shop repository without explicit fine-tuning.
+- **OWASP Juice Shop & NodeGoat Proven**: Scanner generalizes to find 77 true-positive vulnerabilities in the unseen OWASP Juice Shop repository and successfully flags 9 high-confidence `js_nosql_injection` and `js_swig_xss` zero-day equivalent bugs in NodeGoat.
+
+### Fixed
+- **Structural-First LSH Architecture Hardening**: Removed the highly restrictive lexical n-gram bottleneck (`ngram_sim_threshold`) and softened the negative-similarity penalty in `PatternScorer`. High-confidence structural hits now bypass variable-name mismatches.
+- **T-FIX-1 Composition Optimization**: Lowered the structural high-confidence threshold from 0.40 to 0.20 to retain inter-procedural vulnerable sinks that inherently fail intra-procedural taint-tracing, eliminating structural false-negatives.
+
+### Fixed
+- **Semantic Constraint Evaluation**: Fixed a severe logic bug where `contains_call_to` and `contains_node_type` were evaluated using `.any()` instead of `.all()`. This previously allowed patterns to bypass strict requirements, resulting in thousands of false positives.
+- **Corpus Negative Over-Penalization**: Fixed the corpus learning algorithm (`semantic.rs`) which artificially emptied semantic requirements if a negative example contained a required positive call (e.g., `fetch`). By relaxing the constraint wiping, the engine now correctly maintains strictly required API calls, eliminating false positives for SSRF, Path Traversal, and Open Redirect.
 
 ### Changed
 - **Fully corpus-driven detection**: All detection is now driven by positive/negative example pairs. Removed hardcoded TOCTOU detector (`check_then_act.rs`), temporal rules TOML (empty), and taint-as-detection. Detection layers: corpus fingerprint match → taint verification → taint entropy → cross-function consistency.

@@ -14,18 +14,16 @@ fn sha1_hash(value: u64, seed: u64) -> u64 {
     hasher.finish()
 }
 
-#[allow(clippy::implicit_hasher)]
-pub fn minhash_signature(hashes: &FxHashSet<u64>, num_hashes: usize) -> Vec<u64> {
+pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
     if hashes.is_empty() {
         return vec![0u64; num_hashes];
     }
 
-    let hash_vec: Vec<u64> = hashes.iter().copied().collect();
     let mut signature = Vec::with_capacity(num_hashes);
 
     for i in 0..num_hashes {
         let seed = i as u64;
-        let min_val = hash_vec
+        let min_val = hashes
             .iter()
             .map(|&h| sha1_hash(h, seed))
             .min()
@@ -34,6 +32,62 @@ pub fn minhash_signature(hashes: &FxHashSet<u64>, num_hashes: usize) -> Vec<u64>
     }
 
     signature
+}
+
+pub fn jaccard_similarity_sorted(a: &[u64], b: &[u64]) -> f64 {
+    if a.is_empty() && b.is_empty() {
+        return 1.0;
+    }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+
+    let mut i = 0;
+    let mut j = 0;
+    let mut intersection = 0;
+
+    while i < a.len() && j < b.len() {
+        if a[i] < b[j] {
+            i += 1;
+        } else if a[i] > b[j] {
+            j += 1;
+        } else {
+            intersection += 1;
+            i += 1;
+            j += 1;
+        }
+    }
+
+    let union = a.len() + b.len() - intersection;
+    intersection as f64 / union as f64
+}
+
+pub fn overlap_coefficient_sorted(a: &[u64], b: &[u64]) -> f64 {
+    if a.is_empty() && b.is_empty() {
+        return 1.0;
+    }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+
+    let mut i = 0;
+    let mut j = 0;
+    let mut intersection = 0;
+
+    while i < a.len() && j < b.len() {
+        if a[i] < b[j] {
+            i += 1;
+        } else if a[i] > b[j] {
+            j += 1;
+        } else {
+            intersection += 1;
+            i += 1;
+            j += 1;
+        }
+    }
+
+    let min_len = std::cmp::min(a.len(), b.len());
+    intersection as f64 / min_len as f64
 }
 
 #[allow(clippy::implicit_hasher)]
@@ -122,21 +176,19 @@ impl LSHIndex {
     }
 }
 
-#[allow(clippy::implicit_hasher)]
-pub fn similarity_score(hashes_a: &FxHashSet<u64>, hashes_b: &FxHashSet<u64>) -> f64 {
+pub fn similarity_score(hashes_a: &[u64], hashes_b: &[u64]) -> f64 {
     let sig_a = minhash_signature(hashes_a, DEFAULT_NUM_HASHES);
     let sig_b = minhash_signature(hashes_b, DEFAULT_NUM_HASHES);
     signature_similarity(&sig_a, &sig_b)
 }
 
-#[allow(clippy::implicit_hasher)]
-pub fn approximate_jaccard(hashes_a: &FxHashSet<u64>, hashes_b: &FxHashSet<u64>) -> f64 {
+pub fn approximate_jaccard(hashes_a: &[u64], hashes_b: &[u64]) -> f64 {
     similarity_score(hashes_a, hashes_b)
 }
 
-pub fn hash_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
+pub fn hash_ngrams(tokens: &[String], window_size: usize) -> Vec<u64> {
     if tokens.len() < window_size {
-        return FxHashSet::default();
+        return Vec::new();
     }
     let mut hashes = FxHashSet::default();
     for i in 0..=(tokens.len().saturating_sub(window_size)) {
@@ -146,7 +198,9 @@ pub fn hash_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
         }
         hashes.insert(state.finish());
     }
-    hashes
+    let mut vec: Vec<u64> = hashes.into_iter().collect();
+    vec.sort_unstable();
+    vec
 }
 
 #[cfg(test)]
