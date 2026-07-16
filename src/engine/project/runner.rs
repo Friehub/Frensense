@@ -560,11 +560,13 @@ fn run_corpus_scan(
                         registry.source_sink_registry(),
                         &npm_deps,
                     );
+
+                    source_name = verification.source_name;
+                    sink_name = verification.sink_name;
+
                     if verification.verified {
                         taint_verified = true;
                         taint_detail = verification.detail;
-                        source_name = verification.source_name;
-                        sink_name = verification.sink_name;
                         // Boost confidence for verified findings
                         confidence = (confidence * 1.2).min(0.95);
                     }
@@ -728,8 +730,8 @@ fn verify_taint_flow(
         TaintVerification {
             verified: false,
             detail: result.detail,
-            source_name: None,
-            sink_name: None,
+            source_name: result.source_name,
+            sink_name: result.sink_name,
         }
     }
 }

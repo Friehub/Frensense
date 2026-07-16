@@ -50,6 +50,7 @@ pub struct CrossFileVerifier<'a> {
     source_sink: &'a CorpusSourceSinkRegistry,
     deps: &'a std::collections::HashSet<String>,
     pub source_name: Option<String>,
+    pub potential_sink_name: Option<String>,
 }
 
 impl<'a> CrossFileVerifier<'a> {
@@ -84,6 +85,7 @@ impl<'a> CrossFileVerifier<'a> {
             source_sink,
             deps,
             source_name: None,
+            potential_sink_name: None,
         }
     }
 
@@ -95,29 +97,52 @@ impl<'a> CrossFileVerifier<'a> {
     /// May panic if internal assertions fail.
     /// match types found in positive corpus examples.
     pub fn seed_taint(&mut self, fn_node: Node) {
-        let Some(params_node) = fn_node
+        self.seed_taint_recursive(fn_node);
+    }
+
+    fn seed_taint_recursive(&mut self, node: Node) {
+        // Seed parameters of this node if it's a function
+        if let Some(params_node) = node
             .child_by_field_name("parameters")
-            .or_else(|| fn_node.child_by_field_name("formal_parameters"))
-        else {
-            return;
-        };
+            .or_else(|| node.child_by_field_name("formal_parameters"))
+        {
+            let mut cursor = params_node.walk();
+            for param in params_node.children(&mut cursor) {
+                if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
+                    continue;
+                }
 
-        let mut cursor = params_node.walk();
-        for param in params_node.children(&mut cursor) {
-            if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
-                continue;
+                let (mut param_name, param_type) = extract_param_info(param, self.source);
+                if param_name.is_empty() && param.kind() == "identifier" {
+                    param_name = self.source[param.start_byte()..param.end_byte()].to_string();
+                }
+                if param_name.is_empty() {
+                    continue;
+                }
+
+                let clean_type = param_type.trim_start_matches(':').trim();
+                let is_common_source_name = matches!(
+                    param_name.as_str(),
+                    "req" | "request" | "event" | "ctx" | "context" | "payload" | "input"
+                );
+
+                if self.source_sink.is_source_type(clean_type) || is_common_source_name {
+                    self.registry.taint(&param_name, TaintOrigin::UserInput);
+                    if self.source_name.is_none() {
+                        self.source_name = Some(param_name);
+                    }
+                }
             }
+        }
 
-            let (param_name, param_type) = extract_param_info(param, self.source);
-            if param_name.is_empty() {
-                continue;
-            }
-
-            let clean_type = param_type.trim_start_matches(':').trim();
-            if self.source_sink.is_source_type(clean_type) {
-                self.registry.taint(&param_name, TaintOrigin::UserInput);
-                self.source_name = Some(param_name);
-                return;
+        // Recurse into children
+        let mut cursor = node.walk();
+        if cursor.goto_first_child() {
+            loop {
+                self.seed_taint_recursive(cursor.node());
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
             }
         }
     }
@@ -229,8 +254,8 @@ impl<'a> CrossFileVerifier<'a> {
             depth,
             path: path.clone(),
             detail: "No sink found in function body".to_string(),
-            source_name: None,
-            sink_name: None,
+            source_name: self.source_name.clone(),
+            sink_name: self.potential_sink_name.clone(),
         }
     }
 
@@ -258,11 +283,6 @@ impl<'a> CrossFileVerifier<'a> {
             }
         }
 
-        // Check if this is a corpus-learned sink
-        if !self.source_sink.is_sink(fn_name_field) {
-            return None;
-        }
-
         // Apply safe-base filtering to avoid false positives on native objects
         if fn_name_full.starts_with("Object.")
             || fn_name_full.starts_with("Array.")
@@ -283,16 +303,22 @@ impl<'a> CrossFileVerifier<'a> {
                     continue;
                 }
                 if self.is_node_tainted(arg) {
-                    let arg_text = &self.source[arg.start_byte()..arg.end_byte()];
-                    path.push(format!("{fn_name_full}({arg_text})"));
-                    return Some(CrossFileResult {
-                        verified: true,
-                        depth,
-                        path: path.clone(),
-                        detail: format!("Tainted data reaches sink '{fn_name_full}'"),
-                        source_name: self.source_name.clone(),
-                        sink_name: Some(fn_name_full.to_string()),
-                    });
+                    // Record as a potential sink since tainted data reached it
+                    self.potential_sink_name = Some(fn_name_full.to_string());
+
+                    // Check if this is a corpus-learned sink
+                    if self.source_sink.is_sink(fn_name_field) {
+                        let arg_text = &self.source[arg.start_byte()..arg.end_byte()];
+                        path.push(format!("{fn_name_full}({arg_text})"));
+                        return Some(CrossFileResult {
+                            verified: true,
+                            depth,
+                            path: path.clone(),
+                            detail: format!("Tainted data reaches sink '{fn_name_full}'"),
+                            source_name: self.source_name.clone(),
+                            sink_name: Some(fn_name_full.to_string()),
+                        });
+                    }
                 }
             }
         }
