@@ -5,16 +5,22 @@ pub mod confidence;
 pub mod cross_file;
 pub mod engine;
 pub mod normalization;
+pub mod propagators;
 pub mod resolver;
+pub mod sanitizer;
 pub mod taint_metrics;
+pub mod pii;
+pub mod entropy;
 
 pub use alias::AliasTracker;
 pub use engine::DataFlowEngine;
 pub use engine::FunctionTaintSummary;
+pub use propagators::PropagatorRegistry;
 pub use resolver::ResolvedFunction;
 pub use resolver::SymbolEntry;
 pub use resolver::map_call_args_to_params;
 pub use resolver::resolve_fn_definition;
+pub use sanitizer::{SanitizerRegistry, SinkContext};
 
 use std::collections::HashMap;
 
@@ -145,6 +151,14 @@ impl TaintRegistry {
 
     pub fn is_tainted(&self, var: &str) -> bool {
         self.get_origin(var).is_some() || self.get_any_field_origin(var).is_some()
+    }
+
+    pub fn untaint(&mut self, var: &str) {
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.remove(var).is_some() {
+                break;
+            }
+        }
     }
 
     pub fn has_any_tainted(&self) -> bool {

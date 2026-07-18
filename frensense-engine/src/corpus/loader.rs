@@ -346,90 +346,427 @@ fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> Adviso
 /// Load semantic filters from the TOML file.
 pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilter> {
     let mut filters = std::collections::HashMap::new();
-
-    // Try to find the semantic_filters.toml file
-    let possible_paths = [
-        std::path::PathBuf::from("corpus/semantic_filters.toml"),
-        std::path::PathBuf::from("../corpus/semantic_filters.toml"),
-        std::path::PathBuf::from("../../corpus/semantic_filters.toml"),
-    ];
-
-    let content = possible_paths
-        .iter()
-        .find_map(|p| std::fs::read_to_string(p).ok());
-
-    let Some(content) = content else {
-        return filters;
-    };
-
-    // Simple TOML parser for our filter format
-    let mut current_pattern: Option<String> = None;
-    let mut current_filter = SemanticFilter::default();
-
-    for line in content.lines() {
-        let line = line.trim();
-
-        // Skip comments and empty lines
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        // Pattern header: [pattern_name]
-        if line.starts_with('[') && line.ends_with(']') {
-            // Save previous pattern
-            if let Some(name) = current_pattern.take() {
-                if !current_filter.is_empty() {
-                    filters.insert(name, current_filter.clone());
-                }
-                current_filter = SemanticFilter::default();
-            }
-            current_pattern = Some(line[1..line.len() - 1].to_string());
-            continue;
-        }
-
-        // Key = value pairs
-        if let Some((key, value)) = line.split_once('=') {
-            let key = key.trim();
-            let value = value.trim();
-
-            // Parse array values: ["item1", "item2"]
-            let parse_array = |s: &str| -> Vec<String> {
-                s.trim_start_matches('[')
-                    .trim_end_matches(']')
-                    .split(',')
-                    .map(|item| item.trim().trim_matches('"').to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            };
-
-            match key {
-                "contains_call_to" => {
-                    current_filter.contains_call_to = parse_array(value);
-                }
-                "must_not_contain_call_to" => {
-                    current_filter.must_not_contain_call_to = parse_array(value);
-                }
-                "function_name_regex" => {
-                    current_filter.function_name_regex = Some(value.trim_matches('"').to_string());
-                }
-                "contains_node_type" => {
-                    current_filter.contains_node_type = parse_array(value);
-                }
-                "must_not_contain_node_type" => {
-                    current_filter.must_not_contain_node_type = parse_array(value);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    // Save last pattern
-    if let Some(name) = current_pattern {
-        if !current_filter.is_empty() {
-            filters.insert(name, current_filter);
-        }
-    }
-
+    filters.insert(
+        "rust_csa_auth_no_rejection".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "decode".to_string(),
+                "verify".to_string(),
+                "token".to_string(),
+                "jwt".to_string(),
+                "exp".to_string(),
+            ],
+            function_name_regex: Some("^authenticate".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_csa_find_never_empty".to_string(),
+        SemanticFilter {
+            must_not_contain_node_type: vec!["return_statement".to_string()],
+            function_name_regex: Some("^find".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_csa_validate_unconditional".to_string(),
+        SemanticFilter {
+            function_name_regex: Some("^validate".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_csa_sanitize_passthrough".to_string(),
+        SemanticFilter {
+            must_not_contain_call_to: vec![
+                ".replace".to_string(),
+                ".encode".to_string(),
+                "escape".to_string(),
+            ],
+            function_name_regex: Some("^sanitize".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_cvefixes_no_resource_limit_cve-2026-27572_headers".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "downcast".to_string(),
+                "push_child".to_string(),
+                "get".to_string(),
+                "table".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_cvefixes_no_resource_limit_cve-2026-27572_build".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["build".to_string(), "new".to_string(), "push".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_cvefixes_no_resource_limit_cve-2026-27572_configure_wasip2".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["configure".to_string(), "wasi".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_cvefixes_no_resource_limit_cve-2026-27572_default".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["default".to_string(), "new".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_llm_promise_catch".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![".then".to_string()],
+            must_not_contain_call_to: vec![".catch".to_string(), ".finally".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_csa_sanitize_passthrough".to_string(),
+        SemanticFilter {
+            must_not_contain_call_to: vec![
+                ".replace".to_string(),
+                ".encode".to_string(),
+                "encodeURIComponent".to_string(),
+                "URL".to_string(),
+            ],
+            function_name_regex: Some("^sanitize".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_llm_console_log".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["logger.info".to_string(), "console.log".to_string()],
+            must_not_contain_call_to: vec!["structuredLogger".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_llm_any_parameter".to_string(),
+        SemanticFilter {
+            contains_node_type: vec![
+                "required_parameter".to_string(),
+                "optional_parameter".to_string(),
+                "type_annotation".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_clone_in_loop".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![".clone".to_string()],
+            contains_node_type: vec![
+                "loop_expression".to_string(),
+                "for_expression".to_string(),
+                "while_expression".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_async_blocking_io".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "std::fs".to_string(),
+                "std::io::read".to_string(),
+                "std::io::write".to_string(),
+                "File::open".to_string(),
+                "std::thread::sleep".to_string(),
+            ],
+            contains_node_type: vec!["async_block".to_string(), "async".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_llm_await_in_sync".to_string(),
+        SemanticFilter {
+            contains_node_type: vec!["await_expression".to_string()],
+            must_not_contain_node_type: vec!["async".to_string(), "async_block".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_connection_leak".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "connect".to_string(),
+                "Connection::new".to_string(),
+                "pool.get".to_string(),
+            ],
+            must_not_contain_call_to: vec!["drop".to_string(), "close".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_network_in_txn".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["begin_transaction".to_string(), "fetch".to_string()],
+            must_not_contain_call_to: vec!["update_db".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_mutate_after_response".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "send".to_string(),
+                "respond".to_string(),
+                "into_response".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_transmute".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["transmute".to_string(), "transmute_copy".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "rust_llm_clone_literal".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["clone".to_string()],
+            contains_node_type: vec!["integer_literal".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_hardcoded_secret".to_string(),
+        SemanticFilter {
+            contains_node_type: vec!["string".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_prototype_pollution".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "__proto__".to_string(),
+                "constructor".to_string(),
+                "prototype".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_sql_injection".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "query".to_string(),
+                "execute".to_string(),
+                "raw".to_string(),
+            ],
+            contains_node_type: vec![
+                "template_string".to_string(),
+                "binary_expression".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_command_injection".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "exec".to_string(),
+                "spawn".to_string(),
+                "system".to_string(),
+                "execSync".to_string(),
+                "spawnSync".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_ssrf".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "fetch".to_string(),
+                "axios".to_string(),
+                "request".to_string(),
+                "http.get".to_string(),
+                "https.get".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_path_traversal".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "readFile".to_string(),
+                "writeFile".to_string(),
+                "unlink".to_string(),
+                "stat".to_string(),
+                "access".to_string(),
+                "path.join".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_open_redirect".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "redirect".to_string(),
+                "location.href".to_string(),
+                "window.location".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_cookie_security".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "cookie".to_string(),
+                "setCookie".to_string(),
+                "document.cookie".to_string(),
+            ],
+            must_not_contain_node_type: vec!["object".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_csa_validate_unconditional".to_string(),
+        SemanticFilter {
+            must_not_contain_node_type: vec!["false".to_string()],
+            function_name_regex: Some("^validate".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_code_injection_cve-2026-27702_runView".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["eval".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_code_injection_cve-2026-27702_isEmptyExpression".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["eval".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_code_injection_cve-2026-27702_migrateToDesignView".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["eval".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_code_injection_cve-2026-27702_migrateToInMemoryView".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["eval".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_code_injection_cve-2026-27702_parseFilterExpression".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["eval".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_xss_cve-2026-27148_storybookDevServer".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["app.use".to_string(), "server".to_string()],
+            contains_node_type: vec!["await_expression".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_xss_cve-2026-27148_getAccessControlMiddleware".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["middleware".to_string(), "header".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_xss_cve-2026-27148_getServerChannel".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["channel".to_string(), "server".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_xss_cve-2026-27148_handleConnected".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["handle".to_string(), "connected".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "typescript_cvefixes_xss_cve-2026-27148_main".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["app".to_string(), "server".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_deserialization".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["JSON.parse".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_unauthenticated_db_write".to_string(),
+        SemanticFilter {
+            must_not_match_function_name: vec![
+                "register".to_string(),
+                "signup".to_string(),
+                "createAccount".to_string(),
+                "resetPassword".to_string(),
+                "forgotPassword".to_string(),
+                "verify".to_string(),
+                "confirm".to_string(),
+            ],
+            must_not_match_file_path_pattern: vec![
+                "*.test.ts".to_string(),
+                "*.spec.ts".to_string(),
+                "__tests__/".to_string(),
+                "fixtures/".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_missing_payment_gate".to_string(),
+        SemanticFilter {
+            must_not_match_function_name: vec![
+                "healthCheck".to_string(),
+                "handleWebhook".to_string(),
+                "getStatus".to_string(),
+                "handleOptions".to_string(),
+                "preflight".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_race_condition_read_check_write".to_string(),
+        SemanticFilter {
+            must_not_match_file_path_pattern: vec![
+                "*.test.ts".to_string(),
+                "*.spec.ts".to_string(),
+                "test-utils/".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
     filters
 }
 

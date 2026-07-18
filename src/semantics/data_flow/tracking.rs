@@ -23,6 +23,24 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
         let block_range = super::normalization::Range::from(node);
 
         for op in self.context.semantic_ops {
+            let op_range = match op {
+                SemanticOp::Binding { value_range, .. } => *value_range,
+                SemanticOp::Assignment { value_range, .. } => *value_range,
+                SemanticOp::Call { range, .. } => *range,
+                SemanticOp::EnterBlock(range) => *range,
+            };
+
+            for (use_idx, use_entry) in self.chains.uses.iter().enumerate() {
+                if use_entry.start_byte >= op_range.start_byte && use_entry.end_byte <= op_range.end_byte {
+                    let reaching = self.chains.defs_reaching(use_idx);
+                    for def in reaching {
+                        if let Some(taint_origin) = registry.get_origin(&def.name) {
+                            registry.taint(&use_entry.name, taint_origin);
+                        }
+                    }
+                }
+            }
+
             match op {
                 SemanticOp::Binding { name, value_range } => {
                     self.process_binding(

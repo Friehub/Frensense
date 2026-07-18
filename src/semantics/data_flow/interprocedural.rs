@@ -21,6 +21,31 @@ pub struct InterproceduralResult {
     pub detail: String,
 }
 
+fn extract_binding_names<'a>(node: Node<'a>, source: &'a str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut stack = vec![node];
+    while let Some(n) = stack.pop() {
+        match n.kind() {
+            "identifier" | "shorthand_property_identifier_pattern" => {
+                names.push(source[n.start_byte()..n.end_byte()].to_string());
+            }
+            "pair_pattern" => {
+                if let Some(value) = n.child_by_field_name("value") {
+                    stack.push(value);
+                }
+            }
+            "object_pattern" | "array_pattern" | "struct_pattern" | "tuple_pattern" => {
+                let mut cursor = n.walk();
+                for child in n.children(&mut cursor) {
+                    stack.push(child);
+                }
+            }
+            _ => {}
+        }
+    }
+    names
+}
+
 /// Interprocedural taint verifier.
 ///
 /// Follows taint flow through function calls, callbacks, and promises
@@ -32,6 +57,9 @@ pub struct InterproceduralVerifier<'a> {
     _visited: HashSet<(String, usize)>,
     max_depth: usize,
     source_sink: &'a CorpusSourceSinkRegistry,
+    sanitizers: frensense_engine::data_flow::SanitizerRegistry,
+    propagators: frensense_engine::data_flow::propagators::PropagatorRegistry,
+    cfg: Option<frensense_engine::cfg::ControlFlowGraph<'a>>,
 }
 
 impl<'a> InterproceduralVerifier<'a> {
@@ -48,7 +76,16 @@ impl<'a> InterproceduralVerifier<'a> {
             _visited: HashSet::new(),
             max_depth: 5,
             source_sink,
+            sanitizers: frensense_engine::data_flow::SanitizerRegistry::default_combined(),
+            propagators: frensense_engine::data_flow::propagators::PropagatorRegistry::new(),
+            cfg: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_cfg(mut self, cfg: frensense_engine::cfg::ControlFlowGraph<'a>) -> Self {
+        self.cfg = Some(cfg);
+        self
     }
 
     ///
@@ -57,6 +94,13 @@ impl<'a> InterproceduralVerifier<'a> {
     /// Seed taint for a function's parameters.
     pub fn seed_taint(&mut self, fn_node: Node, _source_name: &str) {
         self.seed_from_params(fn_node);
+        if let Some(body) = fn_node.child_by_field_name("body") {
+            crate::semantics::data_flow::corpus_seeder::seed_from_ast_body(
+                body,
+                self.source,
+                &mut self.registry,
+            );
+        }
     }
 
     ///
@@ -123,7 +167,7 @@ impl<'a> InterproceduralVerifier<'a> {
             || self.registry.is_tainted("path")
             || self.registry.is_tainted("file");
 
-        if !has_tainted {
+        if !has_tainted && !self.registry.has_any_tainted() {
             return InterproceduralResult {
                 verified: false,
                 depth: 0,
@@ -174,13 +218,32 @@ impl<'a> InterproceduralVerifier<'a> {
             }
             // Track variable assignments
             "variable_declarator" | "lexical_declaration" => {
-                if let Some(name_node) = node.child_by_field_name("name")
+                if let Some(name_node) = node.child_by_field_name("name").or_else(|| node.child_by_field_name("pattern"))
                     && let Some(value_node) = node.child_by_field_name("value")
                 {
-                    let name = &self.source[name_node.start_byte()..name_node.end_byte()];
+                    let names = extract_binding_names(name_node, self.source);
                     // Check if value is tainted
                     if self.is_node_tainted(value_node) {
-                        self.registry.taint(name, TaintOrigin::UserInput);
+                        let mut is_sanitized = false;
+                        if value_node.kind() == "call_expression" {
+                            if let Some(callee) = value_node.child_by_field_name("function").or_else(|| value_node.child_by_field_name("callee")) {
+                                let callee_name = &self.source[callee.start_byte()..callee.end_byte()];
+                                let short_name = callee_name.rsplit('.').next().unwrap_or(callee_name).trim();
+                                if self.sanitizers.is_full_sanitizer(short_name) || self.sanitizers.is_full_sanitizer(callee_name) {
+                                    is_sanitized = true;
+                                }
+                            }
+                        }
+
+                        if !is_sanitized {
+                            for name in names {
+                                self.registry.taint(&name, TaintOrigin::UserInput);
+                            }
+                        }
+                    } else if self.is_node_environment_source(value_node) {
+                        for name in names {
+                            self.registry.taint(&name, TaintOrigin::Environment);
+                        }
                     }
                 }
             }
@@ -189,9 +252,37 @@ impl<'a> InterproceduralVerifier<'a> {
                 if let Some(left) = node.child_by_field_name("left")
                     && let Some(right) = node.child_by_field_name("right")
                 {
-                    let name = &self.source[left.start_byte()..left.end_byte()];
+                    let names = extract_binding_names(left, self.source);
                     if self.is_node_tainted(right) {
-                        self.registry.taint(name, TaintOrigin::UserInput);
+                        let mut is_sanitized = false;
+                        if right.kind() == "call_expression" {
+                            if let Some(callee) = right.child_by_field_name("function").or_else(|| right.child_by_field_name("callee")) {
+                                let callee_name = &self.source[callee.start_byte()..callee.end_byte()];
+                                let short_name = callee_name.rsplit('.').next().unwrap_or(callee_name).trim();
+                                if self.sanitizers.is_full_sanitizer(short_name) || self.sanitizers.is_full_sanitizer(callee_name) {
+                                    is_sanitized = true;
+                                }
+                            }
+                        }
+
+                        if is_sanitized {
+                            for name in &names {
+                                self.registry.untaint(name);
+                            }
+                        } else {
+                            for name in names {
+                                self.registry.taint(&name, TaintOrigin::UserInput);
+                            }
+                        }
+                    } else if self.is_node_environment_source(right) {
+                        for name in names {
+                            self.registry.taint(&name, TaintOrigin::Environment);
+                        }
+                    } else {
+                        // Clear taint on reassignment to a non-tainted value
+                        for name in &names {
+                            self.registry.untaint(name);
+                        }
                     }
                 }
             }
@@ -248,7 +339,7 @@ impl<'a> InterproceduralVerifier<'a> {
         let fn_name = &self.source[callee.start_byte()..callee.end_byte()];
 
         // Check if this is a corpus-learned sink
-        if !self.source_sink.is_sink(fn_name) {
+        if self.source_sink.is_sink(fn_name).is_none() {
             return None;
         }
 
@@ -260,6 +351,14 @@ impl<'a> InterproceduralVerifier<'a> {
                     continue;
                 }
                 if self.is_node_tainted(arg) {
+                    if let Some(cfg) = &self.cfg {
+                        if let Some(sink_block) = frensense_engine::cfg::block_for_byte(cfg, call_node.start_byte()) {
+                            if frensense_engine::cfg::has_auth_guard_dominator(cfg, sink_block, self.source) {
+                                return None;
+                            }
+                        }
+                    }
+
                     let arg_text = &self.source[arg.start_byte()..arg.end_byte()];
                     path.push(format!("{fn_name}({arg_text})"));
                     return Some(InterproceduralResult {
@@ -484,23 +583,73 @@ impl<'a> InterproceduralVerifier<'a> {
                 false
             }
             "call_expression" => {
-                // Check if the function returns tainted data
-                if let Some(callee) = node
+                let callee = node
                     .child_by_field_name("function")
                     .or_else(|| node.child_by_field_name("callee"))
-                    .or_else(|| node.child(0))
-                {
-                    let _fn_name = &self.source[callee.start_byte()..callee.end_byte()];
+                    .or_else(|| node.child(0));
 
-                    // Check if any argument is tainted
-                    if let Some(args_list) = node.child_by_field_name("arguments") {
-                        let mut cursor = args_list.walk();
-                        for arg in args_list.children(&mut cursor) {
-                            if matches!(arg.kind(), "(" | ")" | ",") {
-                                continue;
+                if let Some(c) = callee {
+                    let fn_name = &self.source[c.start_byte()..c.end_byte()];
+                    let mut short_name = fn_name;
+                    let mut is_member = false;
+
+                    if matches!(c.kind(), "member_expression" | "field_expression") {
+                        is_member = true;
+                        if let Some(prop) = c.child_by_field_name("property").or_else(|| c.child_by_field_name("field")) {
+                            short_name = &self.source[prop.start_byte()..prop.end_byte()];
+                        }
+                    }
+
+                    if let Some(rule) = self.propagators.get_rule(fn_name).or_else(|| self.propagators.get_rule(short_name)) {
+                        if rule.tainted_receiver && is_member {
+                            if let Some(object) = c.child_by_field_name("object") {
+                                if self.is_node_tainted(object) {
+                                    return true;
+                                }
                             }
-                            if self.is_node_tainted(arg) {
-                                return true;
+                        }
+
+                        if let Some(target_idx) = rule.tainted_arg {
+                            if let Some(args_list) = node.child_by_field_name("arguments") {
+                                let mut cursor = args_list.walk();
+                                let mut arg_idx = 0;
+                                for arg in args_list.children(&mut cursor) {
+                                    if matches!(arg.kind(), "(" | ")" | ",") {
+                                        continue;
+                                    }
+                                    if arg_idx == target_idx && self.is_node_tainted(arg) {
+                                        return true;
+                                    }
+                                    arg_idx += 1;
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback logic for unknown functions
+                        if self.is_node_tainted(c) {
+                            return true;
+                        }
+
+                        if let Some(args_list) = node.child_by_field_name("arguments") {
+                            let mut cursor = args_list.walk();
+                            for arg in args_list.children(&mut cursor) {
+                                if matches!(arg.kind(), "(" | ")" | ",") {
+                                    continue;
+                                }
+                                if self.is_node_tainted(arg) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+                    // Return-value taint propagation from known source methods
+                    if is_member {
+                        if let Some(object) = c.child_by_field_name("object") {
+                            if matches!(short_name, "json" | "text" | "formData" | "query" | "header" | "param" | "body" | "arrayBuffer" | "first" | "all" | "get") {
+                                if self.is_node_tainted(object) {
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -539,6 +688,21 @@ impl<'a> InterproceduralVerifier<'a> {
             _ => false,
         }
     }
+
+    /// Check if a node is an environment variable source.
+    fn is_node_environment_source(&self, node: Node) -> bool {
+        match node.kind() {
+            "member_expression" | "field_expression" => {
+                let text = &self.source[node.start_byte()..node.end_byte()];
+                text.starts_with("process.env.") || text.starts_with("env.") || text == "process.env" || text == "env"
+            }
+            "identifier" => {
+                let text = &self.source[node.start_byte()..node.end_byte()];
+                text == "env" || text == "process.env"
+            }
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -549,10 +713,10 @@ mod tests {
         let mut reg = CorpusSourceSinkRegistry::default();
         reg.source_types.insert("Request".to_string(), 5);
         reg.source_types.insert("Json".to_string(), 3);
-        reg.sink_names.insert("exec".to_string(), 4);
-        reg.sink_names.insert("eval".to_string(), 3);
-        reg.sink_names.insert("query".to_string(), 5);
-        reg.sink_names.insert("innerHTML".to_string(), 2);
+        reg.sink_names.insert("exec".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::CodeExecution, 4));
+        reg.sink_names.insert("eval".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::CodeExecution, 3));
+        reg.sink_names.insert("query".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::SqlInjection, 5));
+        reg.sink_names.insert("innerHTML".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::Xss, 2));
         reg
     }
 
@@ -562,9 +726,9 @@ mod tests {
         assert!(reg.is_source_type("Request"));
         assert!(reg.is_source_type("Json"));
         assert!(!reg.is_source_type("String"));
-        assert!(reg.is_sink("exec"));
-        assert!(reg.is_sink("eval"));
-        assert!(!reg.is_sink("console.log"));
+        assert!(reg.is_sink("exec").is_some());
+        assert!(reg.is_sink("eval").is_some());
+        assert!(reg.is_sink("Math.random").is_none());
     }
 
     #[test]
@@ -611,7 +775,7 @@ function handler(req: Request) {
 
     #[test]
     fn test_verify_flow_no_sink() {
-        let source = "function handler(req: Request) { console.log(req.body.cmd); }";
+        let source = "function handler(req: Request) { Math.random(req.body.cmd); }";
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())

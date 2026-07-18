@@ -26,11 +26,14 @@ pub struct DataFlowAnalyzer<'a, 'ctx> {
     pub(crate) data_flow_engine: Option<&'ctx frensense_engine::data_flow::DataFlowEngine>,
     pub(crate) alias_tracker: RefCell<frensense_engine::data_flow::AliasTracker>,
     pub(crate) sanitize_re: Option<Regex>,
+    pub(crate) chains: frensense_engine::cfg::def_use::DefUseChain,
 }
 
 impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
     #[must_use]
     pub fn new(context: &'ctx FrensenseContext<'a>, root: Node<'a>) -> Self {
+        let ext = context.file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        let chains = frensense_engine::cfg::def_use::build_def_use(root, context.source_code, ext);
         Self {
             context,
             current_source: context.source_code,
@@ -40,6 +43,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             data_flow_engine: None,
             alias_tracker: RefCell::new(frensense_engine::data_flow::AliasTracker::new()),
             sanitize_re: None,
+            chains,
         }
     }
 

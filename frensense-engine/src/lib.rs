@@ -140,7 +140,7 @@ pub fn analyze_file(
 
     let graph = symbols.graph().clone();
 
-    let temporal_events = graph::extract_temporal_events(root, source, file_path);
+    let temporal_events = graph::extract_temporal_events(root, source, file_path, None);
 
     Ok(AnalysisResult {
         language: language.to_string(),

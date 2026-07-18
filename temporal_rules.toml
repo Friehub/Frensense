@@ -1,2 +1,0 @@
-# Temporal rules are now corpus-driven.
-# See corpus/targets/rust_temporal_lock_unlock, rust_temporal_lock_sleep, etc.

@@ -290,6 +290,7 @@ pub fn extract_temporal_events<'a>(
     root: tree_sitter::Node<'a>,
     source: &'a str,
     file_path: &Path,
+    temporal_labels: Option<&[crate::temporal::TemporalEventLabel]>,
 ) -> Vec<TemporalEvent> {
     let mut events = Vec::new();
     let mut cursor = root.walk();
@@ -360,6 +361,20 @@ pub fn extract_temporal_events<'a>(
                     line,
                     column,
                 });
+            }
+
+            if let Some(temporal_labels) = temporal_labels {
+                for label in temporal_labels {
+                    if call_text.contains(label.call_pattern.as_str()) {
+                        events.push(TemporalEvent {
+                            event_type: EventType::Call,
+                            label: label.event_name.clone(),
+                            file_path: file_str.clone(),
+                            line,
+                            column,
+                        });
+                    }
+                }
             }
         }
 

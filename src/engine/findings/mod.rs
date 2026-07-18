@@ -14,6 +14,7 @@ pub struct FindingContext<'a> {
     pub cross_file_taint:
         Option<&'a frensense_engine::data_flow::cross_file::CrossFileTaintResolver>,
     pub temporal_analyzer: Option<&'a frensense_engine::temporal::TemporalAnalyzer>,
+    pub source_sink: &'a frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
 }
 
 /// Trait for pluggable finding modules.

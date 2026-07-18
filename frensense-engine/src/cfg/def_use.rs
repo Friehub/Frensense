@@ -129,6 +129,44 @@ fn extract_ref_names(node: Node, source: &str, names: &mut Vec<String>) {
     }
 }
 
+fn collect_binding_names_from_pattern(
+    pattern: Node,
+    source: &str,
+    names: &mut Vec<String>,
+) {
+    match pattern.kind() {
+        "identifier" => {
+            names.push(source[pattern.start_byte()..pattern.end_byte()].to_string());
+        }
+        "object_pattern" => {
+            let mut cursor = pattern.walk();
+            for child in pattern.children(&mut cursor) {
+                match child.kind() {
+                    "shorthand_property_identifier_pattern" => {
+                        names.push(source[child.start_byte()..child.end_byte()].to_string());
+                    }
+                    "pair_pattern" => {
+                        // { key: bindingName } — take the value (right side)
+                        if let Some(val) = child.child_by_field_name("value") {
+                            collect_binding_names_from_pattern(val, source, names);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        "array_pattern" => {
+            let mut cursor = pattern.walk();
+            for child in pattern.children(&mut cursor) {
+                if !matches!(child.kind(), "[" | "]" | ",") {
+                    collect_binding_names_from_pattern(child, source, names);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 fn scan_statement_def_uses(
     node: Node,
     block_id: usize,
@@ -142,9 +180,11 @@ fn scan_statement_def_uses(
     match kind {
         "let_declaration" | "lexical_declaration" | "variable_declaration" => {
             if let Some(pattern) = node.child_by_field_name("pattern") {
-                if let Some(name) = find_var_name(pattern, source) {
+                let mut names = Vec::new();
+                collect_binding_names_from_pattern(pattern, source, &mut names);
+                for name in names {
                     definitions.push(Definition {
-                        name: name.clone(),
+                        name,
                         block_id,
                         node: *node_counter,
                         start_byte: pattern.start_byte(),

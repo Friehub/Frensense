@@ -9,15 +9,140 @@ use rustc_hash::FxHashMap;
 use std::path::Path;
 use tree_sitter::Node;
 
-/// Minimum number of distinct patterns a type/sink must appear in
-/// to be promoted to the registry.
-const MIN_OCCURRENCES: usize = 2;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SinkTier {
+    HighConfidence,  // min_occurrences: 1 — known dangerous, no FP risk
+    Standard,        // min_occurrences: 2 — current default
+    Suspicious,      // min_occurrences: 3 — novel patterns, need more evidence
+}
 
-/// Registry of source types and sink names learned from the corpus.
-#[derive(Debug, Clone, Default)]
+impl SinkTier {
+    pub fn min_occurrences(&self) -> usize {
+        match self {
+            Self::HighConfidence => 1,
+            Self::Standard => 2,
+            Self::Suspicious => 3,
+        }
+    }
+}
+
+// Hardcoded high-confidence sinks that are ALWAYS registered regardless of occurrence:
+pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
+    // Code Execution
+    "eval", "exec", "execSync", "spawn", "spawnSync", "Function", "setTimeout", "setInterval", "runInNewContext", "runInThisContext", "require", "import", "Command::new", "args",
+    // SQL Injection
+    "query", "execute", "executeRaw", "queryRaw", "raw", "sql_query", "prepare",
+    // Command Injection
+    "execFile", "execFileSync", "shelljs.exec", "execa",
+    // Path Traversal
+    "readFile", "writeFile", "readFileSync", "join", "unlink", "stat", "access", "read_to_string", "read", "write", "open",
+    // SSRF
+    "fetch", "axios.get", "axios.post", "http.get", "https.get", "got", "request", "node-fetch", "reqwest::get", "Client::get", "Uri::from", "ureq::get",
+    // Open Redirect
+    "redirect", "location.href", "window.location",
+    // XSS
+    "innerHTML", "outerHTML", "document.write", "document.writeln", "dangerouslySetInnerHTML",
+    // Storage Write
+    "put", "setItem",
+    // Log Leak
+    "log", "error", "info", "debug",
+    // Unsafe Memory (Rust)
+    "transmute", "transmute_copy", "from_utf8_unchecked", "from_raw_parts",
+    // Framework Specific (Cloudflare, Express, Next.js, Hono, Prisma)
+    "c.redirect", "env.KV.put", "KVNamespace.put", "KVNamespace.delete", "env.DB.prepare",
+    "res.send", "res.json", "res.redirect", "res.render", "revalidatePath",
+    "prisma.queryRawUnsafe", "prisma.executeRawUnsafe", "R2Bucket.put", "D1Database.prepare",
+    "DurableObjectStub.fetch", "Queue.send",
+];
+
+pub fn get_sink_tier(sink: &str) -> SinkTier {
+    let base = sink.rsplit('.').next().unwrap_or(sink);
+    if ALWAYS_REGISTER_SINKS.contains(&base) {
+        SinkTier::HighConfidence
+    } else {
+        SinkTier::Standard
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SinkCategory {
+    CodeExecution,
+    SqlInjection,
+    CommandInjection,
+    PathTraversal,
+    Ssrf,
+    OpenRedirect,
+    Xss,
+    StorageWrite,
+    LogLeak,
+    ResponseLeak,
+    CredentialLeak,
+    Unknown,
+}
+
+impl SinkCategory {
+    pub fn from_sink_name(sink: &str) -> Self {
+        let s = sink.to_lowercase();
+        if s.contains("eval") || s.contains("exec") && !s.contains("execsync") {
+            Self::CodeExecution
+        } else if s.contains("query") || s.contains("execute") {
+            Self::SqlInjection
+        } else if s.contains("spawn") || s.contains("system") || s.contains("execsync") {
+            Self::CommandInjection
+        } else if s.contains("readfile") || s.contains("writefile") || s.contains("join") {
+            Self::PathTraversal
+        } else if s.contains("fetch") || s.contains("axios") || s.contains("http.get") {
+            Self::Ssrf
+        } else if s.contains("redirect") {
+            Self::OpenRedirect
+        } else if s.contains("innerhtml") || s.contains("document.write") {
+            Self::Xss
+        } else if s.contains("put") || s.contains("set") {
+            Self::StorageWrite
+        } else if s.contains("log") || s.contains("logger") {
+            Self::LogLeak
+        } else if s.contains("send") || s.contains("json") {
+            Self::ResponseLeak
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CorpusSourceSinkRegistry {
     pub source_types: FxHashMap<String, usize>,
-    pub sink_names: FxHashMap<String, usize>,
+    /// Short method names learned from positive corpus (e.g. `"findOne"`, `"exec"`).
+    pub sink_names: FxHashMap<String, (SinkCategory, usize)>,
+    /// Qualified call expressions learned from positive corpus (e.g. `"collection.findOne"`).
+    /// Used for suffix-match disambiguation to avoid matching generic method names on safe objects.
+    pub qualified_sink_names: FxHashMap<String, (SinkCategory, usize)>,
+    /// Call expressions that sanitize / escape tainted data, learned from negative corpus.
+    pub sanitizer_names: FxHashMap<String, usize>,
+}
+
+impl Default for CorpusSourceSinkRegistry {
+    fn default() -> Self {
+        let mut sink_names = FxHashMap::default();
+        let mut qualified_sink_names = FxHashMap::default();
+
+        for &sink in ALWAYS_REGISTER_SINKS {
+            let cat = SinkCategory::from_sink_name(sink);
+            if sink.contains("::") || sink.contains('.') {
+                qualified_sink_names.insert(sink.to_string(), (cat, 100));
+            } else {
+                sink_names.insert(sink.to_string(), (cat, 100));
+            }
+        }
+
+        Self {
+            source_types: FxHashMap::default(),
+            sink_names,
+            qualified_sink_names,
+            sanitizer_names: FxHashMap::default(),
+        }
+    }
 }
 
 impl CorpusSourceSinkRegistry {
@@ -27,9 +152,85 @@ impl CorpusSourceSinkRegistry {
         self.source_types.contains_key(clean)
     }
 
-    /// Check if a function name is a known sink.
-    pub fn is_sink(&self, fn_name: &str) -> bool {
-        self.sink_names.contains_key(fn_name)
+    /// Check if a function name is a known sink (supports qualified names like "KV.put").
+    pub fn is_sink(&self, qualified: &str) -> Option<SinkCategory> {
+        if let Some((cat, _)) = self.qualified_sink_names.get(qualified) {
+            return Some(*cat);
+        }
+        if let Some((cat, _)) = self.sink_names.get(qualified) {
+            return Some(*cat);
+        }
+        let unqualified = qualified.rsplit('.').next().unwrap_or(qualified);
+        if let Some((cat, count)) = self.sink_names.get(unqualified) {
+            if *count >= 3 {
+                return Some(*cat);
+            }
+        }
+        None
+    }
+
+    /// Check if a full call expression string is a known sink.
+    ///
+    /// Checks in order:
+    /// 1. Exact match on `sink_names` (bare function call like `exec`).
+    /// 2. Exact match on `qualified_sink_names` (qualified like `collection.findOne`).
+    /// 3. Suffix match: any entry in `sink_names` appears as the final `.`-delimited segment
+    ///    of `expr`, guarded against safe built-in prefixes.
+    pub fn is_sink_expr(&self, expr: &str) -> Option<SinkCategory> {
+        // 1. Short-name exact match
+        if let Some((cat, _)) = self.sink_names.get(expr) {
+            return Some(*cat);
+        }
+
+        // 2. Qualified exact match
+        if let Some((cat, _)) = self.qualified_sink_names.get(expr) {
+            return Some(*cat);
+        }
+
+        // Safe built-in object prefixes — never a sink regardless of method name
+        const SAFE_PREFIXES: &[&str] = &[
+            "Object.", "Array.", "String.", "Number.", "Math.",
+            "JSON.", "console.", "process.", "Promise.",
+        ];
+        for prefix in SAFE_PREFIXES {
+            if expr.starts_with(prefix) {
+                return None;
+            }
+        }
+
+        // 3. Suffix match: last segment of a dotted call matches a known short sink
+        if let Some(last_seg) = expr.rsplit('.').next() {
+            // Strip any trailing call punctuation
+            let clean = last_seg.trim_end_matches(|c: char| c == '(' || c == ')');
+            if let Some((cat, _)) = self.sink_names.get(clean) {
+                return Some(*cat);
+            }
+        }
+
+        None
+    }
+
+    /// Check if a call expression is a known sanitizer.
+    ///
+    /// Returns `true` when the call is known to clean tainted input so taint
+    /// propagation should stop at the result variable.
+    pub fn is_sanitizer_call(&self, expr: &str) -> bool {
+        // Learned from negative corpus
+        if self.sanitizer_names.contains_key(expr) {
+            return true;
+        }
+        // Built-in heuristics — stable regardless of corpus content
+        const SANITIZER_FRAGMENTS: &[&str] = &[
+            "escape", "sanitize", "encode", "validate", "strip",
+            "clean", "purify", "filter", "dompurify", "xss", "he.",
+        ];
+        let lower = expr.to_lowercase();
+        for frag in SANITIZER_FRAGMENTS {
+            if lower.contains(frag) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Get source type count (for diagnostics).
@@ -47,16 +248,34 @@ impl CorpusSourceSinkRegistry {
         for (k, v) in &other.source_types {
             *self.source_types.entry(k.clone()).or_insert(0) += v;
         }
-        for (k, v) in &other.sink_names {
-            *self.sink_names.entry(k.clone()).or_insert(0) += v;
+        for (k, (cat, count)) in &other.sink_names {
+            let entry = self.sink_names.entry(k.clone()).or_insert((*cat, 0));
+            entry.1 += count;
+        }
+        for (k, (cat, count)) in &other.qualified_sink_names {
+            let entry = self.qualified_sink_names.entry(k.clone()).or_insert((*cat, 0));
+            entry.1 += count;
+        }
+        for (k, v) in &other.sanitizer_names {
+            *self.sanitizer_names.entry(k.clone()).or_insert(0) += v;
         }
     }
 
-    /// Prune entries below `MIN_OCCURRENCES` threshold.
+    /// Prune entries below their specific threshold.
     pub fn prune(&mut self) {
         self.source_types
-            .retain(|_, count| *count >= MIN_OCCURRENCES);
-        self.sink_names.retain(|_, count| *count >= MIN_OCCURRENCES);
+            .retain(|_, count| *count >= 2);
+            
+        self.sink_names.retain(|name, (_, count)| {
+            *count >= get_sink_tier(name).min_occurrences()
+        });
+        
+        self.qualified_sink_names.retain(|name, (_, count)| {
+            *count >= get_sink_tier(name).min_occurrences()
+        });
+        
+        self.sanitizer_names
+            .retain(|_, count| *count >= 2);
     }
 }
 
@@ -83,8 +302,16 @@ pub fn build_registry(positive_files: &[String]) -> CorpusSourceSinkRegistry {
 
         let mut seen_sinks = std::collections::HashSet::new();
         for sink in &file_sinks {
-            if seen_sinks.insert(sink.clone()) {
-                *registry.sink_names.entry(sink.clone()).or_insert(0) += 1;
+            let (short, qualified) = split_sink_name(sink);
+            if seen_sinks.insert(short.clone()) {
+                let cat = SinkCategory::from_sink_name(&short);
+                let entry = registry.sink_names.entry(short).or_insert((cat, 0));
+                entry.1 += 1;
+            }
+            if let Some(q) = qualified {
+                let cat = SinkCategory::from_sink_name(&q);
+                let entry = registry.qualified_sink_names.entry(q).or_insert((cat, 0));
+                entry.1 += 1;
             }
         }
     }
@@ -263,6 +490,8 @@ fn extract_type_from_param(param: Node, source: &str, types: &mut Vec<String>) {
 }
 
 /// Recursively extract function call names from the AST.
+/// Pushes both the full qualified expression and the short method name so the
+/// registry can do both exact and suffix matching.
 fn extract_call_names(node: Node, source: &str, sinks: &mut Vec<String>) {
     if node.kind() == "call_expression" {
         if let Some(callee) = node
@@ -270,9 +499,10 @@ fn extract_call_names(node: Node, source: &str, sinks: &mut Vec<String>) {
             .or_else(|| node.child_by_field_name("callee"))
             .or_else(|| node.child(0))
         {
-            let name = extract_callee_name(callee, source);
-            if !name.is_empty() {
-                sinks.push(name);
+            // Push the full expression text as-is so qualified_sink_names gets it
+            let full = source[callee.start_byte()..callee.end_byte()].to_string();
+            if !full.is_empty() {
+                sinks.push(full);
             }
         }
     }
@@ -289,28 +519,37 @@ fn extract_call_names(node: Node, source: &str, sinks: &mut Vec<String>) {
     }
 }
 
-/// Extract the name from a callee node (handles method calls, paths, etc.).
-fn extract_callee_name(node: Node, source: &str) -> String {
-    match node.kind() {
-        "identifier" | "field_identifier" => source[node.start_byte()..node.end_byte()].to_string(),
-        "member_expression" => {
-            // e.g., console.log → "log"
-            if let Some(field) = node.child_by_field_name("field") {
-                return source[field.start_byte()..field.end_byte()].to_string();
-            }
-            // Fallback: take last child
-            if let Some(last) = node.child(node.child_count() - 1) {
-                return source[last.start_byte()..last.end_byte()].to_string();
-            }
-            String::new()
+
+
+/// Split a raw callee expression string into `(short_name, qualified_name)`.
+///
+/// `short_name` is the final `.`-delimited segment (the method name).
+/// `qualified_name` is the last two segments, used for context-aware matching
+/// (e.g. `"db.collection(...).findOne"` → short=`"findOne"`, qualified=`"collection.findOne"`).
+pub fn split_sink_name(raw: &str) -> (String, Option<String>) {
+    // Strip call-argument suffixes like `(...)`
+    let trimmed = if let Some(idx) = raw.find('(') {
+        &raw[..idx]
+    } else {
+        raw
+    };
+
+    let parts: Vec<&str> = trimmed.split('.').collect();
+    let short = parts.last().map(|s| s.trim().to_string()).unwrap_or_default();
+
+    let qualified = if parts.len() >= 2 {
+        let last_two = &parts[parts.len() - 2..];
+        // Skip if the penultimate segment contains parentheses (it's a chained call result)
+        if !last_two[0].contains('(') {
+            Some(format!("{}.{}", last_two[0].trim(), last_two[1].trim()))
+        } else {
+            None
         }
-        "scoped_identifier" => {
-            // e.g., std::process::Command → "Command"
-            let text = source[node.start_byte()..node.end_byte()].to_string();
-            text.rsplit("::").next().unwrap_or(&text).to_string()
-        }
-        _ => String::new(),
-    }
+    } else {
+        None
+    };
+
+    (short, qualified)
 }
 
 #[cfg(test)]
@@ -360,12 +599,12 @@ mod tests {
         let source = "function handler() { console.log(msg); document.write(html); }";
         let sinks = extract_sinks_from_source(source);
         assert!(
-            sinks.contains(&"log".to_string()),
-            "should find log from console.log"
+            sinks.iter().any(|s| s.contains("console.log")),
+            "should find console.log"
         );
         assert!(
-            sinks.contains(&"write".to_string()),
-            "should find write from document.write"
+            sinks.iter().any(|s| s.contains("document.write")),
+            "should find document.write"
         );
     }
 
@@ -374,15 +613,15 @@ mod tests {
         let mut registry = CorpusSourceSinkRegistry::default();
         registry.source_types.insert("Request".to_string(), 3);
         registry.source_types.insert("OneOff".to_string(), 1);
-        registry.sink_names.insert("exec".to_string(), 5);
-        registry.sink_names.insert("rare_sink".to_string(), 1);
+        registry.sink_names.insert("exec".to_string(), (SinkCategory::CodeExecution, 5));
+        registry.sink_names.insert("rare_sink".to_string(), (SinkCategory::Unknown, 1));
 
         registry.prune();
 
         assert!(registry.is_source_type("Request"));
         assert!(!registry.is_source_type("OneOff"));
-        assert!(registry.is_sink("exec"));
-        assert!(!registry.is_sink("rare_sink"));
+        assert!(registry.is_sink("exec").is_some());
+        assert!(registry.is_sink("rare_sink").is_none());
     }
 
     #[test]

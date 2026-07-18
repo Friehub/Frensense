@@ -18,6 +18,12 @@ pub struct TemporalRuleToml {
 }
 
 #[derive(Debug, Clone)]
+pub struct TemporalEventLabel {
+    pub call_pattern: String,
+    pub event_name: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct TemporalConstraint {
     pub before: String,
     pub after: String,
@@ -89,6 +95,7 @@ pub struct TemporalAnalyzer {
     rules: Vec<TemporalRule>,
     violations: Vec<TemporalEvent>,
     last_event_id: Option<SemanticNodeId>,
+    labels: Vec<TemporalEventLabel>,
 }
 
 impl TemporalAnalyzer {
@@ -155,6 +162,17 @@ impl TemporalAnalyzer {
     /// Add rules from TOML configuration.
     pub fn add_rules_from_toml(&mut self, rules: &[TemporalRuleToml]) {
         for toml_rule in rules {
+            for seq_item in &toml_rule.sequence {
+                let call_pattern = seq_item.clone();
+                let event_name = seq_item.clone();
+                if !self.labels.iter().any(|l| l.event_name == event_name) {
+                    self.labels.push(TemporalEventLabel {
+                        call_pattern,
+                        event_name,
+                    });
+                }
+            }
+
             let constraints = toml_rule
                 .sequence
                 .windows(2)
@@ -175,6 +193,10 @@ impl TemporalAnalyzer {
                 constraints,
             });
         }
+    }
+
+    pub fn labels(&self) -> &[TemporalEventLabel] {
+        &self.labels
     }
 
     pub fn analyze(&mut self, events: &[TemporalEvent], file_path: &str) -> Vec<TemporalEvent> {
@@ -203,8 +225,9 @@ impl TemporalAnalyzer {
         root: Node,
         source: &str,
         file_path: &Path,
+        temporal_labels: Option<&[TemporalEventLabel]>,
     ) -> Vec<TemporalEvent> {
-        let events = crate::graph::extract_temporal_events(root, source, file_path);
+        let events = crate::graph::extract_temporal_events(root, source, file_path, temporal_labels);
         let file_str = file_path.to_string_lossy().to_string();
         self.analyze(&events, &file_str)
     }
@@ -274,6 +297,7 @@ pub fn extract_ordered_events<'a>(
     root: Node<'a>,
     source: &'a str,
     file_path: &Path,
+    temporal_labels: Option<&[TemporalEventLabel]>,
 ) -> Vec<TemporalEvent> {
     let mut events = Vec::new();
     let mut cursor = root.walk();
@@ -350,6 +374,20 @@ pub fn extract_ordered_events<'a>(
                         line,
                         column,
                     });
+                }
+
+                if let Some(temporal_labels) = temporal_labels {
+                    for label in temporal_labels {
+                        if call_text.contains(label.call_pattern.as_str()) {
+                            events.push(TemporalEvent {
+                                event_type: EventType::Call,
+                                label: label.event_name.clone(),
+                                file_path: file_str.clone(),
+                                line,
+                                column,
+                            });
+                        }
+                    }
                 }
             }
         }

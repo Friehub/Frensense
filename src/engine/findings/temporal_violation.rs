@@ -8,8 +8,12 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
 
     if let Some(analyzer) = ctx.temporal_analyzer.as_ref() {
         let root = snap.tree.root_node();
-        let events =
-            frensense_engine::graph::extract_temporal_events(root, &snap.content, &snap.path);
+        let events = frensense_engine::graph::extract_temporal_events(
+            root,
+            &snap.content,
+            &snap.path,
+            Some(analyzer.labels()),
+        );
         let violations = analyzer.analyze_event_list(&events);
 
         for v in violations {

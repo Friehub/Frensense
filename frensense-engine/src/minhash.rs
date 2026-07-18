@@ -209,9 +209,7 @@ mod tests {
 
     #[test]
     fn test_minhash_identical_sets() {
-        let mut set = FxHashSet::default();
-        set.insert(42);
-        set.insert(99);
+        let set: Vec<u64> = vec![42, 99];
         let sig = minhash_signature(&set, DEFAULT_NUM_HASHES);
         assert_eq!(sig.len(), DEFAULT_NUM_HASHES);
     }
@@ -245,7 +243,7 @@ mod tests {
     #[test]
     fn test_lsh_index() {
         let mut index = LSHIndex::new(4, 2);
-        let sig = minhash_signature(&FxHashSet::default(), 8);
+        let sig = minhash_signature(&[], 8);
         index.insert(&sig, 42);
         let candidates = index.query(&sig);
         assert!(candidates.contains(&42));
@@ -253,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_approximate_jaccard_empty() {
-        let sim = approximate_jaccard(&FxHashSet::default(), &FxHashSet::default());
+        let sim = approximate_jaccard(&[], &[]);
         assert!((sim - 1.0).abs() < 1e-10);
     }
 }

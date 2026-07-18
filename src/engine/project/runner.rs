@@ -197,35 +197,43 @@ fn run_findings_modules(
                         .or_else(|| node.child_by_field_name("formal_parameters"))
                     {
                         let mut p_cursor = params_node.walk();
-                        let mut is_source = false;
+                        let mut detected_origin: Option<frensense_engine::data_flow::TaintOrigin> = None;
                         for param in params_node.children(&mut p_cursor) {
                             if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
                                 continue;
                             }
-                            let (param_name, param_type) =
+                            let (mut param_name, param_type) =
                                 frensense_engine::corpus::source_sink::extract_param_info(
                                     param,
                                     &snap.content,
                                 );
+                            if param_name.is_empty() && param.kind() == "identifier" {
+                                param_name = snap.content
+                                    [param.start_byte()..param.end_byte()]
+                                    .to_string();
+                            }
                             let clean_type = param_type.trim_start_matches(':').trim();
 
-                            if source_sink.is_source_type(clean_type)
-                                || param_name.to_lowercase() == "req"
-                                || param_name.to_lowercase() == "request"
-                                || param_name.to_lowercase() == "event"
-                            {
-                                is_source = true;
+                            let origin = if source_sink.is_source_type(clean_type) {
+                                Some(frensense_engine::data_flow::TaintOrigin::UserInput)
+                            } else {
+                                classify_runner_param_origin(&param_name)
+                            };
+                            if let Some(o) = origin {
+                                detected_origin = Some(o);
+                                break;
                             }
                         }
 
-                        if is_source {
+                        if let Some(origin) = detected_origin.clone() {
                             cross_file_taint.register_exposed_taint(
                                 &fn_name_str,
                                 &snap.path.to_string_lossy(),
-                                frensense_engine::data_flow::TaintOrigin::UserInput,
+                                origin,
                             );
                             exposed_count += 1;
                         }
+
 
                         // Intra-procedural fallback for anonymous functions
                         let mut body_stack = vec![node];
@@ -248,8 +256,8 @@ fn run_findings_modules(
                                         || expr_lower == "headers()"
                                         || expr_lower.contains("headers.get")
                                     {
-                                        if !is_source {
-                                            is_source = true;
+                                        if detected_origin.is_none() {
+                                            detected_origin = Some(frensense_engine::data_flow::TaintOrigin::UserInput);
                                             cross_file_taint.register_exposed_taint(
                                                 &fn_name_str,
                                                 &snap.path.to_string_lossy(),
@@ -309,7 +317,7 @@ fn run_findings_modules(
                                                 || lower.ends_with(".remove");
                                         }
 
-                                        if is_source && is_sink {
+                                        if detected_origin.is_some() && is_sink {
                                             all_advisories.push(Advisory::bare(
                                             "CROSS_FILE_TAINT",
                                             crate::Severity::Critical,
@@ -325,7 +333,7 @@ fn run_findings_modules(
                             }
                         }
 
-                        if is_db_source && !is_source {
+                        if is_db_source && detected_origin.is_none() {
                             cross_file_taint.register_exposed_taint(
                                 &fn_name_str,
                                 &snap.path.to_string_lossy(),
@@ -355,6 +363,7 @@ fn run_findings_modules(
             alias_tracker: Some(&alias_tracker),
             cross_file_taint: Some(&cross_file_taint),
             temporal_analyzer: Some(&temporal_analyzer),
+            source_sink,
         };
         for module in &modules {
             all_advisories.extend(module.run(snap, &mut ctx));
@@ -706,6 +715,10 @@ fn verify_taint_flow(
     use crate::semantics::data_flow::cross_file::CrossFileVerifier;
 
     let file_path_str = file_path.to_string_lossy().to_string();
+    let ext = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    let mut cfg = frensense_engine::cfg::build_cfg(tree.root_node(), source, ext);
+    frensense_engine::cfg::compute_dominators(&mut cfg);
+
     let mut verifier = CrossFileVerifier::new(
         source,
         tree,
@@ -715,7 +728,7 @@ fn verify_taint_flow(
         file_trees,
         source_sink,
         deps,
-    );
+    ).with_cfg(cfg);
     verifier.seed_taint(fn_node);
     let result = verifier.verify_flow(fn_node);
 
@@ -1340,4 +1353,34 @@ fn is_test_file(path: &Path) -> bool {
     }
 
     false
+}
+
+/// Classify a bare parameter name into a `TaintOrigin` for untyped languages.
+///
+/// Mirrors `cross_file::classify_param_origin`; kept separate to avoid a
+/// cross-module dependency. Both tables must stay in sync.
+fn classify_runner_param_origin(name: &str) -> Option<frensense_engine::data_flow::TaintOrigin> {
+    use frensense_engine::data_flow::TaintOrigin;
+    let lower = name.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "req" | "request" | "event" | "ctx" | "context" | "payload" | "input"
+            | "body" | "query" | "params" | "args" | "data" | "cmd"
+            | "url" | "path" | "file" | "name"
+    ) {
+        return Some(TaintOrigin::UserInput);
+    }
+    if lower == "env" {
+        return Some(TaintOrigin::Environment);
+    }
+    if matches!(lower.as_str(), "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results") {
+        return Some(TaintOrigin::Database);
+    }
+    if matches!(lower.as_str(), "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer") {
+        return Some(TaintOrigin::Network);
+    }
+    if matches!(lower.as_str(), "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src") {
+        return Some(TaintOrigin::FileSystem);
+    }
+    None
 }

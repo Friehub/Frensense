@@ -209,10 +209,7 @@ impl PatternRegistry {
                     ));
                 }
 
-                if !filter.matches(node, src, extracted_flows.as_ref()) {
-                    if pattern.id == "rust_async_blocking_io" || pattern.id.contains("async") {
-                        // eprintln!("DEBUG: pattern {} rejected by semantic filter!", pattern.id);
-                    }
+                if !filter.matches(node, src, Some(fp.file_path.as_str()), extracted_flows.as_ref()) {
                     continue;
                 }
             }

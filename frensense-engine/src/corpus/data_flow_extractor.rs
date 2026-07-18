@@ -161,20 +161,50 @@ fn extract_var_name(node: Node<'_>, source: &str) -> String {
     }
 }
 
+fn extract_receiver_name(node: Node<'_>, source: &str) -> String {
+    match node.kind() {
+        "identifier" | "field_identifier" | "property_identifier" => {
+            source[node.start_byte()..node.end_byte()].to_string()
+        }
+        "member_expression" => {
+            source[node.start_byte()..node.end_byte()]
+                .trim()
+                .to_string()
+        }
+        _ => String::new(),
+    }
+}
+
 fn extract_callee_name(node: Node<'_>, source: &str) -> String {
     match node.kind() {
         "identifier" | "field_identifier" => source[node.start_byte()..node.end_byte()].to_string(),
         "member_expression" => {
-            if let Some(field) = node
+            let prop = node
                 .child_by_field_name("property")
                 .or_else(|| node.child_by_field_name("field"))
-            {
-                return source[field.start_byte()..field.end_byte()].to_string();
+                .map(|f| &source[f.start_byte()..f.end_byte()])
+                .unwrap_or("");
+            let obj = node
+                .child_by_field_name("object")
+                .map(|o| match o.kind() {
+                    "member_expression" => {
+                        o.child_by_field_name("property")
+                            .or_else(|| o.child_by_field_name("field"))
+                            .map(|p| source[p.start_byte()..p.end_byte()].to_string())
+                            .unwrap_or_default()
+                    }
+                    "identifier" | "field_identifier" => {
+                        source[o.start_byte()..o.end_byte()].to_string()
+                    }
+                    _ => String::new(),
+                })
+                .unwrap_or_default();
+            
+            if obj.is_empty() {
+                prop.to_string()
+            } else {
+                format!("{}.{}", obj, prop)
             }
-            if let Some(last) = node.child(node.child_count() - 1) {
-                return source[last.start_byte()..last.end_byte()].to_string();
-            }
-            String::new()
         }
         "scoped_identifier" => {
             let text = source[node.start_byte()..node.end_byte()].to_string();

@@ -38,6 +38,14 @@ pub struct SemanticFilter {
     /// Optional list of data flow paths that must exist in the function.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub required_taint_flows: Vec<(String, String)>,
+
+    /// Only match if the function name does NOT match any of these regexes.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub must_not_match_function_name: Vec<String>,
+
+    /// Only match if the file path does NOT match any of these glob patterns.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub must_not_match_file_path_pattern: Vec<String>,
 }
 
 impl SemanticFilter {
@@ -48,26 +56,56 @@ impl SemanticFilter {
             && self.must_not_contain_call_to.is_empty()
             && self.contains_node_type.is_empty()
             && self.must_not_contain_node_type.is_empty()
+            && self.must_not_match_function_name.is_empty()
+            && self.must_not_match_file_path_pattern.is_empty()
     }
 
     pub fn matches(
         &self,
         func_node: Node<'_>,
         source: &str,
+        file_path: Option<&str>,
         extracted_flows: Option<&std::collections::HashSet<(String, String)>>,
     ) -> bool {
         if self.is_empty() {
             return true;
         }
 
+        // Check file path patterns
+        if let Some(path) = file_path {
+            if !self.must_not_match_file_path_pattern.is_empty() {
+                for pattern in &self.must_not_match_file_path_pattern {
+                    // Very simple glob handling for *, or just string contains
+                    let p = pattern.trim_start_matches('*');
+                    let p = p.trim_end_matches('*');
+                    if path.contains(p) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        let func_name = extract_function_name(func_node, source);
+
         // Check function name regex
         if let Some(ref pattern) = self.function_name_regex {
-            if let Some(name) = extract_function_name(func_node, source) {
-                if !regex_match(&name, pattern) {
+            if let Some(name) = &func_name {
+                if !regex_match(name, pattern) {
                     return false;
                 }
             } else {
                 return false;
+            }
+        }
+
+        // Check forbidden function names
+        if !self.must_not_match_function_name.is_empty() {
+            if let Some(name) = &func_name {
+                for pattern in &self.must_not_match_function_name {
+                    if regex_match(name, pattern) {
+                        return false;
+                    }
+                }
             }
         }
 
@@ -271,6 +309,8 @@ impl LearnedConstraints {
             must_not_contain_node_type: self.forbidden_node_types.clone(),
             required_taint_flows: self.required_taint_flows.clone(),
             function_name_regex: None,
+            must_not_match_function_name: Vec::new(),
+            must_not_match_file_path_pattern: Vec::new(),
         }
     }
 }
@@ -505,6 +545,7 @@ mod tests {
         assert!(filter.matches(
             func,
             "function sanitizeHtml(input: string) { return input; }",
+            None,
             None
         ));
 
@@ -515,6 +556,7 @@ mod tests {
         assert!(!filter2.matches(
             func,
             "function sanitizeHtml(input: string) { return input; }",
+            None,
             None
         ));
     }
@@ -531,6 +573,7 @@ mod tests {
         assert!(filter.matches(
             func,
             "function foo() { fetch('/api').then(r => r.json()); }",
+            None,
             None
         ));
 
@@ -541,6 +584,7 @@ mod tests {
         assert!(!filter2.matches(
             func,
             "function foo() { fetch('/api').then(r => r.json()); }",
+            None,
             None
         ));
     }
@@ -558,6 +602,7 @@ mod tests {
         assert!(filter.matches(
             func,
             "function foo() { fetch('/api').then(r => r.json()); }",
+            None,
             None
         ));
 
@@ -567,6 +612,7 @@ mod tests {
         assert!(!filter.matches(
             func2,
             "function foo() { fetch('/api').then(r => r.json()).catch(e => {}); }",
+            None,
             None
         ));
     }

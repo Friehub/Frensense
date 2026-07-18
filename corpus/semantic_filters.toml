@@ -214,3 +214,24 @@ contains_call_to = ["app", "server"]
 # Must contain JSON.parse call
 [ts_deserialization]
 contains_call_to = ["JSON.parse"]
+
+# Don't fire ts_unauthenticated_db_write on registration/reset handlers
+[ts_unauthenticated_db_write]
+must_not_match_function_name = [
+    "register", "signup", "createAccount",
+    "resetPassword", "forgotPassword",
+    "verify", "confirm"
+]
+# Don't fire in test files
+must_not_match_file_path_pattern = ["*.test.ts", "*.spec.ts", "__tests__/", "fixtures/"]
+
+# Don't fire ts_missing_payment_gate on health/status/webhook endpoints
+[ts_missing_payment_gate]
+must_not_match_function_name = [
+    "healthCheck", "handleWebhook", "getStatus",
+    "handleOptions", "preflight"
+]
+
+# Don't fire ts_race_condition_read_check_write in test helper utilities
+[ts_race_condition_read_check_write]
+must_not_match_file_path_pattern = ["*.test.ts", "*.spec.ts", "test-utils/"]
