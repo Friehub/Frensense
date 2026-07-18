@@ -3,15 +3,15 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
-// TODO: Run `npm install openai` to use this
-import OpenAI from 'openai';
+// TODO: Run `npm install @google/genai` to use this
+import { GoogleGenAI } from '@google/genai';
 
 const execAsync = promisify(exec);
 
-// Initialize OpenAI client
-// Make sure to export OPENAI_API_KEY="your-key" in your terminal before running
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// Initialize Gemini client
+// Make sure to export GEMINI_API_KEY="your-key" in your terminal before running
+const gemini = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
 // --- Configuration ---
@@ -160,17 +160,17 @@ ${previousError ? '\n## PREVIOUS ATTEMPT FAILED\nError: ' + previousError + '\nT
 
   console.log('[Swarm] Dispatching task for ' + task.patternId + ' (' + task.mutation + ')');
   
-  // Call OpenAI API
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o', // Use the fastest smart model you have
-    messages: [
-      { role: 'system', content: 'You strictly return the requested code blocks and absolutely nothing else. No intro, no outro.' },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.2, // Keep it deterministic
+  // Call Gemini API
+  const response = await gemini.models.generateContent({
+    model: 'gemini-2.5-pro',
+    contents: prompt,
+    config: {
+        systemInstruction: 'You strictly return the requested code blocks and absolutely nothing else. No intro, no outro.',
+        temperature: 0.2,
+    }
   });
 
-  const content = response.choices[0].message.content || '';
+  const content = response.text || '';
 
   // Very naive markdown parsing (you might need a stronger regex depending on LLM output)
   const codeBlocks = [...content.matchAll(/```[\w]*\n([\s\S]*?)```/g)];
