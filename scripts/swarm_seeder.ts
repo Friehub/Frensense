@@ -2,6 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // TODO: Run `npm install @google/genai` to use this
 import { GoogleGenAI } from '@google/genai';
@@ -263,6 +267,5 @@ async function main() {
     console.log("🎉 Seeding complete!");
 }
 
-if (require.main === module) {
-    main().catch(console.error);
-}
+// Execute
+main().catch(console.error);
