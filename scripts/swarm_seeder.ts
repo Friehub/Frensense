@@ -2,10 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Emulate __dirname since we run this script from the project root via ts-node
+const __dirname = path.join(process.cwd(), 'scripts');
 
 // TODO: Run `npm install @google/genai` to use this
 import { GoogleGenAI } from '@google/genai';
