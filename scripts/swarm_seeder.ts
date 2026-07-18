@@ -244,7 +244,7 @@ async function processTask(task: Task): Promise<boolean> {
         }
     }
 
-    console.error('❌ Failed to generate ' + task.patternId + ' (' + task.mutation + ') after ' + MAX_RETRIES + ' attempts.');
+    console.error('❌ Failed to generate ' + task.patternId + ' (' + task.mutation + ') after ' + MAX_RETRIES + ' attempts. Last Error: ' + lastError);
     return false;
 }
 
