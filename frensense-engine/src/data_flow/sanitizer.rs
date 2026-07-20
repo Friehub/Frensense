@@ -23,49 +23,70 @@ impl SanitizerRegistry {
         let mut r = Self::default();
         // Numeric coercion — clears all injection risk
         r.full_sanitizers.extend([
-            "parseInt".into(), "parseFloat".into(), "Number".into(),
-            "BigInt".into(), "Math.round".into(), "Math.floor".into(),
-            "Math.ceil".into(), "Math.abs".into(), "Boolean".into()
+            "parseInt".into(),
+            "parseFloat".into(),
+            "Number".into(),
+            "BigInt".into(),
+            "Math.round".into(),
+            "Math.floor".into(),
+            "Math.ceil".into(),
+            "Math.abs".into(),
+            "Boolean".into(),
         ]);
         // Parameterized binding — clears SQL injection specifically
         r.context_sanitizers.insert("bind".into(), SinkContext::Sql);
-        r.context_sanitizers.insert("$1_placeholder".into(), SinkContext::Sql);
-        r.context_sanitizers.insert("db.prepare".into(), SinkContext::Sql);
-        r.context_sanitizers.insert("sqlQuery.$1".into(), SinkContext::Sql);
+        r.context_sanitizers
+            .insert("$1_placeholder".into(), SinkContext::Sql);
+        r.context_sanitizers
+            .insert("db.prepare".into(), SinkContext::Sql);
+        r.context_sanitizers
+            .insert("sqlQuery.$1".into(), SinkContext::Sql);
         // HTML escaping
         r.full_sanitizers.extend([
-            "he.escape".into(), "escapeHtml".into(), "sanitizeHtml".into(),
-            "DOMPurify.sanitize".into(), "validator.escape".into(), "xss".into()
+            "he.escape".into(),
+            "escapeHtml".into(),
+            "sanitizeHtml".into(),
+            "DOMPurify.sanitize".into(),
+            "validator.escape".into(),
+            "xss".into(),
         ]);
         // URL encoding — clears SSRF/redirect but not SQL
-        r.context_sanitizers.insert("encodeURIComponent".into(), SinkContext::Url);
-        r.context_sanitizers.insert("encodeURI".into(), SinkContext::Url);
+        r.context_sanitizers
+            .insert("encodeURIComponent".into(), SinkContext::Url);
+        r.context_sanitizers
+            .insert("encodeURI".into(), SinkContext::Url);
         r.context_sanitizers.insert("URL".into(), SinkContext::Url);
-        r.context_sanitizers.insert("new URL".into(), SinkContext::Url);
-        r.context_sanitizers.insert("url.pathname".into(), SinkContext::Url);
+        r.context_sanitizers
+            .insert("new URL".into(), SinkContext::Url);
+        r.context_sanitizers
+            .insert("url.pathname".into(), SinkContext::Url);
         // UUID generation — replaces user input with safe value
-        r.full_sanitizers.extend([
-            "crypto.randomUUID".into(), "uuidv4".into(), "nanoid".into()
-        ]);
+        r.full_sanitizers
+            .extend(["crypto.randomUUID".into(), "uuidv4".into(), "nanoid".into()]);
         // Buffer clearing — only clears binary encoding confusion
-        r.full_sanitizers.extend([
-            "Buffer.from".into()
-        ]);
+        r.full_sanitizers.extend(["Buffer.from".into()]);
         // Path safety (partial — path.normalize does NOT sanitize traversal)
-        r.context_sanitizers.insert("path.basename".into(), SinkContext::FilePath);
+        r.context_sanitizers
+            .insert("path.basename".into(), SinkContext::FilePath);
         r
     }
 
     pub fn default_rust() -> Self {
         let mut r = Self::default();
         r.full_sanitizers.extend([
-            "parse::<u64>".into(), "parse::<i64>".into(),
-            "parse::<usize>".into(), "parse::<f64>".into(),
-            "to_string".into(), "percent_encode".into(),
-            "htmlescape::encode_minimal".into(), "uuid::Uuid::new_v4".into()
+            "parse::<u64>".into(),
+            "parse::<i64>".into(),
+            "parse::<usize>".into(),
+            "parse::<f64>".into(),
+            "to_string".into(),
+            "percent_encode".into(),
+            "htmlescape::encode_minimal".into(),
+            "uuid::Uuid::new_v4".into(),
         ]);
-        r.context_sanitizers.insert("sqlx::query!".into(), SinkContext::Sql);
-        r.context_sanitizers.insert("sqlx::query().bind".into(), SinkContext::Sql);
+        r.context_sanitizers
+            .insert("sqlx::query!".into(), SinkContext::Sql);
+        r.context_sanitizers
+            .insert("sqlx::query().bind".into(), SinkContext::Sql);
         r.context_sanitizers.insert("bind".into(), SinkContext::Sql);
         r
     }

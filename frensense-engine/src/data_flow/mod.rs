@@ -4,13 +4,13 @@ pub mod alias;
 pub mod confidence;
 pub mod cross_file;
 pub mod engine;
+pub mod entropy;
 pub mod normalization;
+pub mod pii;
 pub mod propagators;
 pub mod resolver;
 pub mod sanitizer;
 pub mod taint_metrics;
-pub mod pii;
-pub mod entropy;
 
 pub use alias::AliasTracker;
 pub use engine::DataFlowEngine;

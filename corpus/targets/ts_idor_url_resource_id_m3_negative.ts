@@ -1,0 +1,19 @@
+// SAFE: Multi-hop with ownership check
+export async function getInvoice(req: Request, db: DB): Promise<Response> {
+  const a = req.params.id;
+  const b = a;
+  const invoiceId = b;
+  const session = getSession(req);
+  const invoice = await db.prepare('SELECT * FROM invoices WHERE id = ? AND user_id = ?').bind(invoiceId, session.userId).first();
+  if (!invoice) return new Response('Not found', { status: 404 });
+  return new Response(JSON.stringify(invoice));
+}
+
+export async function getOrder(req: Request, db: DB): Promise<Response> {
+  const raw = req.params.orderId;
+  const orderId = raw;
+  const session = getSession(req);
+  const order = await db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').bind(orderId, session.userId).first();
+  if (!order) return new Response('Not found', { status: 404 });
+  return new Response(JSON.stringify(order));
+}

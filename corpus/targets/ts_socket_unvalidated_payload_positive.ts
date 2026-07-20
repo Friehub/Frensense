@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "A WebSocket or Socket.io event listener accepts arbitrary payloads without type checking or validation."
-// impact = "Attackers can send malformed or malicious objects over WebSockets, potentially triggering application crashes or logic bypasses."
-// improvement = "Validate the incoming data payload using a schema validator like Zod before processing it."
+// observation: A WebSocket or Socket.io event listener accepts arbitrary payloads without type checking or validation.
+// impact: Attackers can send malformed or malicious objects over WebSockets, potentially triggering application crashes or logic bypasses.
+// improvement: Validate the incoming data payload using a schema validator like Zod before processing it.
 
 import { Server } from 'socket.io';
 

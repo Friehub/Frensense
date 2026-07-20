@@ -25,7 +25,7 @@ const TAXONOMY_FILES = [
   '../frensense-10000-extended-taxonomy.md'
 ];
 const CORPUS_DIR = '../corpus/targets';
-const CONCURRENCY = 16;
+const CONCURRENCY = 4;
 const MAX_RETRIES = 3;
 
 // --- Interfaces ---

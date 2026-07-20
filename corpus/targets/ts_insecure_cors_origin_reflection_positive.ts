@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "The Origin header from the request is directly reflected in the Access-Control-Allow-Origin response header."
-// impact = "Any malicious website can perform credentialed cross-origin requests to the API, bypassing CORS protections completely."
-// improvement = "Validate the Origin against a strict whitelist array before echoing it, or use a hardcoded domain."
+// observation: The Origin header from the request is directly reflected in the Access-Control-Allow-Origin response header.
+// impact: Any malicious website can perform credentialed cross-origin requests to the API, bypassing CORS protections completely.
+// improvement: Validate the Origin against a strict whitelist array before echoing it, or use a hardcoded domain.
 
 app.use((req, res, next) => {
   // VULNERABLE: Origin header blindly trusted

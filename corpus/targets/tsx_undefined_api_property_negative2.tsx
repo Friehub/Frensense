@@ -1,25 +1,23 @@
-// [frensense]
-// observation: Defensive rendering with null checks and fallbacks for potentially missing properties.
-// impact: None — rendering is safe even if properties are missing.
-// improvement: N/A — this is the correct pattern.
+// SAFE: API response is validated with a runtime type checker before access
 
-export function SafeCartItem({ item }: { item: any }) {
-    if (!item) return null;
+import { z } from 'zod';
 
-    // Defensive check: handle potentially undefined values safely
-    const price = typeof item.price === 'number' ? item.price : 0;
-    const quantity = typeof item.quantity === 'number' ? item.quantity : 1;
-    const total = price * quantity;
+const CartItemSchema = z.object({
+  name: z.string(),
+  priceSnapshot: z.number().positive(),
+  quantity: z.number().int().positive()
+});
 
-    return (
-        <div className="cart-item">
-            <span className="title">{item.name || 'Unknown Item'}</span>
-            <span className="total">
-                Total: {total.toFixed(2)}
-            </span>
-            {item.priceSnapshot && (
-                 <span className="snapshot">Snapshot: {item.priceSnapshot}</span>
-            )}
-        </div>
-    );
+export function CartItem({ item }: { item: any }) {
+  const parsed = CartItemSchema.safeParse(item);
+  if (!parsed.success) {
+    return <div className="cart-item error">Invalid item data</div>;
+  }
+  const { name, priceSnapshot, quantity } = parsed.data;
+  return (
+    <div className="cart-item">
+      <span className="title">{name}</span>
+      <span className="total">Total: {priceSnapshot * quantity}</span>
+    </div>
+  );
 }

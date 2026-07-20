@@ -129,11 +129,7 @@ fn extract_ref_names(node: Node, source: &str, names: &mut Vec<String>) {
     }
 }
 
-fn collect_binding_names_from_pattern(
-    pattern: Node,
-    source: &str,
-    names: &mut Vec<String>,
-) {
+fn collect_binding_names_from_pattern(pattern: Node, source: &str, names: &mut Vec<String>) {
     match pattern.kind() {
         "identifier" => {
             names.push(source[pattern.start_byte()..pattern.end_byte()].to_string());

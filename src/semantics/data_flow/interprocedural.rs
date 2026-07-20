@@ -218,7 +218,9 @@ impl<'a> InterproceduralVerifier<'a> {
             }
             // Track variable assignments
             "variable_declarator" | "lexical_declaration" => {
-                if let Some(name_node) = node.child_by_field_name("name").or_else(|| node.child_by_field_name("pattern"))
+                if let Some(name_node) = node
+                    .child_by_field_name("name")
+                    .or_else(|| node.child_by_field_name("pattern"))
                     && let Some(value_node) = node.child_by_field_name("value")
                 {
                     let names = extract_binding_names(name_node, self.source);
@@ -226,10 +228,17 @@ impl<'a> InterproceduralVerifier<'a> {
                     if self.is_node_tainted(value_node) {
                         let mut is_sanitized = false;
                         if value_node.kind() == "call_expression" {
-                            if let Some(callee) = value_node.child_by_field_name("function").or_else(|| value_node.child_by_field_name("callee")) {
-                                let callee_name = &self.source[callee.start_byte()..callee.end_byte()];
-                                let short_name = callee_name.rsplit('.').next().unwrap_or(callee_name).trim();
-                                if self.sanitizers.is_full_sanitizer(short_name) || self.sanitizers.is_full_sanitizer(callee_name) {
+                            if let Some(callee) = value_node
+                                .child_by_field_name("function")
+                                .or_else(|| value_node.child_by_field_name("callee"))
+                            {
+                                let callee_name =
+                                    &self.source[callee.start_byte()..callee.end_byte()];
+                                let short_name =
+                                    callee_name.rsplit('.').next().unwrap_or(callee_name).trim();
+                                if self.sanitizers.is_full_sanitizer(short_name)
+                                    || self.sanitizers.is_full_sanitizer(callee_name)
+                                {
                                     is_sanitized = true;
                                 }
                             }
@@ -256,10 +265,17 @@ impl<'a> InterproceduralVerifier<'a> {
                     if self.is_node_tainted(right) {
                         let mut is_sanitized = false;
                         if right.kind() == "call_expression" {
-                            if let Some(callee) = right.child_by_field_name("function").or_else(|| right.child_by_field_name("callee")) {
-                                let callee_name = &self.source[callee.start_byte()..callee.end_byte()];
-                                let short_name = callee_name.rsplit('.').next().unwrap_or(callee_name).trim();
-                                if self.sanitizers.is_full_sanitizer(short_name) || self.sanitizers.is_full_sanitizer(callee_name) {
+                            if let Some(callee) = right
+                                .child_by_field_name("function")
+                                .or_else(|| right.child_by_field_name("callee"))
+                            {
+                                let callee_name =
+                                    &self.source[callee.start_byte()..callee.end_byte()];
+                                let short_name =
+                                    callee_name.rsplit('.').next().unwrap_or(callee_name).trim();
+                                if self.sanitizers.is_full_sanitizer(short_name)
+                                    || self.sanitizers.is_full_sanitizer(callee_name)
+                                {
                                     is_sanitized = true;
                                 }
                             }
@@ -352,8 +368,14 @@ impl<'a> InterproceduralVerifier<'a> {
                 }
                 if self.is_node_tainted(arg) {
                     if let Some(cfg) = &self.cfg {
-                        if let Some(sink_block) = frensense_engine::cfg::block_for_byte(cfg, call_node.start_byte()) {
-                            if frensense_engine::cfg::has_auth_guard_dominator(cfg, sink_block, self.source) {
+                        if let Some(sink_block) =
+                            frensense_engine::cfg::block_for_byte(cfg, call_node.start_byte())
+                        {
+                            if frensense_engine::cfg::has_auth_guard_dominator(
+                                cfg,
+                                sink_block,
+                                self.source,
+                            ) {
                                 return None;
                             }
                         }
@@ -595,12 +617,19 @@ impl<'a> InterproceduralVerifier<'a> {
 
                     if matches!(c.kind(), "member_expression" | "field_expression") {
                         is_member = true;
-                        if let Some(prop) = c.child_by_field_name("property").or_else(|| c.child_by_field_name("field")) {
+                        if let Some(prop) = c
+                            .child_by_field_name("property")
+                            .or_else(|| c.child_by_field_name("field"))
+                        {
                             short_name = &self.source[prop.start_byte()..prop.end_byte()];
                         }
                     }
 
-                    if let Some(rule) = self.propagators.get_rule(fn_name).or_else(|| self.propagators.get_rule(short_name)) {
+                    if let Some(rule) = self
+                        .propagators
+                        .get_rule(fn_name)
+                        .or_else(|| self.propagators.get_rule(short_name))
+                    {
                         if rule.tainted_receiver && is_member {
                             if let Some(object) = c.child_by_field_name("object") {
                                 if self.is_node_tainted(object) {
@@ -646,7 +675,20 @@ impl<'a> InterproceduralVerifier<'a> {
                     // Return-value taint propagation from known source methods
                     if is_member {
                         if let Some(object) = c.child_by_field_name("object") {
-                            if matches!(short_name, "json" | "text" | "formData" | "query" | "header" | "param" | "body" | "arrayBuffer" | "first" | "all" | "get") {
+                            if matches!(
+                                short_name,
+                                "json"
+                                    | "text"
+                                    | "formData"
+                                    | "query"
+                                    | "header"
+                                    | "param"
+                                    | "body"
+                                    | "arrayBuffer"
+                                    | "first"
+                                    | "all"
+                                    | "get"
+                            ) {
                                 if self.is_node_tainted(object) {
                                     return true;
                                 }
@@ -694,7 +736,10 @@ impl<'a> InterproceduralVerifier<'a> {
         match node.kind() {
             "member_expression" | "field_expression" => {
                 let text = &self.source[node.start_byte()..node.end_byte()];
-                text.starts_with("process.env.") || text.starts_with("env.") || text == "process.env" || text == "env"
+                text.starts_with("process.env.")
+                    || text.starts_with("env.")
+                    || text == "process.env"
+                    || text == "env"
             }
             "identifier" => {
                 let text = &self.source[node.start_byte()..node.end_byte()];
@@ -713,10 +758,31 @@ mod tests {
         let mut reg = CorpusSourceSinkRegistry::default();
         reg.source_types.insert("Request".to_string(), 5);
         reg.source_types.insert("Json".to_string(), 3);
-        reg.sink_names.insert("exec".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::CodeExecution, 4));
-        reg.sink_names.insert("eval".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::CodeExecution, 3));
-        reg.sink_names.insert("query".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::SqlInjection, 5));
-        reg.sink_names.insert("innerHTML".to_string(), (frensense_engine::corpus::source_sink::SinkCategory::Xss, 2));
+        reg.sink_names.insert(
+            "exec".to_string(),
+            (
+                frensense_engine::corpus::source_sink::SinkCategory::CodeExecution,
+                4,
+            ),
+        );
+        reg.sink_names.insert(
+            "eval".to_string(),
+            (
+                frensense_engine::corpus::source_sink::SinkCategory::CodeExecution,
+                3,
+            ),
+        );
+        reg.sink_names.insert(
+            "query".to_string(),
+            (
+                frensense_engine::corpus::source_sink::SinkCategory::SqlInjection,
+                5,
+            ),
+        );
+        reg.sink_names.insert(
+            "innerHTML".to_string(),
+            (frensense_engine::corpus::source_sink::SinkCategory::Xss, 2),
+        );
         reg
     }
 

@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "An entity is transitioned to a terminal state (e.g., CANCELLED, REFUNDED, DELIVERED) without checking its current logical state."
-// impact = "An attacker can refund an already cancelled order, or cancel a shipped order, bypassing the business logic state machine."
-// improvement = "Assert that the current state is valid for the transition (e.g., only allow CANCEL if state is PENDING)."
+// observation: An entity is transitioned to a terminal state (e.g., CANCELLED, REFUNDED, DELIVERED) without checking its current logical state.
+// impact: An attacker can refund an already cancelled order, or cancel a shipped order, bypassing the business logic state machine.
+// improvement: Assert that the current state is valid for the transition (e.g., only allow CANCEL if state is PENDING).
 
 async function cancelOrder(orderId: string, db: DB) {
   const order = await db.prepare('SELECT * FROM orders WHERE id = ?').bind(orderId).first();

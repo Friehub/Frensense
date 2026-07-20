@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "Wallet or credit balance is decremented using an absolute value read in application memory, ignoring concurrent mutations."
-// impact = "Two concurrent checkout requests read the same balance, both pass the threshold check, and both set the balance to `balance - cost`, resulting in double spending."
-// improvement = "Use atomic decrement SQL operations (`balance = balance - cost WHERE balance >= cost`) or pessimistic row locks for financial operations."
+// observation: Wallet or credit balance is decremented using an absolute value read in application memory, ignoring concurrent mutations.
+// impact: Two concurrent checkout requests read the same balance, both pass the threshold check, and both set the balance to `balance - cost`, resulting in double spending.
+// improvement: Use atomic decrement SQL operations (`balance = balance - cost WHERE balance >= cost`) or pessimistic row locks for financial operations.
 
 async function checkoutCart(userId: string, cost: number, db: DB) {
   // VULNERABLE: reads balance into memory

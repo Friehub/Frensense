@@ -1,0 +1,294 @@
+warning: unused variable: `ngram_sim_threshold`
+   --> frensense-engine/src/pattern/scorer.rs:212:9
+    |
+212 |         ngram_sim_threshold: f64,
+    |         ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_ngram_sim_threshold`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `frensense-engine` (lib) generated 1 warning (run `cargo fix --lib -p frensense-engine` to apply 1 suggestion)
+   Compiling frensense v0.5.0 (/home/oxisrael/Friehub/Taas/frensense)
+warning: function `find_function_node` is never used
+    --> src/engine/project/runner.rs:1193:4
+     |
+1193 | fn find_function_node<'a>(
+     |    ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `has_function_child` is never used
+    --> src/engine/project/runner.rs:1278:4
+     |
+1278 | fn has_function_child(node: tree_sitter::Node<'_>) -> bool {
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: field `deps` is never read
+  --> src/semantics/data_flow/cross_file.rs:51:5
+   |
+33 | pub struct CrossFileVerifier<'a> {
+   |            ----------------- field in this struct
+...
+51 |     deps: &'a std::collections::HashSet<String>,
+   |     ^^^^
+
+warning: `frensense` (lib) generated 3 warnings
+    Finished `release` profile [optimized] target(s) in 17.34s
+     Running `target/release/frensense ../benchmarks/NodeGoat --corpus corpus/targets/nodejs_nosql --mode taint --ngram-sim-threshold 0.05 --threshold 0.00 --min-confidence 0.65 --json`
+Finished collect_files_impl with 27 snapshots.
+Loaded 69 patterns from embedded bundle
+Loaded 2 patterns from corpus directory
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/artifacts/db-reset.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/index.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/research.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/assets/js/tour/redirects-steps.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/assets/js/chart/chart-data-morris.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/config/env/production.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/config/env/all.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/config/env/development.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/config/env/test.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/config/config.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/allocations.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/memos.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/profile.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/contributions-dao.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/tutorial.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/session.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/memos-dao.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/Gruntfile.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/server.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/allocations-dao.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/contributions.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/profile-dao.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/error.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/routes/benefits.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/user-dao.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/benefits-dao.js
+Extracting fingerprints for: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat/app/data/research-dao.js
+Fingerprinting completed for 113 functions. Beginning scoring pipeline...
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+DEBUG: verify_taint_flow returned verified=false, source=None, sink=None
+Scoring pipeline completed in 455ms.
+DEBUG CROSS_FILE_TAINT: build_from_symbols generated 0 keys in call_graph
+DEBUG CROSS_FILE_TAINT: registered 12 exposed sources

@@ -66,23 +66,37 @@ pub struct CallDiff {
 pub fn diff_ast(
     positive_source: &str,
     negative_source: &str,
-    _positive_path: &str,
-    _negative_path: &str,
+    positive_path: &str,
+    negative_path: &str,
 ) -> Result<AstDiff, String> {
+    let pos_lang = frensense_engine::parser::ParserRegistry::get_language(std::path::Path::new(positive_path)).map_err(|e| e.to_string())?;
+    let neg_lang = frensense_engine::parser::ParserRegistry::get_language(std::path::Path::new(negative_path)).map_err(|e| e.to_string())?;
+
+    let mut pos_parser = tree_sitter::Parser::new();
+    pos_parser.set_language(&pos_lang).map_err(|e| e.to_string())?;
+    let pos_tree = pos_parser.parse(positive_source, None).ok_or("Failed to parse positive source")?;
+
+    let mut neg_parser = tree_sitter::Parser::new();
+    neg_parser.set_language(&neg_lang).map_err(|e| e.to_string())?;
+    let neg_tree = neg_parser.parse(negative_source, None).ok_or("Failed to parse negative source")?;
+
+    let pos_root = pos_tree.root_node();
+    let neg_root = neg_tree.root_node();
+
     // Extract function calls from both
-    let pos_calls = extract_calls(positive_source);
-    let neg_calls = extract_calls(negative_source);
+    let pos_calls = extract_calls(pos_root, positive_source);
+    let neg_calls = extract_calls(neg_root, negative_source);
 
     // Extract function names from both
-    let pos_funcs = extract_functions(positive_source);
-    let neg_funcs = extract_functions(negative_source);
+    let pos_funcs = extract_functions(pos_root, positive_source);
+    let neg_funcs = extract_functions(neg_root, negative_source);
 
     // Find modified functions
     let mut modified_functions = Vec::new();
     for (name, pos_line) in &pos_funcs {
         if let Some(neg_line) = neg_funcs.get(name) {
-            let pos_calls_in_func = get_calls_in_function(positive_source, name);
-            let neg_calls_in_func = get_calls_in_function(negative_source, name);
+            let pos_calls_in_func = get_calls_in_function(pos_root, positive_source, name);
+            let neg_calls_in_func = get_calls_in_function(neg_root, negative_source, name);
 
             let changes = analyze_changes(&pos_calls_in_func, &neg_calls_in_func);
             if !changes.is_empty() {
@@ -105,91 +119,142 @@ pub fn diff_ast(
     })
 }
 
-///
-/// # Panics
-/// May panic if internal assertions fail.
-/// Extract function calls from source code.
-fn extract_calls(source: &str) -> Vec<(String, String)> {
+/// Extract function calls from AST node.
+fn extract_calls(root: tree_sitter::Node, source: &str) -> Vec<(String, String)> {
     let mut calls = Vec::new();
-    let re = regex::Regex::new(r"(\w+)\s*\(\s*(\w+)").unwrap();
-
-    for cap in re.captures_iter(source) {
-        let source_func = cap
-            .get(1)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        let target_func = cap
-            .get(2)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        calls.push((source_func, target_func));
-    }
-
-    calls
-}
-
-///
-/// # Panics
-/// May panic if internal assertions fail.
-/// Extract function declarations from source code.
-fn extract_functions(source: &str) -> HashMap<String, usize> {
-    let mut funcs = HashMap::new();
-    let re = regex::Regex::new(r"function\s+(\w+)").unwrap();
-
-    for (i, line) in source.lines().enumerate() {
-        if let Some(cap) = re.captures(line)
-            && let Some(name) = cap.get(1)
-        {
-            funcs.insert(name.as_str().to_string(), i + 1);
-        }
-    }
-
-    funcs
-}
-
-///
-/// # Panics
-/// May panic if internal assertions fail.
-/// Get calls within a specific function.
-fn get_calls_in_function(source: &str, func_name: &str) -> Vec<String> {
-    let mut calls = Vec::new();
-    let re = regex::Regex::new(&format!(
-        r"function\s+{}\s*\([^)]*\)\s*\{{",
-        regex::escape(func_name)
-    ))
-    .unwrap();
-
-    if let Some(m) = re.find(source) {
-        let start = m.end();
-        // Find matching closing brace
-        let mut depth = 1;
-        let mut end = start;
-        for (i, c) in source[start..].char_indices() {
-            match c {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = start + i;
+    
+    fn walk(node: tree_sitter::Node, source: &str, calls: &mut Vec<(String, String)>) {
+        let kind = node.kind();
+        if kind == "call_expression" || kind == "call" {
+            let func_node = node.child_by_field_name("function").or_else(|| node.child(0));
+            let args_node = node.child_by_field_name("arguments");
+            
+            if let (Some(func), Some(args)) = (func_node, args_node) {
+                let func_name = source[func.start_byte()..func.end_byte()].to_string();
+                let short_func = func_name.split('.').last().unwrap_or(&func_name).trim();
+                
+                let mut first_arg = String::new();
+                for i in 0..args.child_count() {
+                    let arg = args.child(i).unwrap();
+                    if !matches!(arg.kind(), "(" | ")" | ",") {
+                        first_arg = source[arg.start_byte()..arg.end_byte()].to_string();
+                        if let Some(first_word) = first_arg.split(|c: char| !c.is_alphanumeric() && c != '_').find(|s| !s.is_empty()) {
+                            first_arg = first_word.to_string();
+                        }
                         break;
                     }
                 }
-                _ => {}
-            }
-        }
-
-        let body = &source[start..end];
-        let call_re = regex::Regex::new(r"(\w+)\s*\(").unwrap();
-        for cap in call_re.captures_iter(body) {
-            if let Some(name) = cap.get(1) {
-                let name = name.as_str().to_string();
-                if name != func_name && name != "if" && name != "for" && name != "while" {
-                    calls.push(name);
+                
+                if !short_func.is_empty() && !first_arg.is_empty() {
+                    calls.push((short_func.to_string(), first_arg));
                 }
             }
         }
+        
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            walk(child, source, calls);
+        }
     }
+    
+    walk(root, source, &mut calls);
+    calls
+}
 
+/// Extract function declarations from AST.
+fn extract_functions(root: tree_sitter::Node, source: &str) -> HashMap<String, usize> {
+    let mut funcs = HashMap::new();
+    
+    fn walk(node: tree_sitter::Node, source: &str, funcs: &mut HashMap<String, usize>) {
+        let kind = node.kind();
+        if matches!(
+            kind,
+            "function_declaration" | "function_item" | "method_definition" | "function_definition"
+        ) {
+            if let Some(name_node) = node.child_by_field_name("name") {
+                let name = source[name_node.start_byte()..name_node.end_byte()].to_string();
+                funcs.insert(name, node.start_position().row + 1);
+            }
+        } else if kind == "variable_declarator" || kind == "assignment" {
+            // For JS/TS arrow functions, or Python assignments
+            let name_node = node.child_by_field_name("name").or_else(|| node.child_by_field_name("left"));
+            let value_node = node.child_by_field_name("value").or_else(|| node.child_by_field_name("right"));
+            if let (Some(n), Some(v)) = (name_node, value_node) {
+                if matches!(v.kind(), "arrow_function" | "function") {
+                    let name = source[n.start_byte()..n.end_byte()].to_string();
+                    funcs.insert(name, node.start_position().row + 1);
+                }
+            }
+        }
+        
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            walk(child, source, funcs);
+        }
+    }
+    
+    walk(root, source, &mut funcs);
+    funcs
+}
+
+/// Get calls within a specific function.
+fn get_calls_in_function(root: tree_sitter::Node, source: &str, target_func_name: &str) -> Vec<String> {
+    let mut calls = Vec::new();
+    let mut func_node = None;
+    
+    fn find_func<'a>(node: tree_sitter::Node<'a>, source: &str, target: &str, found: &mut Option<tree_sitter::Node<'a>>) {
+        if found.is_some() { return; }
+        let kind = node.kind();
+        if matches!(kind, "function_declaration" | "function_item" | "method_definition" | "function_definition") {
+            if let Some(name_node) = node.child_by_field_name("name") {
+                let name = source[name_node.start_byte()..name_node.end_byte()].to_string();
+                if name == target {
+                    *found = Some(node);
+                    return;
+                }
+            }
+        } else if kind == "variable_declarator" || kind == "assignment" {
+            let name_node = node.child_by_field_name("name").or_else(|| node.child_by_field_name("left"));
+            let value_node = node.child_by_field_name("value").or_else(|| node.child_by_field_name("right"));
+            if let (Some(n), Some(v)) = (name_node, value_node) {
+                if matches!(v.kind(), "arrow_function" | "function") {
+                    let name = source[n.start_byte()..n.end_byte()].to_string();
+                    if name == target {
+                        *found = Some(v);
+                        return;
+                    }
+                }
+            }
+        }
+        
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            find_func(child, source, target, found);
+        }
+    }
+    
+    find_func(root, source, target_func_name, &mut func_node);
+    
+    if let Some(node) = func_node {
+        fn collect_calls(node: tree_sitter::Node, source: &str, calls: &mut Vec<String>) {
+            let kind = node.kind();
+            if kind == "call_expression" || kind == "call" {
+                if let Some(func) = node.child_by_field_name("function").or_else(|| node.child(0)) {
+                    let func_name = source[func.start_byte()..func.end_byte()].to_string();
+                    let short_func = func_name.split('.').last().unwrap_or(&func_name).trim();
+                    if !short_func.is_empty() {
+                        calls.push(short_func.to_string());
+                    }
+                }
+            }
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_calls(child, source, calls);
+            }
+        }
+        collect_calls(node, source, &mut calls);
+    }
+    
     calls
 }
 
@@ -319,5 +384,27 @@ function handler(req) {
 
         // Should detect that negative has a sanitizer added
         assert!(!diff.modified_functions.is_empty());
+    }
+
+    #[test]
+    fn test_diff_ast_rust() {
+        let positive = r#"
+fn handler(req: Request) {
+    let input = req.query();
+    db::query(input);
+}
+"#;
+        let negative = r#"
+fn handler(req: Request) {
+    let input = req.query();
+    let clean = sanitize(input);
+    db::query(clean);
+}
+"#;
+
+        let diff = diff_ast(positive, negative, "test.rs", "test.rs").unwrap();
+        assert!(!diff.modified_functions.is_empty());
+        let changes = &diff.modified_functions[0].changes;
+        assert!(changes.iter().any(|c| c.kind == ChangeKind::CallAdded && c.description.contains("sanitize")));
     }
 }

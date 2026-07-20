@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "Child resource ID is accepted from the client without verifying it belongs to the validated parent resource."
-// impact = "Attacker supplies a child ID belonging to a different user's parent, enabling cross-account data access or escrow lockout."
-// improvement = "Verify the child resource's parent matches the validated parent in the same query: WHERE id = ? AND parent_id = ?."
+// observation: Child resource ID is accepted from the client without verifying it belongs to the validated parent resource.
+// impact: Attacker supplies a child ID belonging to a different user's parent, enabling cross-account data access or escrow lockout.
+// improvement: Verify the child resource's parent matches the validated parent in the same query: WHERE id = ? AND parent_id = ?.
 
 async function openDispute(userId: string, orderId: string, orderLineId: string, db: DB) {
   // Parent is validated correctly

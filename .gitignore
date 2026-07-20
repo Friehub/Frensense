@@ -60,6 +60,7 @@ test-*.js
 # Large files
 *.zip
 *.db
+frensense-corpus.frc
 scripts/harvest_streaming/raw/
 corpus/ground_truth/
 corpus/baselines/

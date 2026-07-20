@@ -166,11 +166,9 @@ fn extract_receiver_name(node: Node<'_>, source: &str) -> String {
         "identifier" | "field_identifier" | "property_identifier" => {
             source[node.start_byte()..node.end_byte()].to_string()
         }
-        "member_expression" => {
-            source[node.start_byte()..node.end_byte()]
-                .trim()
-                .to_string()
-        }
+        "member_expression" => source[node.start_byte()..node.end_byte()]
+            .trim()
+            .to_string(),
         _ => String::new(),
     }
 }
@@ -187,19 +185,18 @@ fn extract_callee_name(node: Node<'_>, source: &str) -> String {
             let obj = node
                 .child_by_field_name("object")
                 .map(|o| match o.kind() {
-                    "member_expression" => {
-                        o.child_by_field_name("property")
-                            .or_else(|| o.child_by_field_name("field"))
-                            .map(|p| source[p.start_byte()..p.end_byte()].to_string())
-                            .unwrap_or_default()
-                    }
+                    "member_expression" => o
+                        .child_by_field_name("property")
+                        .or_else(|| o.child_by_field_name("field"))
+                        .map(|p| source[p.start_byte()..p.end_byte()].to_string())
+                        .unwrap_or_default(),
                     "identifier" | "field_identifier" => {
                         source[o.start_byte()..o.end_byte()].to_string()
                     }
                     _ => String::new(),
                 })
                 .unwrap_or_default();
-            
+
             if obj.is_empty() {
                 prop.to_string()
             } else {

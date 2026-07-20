@@ -227,7 +227,8 @@ impl TemporalAnalyzer {
         file_path: &Path,
         temporal_labels: Option<&[TemporalEventLabel]>,
     ) -> Vec<TemporalEvent> {
-        let events = crate::graph::extract_temporal_events(root, source, file_path, temporal_labels);
+        let events =
+            crate::graph::extract_temporal_events(root, source, file_path, temporal_labels);
         let file_str = file_path.to_string_lossy().to_string();
         self.analyze(&events, &file_str)
     }

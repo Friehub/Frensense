@@ -27,7 +27,7 @@ blake3 = { version = "1.5", optional = true }
 toml = "0.8"
 
 [features]
-default = ["rust", "typescript"]
+default = ["rust", "typescript", "serialize"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 python = ["dep:tree-sitter-python"]

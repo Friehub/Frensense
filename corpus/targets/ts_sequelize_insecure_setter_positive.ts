@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "A Sequelize model setter modifies a field without securely sanitizing the input."
-// impact = "Attackers can inject malicious scripts (Stored XSS) into the database, which will execute when rendered by clients."
-// improvement = "Sanitize the input using a secure library (e.g., DOMPurify, xss) before calling setDataValue."
+// observation: A Sequelize model setter modifies a field without securely sanitizing the input.
+// impact: Attackers can inject malicious scripts (Stored XSS) into the database, which will execute when rendered by clients.
+// improvement: Sanitize the input using a secure library (e.g., DOMPurify, xss) before calling setDataValue.
 
 import { Model, DataTypes } from 'sequelize';
 import * as security from '../lib/insecurity';

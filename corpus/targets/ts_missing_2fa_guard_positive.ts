@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "A high-privileged action (e.g., password reset, email change) is executed without verifying the user's 2FA status or recent authentication."
-// impact = "An attacker who compromises a session token can immediately execute account-takeover actions."
-// improvement = "Require recent authentication or a 2FA token (e.g., assert session.recentAuth or require an OTP) for sensitive actions."
+// observation: A high-privileged action (e.g., password reset, email change) is executed without verifying the user's 2FA status or recent authentication.
+// impact: An attacker who compromises a session token can immediately execute account-takeover actions.
+// improvement: Require recent authentication or a 2FA token (e.g., assert session.recentAuth or require an OTP) for sensitive actions.
 
 async function changeAccountEmail(req: Request, session: Session, db: DB) {
   const newEmail = req.body.email;

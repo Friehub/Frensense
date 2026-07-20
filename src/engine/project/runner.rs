@@ -197,7 +197,8 @@ fn run_findings_modules(
                         .or_else(|| node.child_by_field_name("formal_parameters"))
                     {
                         let mut p_cursor = params_node.walk();
-                        let mut detected_origin: Option<frensense_engine::data_flow::TaintOrigin> = None;
+                        let mut detected_origin: Option<frensense_engine::data_flow::TaintOrigin> =
+                            None;
                         for param in params_node.children(&mut p_cursor) {
                             if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
                                 continue;
@@ -208,9 +209,8 @@ fn run_findings_modules(
                                     &snap.content,
                                 );
                             if param_name.is_empty() && param.kind() == "identifier" {
-                                param_name = snap.content
-                                    [param.start_byte()..param.end_byte()]
-                                    .to_string();
+                                param_name =
+                                    snap.content[param.start_byte()..param.end_byte()].to_string();
                             }
                             let clean_type = param_type.trim_start_matches(':').trim();
 
@@ -234,7 +234,6 @@ fn run_findings_modules(
                             exposed_count += 1;
                         }
 
-
                         // Intra-procedural fallback for anonymous functions
                         let mut body_stack = vec![node];
                         let mut is_db_source = false;
@@ -257,7 +256,9 @@ fn run_findings_modules(
                                         || expr_lower.contains("headers.get")
                                     {
                                         if detected_origin.is_none() {
-                                            detected_origin = Some(frensense_engine::data_flow::TaintOrigin::UserInput);
+                                            detected_origin = Some(
+                                                frensense_engine::data_flow::TaintOrigin::UserInput,
+                                            );
                                             cross_file_taint.register_exposed_taint(
                                                 &fn_name_str,
                                                 &snap.path.to_string_lossy(),
@@ -728,7 +729,8 @@ fn verify_taint_flow(
         file_trees,
         source_sink,
         deps,
-    ).with_cfg(cfg);
+    )
+    .with_cfg(cfg);
     verifier.seed_taint(fn_node);
     let result = verifier.verify_flow(fn_node);
 
@@ -1364,22 +1366,45 @@ fn classify_runner_param_origin(name: &str) -> Option<frensense_engine::data_flo
     let lower = name.to_lowercase();
     if matches!(
         lower.as_str(),
-        "req" | "request" | "event" | "ctx" | "context" | "payload" | "input"
-            | "body" | "query" | "params" | "args" | "data" | "cmd"
-            | "url" | "path" | "file" | "name"
+        "req"
+            | "request"
+            | "event"
+            | "ctx"
+            | "context"
+            | "payload"
+            | "input"
+            | "body"
+            | "query"
+            | "params"
+            | "args"
+            | "data"
+            | "cmd"
+            | "url"
+            | "path"
+            | "file"
+            | "name"
     ) {
         return Some(TaintOrigin::UserInput);
     }
     if lower == "env" {
         return Some(TaintOrigin::Environment);
     }
-    if matches!(lower.as_str(), "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results") {
+    if matches!(
+        lower.as_str(),
+        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
+    ) {
         return Some(TaintOrigin::Database);
     }
-    if matches!(lower.as_str(), "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer") {
+    if matches!(
+        lower.as_str(),
+        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
+    ) {
         return Some(TaintOrigin::Network);
     }
-    if matches!(lower.as_str(), "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src") {
+    if matches!(
+        lower.as_str(),
+        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
+    ) {
         return Some(TaintOrigin::FileSystem);
     }
     None

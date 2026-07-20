@@ -11,9 +11,9 @@ use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SinkTier {
-    HighConfidence,  // min_occurrences: 1 — known dangerous, no FP risk
-    Standard,        // min_occurrences: 2 — current default
-    Suspicious,      // min_occurrences: 3 — novel patterns, need more evidence
+    HighConfidence, // min_occurrences: 1 — known dangerous, no FP risk
+    Standard,       // min_occurrences: 2 — current default
+    Suspicious,     // min_occurrences: 3 — novel patterns, need more evidence
 }
 
 impl SinkTier {
@@ -29,30 +29,98 @@ impl SinkTier {
 // Hardcoded high-confidence sinks that are ALWAYS registered regardless of occurrence:
 pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     // Code Execution
-    "eval", "exec", "execSync", "spawn", "spawnSync", "Function", "setTimeout", "setInterval", "runInNewContext", "runInThisContext", "require", "import", "Command::new", "args",
+    "eval",
+    "exec",
+    "execSync",
+    "spawn",
+    "spawnSync",
+    "Function",
+    "setTimeout",
+    "setInterval",
+    "runInNewContext",
+    "runInThisContext",
+    "require",
+    "import",
+    "Command::new",
+    "args",
     // SQL Injection
-    "query", "execute", "executeRaw", "queryRaw", "raw", "sql_query", "prepare",
+    "query",
+    "execute",
+    "executeRaw",
+    "queryRaw",
+    "raw",
+    "sql_query",
+    "prepare",
     // Command Injection
-    "execFile", "execFileSync", "shelljs.exec", "execa",
+    "execFile",
+    "execFileSync",
+    "shelljs.exec",
+    "execa",
     // Path Traversal
-    "readFile", "writeFile", "readFileSync", "join", "unlink", "stat", "access", "read_to_string", "read", "write", "open",
+    "readFile",
+    "writeFile",
+    "readFileSync",
+    "join",
+    "unlink",
+    "stat",
+    "access",
+    "read_to_string",
+    "read",
+    "write",
+    "open",
     // SSRF
-    "fetch", "axios.get", "axios.post", "http.get", "https.get", "got", "request", "node-fetch", "reqwest::get", "Client::get", "Uri::from", "ureq::get",
+    "fetch",
+    "axios.get",
+    "axios.post",
+    "http.get",
+    "https.get",
+    "got",
+    "request",
+    "node-fetch",
+    "reqwest::get",
+    "Client::get",
+    "Uri::from",
+    "ureq::get",
     // Open Redirect
-    "redirect", "location.href", "window.location",
+    "redirect",
+    "location.href",
+    "window.location",
     // XSS
-    "innerHTML", "outerHTML", "document.write", "document.writeln", "dangerouslySetInnerHTML",
+    "innerHTML",
+    "outerHTML",
+    "document.write",
+    "document.writeln",
+    "dangerouslySetInnerHTML",
     // Storage Write
-    "put", "setItem",
+    "put",
+    "setItem",
     // Log Leak
-    "log", "error", "info", "debug",
+    "log",
+    "error",
+    "info",
+    "debug",
     // Unsafe Memory (Rust)
-    "transmute", "transmute_copy", "from_utf8_unchecked", "from_raw_parts",
+    "transmute",
+    "transmute_copy",
+    "from_utf8_unchecked",
+    "from_raw_parts",
     // Framework Specific (Cloudflare, Express, Next.js, Hono, Prisma)
-    "c.redirect", "env.KV.put", "KVNamespace.put", "KVNamespace.delete", "env.DB.prepare",
-    "res.send", "res.json", "res.redirect", "res.render", "revalidatePath",
-    "prisma.queryRawUnsafe", "prisma.executeRawUnsafe", "R2Bucket.put", "D1Database.prepare",
-    "DurableObjectStub.fetch", "Queue.send",
+    "c.redirect",
+    "env.KV.put",
+    "KVNamespace.put",
+    "KVNamespace.delete",
+    "env.DB.prepare",
+    "res.send",
+    "res.json",
+    "res.redirect",
+    "res.render",
+    "revalidatePath",
+    "prisma.queryRawUnsafe",
+    "prisma.executeRawUnsafe",
+    "R2Bucket.put",
+    "D1Database.prepare",
+    "DurableObjectStub.fetch",
+    "Queue.send",
 ];
 
 pub fn get_sink_tier(sink: &str) -> SinkTier {
@@ -63,7 +131,6 @@ pub fn get_sink_tier(sink: &str) -> SinkTier {
         SinkTier::Standard
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SinkCategory {
@@ -189,8 +256,8 @@ impl CorpusSourceSinkRegistry {
 
         // Safe built-in object prefixes — never a sink regardless of method name
         const SAFE_PREFIXES: &[&str] = &[
-            "Object.", "Array.", "String.", "Number.", "Math.",
-            "JSON.", "console.", "process.", "Promise.",
+            "Object.", "Array.", "String.", "Number.", "Math.", "JSON.", "console.", "process.",
+            "Promise.",
         ];
         for prefix in SAFE_PREFIXES {
             if expr.starts_with(prefix) {
@@ -221,8 +288,17 @@ impl CorpusSourceSinkRegistry {
         }
         // Built-in heuristics — stable regardless of corpus content
         const SANITIZER_FRAGMENTS: &[&str] = &[
-            "escape", "sanitize", "encode", "validate", "strip",
-            "clean", "purify", "filter", "dompurify", "xss", "he.",
+            "escape",
+            "sanitize",
+            "encode",
+            "validate",
+            "strip",
+            "clean",
+            "purify",
+            "filter",
+            "dompurify",
+            "xss",
+            "he.",
         ];
         let lower = expr.to_lowercase();
         for frag in SANITIZER_FRAGMENTS {
@@ -253,7 +329,10 @@ impl CorpusSourceSinkRegistry {
             entry.1 += count;
         }
         for (k, (cat, count)) in &other.qualified_sink_names {
-            let entry = self.qualified_sink_names.entry(k.clone()).or_insert((*cat, 0));
+            let entry = self
+                .qualified_sink_names
+                .entry(k.clone())
+                .or_insert((*cat, 0));
             entry.1 += count;
         }
         for (k, v) in &other.sanitizer_names {
@@ -263,19 +342,15 @@ impl CorpusSourceSinkRegistry {
 
     /// Prune entries below their specific threshold.
     pub fn prune(&mut self) {
-        self.source_types
-            .retain(|_, count| *count >= 2);
-            
-        self.sink_names.retain(|name, (_, count)| {
-            *count >= get_sink_tier(name).min_occurrences()
-        });
-        
-        self.qualified_sink_names.retain(|name, (_, count)| {
-            *count >= get_sink_tier(name).min_occurrences()
-        });
-        
-        self.sanitizer_names
-            .retain(|_, count| *count >= 2);
+        self.source_types.retain(|_, count| *count >= 2);
+
+        self.sink_names
+            .retain(|name, (_, count)| *count >= get_sink_tier(name).min_occurrences());
+
+        self.qualified_sink_names
+            .retain(|name, (_, count)| *count >= get_sink_tier(name).min_occurrences());
+
+        self.sanitizer_names.retain(|_, count| *count >= 2);
     }
 }
 
@@ -519,8 +594,6 @@ fn extract_call_names(node: Node, source: &str, sinks: &mut Vec<String>) {
     }
 }
 
-
-
 /// Split a raw callee expression string into `(short_name, qualified_name)`.
 ///
 /// `short_name` is the final `.`-delimited segment (the method name).
@@ -535,7 +608,10 @@ pub fn split_sink_name(raw: &str) -> (String, Option<String>) {
     };
 
     let parts: Vec<&str> = trimmed.split('.').collect();
-    let short = parts.last().map(|s| s.trim().to_string()).unwrap_or_default();
+    let short = parts
+        .last()
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
 
     let qualified = if parts.len() >= 2 {
         let last_two = &parts[parts.len() - 2..];
@@ -613,8 +689,12 @@ mod tests {
         let mut registry = CorpusSourceSinkRegistry::default();
         registry.source_types.insert("Request".to_string(), 3);
         registry.source_types.insert("OneOff".to_string(), 1);
-        registry.sink_names.insert("exec".to_string(), (SinkCategory::CodeExecution, 5));
-        registry.sink_names.insert("rare_sink".to_string(), (SinkCategory::Unknown, 1));
+        registry
+            .sink_names
+            .insert("exec".to_string(), (SinkCategory::CodeExecution, 5));
+        registry
+            .sink_names
+            .insert("rare_sink".to_string(), (SinkCategory::Unknown, 1));
 
         registry.prune();
 

@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "Action modifying critical state executes without tracking if it was already processed."
-// impact = "Client retries due to network timeout or malicious replays cause the action (e.g. fund wallet, refund order) to execute multiple times."
-// improvement = "Require a client-supplied idempotency key and record it atomically with the action."
+// observation: Action modifying critical state executes without tracking if it was already processed.
+// impact: Client retries due to network timeout or malicious replays cause the action (e.g. fund wallet, refund order) to execute multiple times.
+// improvement: Require a client-supplied idempotency key and record it atomically with the action.
 
 async function refundOrder(orderId: string, amount: number, db: DB) {
   // VULNERABLE: no idempotency key tracked. A network retry will refund twice.

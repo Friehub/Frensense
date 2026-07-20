@@ -790,19 +790,22 @@ fn is_negative_file(file_name: &str) -> bool {
 fn extract_pattern_name(file_name: &str) -> String {
     let without_ext = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
 
-    // Strip _positive suffix
-    let s = without_ext.trim_end_matches("_positive");
+    // Positive files: just strip _positive suffix (single occurrence)
+    if let Some(stripped) = without_ext.strip_suffix("_positive") {
+        return stripped.to_string();
+    }
 
-    // Strip _negative, _negative2 ... _negative9
-    let s = if s.ends_with("_negative") {
-        s.trim_end_matches("_negative")
-    } else if let Some(prefix) = s.strip_suffix(|c: char| c.is_ascii_digit()) {
-        prefix.trim_end_matches("_negative")
-    } else {
-        s
-    };
+    // Negative files: strip _negative, _negative2 ... _negative9 (single occurrence)
+    if let Some(stripped) = without_ext.strip_suffix("_negative") {
+        return stripped.to_string();
+    }
+    if let Some(digits) = without_ext.strip_suffix(|c: char| c.is_ascii_digit()) {
+        if let Some(stripped) = digits.strip_suffix("_negative") {
+            return stripped.to_string();
+        }
+    }
 
-    s.to_string()
+    without_ext.to_string()
 }
 
 #[cfg(test)]
@@ -1061,7 +1064,7 @@ fn validate(input: &str) -> bool {
 /// Known taint source access patterns — user-controlled input entry points.
 /// If a positive example contains these and the negative does not, the pattern
 /// requires taint access to match (auto-promotes to SemanticFilter.contains_call_to).
-const TAINT_SOURCE_PATTERNS: &[&str] = &[
+pub const TAINT_SOURCE_PATTERNS: &[&str] = &[
     "req.query",
     "req.body",
     "req.params",

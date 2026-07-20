@@ -152,23 +152,33 @@ fn classify_member_role(
     all_fps: &[FunctionFingerprint],
     cluster_indices: &[usize],
 ) -> ClusterRole {
-    // Check if this function has validation/sanitization patterns
-    let has_validation = fp.function_name.contains("valid")
-        || fp.function_name.contains("sanitiz")
-        || fp.function_name.contains("check")
-        || fp.function_name.contains("verify");
+    let has_category = |cat: &str| {
+        let mut h = rustc_hash::FxHasher::default();
+        std::hash::Hash::hash(cat, &mut h);
+        let hash = std::hash::Hasher::finish(&h);
+        fp.semantic_markers.binary_search(&hash).is_ok()
+    };
 
-    // Check if this function has dangerous patterns
-    let has_danger = fp.function_name.contains("exec")
-        || fp.function_name.contains("eval")
-        || fp.function_name.contains("raw")
-        || fp.function_name.contains("unsafe");
+    // Check if this function has validation/sanitization patterns structurally
+    let has_validation = has_category("sanitize") || has_category("auth_middleware");
+
+    // Check if this function has dangerous patterns structurally
+    let has_danger = has_category("cmd_exec")
+        || has_category("code_eval")
+        || has_category("db_query")
+        || has_category("db_write")
+        || has_category("dom_xss");
 
     if has_validation && !has_danger {
         ClusterRole::Safe
     } else if has_danger && !has_validation {
         ClusterRole::Unsafe
     } else {
+        // Guard against NaN on singleton clusters (Bug A)
+        if cluster_indices.len() <= 1 {
+            return ClusterRole::Consistent;
+        }
+
         // Check if this member differs significantly from others in the cluster
         let avg_sim: f64 = cluster_indices
             .iter()

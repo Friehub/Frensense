@@ -477,14 +477,12 @@ pub fn dominance_frontier(cfg: &ControlFlowGraph, block_id: usize) -> HashSet<us
     frontier
 }
 
-pub fn has_auth_guard_dominator(
-    cfg: &ControlFlowGraph,
-    sink_block: usize,
-    source: &str
-) -> bool {
+pub fn has_auth_guard_dominator(cfg: &ControlFlowGraph, sink_block: usize, source: &str) -> bool {
     if let Some(block) = cfg.blocks.get(sink_block) {
         for &dominator_id in &block.dominators {
-            if dominator_id == sink_block { continue; }
+            if dominator_id == sink_block {
+                continue;
+            }
             if let Some(dom_block) = cfg.blocks.get(dominator_id) {
                 if block_looks_like_auth_guard(dom_block, source) {
                     return true;
@@ -501,7 +499,9 @@ pub fn block_looks_like_auth_guard(block: &BasicBlock, source: &str) -> bool {
     }
     let block_text = &source[block.start_byte..block.end_byte];
     (block_text.contains("session") || block_text.contains("auth") || block_text.contains("token"))
-        && (block_text.contains("401") || block_text.contains("403") || block_text.contains("return"))
+        && (block_text.contains("401")
+            || block_text.contains("403")
+            || block_text.contains("return"))
 }
 
 pub fn block_for_byte(cfg: &ControlFlowGraph, byte: usize) -> Option<usize> {

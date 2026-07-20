@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "A Sequelize model setter assigns a numeric value without performing bounds validation."
-// impact = "Users can submit out-of-bounds values (e.g., negative amounts or zero ratings) circumventing application logic."
-// improvement = "Perform numerical validation (e.g., if (rating < 1)) before calling setDataValue, or use Sequelize validate properties."
+// observation: A Sequelize model setter assigns a numeric value without performing bounds validation.
+// impact: Users can submit out-of-bounds values (e.g., negative amounts or zero ratings) circumventing application logic.
+// improvement: Perform numerical validation (e.g., if (rating < 1)) before calling setDataValue, or use Sequelize validate properties.
 
 import { Model, DataTypes } from 'sequelize';
 

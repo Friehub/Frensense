@@ -25,7 +25,8 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
 
             // Must be a verified sink from the corpus registry
             let sink_suffix = path.sink_symbol.split('.').last().unwrap_or("");
-            let sink_category = ctx.source_sink
+            let sink_category = ctx
+                .source_sink
                 .is_sink(&path.sink_symbol)
                 .or_else(|| ctx.source_sink.is_sink(sink_suffix));
 
@@ -92,5 +93,3 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
 
     advisories
 }
-
-

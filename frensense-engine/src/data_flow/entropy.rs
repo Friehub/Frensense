@@ -8,11 +8,33 @@ pub const UNCONDITIONAL_ENTROPY_LENGTH: usize = 32;
 pub fn is_secret_indicator(name: &str) -> bool {
     let lower = name.to_lowercase();
     let indicators = [
-        "key", "secret", "token", "password", "passwd", "pwd",
-        "apikey", "api_key", "auth", "credential", "cred",
-        "cert", "private", "priv", "signing", "encryption",
-        "webhook", "hmac", "bearer", "oauth", "jwt", "salt",
-        "seed", "nonce", "passphrase", "pin", "otp"
+        "key",
+        "secret",
+        "token",
+        "password",
+        "passwd",
+        "pwd",
+        "apikey",
+        "api_key",
+        "auth",
+        "credential",
+        "cred",
+        "cert",
+        "private",
+        "priv",
+        "signing",
+        "encryption",
+        "webhook",
+        "hmac",
+        "bearer",
+        "oauth",
+        "jwt",
+        "salt",
+        "seed",
+        "nonce",
+        "passphrase",
+        "pin",
+        "otp",
     ];
     indicators.iter().any(|&ind| lower.contains(ind))
 }

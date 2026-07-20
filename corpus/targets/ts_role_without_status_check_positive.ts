@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "Middleware checks role membership but not the associated profile's lifecycle status."
-// impact = "Unverified, suspended, or rejected users can perform all role-gated operations."
-// improvement = "Query the profile record and assert status === 'ACTIVE' before calling next()."
+// observation: Middleware checks role membership but not the associated profile's lifecycle status.
+// impact: Unverified, suspended, or rejected users can perform all role-gated operations.
+// improvement: Query the profile record and assert status === 'ACTIVE' before calling next().
 
 // VULNERABLE: role checked, status never verified
 const sellerProcedure = protectedProcedure.use(({ ctx, next }) => {

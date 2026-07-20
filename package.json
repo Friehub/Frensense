@@ -34,5 +34,9 @@
   "homepage": "https://friehub.github.io/frensense/",
   "devDependencies": {
     "vitepress": "^1.6.4"
+  },
+  "dependencies": {
+    "@google/genai": "^2.12.0",
+    "openai": "^6.48.0"
   }
 }

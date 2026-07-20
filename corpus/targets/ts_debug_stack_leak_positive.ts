@@ -1,7 +1,7 @@
 // [frensense]
-// observation = "Caught Error objects are serialized directly into API responses."
-// impact = "Stack traces and internal variables are leaked to clients, providing attackers with detailed execution context."
-// improvement = "Return a generic error message and log the full error internally."
+// observation: Caught Error objects are serialized directly into API responses.
+// impact: Stack traces and internal variables are leaked to clients, providing attackers with detailed execution context.
+// improvement: Return a generic error message and log the full error internally.
 
 async function handleError(e: Error, req: Request) {
   // VULNERABLE: stack trace leak

@@ -209,7 +209,12 @@ impl PatternRegistry {
                     ));
                 }
 
-                if !filter.matches(node, src, Some(fp.file_path.as_str()), extracted_flows.as_ref()) {
+                if !filter.matches(
+                    node,
+                    src,
+                    Some(fp.file_path.as_str()),
+                    extracted_flows.as_ref(),
+                ) {
                     continue;
                 }
             }

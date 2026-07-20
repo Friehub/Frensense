@@ -63,45 +63,72 @@ pub fn seed_from_corpus_match(
 
 /// Recursively seed taint from AST expressions inside a function body.
 /// This revitalizes environment, database, and network sources.
-pub fn seed_from_ast_body(
-    node: Node,
-    source: &str,
-    registry: &mut TaintRegistry,
-) {
+pub fn seed_from_ast_body(node: Node, source: &str, registry: &mut TaintRegistry) {
     match node.kind() {
         "member_expression" | "field_expression" => {
             if let Some(object) = node.child_by_field_name("object") {
                 let obj_name = &source[object.start_byte()..object.end_byte()];
-                if let Some(prop) = node.child_by_field_name("property").or_else(|| node.child_by_field_name("field")) {
+                if let Some(prop) = node
+                    .child_by_field_name("property")
+                    .or_else(|| node.child_by_field_name("field"))
+                {
                     let prop_name = &source[prop.start_byte()..prop.end_byte()];
-                    
+
                     // Handle environment sources (process.env.*, Deno.env.*)
-                    if obj_name == "process.env" || obj_name == "env" || obj_name == "CONFIG" || obj_name == "__ENV__" {
+                    if obj_name == "process.env"
+                        || obj_name == "env"
+                        || obj_name == "CONFIG"
+                        || obj_name == "__ENV__"
+                    {
                         let full_name = &source[node.start_byte()..node.end_byte()];
                         registry.taint(full_name, TaintOrigin::Environment);
                     } else if obj_name == "Deno.env" && prop_name == "get" {
                         let full_name = &source[node.start_byte()..node.end_byte()];
                         registry.taint(full_name, TaintOrigin::Environment);
                     }
-                    
+
                     // Handle DOM sources
                     if obj_name.ends_with("querySelector") && prop_name == "value" {
                         let full_name = &source[node.start_byte()..node.end_byte()];
                         registry.taint(full_name, TaintOrigin::UserInput);
                     }
-                    
+
                     // KV, R2, and WebSockets/Message
-                    if (obj_name.ends_with("KV") || obj_name.ends_with("R2")) && (prop_name == "get" || prop_name == "list") {
+                    if (obj_name.ends_with("KV") || obj_name.ends_with("R2"))
+                        && (prop_name == "get" || prop_name == "list")
+                    {
                         let full_name = &source[node.start_byte()..node.end_byte()];
                         registry.taint(full_name, TaintOrigin::Database);
-                    } else if (obj_name == "socket" || obj_name == "ws" || obj_name == "message") && (prop_name == "data" || prop_name == "message") {
+                    } else if (obj_name == "socket" || obj_name == "ws" || obj_name == "message")
+                        && (prop_name == "data" || prop_name == "message")
+                    {
                         let full_name = &source[node.start_byte()..node.end_byte()];
                         registry.taint(full_name, TaintOrigin::UserInput);
                     }
-                    
+
                     // Framework specific sources (Hono, Express, Next.js)
-                    if obj_name == "c.req" || obj_name == "req" || obj_name == "request" || obj_name == "ctx.req" || obj_name.ends_with("Request") {
-                        if matches!(prop_name, "json" | "query" | "header" | "param" | "text" | "parseBody" | "body" | "params" | "headers" | "cookies" | "files" | "searchParams" | "nextUrl.searchParams") {
+                    if obj_name == "c.req"
+                        || obj_name == "req"
+                        || obj_name == "request"
+                        || obj_name == "ctx.req"
+                        || obj_name.ends_with("Request")
+                    {
+                        if matches!(
+                            prop_name,
+                            "json"
+                                | "query"
+                                | "header"
+                                | "param"
+                                | "text"
+                                | "parseBody"
+                                | "body"
+                                | "params"
+                                | "headers"
+                                | "cookies"
+                                | "files"
+                                | "searchParams"
+                                | "nextUrl.searchParams"
+                        ) {
                             let full_name = &source[node.start_byte()..node.end_byte()];
                             registry.taint(full_name, TaintOrigin::UserInput);
                         }
@@ -110,23 +137,45 @@ pub fn seed_from_ast_body(
             }
         }
         "call_expression" => {
-            if let Some(callee) = node.child_by_field_name("function").or_else(|| node.child_by_field_name("callee")) {
+            if let Some(callee) = node
+                .child_by_field_name("function")
+                .or_else(|| node.child_by_field_name("callee"))
+            {
                 let callee_name = &source[callee.start_byte()..callee.end_byte()];
-                
+
                 // Network sources
-                if callee_name == "fetch" || callee_name == "axios.get" || callee_name == "got" || callee_name == "request" {
+                if callee_name == "fetch"
+                    || callee_name == "axios.get"
+                    || callee_name == "got"
+                    || callee_name == "request"
+                {
                     let full_name = &source[node.start_byte()..node.end_byte()];
                     registry.taint(full_name, TaintOrigin::Network);
                 }
-                
+
                 // FileSystem sources
-                if callee_name == "fs.readFileSync" || callee_name == "fs.readFile" || callee_name == "fsPromises.readFile" || callee_name == "fs.createReadStream" || callee_name == "readline.createInterface" {
+                if callee_name == "fs.readFileSync"
+                    || callee_name == "fs.readFile"
+                    || callee_name == "fsPromises.readFile"
+                    || callee_name == "fs.createReadStream"
+                    || callee_name == "readline.createInterface"
+                {
                     let full_name = &source[node.start_byte()..node.end_byte()];
                     registry.taint(full_name, TaintOrigin::FileSystem);
                 }
-                
+
                 // Database sources (simplified)
-                if callee_name.ends_with(".findUnique") || callee_name.ends_with(".findFirst") || callee_name.ends_with(".findMany") || callee_name.ends_with(".get") || callee_name.ends_with(".first") || callee_name.ends_with(".all") || callee_name.ends_with(".hget") || callee_name.ends_with(".lrange") || callee_name.ends_with(".getItem") || callee_name.ends_with(".findOne") {
+                if callee_name.ends_with(".findUnique")
+                    || callee_name.ends_with(".findFirst")
+                    || callee_name.ends_with(".findMany")
+                    || callee_name.ends_with(".get")
+                    || callee_name.ends_with(".first")
+                    || callee_name.ends_with(".all")
+                    || callee_name.ends_with(".hget")
+                    || callee_name.ends_with(".lrange")
+                    || callee_name.ends_with(".getItem")
+                    || callee_name.ends_with(".findOne")
+                {
                     let full_name = &source[node.start_byte()..node.end_byte()];
                     registry.taint(full_name, TaintOrigin::Database);
                 }
@@ -154,27 +203,53 @@ fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
     let lower = name.to_lowercase();
     if matches!(
         lower.as_str(),
-        "req" | "request" | "event" | "ctx" | "context" | "payload" | "input"
-            | "body" | "query" | "params" | "searchparams" | "args" | "data" | "cmd"
-            | "url" | "path" | "file" | "name"
+        "req"
+            | "request"
+            | "event"
+            | "ctx"
+            | "context"
+            | "payload"
+            | "input"
+            | "body"
+            | "query"
+            | "params"
+            | "searchparams"
+            | "args"
+            | "data"
+            | "cmd"
+            | "url"
+            | "path"
+            | "file"
+            | "name"
     ) {
         return Some(TaintOrigin::UserInput);
     }
-    if matches!(lower.as_str(), "env" | "config" | "settings" | "conf" | "options" | "opts" | "cfg") {
+    if matches!(
+        lower.as_str(),
+        "env" | "config" | "settings" | "conf" | "options" | "opts" | "cfg"
+    ) {
         return Some(TaintOrigin::Environment);
     }
-    if matches!(lower.as_str(), "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results") {
+    if matches!(
+        lower.as_str(),
+        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
+    ) {
         return Some(TaintOrigin::Database);
     }
-    if matches!(lower.as_str(), "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer") {
+    if matches!(
+        lower.as_str(),
+        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
+    ) {
         return Some(TaintOrigin::Network);
     }
-    if matches!(lower.as_str(), "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src") {
+    if matches!(
+        lower.as_str(),
+        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
+    ) {
         return Some(TaintOrigin::FileSystem);
     }
     None
 }
-
 
 #[cfg(test)]
 mod tests {
