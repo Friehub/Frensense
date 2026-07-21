@@ -767,6 +767,72 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
             ..Default::default()
         },
     );
+    // === Distintive-sink semantic filters ===
+    // These patterns require the candidate function to call a specific API.
+    // If the candidate calls res.redirect() but not exec(), CMDI shouldn't match.
+
+    let sink_patterns: Vec<(&str, Vec<&str>)> = vec![
+        ("ts_cmdi_exec_direct", vec!["exec", "spawn", "execFile", "fork"]),
+        ("ts_cmdi_exec_direct_m2", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_exec_direct_m4", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_exec_direct_m10", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_template_literal", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_template_literal_m4", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_template_literal_m10", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_spawn_args", vec!["spawn", "exec", "execFile"]),
+        ("ts_cmdi_spawn_args_m4", vec!["spawn", "exec", "execFile"]),
+        ("ts_cmdi_shell_true", vec!["exec", "spawn", "execFile"]),
+        ("ts_cmdi_env_injection", vec!["exec", "spawn"]),
+        ("ts_ssrf_fetch_direct", vec!["fetch", "request", "get"]),
+        ("ts_ssrf_fetch_direct_m4", vec!["fetch", "request"]),
+        ("ts_ssrf_fetch_direct_m10", vec!["fetch", "request"]),
+        ("ts_ssrf_fetch_constructed", vec!["fetch", "request"]),
+        ("ts_ssrf_fetch_constructed_m4", vec!["fetch", "request"]),
+        ("ts_path_traversal_readfile", vec!["readFile", "writeFile", "createReadStream"]),
+        ("ts_path_traversal_readfile_m10", vec!["readFile", "writeFile"]),
+        ("ts_path_traversal_join_no_check", vec!["readFile", "writeFile", "join"]),
+        ("ts_path_traversal_join_no_check_m4", vec!["readFile", "writeFile"]),
+        ("ts_eval_direct", vec!["eval"]),
+        ("ts_eval_direct_m4", vec!["eval"]),
+        ("ts_nosqli_mongo_where", vec!["$where", "find", "findOne"]),
+        ("ts_nosqli_mongo_where_m4", vec!["$where", "find"]),
+        ("ts_sqli_prisma_query_raw_unsafe", vec!["$queryRawUnsafe", "queryRaw", "executeRaw"]),
+        ("ts_sqli_prisma_query_raw_unsafe_m4", vec!["$queryRawUnsafe", "queryRaw"]),
+        ("ts_sqli_knex_raw", vec!["raw", "knex"]),
+        ("ts_sqli_knex_raw_m4", vec!["raw", "knex"]),
+        ("ts_sqli_concat_direct", vec!["query", "concat", "execute", "find"]),
+        ("ts_sqli_concat_direct_m4", vec!["query", "execute"]),
+        ("ts_idor_update_no_ownership", vec!["update", "findAndModify", "exec"]),
+        ("ts_idor_update_no_ownership_m4", vec!["update", "findAndModify"]),
+        ("ts_idor_child_resource", vec!["find", "findOne", "query"]),
+        ("ts_idor_child_resource_m4", vec!["find", "findOne"]),
+        ("ts_prototype_pollution_merge", vec!["merge", "assign", "extend"]),
+        ("ts_prototype_pollution_merge_m4", vec!["merge", "assign"]),
+        ("ts_tanstack_mutation_on_success_stale_closure", vec!["useMutation", "mutate", "queryClient"]),
+        ("ts_oauth_state_reuse", vec!["state", "oauth", "redirect_uri", "authorize"]),
+        ("ts_oauth_pkce_missing", vec!["state", "oauth", "code_challenge"]),
+        ("ts_oauth_missing_state", vec!["state", "oauth", "authorize"]),
+        ("ts_token_in_url_fragment", vec!["fragment", "hash", "oauth"]),
+        ("tsx_xss_href_javascript", vec!["href", "window.open", "location"]),
+        ("tsx_xss_href_javascript_m8", vec!["href", "window.open"]),
+        ("tsx_xss_href_javascript_m6", vec!["href", "window.open"]),
+        ("tsx_xss_href_javascript_m5", vec!["href", "window.open"]),
+        ("tsx_xss_href_javascript_m2", vec!["href", "window.open"]),
+        ("tsx_xss_href_javascript_m3", vec!["href", "window.open"]),
+        ("tsx_image_src_unvalidated", vec!["src", "image", "img"]),
+        ("ts_sqli_function_built", vec!["sql", "query", "concat", "select", "from"]),
+    ];
+
+    for (pattern_id, sinks) in sink_patterns {
+        filters.insert(
+            pattern_id.to_string(),
+            SemanticFilter {
+                contains_call_to: sinks.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            },
+        );
+    }
+
     filters
 }
 
