@@ -189,7 +189,7 @@ impl PatternRegistry {
 
         let mut extracted_flows: Option<std::collections::HashSet<(String, String)>> = None;
 
-        // eprintln!("DEBUG: fp.name = {:?}, candidates count = {}, struct_markers = {}, control_flow = {}, api_calls = {}", fp.function_name, candidates.len(), fp.structural_markers.len(), fp.control_flow_hashes.len(), fp.api_calls.len());
+        // eprintln!("DEBUG: fp.name = {:?}, api = {}, candidates = {}", fp.function_name, fp.api_calls.len(), candidates.len());
 
         let mut matches = Vec::new();
         for &idx in &candidates {
@@ -243,6 +243,21 @@ impl PatternRegistry {
 
                 if struct_sim < self.ngram_sim_threshold {
                     continue; // Prune this candidate early
+                }
+
+                // API-call gate: if both candidate and positive have API calls but share NONE,
+                // skip — the structural similarity is coincidental.
+                // Only gates when BOTH sides have non-empty API calls.
+                // Functions with empty api_calls (e.g., anonymous arrow functions)
+                // bypass this gate and fall through to structural scoring.
+                if !first_pos.api_calls.is_empty() && !weighted_fp.api_calls.is_empty() {
+                    let api_overlap = first_pos
+                        .api_calls
+                        .iter()
+                        .any(|h| weighted_fp.api_calls.contains(h));
+                    if !api_overlap {
+                        continue;
+                    }
                 }
             }
 

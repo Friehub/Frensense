@@ -3,11 +3,11 @@
 // impact: attacker HTML is rendered unsanitized in the page, leading to XSS
 // improvement: sanitize input with DOMPurify before passing to {@html}, or use text interpolation
 
-export function renderComment(comment: { body: string }): string {
-  return `<div class="comment">${comment.body}</div>`
+function fetchComment(id: string): { body: string } {
+  return JSON.parse(localStorage.getItem('comment_' + id) || '{"body":""}');
 }
 
-export function processComment(data: { text: string }) {
-  const html = `<p>${data.text}</p>`
-  return { __html: html }
+export function renderComment(commentId: string): string {
+  const comment = fetchComment(commentId);
+  return `<div class="comment">${comment.body}</div>`;
 }

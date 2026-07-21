@@ -156,6 +156,54 @@ pub fn save_baseline(advisories: &[Advisory], path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Extract a category string from a rule_id for grouping purposes.
+/// Rule IDs follow the format `CORPUS_LANG_CATEGORY_...` or `BUILTIN_NAME`.
+/// We extract the category segment (e.g., "SSRF", "CMDI", "SQLI") for dedup grouping.
+fn rule_category(rule_id: &str) -> &str {
+    let parts: Vec<&str> = rule_id.split('_').collect();
+    if parts.len() >= 3 && parts[0] == "CORPUS" {
+        parts[2] // e.g., "SSRF" from "CORPUS_TS_SSRF_FETCH_DIRECT_M4"
+    } else {
+        "default"
+    }
+}
+
+pub fn deduplicate_advisories(advisories: &mut Vec<Advisory>) {
+    // Group by (file_path, function_name, category), keep highest confidence per group.
+    // This collapses 50+ pattern matches on the same function into ~1 per vulnerability category.
+    let mut best: std::collections::HashMap<(String, String, String), usize> =
+        std::collections::HashMap::new();
+    let mut keep = vec![true; advisories.len()];
+
+    for (i, adv) in advisories.iter().enumerate() {
+        let fn_name = adv.enclosing_symbol.as_deref().unwrap_or("<unknown>").to_string();
+        let key = (
+            adv.file_path.clone(),
+            fn_name,
+            rule_category(&adv.rule_id).to_string(),
+        );
+        match best.get(&key) {
+            Some(&prev_idx) if advisories[prev_idx].confidence >= adv.confidence => {
+                keep[i] = false;
+            }
+            Some(&prev_idx) => {
+                keep[prev_idx] = false;
+                best.insert(key, i);
+            }
+            None => {
+                best.insert(key, i);
+            }
+        }
+    }
+
+    // Remove deduplicated advisories (in reverse to preserve indices)
+    for i in (0..advisories.len()).rev() {
+        if !keep[i] {
+            advisories.swap_remove(i);
+        }
+    }
+}
+
 pub fn apply_filters(advisories: &mut Vec<Advisory>, options: &CliOptions, engine: &Engine) {
     advisories.retain(|a| a.confidence >= options.min_confidence);
 
@@ -174,4 +222,7 @@ pub fn apply_filters(advisories: &mut Vec<Advisory>, options: &CliOptions, engin
     if let Some(filter) = options.severity_filter {
         advisories.retain(|a| a.severity.meets_threshold(filter));
     }
+
+    // Deduplicate: keep highest-confidence advisory per (file, function, category)
+    deduplicate_advisories(advisories);
 }

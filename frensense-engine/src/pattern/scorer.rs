@@ -139,8 +139,21 @@ impl PatternScorer {
     ) -> f64 {
         let mut best_pos_score = 0.0f64;
 
-        // 1. Find the best matching positive
+        // 1. Find the best matching positive with API-call gating.
+        //    If both pattern and candidate have API calls but share NONE,
+        //    skip that positive entirely — structural match is coincidental.
         for positive in positives {
+            // API-call gate: zero API overlap = skip (not a real match)
+            if !positive.api_calls.is_empty() && !candidate.api_calls.is_empty() {
+                let has_overlap = positive
+                    .api_calls
+                    .iter()
+                    .any(|h| candidate.api_calls.contains(h));
+                if !has_overlap {
+                    continue;
+                }
+            }
+
             let sim_pos = Self::compute_similarity(candidate, positive, true, ngram_sim_threshold);
             let semantic_multiplier = if positive.semantic_markers.is_empty() {
                 1.0
