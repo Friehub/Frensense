@@ -907,6 +907,75 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
             ..Default::default()
         },
     );
+    filters.insert(
+        "ts_integer_overflow_price_calc".to_string(),
+        SemanticFilter {
+            contains_call_to: vec![
+                "price".to_string(), "quantity".to_string(),
+                "total".to_string(), "amount".to_string(),
+                "multiply".to_string(), "times".to_string(),
+            ],
+            ..Default::default()
+        },
+    );
+
+    // === Import-based semantic filters ===
+    // These patterns require the source file to import from a specific package.
+    // Prevents Next.js patterns from matching Express route handlers, etc.
+    let import_patterns: Vec<(&str, Vec<&str>)> = vec![
+        ("tsx_xss_href_javascript_m7", vec!["react", "react-dom", "preact"]),
+        ("tsx_xss_href_javascript_m3", vec!["react", "react-dom"]),
+        ("tsx_xss_href_javascript", vec!["react", "react-dom"]),
+        ("tsx_xss_href_javascript_m2", vec!["react", "react-dom"]),
+        ("tsx_xss_href_javascript_m5", vec!["react", "react-dom"]),
+        ("tsx_xss_href_javascript_m6", vec!["react", "react-dom"]),
+        ("tsx_xss_href_javascript_m8", vec!["react", "react-dom"]),
+        ("tsx_remix_link_injection", vec!["@remix-run/react", "@remix-run/node"]),
+        ("ts_remix_meta_injection", vec!["@remix-run/react", "@remix-run/node"]),
+        ("tsx_remix_meta_injection", vec!["@remix-run/react", "@remix-run/node"]),
+        ("tsx_a11y_aria_label_injection", vec!["react", "react-dom"]),
+        ("tsx_a11y_onclick_not_keyboard", vec!["react", "react-dom"]),
+        ("tsx_tailwind_peer_validation_bypass", vec!["react", "react-dom"]),
+        ("tsx_dangerously_set_inner_html_untrusted", vec!["react", "react-dom"]),
+        ("ts_xss_stored_db_to_html_m4", vec!["react", "react-dom"]),
+        ("tsx_suspense_boundary_data_leak", vec!["react", "react-dom"]),
+        ("tsx_suspense_list_coalesce", vec!["react", "react-dom"]),
+        ("tsx_radix_popover_side_conflict", vec!["@radix-ui/react-popover"]),
+        ("tsx_headlessui_dialog_focus_bypass", vec!["@headlessui/react"]),
+        ("tsx_usememo_side_effect", vec!["react", "react-dom"]),
+        ("tsx_memo_comparison_bypass", vec!["react", "react-dom"]),
+        ("tsx_error_boundary_render_crash_m2", vec!["react", "react-dom"]),
+        ("tsx_error_boundary_render_crash_m4", vec!["react", "react-dom"]),
+        ("tsx_ref_forwarding_untrusted", vec!["react", "react-dom"]),
+        ("tsx_astro_script_injection", vec!["astro", "@astrojs"]),
+        ("tsx_image_src_unvalidated", vec!["react", "react-dom", "next/image"]),
+        ("ts_nextjs_metadata_og_image_ssrf", vec!["next", "next/server"]),
+        ("ts_nextjs_image_src_ssrf", vec!["next/image", "next"]),
+        ("ts_nextjs_instant_navigation_cache_leak", vec!["next", "next/server"]),
+        ("ts_nextjs_notfound_ssr_leak", vec!["next", "next/server"]),
+        ("ts_graphql_batch_attack", vec!["graphql", "apollo-server", "@graphql"]),
+        ("ts_graphql_depth_limit_missing", vec!["graphql", "apollo-server"]),
+        ("ts_ssrf_headless_browser", vec!["puppeteer", "playwright"]),
+        ("ts_nestjs_circular_dependency", vec!["@nestjs/common", "@nestjs/core"]),
+        ("ts_vue_template_injection", vec!["vue", "@vue"]),
+        ("ts_svelte_html_injection", vec!["svelte", "@sveltejs"]),
+        ("ts_angular_bypasssecuritytrust", vec!["@angular/core", "@angular/platform-browser"]),
+        ("ts_tanstack_mutation_on_success_stale_closure", vec!["@tanstack/react-query"]),
+        ("ts_zod_promise_parse", vec!["zod"]),
+        ("ts_booking_double_book", vec!["booking", "reservation"]),
+        ("ts_electron_context_isolation_off", vec!["electron"]),
+        ("tsx_rn_linking_open_url", vec!["react-native"]),
+    ];
+
+    for (pattern_id, imports) in import_patterns {
+        filters.insert(
+            pattern_id.to_string(),
+            SemanticFilter {
+                contains_import: imports.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            },
+        );
+    }
 
     filters
 }
