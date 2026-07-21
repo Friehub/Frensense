@@ -833,6 +833,29 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
         );
     }
 
+    // Patterns with no distinctive sink calls — use function name or file path guards
+    filters.insert(
+        "ts_llm_system_prompt_in_client".to_string(),
+        SemanticFilter {
+            function_name_regex: Some("prompt".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_perm_cache_stale_elevation".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["redis".to_string(), "cache".to_string(), "memcached".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_cache_unkeyed_header".to_string(),
+        SemanticFilter {
+            must_not_match_file_path_pattern: vec!["routes/".to_string()],
+            ..Default::default()
+        },
+    );
+
     filters
 }
 
