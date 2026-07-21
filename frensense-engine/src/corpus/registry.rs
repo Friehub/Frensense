@@ -28,6 +28,7 @@ pub struct PatternRegistry {
     ngram_sim_threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
     idf_weights: FxHashMap<u64, f32>,
+    api_idf_weights: FxHashMap<u64, f32>,
     source_sink: CorpusSourceSinkRegistry,
 }
 
@@ -40,6 +41,7 @@ impl PatternRegistry {
             ngram_sim_threshold,
             threshold_overrides: std::collections::HashMap::new(),
             idf_weights: FxHashMap::default(),
+            api_idf_weights: FxHashMap::default(),
             source_sink: CorpusSourceSinkRegistry::default(),
         }
     }
@@ -123,6 +125,26 @@ impl PatternRegistry {
             for fp in &mut pattern.negatives {
                 apply_idf_weights(fp, &self.idf_weights);
             }
+        }
+
+        // Compute API-call IDF: how many distinct patterns does each API call appear in?
+        let total = self.patterns.len() as f32;
+        if total > 0.0 {
+            let mut api_doc_freq: FxHashMap<u64, f32> = FxHashMap::default();
+            for pattern in &self.patterns {
+                let mut seen_in_pattern: rustc_hash::FxHashSet<u64> = rustc_hash::FxHashSet::default();
+                for fp in &pattern.positives {
+                    for &call in &fp.api_calls {
+                        if seen_in_pattern.insert(call) {
+                            *api_doc_freq.entry(call).or_insert(0.0) += 1.0;
+                        }
+                    }
+                }
+            }
+            self.api_idf_weights = api_doc_freq
+                .into_iter()
+                .map(|(call, df)| (call, (total / df).ln()))
+                .collect();
         }
     }
 
@@ -250,12 +272,31 @@ impl PatternRegistry {
                 // The actual vulnerability typically has a distinctive API call.
                 let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
                 if let Some(gate_pos) = gate_pos {
-                    if !weighted_fp.api_calls.is_empty() {
-                        let has_distinct_overlap = gate_pos
+                    if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
+                        // Use API IDF to check if the overlap is from DISTINCTIVE calls (high IDF)
+                        // or boring utilities (low IDF). A call that appears in many patterns
+                        // (like res.status) gets low IDF. A rare call (like exec) gets high IDF.
+                        // Find the positive's most distinctive call (highest IDF).
+                        // Then check if the candidate ALSO calls that distinctive call.
+                        // This prevents Express utilities (res.status, IDF≈3.6) from being
+                        // mistaken for sink calls (exec, IDF≈5.0+).
+                        let top_idf_call = gate_pos
+                            .api_calls
+                            .iter()
+                            .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
+                            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+                        if let Some((top_call, top_idf)) = top_idf_call {
+                            if !weighted_fp.api_calls.contains(&top_call) {
+                                continue;
+                            }
+                        }
+                    } else if !weighted_fp.api_calls.is_empty() {
+                        // Fallback when IDF not computed: require any overlap
+                        let has_any_overlap = gate_pos
                             .api_calls
                             .iter()
                             .any(|h| weighted_fp.api_calls.contains(h));
-                        if !has_distinct_overlap {
+                        if !has_any_overlap {
                             continue;
                         }
                     }
