@@ -245,18 +245,19 @@ impl PatternRegistry {
                     continue; // Prune this candidate early
                 }
 
-                // API-call gate: if both candidate and positive have API calls but share NONE,
-                // skip — the structural similarity is coincidental.
-                // Only gates when BOTH sides have non-empty API calls.
-                // Functions with empty api_calls (e.g., anonymous arrow functions)
-                // bypass this gate and fall through to structural scoring.
-                if !first_pos.api_calls.is_empty() && !weighted_fp.api_calls.is_empty() {
-                    let api_overlap = first_pos
-                        .api_calls
-                        .iter()
-                        .any(|h| weighted_fp.api_calls.contains(h));
-                    if !api_overlap {
-                        continue;
+                // API-call gate: find the first positive with non-empty api_calls.
+                // Helper functions (like getCommand) often appear first but have no calls.
+                // The actual vulnerability typically has a distinctive API call.
+                let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
+                if let Some(gate_pos) = gate_pos {
+                    if !weighted_fp.api_calls.is_empty() {
+                        let has_distinct_overlap = gate_pos
+                            .api_calls
+                            .iter()
+                            .any(|h| weighted_fp.api_calls.contains(h));
+                        if !has_distinct_overlap {
+                            continue;
+                        }
                     }
                 }
             }
