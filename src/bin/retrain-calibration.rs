@@ -42,17 +42,19 @@ fn main() {
             apply_idf_weights(fp, &idf_weights);
         }
 
+        let default_w = &[0.12, 0.28, 0.08, 0.04, 0.03, 0.15, 0.15, 0.15];
+
         // Score positive examples against their own pattern (should be high = TP)
         for pos in &pos_fps {
             let score =
-                PatternScorer::score_against_corpus(pos, &pos_fps, &neg_fps, None, None, 0.05);
+                PatternScorer::score_against_corpus(pos, &pos_fps, &neg_fps, None, None, 0.05, default_w);
             scores.push((score, true));
         }
 
         // Score negative examples against positive pattern (should be low = FP)
         for neg in &neg_fps {
             let score =
-                PatternScorer::score_against_corpus(neg, &pos_fps, &neg_fps, None, None, 0.05);
+                PatternScorer::score_against_corpus(neg, &pos_fps, &neg_fps, None, None, 0.05, default_w);
             scores.push((score, false));
         }
     }

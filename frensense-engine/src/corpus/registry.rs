@@ -29,6 +29,8 @@ pub struct PatternRegistry {
     threshold_overrides: std::collections::HashMap<String, f64>,
     idf_weights: FxHashMap<u64, f32>,
     api_idf_weights: FxHashMap<u64, f32>,
+    /// Per-category learned feature weights (trained at build time or loaded from bundle).
+    pub category_weights: std::collections::HashMap<String, [f64; 8]>,
     source_sink: CorpusSourceSinkRegistry,
 }
 
@@ -42,6 +44,7 @@ impl PatternRegistry {
             threshold_overrides: std::collections::HashMap::new(),
             idf_weights: FxHashMap::default(),
             api_idf_weights: FxHashMap::default(),
+            category_weights: std::collections::HashMap::new(),
             source_sink: CorpusSourceSinkRegistry::default(),
         }
     }
@@ -108,6 +111,14 @@ impl PatternRegistry {
                 .collect();
         }
 
+        // Restore per-category feature weights from bundle
+        if !loaded.category_weights.is_empty() {
+            self.category_weights = loaded
+                .category_weights
+                .into_iter()
+                .collect();
+        }
+
         self.apply_ngram_idf();
         // compute_api_idf skipped when weights came from the bundle
         if self.api_idf_weights.is_empty() {
@@ -164,10 +175,21 @@ impl PatternRegistry {
             .collect();
     }
 
-    /// Run both IDF passes. Called after `load_corpus` / `load_corpus_dirs`.
+    /// Learn per-category feature weights from corpus positive/negative pairs.
+    fn compute_category_weights(&mut self) {
+        // Only compute if not already loaded from bundle
+        if self.category_weights.is_empty() {
+            self.category_weights =
+                crate::pattern::weight_learner::learn_category_weights(&self.patterns);
+        }
+    }
+
+    /// Run both IDF passes and learn category weights.
+    /// Called after `load_corpus` / `load_corpus_dirs`.
     fn compute_and_apply_idf(&mut self) {
         self.apply_ngram_idf();
         self.compute_api_idf();
+        self.compute_category_weights();
     }
 
     pub fn pattern_count(&self) -> usize {
@@ -325,6 +347,10 @@ impl PatternRegistry {
                 }
             }
 
+            let pat_weights = crate::pattern::weight_learner::category_weights(
+                &pattern.id,
+                &self.category_weights,
+            );
             let best_score = PatternScorer::score_against_corpus(
                 &weighted_fp,
                 &pattern.positives,
@@ -332,6 +358,7 @@ impl PatternRegistry {
                 pattern.expected_context.as_ref(),
                 actual_context,
                 self.ngram_sim_threshold,
+                pat_weights,
             );
             let threshold = self.threshold_for_pattern(&pattern.id);
             if pattern.id == "rust_async_blocking_io" || pattern.id.contains("async") {

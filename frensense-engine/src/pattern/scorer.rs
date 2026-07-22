@@ -136,6 +136,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
+        weights: &[f64; 8],
     ) -> f64 {
         let mut best_pos_score = 0.0f64;
 
@@ -154,7 +155,7 @@ impl PatternScorer {
                 }
             }
 
-            let sim_pos = Self::compute_similarity(candidate, positive, true, ngram_sim_threshold);
+            let sim_pos = Self::compute_similarity(candidate, positive, true, ngram_sim_threshold, weights);
             let semantic_multiplier = if positive.semantic_markers.is_empty() {
                 1.0
             } else if minhash::jaccard_similarity_sorted(
@@ -183,7 +184,7 @@ impl PatternScorer {
         // 2. Find the highest negative similarity (the worst penalty)
         let mut max_neg_sim = 0.0f64;
         for negative in negatives {
-            let sim_neg = Self::compute_similarity(candidate, negative, false, ngram_sim_threshold);
+            let sim_neg = Self::compute_similarity(candidate, negative, false, ngram_sim_threshold, weights);
             if sim_neg > max_neg_sim {
                 max_neg_sim = sim_neg;
             }
@@ -223,6 +224,7 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_positive: bool,
         ngram_sim_threshold: f64,
+        weights: &[f64; 8],
     ) -> f64 {
         let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
@@ -257,14 +259,14 @@ impl PatternScorer {
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
 
-        ngram_sim * 0.12
-            + ast_sim * 0.28
-            + jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams) * 0.08
-            + jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams) * 0.04
-            + type_usage_overlap(candidate, target) * 0.03
-            + semantic_sim * 0.15
-            + cf_sim * 0.15
-            + api_sim * 0.15
+        ngram_sim * weights[0]
+            + ast_sim * weights[1]
+            + jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams) * weights[2]
+            + jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams) * weights[3]
+            + type_usage_overlap(candidate, target) * weights[4]
+            + semantic_sim * weights[5]
+            + cf_sim * weights[6]
+            + api_sim * weights[7]
     }
 
     pub fn similarity_to_positive(
@@ -328,7 +330,7 @@ impl PatternScorer {
     }
 }
 
-fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
+pub(crate) fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
     if a.type_usages.is_empty() && b.type_usages.is_empty() {
         return 0.5;
     }
@@ -398,7 +400,8 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
-        let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5);
+        let default_w = &[0.12, 0.28, 0.08, 0.04, 0.03, 0.15, 0.15, 0.15];
+        let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(
             score > 0.5,
             "candidate identical to positive should score high, got {score}"
@@ -410,7 +413,8 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
-        let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5);
+        let default_w = &[0.12, 0.28, 0.08, 0.04, 0.03, 0.15, 0.15, 0.15];
+        let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(score < 0.6, "candidate closer to negative should score low");
     }
 }

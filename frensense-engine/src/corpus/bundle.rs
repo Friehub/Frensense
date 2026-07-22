@@ -113,13 +113,18 @@ struct BundlePayload {
     /// Sorted for deterministic serialization and byte-for-byte reproducible bundles.
     #[serde(default)]
     api_idf_weights: Vec<(u64, f32)>,
+    /// Per-category learned feature weights (8-d vector per category).
+    /// Trained at build time via logistic regression on corpus positive/negative pairs.
+    #[serde(default)]
+    category_weights: Vec<(String, [f64; 8])>,
 }
 
 /// Returned by `load_bundle`; carries both the deserialized patterns and
-/// the pre-computed API IDF weights so callers can skip recomputation.
+/// pre-computed weights so callers can skip recomputation.
 pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
+    pub category_weights: Vec<(String, [f64; 8])>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -210,9 +215,29 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
     // Pre-compute API IDF at build time so loaders can skip recomputation (~100 ms saving)
     let api_idf_weights = compute_bundle_api_idf(patterns);
 
+    // Learn per-category feature weights from positive/negative pairs
+    let corpus_patterns: Vec<crate::corpus::loader::CorpusPattern> = patterns
+        .iter()
+        .map(|bp| crate::corpus::loader::CorpusPattern {
+            id: bp.id.clone(),
+            positives: bp.positives.clone(),
+            negatives: bp.negatives.clone(),
+            semantic_filter: bp.semantic_filter.clone(),
+            observation: bp.observation.clone(),
+            impact: bp.impact.clone(),
+            improvement: bp.improvement.clone(),
+            expected_context: bp.expected_context.clone(),
+        })
+        .collect();
+    let category_weights_vec: Vec<(String, [f64; 8])> =
+        crate::pattern::weight_learner::learn_category_weights(&corpus_patterns)
+            .into_iter()
+            .collect();
+
     let payload = BundlePayload {
         patterns: patterns.to_vec(),
         api_idf_weights,
+        category_weights: category_weights_vec,
     };
     let data = bincode::serialize(&payload).map_err(|e| e.to_string())?;
 
@@ -347,15 +372,18 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     // Deserialize as BundlePayload (version ≥ 3) with graceful fallback for v2 bundles
     // that serialized a bare Vec<BundlePattern>. bincode will fail on the wrong shape,
     // so we try the new format first and fall back to the legacy flat vec on error.
-    let (patterns, api_idf_weights): (Vec<BundlePattern>, Vec<(u64, f32)>) =
-        if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
-            (payload.patterns, payload.api_idf_weights)
-        } else {
-            // Legacy v2 bundle — no embedded IDF; caller will recompute
-            let patterns: Vec<BundlePattern> =
-                bincode::deserialize(data).map_err(|e| e.to_string())?;
-            (patterns, Vec::new())
-        };
+    let (patterns, api_idf_weights, category_weights): (
+        Vec<BundlePattern>,
+        Vec<(u64, f32)>,
+        Vec<(String, [f64; 8])>,
+    ) = if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
+        (payload.patterns, payload.api_idf_weights, payload.category_weights)
+    } else {
+        // Legacy v2 bundle — no embedded IDF or category weights; caller will recompute
+        let patterns: Vec<BundlePattern> =
+            bincode::deserialize(data).map_err(|e| e.to_string())?;
+        (patterns, Vec::new(), Vec::new())
+    };
 
     if patterns.len() != header.pattern_count as usize {
         return Err(format!(
@@ -368,6 +396,7 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     Ok(LoadedBundle {
         patterns,
         api_idf_weights,
+        category_weights,
     })
 }
 
