@@ -45,7 +45,7 @@ fn main() {
         }
     };
 
-    let patterns = match frensense_engine::corpus::bundle::load_bundle(&bytes) {
+    let loaded = match frensense_engine::corpus::bundle::load_bundle(&bytes) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("Error verifying bundle: {e}");
@@ -53,7 +53,8 @@ fn main() {
         }
     };
 
-    let total_fingerprints: usize = patterns
+    let total_fingerprints: usize = loaded
+        .patterns
         .iter()
         .map(|p| p.positives.len() + p.negatives.len())
         .sum();
@@ -67,7 +68,7 @@ fn main() {
         "Bundle written to {} ({} bytes, {} patterns, {} fingerprints)",
         output_path.display(),
         bytes.len(),
-        patterns.len(),
+        loaded.patterns.len(),
         total_fingerprints,
     );
 }

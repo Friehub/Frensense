@@ -71,7 +71,7 @@ use crate::corpus::loader::load_corpus;
 use crate::fingerprint::FunctionFingerprint;
 
 pub const BUNDLE_MAGIC: &[u8; 4] = b"FRC1";
-pub const BUNDLE_VERSION: u32 = 2;
+pub const BUNDLE_VERSION: u32 = 3;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct BundleHeader {
@@ -102,6 +102,24 @@ pub struct BundlePattern {
 pub struct Bundle {
     pub header: BundleHeader,
     pub patterns: Vec<BundlePattern>,
+}
+
+/// Internal serialization wrapper for the data section of an FRC bundle.
+/// Stores both patterns and pre-computed API-call IDF weights.
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct BundlePayload {
+    patterns: Vec<BundlePattern>,
+    /// Pre-computed API-call IDF weights as a sorted `(hash, idf_score)` vec.
+    /// Sorted for deterministic serialization and byte-for-byte reproducible bundles.
+    #[serde(default)]
+    api_idf_weights: Vec<(u64, f32)>,
+}
+
+/// Returned by `load_bundle`; carries both the deserialized patterns and
+/// the pre-computed API IDF weights so callers can skip recomputation.
+pub struct LoadedBundle {
+    pub patterns: Vec<BundlePattern>,
+    pub api_idf_weights: Vec<(u64, f32)>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -160,9 +178,43 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     build_bundle_from_patterns(&bundle_patterns)
 }
 
+/// Compute API-call IDF weights from a slice of bundle patterns.
+/// Mirrors the logic in `PatternRegistry::compute_api_idf` but operates on
+/// `BundlePattern` so it can run at build time without a live registry.
+fn compute_bundle_api_idf(patterns: &[BundlePattern]) -> Vec<(u64, f32)> {
+    let total = patterns.len() as f32;
+    if total == 0.0 {
+        return Vec::new();
+    }
+    let mut api_doc_freq: rustc_hash::FxHashMap<u64, f32> = rustc_hash::FxHashMap::default();
+    for pattern in patterns {
+        let mut seen: rustc_hash::FxHashSet<u64> = rustc_hash::FxHashSet::default();
+        for fp in &pattern.positives {
+            for &call in &fp.api_calls {
+                if seen.insert(call) {
+                    *api_doc_freq.entry(call).or_insert(0.0) += 1.0;
+                }
+            }
+        }
+    }
+    let mut weights: Vec<(u64, f32)> = api_doc_freq
+        .into_iter()
+        .map(|(hash, df)| (hash, (total / df).ln()))
+        .collect();
+    weights.sort_unstable_by_key(|&(hash, _)| hash);
+    weights
+}
+
 /// Build a bundle from pre-built `BundlePatterns`.
 pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>, String> {
-    let data = bincode::serialize(patterns).map_err(|e| e.to_string())?;
+    // Pre-compute API IDF at build time so loaders can skip recomputation (~100 ms saving)
+    let api_idf_weights = compute_bundle_api_idf(patterns);
+
+    let payload = BundlePayload {
+        patterns: patterns.to_vec(),
+        api_idf_weights,
+    };
+    let data = bincode::serialize(&payload).map_err(|e| e.to_string())?;
 
     let checksum = blake3::hash(&data);
     let header = BundleHeader {
@@ -254,8 +306,8 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-/// Load patterns from a bundle byte slice.
-pub fn load_bundle(bytes: &[u8]) -> Result<Vec<BundlePattern>, String> {
+/// Load patterns and API IDF weights from a bundle byte slice.
+pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     if bytes.len() < 4 {
         return Err("bundle too small".to_string());
     }
@@ -292,17 +344,20 @@ pub fn load_bundle(bytes: &[u8]) -> Result<Vec<BundlePattern>, String> {
         return Err("checksum mismatch".to_string());
     }
 
-    let patterns: Vec<BundlePattern> = bincode::deserialize(data).map_err(|e| e.to_string())?;
+    let payload: BundlePayload = bincode::deserialize(data).map_err(|e| e.to_string())?;
 
-    if patterns.len() != header.pattern_count as usize {
+    if payload.patterns.len() != header.pattern_count as usize {
         return Err(format!(
             "pattern count mismatch: header says {} but found {}",
             header.pattern_count,
-            patterns.len()
+            payload.patterns.len()
         ));
     }
 
-    Ok(patterns)
+    Ok(LoadedBundle {
+        patterns: payload.patterns,
+        api_idf_weights: payload.api_idf_weights,
+    })
 }
 
 #[cfg(test)]
@@ -316,11 +371,11 @@ mod tests {
         std::fs::write(dir.path().join("test_negative.rs"), "fn foo() -> i32 { 2 }").unwrap();
 
         let bytes = build_bundle(dir.path()).unwrap();
-        let patterns = load_bundle(&bytes).unwrap();
-        assert_eq!(patterns.len(), 1);
-        assert_eq!(patterns[0].id, "test");
-        assert!(!patterns[0].positives.is_empty());
-        assert!(!patterns[0].negatives.is_empty());
+        let loaded = load_bundle(&bytes).unwrap();
+        assert_eq!(loaded.patterns.len(), 1);
+        assert_eq!(loaded.patterns[0].id, "test");
+        assert!(!loaded.patterns[0].positives.is_empty());
+        assert!(!loaded.patterns[0].negatives.is_empty());
     }
 
     #[test]

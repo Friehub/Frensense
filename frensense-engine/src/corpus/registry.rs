@@ -82,10 +82,11 @@ impl PatternRegistry {
 
     #[cfg(feature = "serialize")]
     pub fn load_from_bundle(&mut self, bytes: &[u8]) -> Result<usize, String> {
-        let bundle_patterns = crate::corpus::bundle::load_bundle(bytes)?;
-        let count = bundle_patterns.len();
+        let loaded = crate::corpus::bundle::load_bundle(bytes)?;
+        let count = loaded.patterns.len();
 
-        self.patterns = bundle_patterns
+        self.patterns = loaded
+            .patterns
             .into_iter()
             .map(|bp| CorpusPattern {
                 id: bp.id.clone(),
@@ -98,6 +99,15 @@ impl PatternRegistry {
                 expected_context: bp.expected_context,
             })
             .collect();
+
+        // Use pre-computed API IDF from bundle when available (avoids recomputation)
+        if !loaded.api_idf_weights.is_empty() {
+            self.api_idf_weights = loaded
+                .api_idf_weights
+                .into_iter()
+                .collect();
+        }
+
         self.compute_and_apply_idf();
         self.build_lsh_index();
         Ok(count)
