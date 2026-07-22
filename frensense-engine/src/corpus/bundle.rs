@@ -120,6 +120,9 @@ struct BundlePayload {
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     #[serde(default)]
     auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
+    /// Per-pattern sigmoid calibration params (A, B).
+    #[serde(default)]
+    pattern_calibration: Vec<(String, f32, f32)>,
 }
 
 /// Returned by `load_bundle`; carries both the deserialized patterns and
@@ -129,6 +132,7 @@ pub struct LoadedBundle {
     pub api_idf_weights: Vec<(u64, f32)>,
     pub category_weights: Vec<(String, [f64; 8])>,
     pub auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
+    pub pattern_calibration: Vec<(String, f32, f32)>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -271,11 +275,19 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
         v
     };
 
+    // Train per-pattern calibration sigmoids
+    let pattern_cal: Vec<(String, f32, f32)> =
+        crate::per_pattern_calibration::train_per_pattern_calibration(&corpus_patterns)
+            .into_iter()
+            .map(|(k, (a, b))| (k, a, b))
+            .collect();
+
     let payload = BundlePayload {
         patterns: patterns.to_vec(),
         api_idf_weights,
         category_weights: category_weights_vec,
         auto_filter_stats,
+        pattern_calibration: pattern_cal,
     };
     let data = bincode::serialize(&payload).map_err(|e| e.to_string())?;
 
@@ -410,18 +422,19 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     // Deserialize as BundlePayload (version ≥ 3) with graceful fallback for v2 bundles
     // that serialized a bare Vec<BundlePattern>. bincode will fail on the wrong shape,
     // so we try the new format first and fall back to the legacy flat vec on error.
-    let (patterns, api_idf_weights, category_weights, auto_filter_stats): (
+    let (patterns, api_idf_weights, category_weights, auto_filter_stats, pattern_calibration): (
         Vec<BundlePattern>,
         Vec<(u64, f32)>,
         Vec<(String, [f64; 8])>,
         Vec<(String, Vec<String>, Vec<String>)>,
+        Vec<(String, f32, f32)>,
     ) = if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
-        (payload.patterns, payload.api_idf_weights, payload.category_weights, payload.auto_filter_stats)
+        (payload.patterns, payload.api_idf_weights, payload.category_weights, payload.auto_filter_stats, payload.pattern_calibration)
     } else {
         // Legacy v2 bundle — no embedded metrics; caller will recompute
         let patterns: Vec<BundlePattern> =
             bincode::deserialize(data).map_err(|e| e.to_string())?;
-        (patterns, Vec::new(), Vec::new(), Vec::new())
+        (patterns, Vec::new(), Vec::new(), Vec::new(), Vec::new())
     };
 
     if patterns.len() != header.pattern_count as usize {
@@ -437,6 +450,7 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
         api_idf_weights,
         category_weights,
         auto_filter_stats,
+        pattern_calibration,
     })
 }
 

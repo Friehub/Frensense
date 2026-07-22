@@ -30,6 +30,7 @@ pub mod lang;
 pub mod minhash;
 pub mod parser;
 pub mod pattern;
+pub mod per_pattern_calibration;
 pub mod profile;
 pub mod semantic_patterns;
 pub mod symbols;

@@ -555,6 +555,11 @@ fn run_corpus_scan(
                     m.score
                 };
 
+                // Apply per-pattern calibration on top of per-category scaling
+                // Each pattern has its own sigmoid (A, B) trained from held-out validation data
+                let pattern_params = registry.pattern_calibration.get(&m.pattern_id[..]);
+                confidence = frensense_engine::per_pattern_calibration::calibrate(confidence, pattern_params);
+
                 // Verify taint flow if we have a function node
                 let mut taint_verified = false;
                 let mut taint_detail = String::new();

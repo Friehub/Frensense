@@ -33,6 +33,8 @@ pub struct PatternRegistry {
     pub category_weights: std::collections::HashMap<String, [f64; 8]>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
+    /// Per-pattern sigmoid calibration (A, B) parameters, keyed by pattern id.
+    pub pattern_calibration: std::collections::HashMap<String, (f32, f32)>,
     source_sink: CorpusSourceSinkRegistry,
 }
 
@@ -48,6 +50,7 @@ impl PatternRegistry {
             api_idf_weights: FxHashMap::default(),
             category_weights: std::collections::HashMap::new(),
             auto_filter_stats: None,
+            pattern_calibration: std::collections::HashMap::new(),
             source_sink: CorpusSourceSinkRegistry::default(),
         }
     }
