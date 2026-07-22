@@ -98,41 +98,44 @@ impl SemanticFilter {
             }
         }
 
-        // Check contains_import — scan file source for import statements
+        // Check contains_import — scan file source for import statements (case-insensitive)
         if !self.contains_import.is_empty() {
+            let source_lower = source.to_lowercase();
             let has_import = self
                 .contains_import
                 .iter()
                 .any(|pkg| {
-                    // Match: import ... from 'pkg'  or  require('pkg')
-                    let from_pattern = format!("from '{}'", pkg);
-                    let from_pattern2 = format!("from \"{}\"", pkg);
-                    let require_pattern = format!("require('{}')", pkg);
-                    let require_pattern2 = format!("require(\"{}\")", pkg);
-                    source.contains(&from_pattern)
-                        || source.contains(&from_pattern2)
-                        || source.contains(&require_pattern)
-                        || source.contains(&require_pattern2)
+                    let pkg_lower = pkg.to_lowercase();
+                    let from_pattern  = format!("from '{pkg_lower}'");
+                    let from_pattern2 = format!("from \"{pkg_lower}\"");
+                    let req_pattern   = format!("require('{pkg_lower}')");
+                    let req_pattern2  = format!("require(\"{pkg_lower}\")");
+                    source_lower.contains(&from_pattern)
+                        || source_lower.contains(&from_pattern2)
+                        || source_lower.contains(&req_pattern)
+                        || source_lower.contains(&req_pattern2)
                 });
             if !has_import {
                 return false;
             }
         }
 
-        // Check must_not_contain_import — reject if file imports any of these packages
+        // Check must_not_contain_import — reject if file imports any of these packages (case-insensitive)
         if !self.must_not_contain_import.is_empty() {
+            let source_lower = source.to_lowercase();
             let has_forbidden_import = self
                 .must_not_contain_import
                 .iter()
                 .any(|pkg| {
-                    let from_pattern  = format!("from '{pkg}'");
-                    let from_pattern2 = format!("from \"{pkg}\"");
-                    let req_pattern   = format!("require('{pkg}')");
-                    let req_pattern2  = format!("require(\"{pkg}\")");
-                    source.contains(&from_pattern)
-                        || source.contains(&from_pattern2)
-                        || source.contains(&req_pattern)
-                        || source.contains(&req_pattern2)
+                    let pkg_lower = pkg.to_lowercase();
+                    let from_pattern  = format!("from '{pkg_lower}'");
+                    let from_pattern2 = format!("from \"{pkg_lower}\"");
+                    let req_pattern   = format!("require('{pkg_lower}')");
+                    let req_pattern2  = format!("require(\"{pkg_lower}\")");
+                    source_lower.contains(&from_pattern)
+                        || source_lower.contains(&from_pattern2)
+                        || source_lower.contains(&req_pattern)
+                        || source_lower.contains(&req_pattern2)
                 });
             if has_forbidden_import {
                 return false;
