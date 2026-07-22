@@ -23,6 +23,8 @@ pub struct CliOptions {
     pub enabled_tags: Vec<String>,
     pub emit_baseline_path: Option<String>,
     pub compare_baseline_path: Option<String>,
+    pub mine_negatives: bool,
+    pub mine_negatives_dir: String,
     pub min_confidence: f64,
     pub language_filter: Option<String>,
     pub suite: Suite,
@@ -78,6 +80,8 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         enabled_tags: Vec::new(),
         emit_baseline_path: None,
         compare_baseline_path: None,
+        mine_negatives: false,
+        mine_negatives_dir: String::from("mined_negatives"),
         min_confidence: 0.0,
         language_filter: None,
         suite: Suite::All,
@@ -223,6 +227,15 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 if let Some(path) = args.get(i + 1) {
                     options.compare_baseline_path = Some(path.clone());
                     i += 1;
+                }
+            }
+            "--mine-negatives" => {
+                options.mine_negatives = true;
+                if let Some(dir) = args.get(i + 1) {
+                    if !dir.starts_with('-') {
+                        options.mine_negatives_dir = dir.clone();
+                        i += 1;
+                    }
                 }
             }
             "--language" => {

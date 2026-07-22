@@ -268,6 +268,22 @@ fn main() -> Result<()> {
     };
     apply_filters(&mut filtered_advisories, &options, &engine);
 
+    // Mine negative candidates from grey-zone findings
+    if options.mine_negatives {
+        let mine_dir = std::path::Path::new(&options.mine_negatives_dir);
+        match frensense::engine::negative_miner::mine_negatives(
+            &filtered_advisories,
+            mine_dir,
+            options.min_confidence,
+        ) {
+            Ok(count) if count > 0 => {
+                eprintln!("Mined {count} negative candidates in {}", mine_dir.display());
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("Error mining negatives: {e}"),
+        }
+    }
+
     print_results(&filtered_advisories, &options.format, &input_path)?;
 
     if let Some(path) = &options.emit_baseline_path {

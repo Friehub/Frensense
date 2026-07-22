@@ -7,6 +7,7 @@ pub mod composition;
 pub mod confidence_calibration;
 pub mod findings;
 pub mod learn;
+pub mod negative_miner;
 pub mod per_category_calibration;
 pub mod project;
 pub mod source;
