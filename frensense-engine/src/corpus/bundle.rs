@@ -344,19 +344,30 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
         return Err("checksum mismatch".to_string());
     }
 
-    let payload: BundlePayload = bincode::deserialize(data).map_err(|e| e.to_string())?;
+    // Deserialize as BundlePayload (version ≥ 3) with graceful fallback for v2 bundles
+    // that serialized a bare Vec<BundlePattern>. bincode will fail on the wrong shape,
+    // so we try the new format first and fall back to the legacy flat vec on error.
+    let (patterns, api_idf_weights): (Vec<BundlePattern>, Vec<(u64, f32)>) =
+        if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
+            (payload.patterns, payload.api_idf_weights)
+        } else {
+            // Legacy v2 bundle — no embedded IDF; caller will recompute
+            let patterns: Vec<BundlePattern> =
+                bincode::deserialize(data).map_err(|e| e.to_string())?;
+            (patterns, Vec::new())
+        };
 
-    if payload.patterns.len() != header.pattern_count as usize {
+    if patterns.len() != header.pattern_count as usize {
         return Err(format!(
             "pattern count mismatch: header says {} but found {}",
             header.pattern_count,
-            payload.patterns.len()
+            patterns.len()
         ));
     }
 
     Ok(LoadedBundle {
-        patterns: payload.patterns,
-        api_idf_weights: payload.api_idf_weights,
+        patterns,
+        api_idf_weights,
     })
 }
 
