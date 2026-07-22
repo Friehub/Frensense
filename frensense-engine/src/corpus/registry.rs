@@ -350,22 +350,25 @@ impl PatternRegistry {
                 let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
                 if let Some(gate_pos) = gate_pos {
                     if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                        // Use API IDF to check if the overlap is from DISTINCTIVE calls (high IDF)
-                        // or boring utilities (low IDF). A call that appears in many patterns
-                        // (like res.status) gets low IDF. A rare call (like exec) gets high IDF.
-                        // Find the positive's most distinctive call (highest IDF).
-                        // Then check if the candidate ALSO calls that distinctive call.
-                        // This prevents Express utilities (res.status, IDF≈3.6) from being
-                        // mistaken for sink calls (exec, IDF≈5.0+).
-                        let top_idf_call = gate_pos
+                        // Co-occurrence gate: require at least 2 of the top-3 IDF-weighted
+                        // API calls from the pattern's positive to appear in the candidate.
+                        // A single common call (res.status, idf≈3.6) is not enough;
+                        // we need genuine sink-call overlap (exec + getCommand, idf≈4+).
+                        let mut top_k: Vec<(u64, f32)> = gate_pos
                             .api_calls
                             .iter()
                             .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
-                            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-                        if let Some((top_call, top_idf)) = top_idf_call {
-                            if !weighted_fp.api_calls.contains(&top_call) {
-                                continue;
-                            }
+                            .collect();
+                        top_k.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                        top_k.truncate(3);
+
+                        let hits = top_k.iter().filter(|(call, _)| {
+                            weighted_fp.api_calls.contains(call)
+                        }).count();
+                        // Require at least 2 of top-3, or 1 if there's only 1 top call
+                        let needed = if top_k.len() <= 1 { 1 } else { 2 };
+                        if hits < needed {
+                            continue;
                         }
                     } else if !weighted_fp.api_calls.is_empty() {
                         // Fallback when IDF not computed: require any overlap
