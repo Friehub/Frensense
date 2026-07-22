@@ -51,6 +51,12 @@ pub struct SemanticFilter {
     /// E.g., `["@remix-run/react", "next/image"]` for Remix/Next.js patterns.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub contains_import: Vec<String>,
+
+    /// Only match if the source file does NOT contain import statements from these packages.
+    /// E.g., `["next", "@remix-run/react"]` so Express patterns reject Next.js/Remix files.
+    /// Inverse of `contains_import`.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub must_not_contain_import: Vec<String>,
 }
 
 impl SemanticFilter {
@@ -64,6 +70,7 @@ impl SemanticFilter {
             && self.must_not_match_function_name.is_empty()
             && self.must_not_match_file_path_pattern.is_empty()
             && self.contains_import.is_empty()
+            && self.must_not_contain_import.is_empty()
     }
 
     pub fn matches(
@@ -108,6 +115,26 @@ impl SemanticFilter {
                         || source.contains(&require_pattern2)
                 });
             if !has_import {
+                return false;
+            }
+        }
+
+        // Check must_not_contain_import — reject if file imports any of these packages
+        if !self.must_not_contain_import.is_empty() {
+            let has_forbidden_import = self
+                .must_not_contain_import
+                .iter()
+                .any(|pkg| {
+                    let from_pattern  = format!("from '{pkg}'");
+                    let from_pattern2 = format!("from \"{pkg}\"");
+                    let req_pattern   = format!("require('{pkg}')");
+                    let req_pattern2  = format!("require(\"{pkg}\")");
+                    source.contains(&from_pattern)
+                        || source.contains(&from_pattern2)
+                        || source.contains(&req_pattern)
+                        || source.contains(&req_pattern2)
+                });
+            if has_forbidden_import {
                 return false;
             }
         }
@@ -339,6 +366,7 @@ impl LearnedConstraints {
             must_not_match_function_name: Vec::new(),
             must_not_match_file_path_pattern: Vec::new(),
             contains_import: Vec::new(),
+            must_not_contain_import: Vec::new(),
         }
     }
 }
