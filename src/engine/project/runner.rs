@@ -410,18 +410,20 @@ fn run_corpus_scan(
     let mut corpus_loaded = false;
 
     #[cfg(feature = "fingerprinting")]
-    if let Some(bundle_bytes) = engine.corpus_bundle {
-        match registry.load_from_bundle(bundle_bytes) {
-            Ok(count) if count > 0 => {
-                eprintln!("Loaded {count} patterns from embedded bundle");
-                corpus_loaded = true;
+    if corpus_dirs.is_empty() {
+        if let Some(bundle_bytes) = engine.corpus_bundle {
+            match registry.load_from_bundle(bundle_bytes) {
+                Ok(count) if count > 0 => {
+                    eprintln!("Loaded {count} patterns from embedded bundle");
+                    corpus_loaded = true;
+                }
+                Ok(_) => {}
+                Err(e) => eprintln!("Bundle load error: {e}"),
             }
-            Ok(_) => {}
-            Err(e) => eprintln!("Bundle load error: {e}"),
         }
     }
 
-    // Also load from corpus directories if specified (adds to embedded bundle)
+    // Load from corpus directories if specified (exclusive of embedded bundle)
     if !corpus_dirs.is_empty() {
         match registry.load_corpus_dirs(&corpus_dirs) {
             Ok(count) if count > 0 => {
