@@ -22,13 +22,18 @@ pub struct LayerSignals {
 
 /// Compose confidence from multiple layer signals.
 ///
-/// This implements a real AND-gate:
-/// - L2 confirms L1: taint flow confirms corpus match → full confidence
-/// - L1 alone: structural match with no dataflow → down-weight
-/// - L3 can suppress L1: high branch ratio means function is a real validator
-/// - L4 can boost or suppress: inconsistency across duplicates
+/// `boost_rate` is the per-duplicate lift factor (e.g. `0.10` → score × 1.10).
+/// `boost_max`  is the absolute ceiling on how much confidence can be added by L4
+/// (e.g. `0.30` means a base score of 0.50 can reach at most 0.80 via duplication).
+///
+/// Default engine values: `boost_rate = 0.10`, `boost_max = 0.30`.
 #[must_use]
-pub fn compose_confidence(signals: &LayerSignals, base_score: f64) -> f64 {
+pub fn compose_confidence(
+    signals: &LayerSignals,
+    base_score: f64,
+    boost_rate: f64,
+    boost_max: f64,
+) -> f64 {
     let mut score = base_score;
 
     // L2 confirms L1: tainted data actually reaches a sink this function's shape implies
@@ -47,9 +52,11 @@ pub fn compose_confidence(signals: &LayerSignals, base_score: f64) -> f64 {
         score *= 0.3;
     }
 
-    // L4 inconsistency can boost confidence (inconsistent code is suspicious)
+    // L4 inconsistency can boost confidence using the configured rate and ceiling
     if signals.near_duplicate {
-        score *= 1.2;
+        let boosted = score * (1.0 + boost_rate);
+        // Cap the absolute lift to boost_max (prevents runaway boosting on many duplicates)
+        score = boosted.min(score + boost_max);
     }
 
     score.min(1.0)
@@ -85,18 +92,20 @@ pub fn collect_signals(advisory: &Advisory, all_advisories: &[Advisory]) -> Laye
     signals
 }
 
+/// Apply real composition to advisories, replacing the coincidence counter.
+///
+/// `boost_rate` / `boost_max` are forwarded from `Engine` fields of the same name and
+/// control the L4 (near-duplicate) confidence lift. See `compose_confidence` for details.
 ///
 /// # Panics
 /// May panic if internal assertions fail.
-/// Apply real composition to advisories, replacing the coincidence counter.
-pub fn apply_composition(advisories: &mut [Advisory]) {
+pub fn apply_composition(advisories: &mut [Advisory], boost_rate: f64, boost_max: f64) {
     // Clone advisories to read from while mutating
     let original: Vec<Advisory> = advisories.to_vec();
 
     for adv in advisories.iter_mut() {
         let signals = collect_signals(adv, &original);
-        let base_score = adv.confidence;
-        adv.confidence = compose_confidence(&signals, base_score);
+        adv.confidence = compose_confidence(&signals, adv.confidence, boost_rate, boost_max);
     }
 }
 
@@ -112,8 +121,8 @@ mod tests {
             taint_branch_ratio: None,
             near_duplicate: false,
         };
-        let result = compose_confidence(&signals, 0.8);
-        // Corpus alone gets down-weighted to 0.6
+        let result = compose_confidence(&signals, 0.8, 0.10, 0.30);
+        // Corpus alone gets down-weighted to 0.6 → 0.48
         assert!((result - 0.48).abs() < 0.01);
     }
 
@@ -125,7 +134,7 @@ mod tests {
             taint_branch_ratio: None,
             near_duplicate: false,
         };
-        let result = compose_confidence(&signals, 0.8);
+        let result = compose_confidence(&signals, 0.8, 0.10, 0.30);
         // Full corroboration - no penalty
         assert!((result - 0.8).abs() < 0.01);
     }
@@ -138,7 +147,7 @@ mod tests {
             taint_branch_ratio: Some(0.8),
             near_duplicate: false,
         };
-        let result = compose_confidence(&signals, 0.8);
+        let result = compose_confidence(&signals, 0.8, 0.10, 0.30);
         // High branch ratio suppresses - function is likely a real validator
         // 0.8 * 0.3 = 0.24
         assert!((result - 0.24).abs() < 0.01);

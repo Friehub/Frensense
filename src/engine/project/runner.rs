@@ -817,7 +817,7 @@ impl Engine {
             &mut all_advisories,
             self.use_data_flow,
         );
-        Self::apply_composition(&mut all_advisories);
+        self.apply_composition(&mut all_advisories);
 
         self.file_cache.save(root, self.language_filter.as_deref());
         Ok(all_advisories)
@@ -882,7 +882,7 @@ impl Engine {
             config.severity_override.as_ref(),
             &self.severity_overrides,
         );
-        Self::apply_composition(&mut advisories);
+        self.apply_composition(&mut advisories);
         Ok(advisories)
     }
 
@@ -891,8 +891,12 @@ impl Engine {
     /// # Panics
     /// May panic if internal assertions fail.
     /// Uses `LayerSignals` to check if layers are causally related, not just co-located.
-    fn apply_composition(advisories: &mut [Advisory]) {
-        crate::engine::composition::apply_composition(advisories);
+    fn apply_composition(&self, advisories: &mut [Advisory]) {
+        crate::engine::composition::apply_composition(
+            advisories,
+            self.confidence_boost_rate,
+            self.confidence_boost_max,
+        );
     }
 
     /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
@@ -927,7 +931,7 @@ impl Engine {
             config.severity_override.as_ref(),
             &self.severity_overrides,
         );
-        Self::apply_composition(&mut all_advisories);
+        self.apply_composition(&mut all_advisories);
 
         #[cfg(feature = "fingerprinting")]
         self.run_profile_analysis(&snapshots, &mut all_advisories);
