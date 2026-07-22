@@ -166,23 +166,29 @@ impl SemanticFilter {
         // Collect all call targets in the function
         let calls = collect_call_targets(func_node, source);
 
-        // Check contains_call_to
+        // Check contains_call_to (case-insensitive)
         if !self.contains_call_to.is_empty() {
             let has_match = self
                 .contains_call_to
                 .iter()
-                .any(|target| calls.iter().any(|call| call.contains(target.as_str())));
+                .any(|target| {
+                    let target_lower = target.to_lowercase();
+                    calls.iter().any(|call| call.to_lowercase().contains(&target_lower))
+                });
             if !has_match {
                 return false;
             }
         }
 
-        // Check must_not_contain_call_to
+        // Check must_not_contain_call_to (case-insensitive)
         if !self.must_not_contain_call_to.is_empty() {
             let has_forbidden = self
                 .must_not_contain_call_to
                 .iter()
-                .any(|target| calls.iter().any(|call| call.contains(target.as_str())));
+                .any(|target| {
+                    let target_lower = target.to_lowercase();
+                    calls.iter().any(|call| call.to_lowercase().contains(&target_lower))
+                });
             if has_forbidden {
                 return false;
             }
