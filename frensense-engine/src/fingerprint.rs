@@ -29,9 +29,16 @@ pub struct FunctionFingerprint {
     /// Control flow encoding: hashes of control flow paths through the function
     /// Captures if/else, match, loop, return patterns that fingerprint race conditions, TOCTOU, etc.
     pub control_flow_hashes: Vec<u64>,
-    /// API calls: hashes of function call names used in the body
-    /// Used for AST-aware semantic matching (replaces text-based keyword search)
+    /// API calls: hashes of the full callee expression used in the body.
+    /// E.g., hash of `"child_process.exec"`.
+    /// Used for AST-aware semantic matching and IDF weighting.
     pub api_calls: Vec<u64>,
+
+    /// Last-segment hashes of chained method calls.
+    /// E.g., hash of `"exec"` from `"child_process.exec"`.
+    /// Kept separate from `api_calls` so IDF is not double-counted for full-form names.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub api_call_segments: Vec<u64>,
     /// Property accesses: hashes of object property access names (e.g., 'price' in 'item.price')
     pub property_accesses: Vec<u64>,
 }
@@ -309,6 +316,40 @@ fn extract_api_calls(node: Node<'_>, source: &str) -> Vec<u64> {
     vec
 }
 
+/// Extract last-segment hashes of method calls (e.g., `"exec"` from `"child_process.exec"`).
+/// These are NOT included in `api_calls` IDF weighting but are still used for
+/// semantic marker matching.
+fn extract_api_call_segments(node: Node<'_>, source: &str) -> Vec<u64> {
+    let mut segments = FxHashSet::default();
+    extract_segments_recursive(node, source, &mut segments);
+    let mut vec: Vec<u64> = segments.into_iter().collect();
+    vec.sort_unstable();
+    vec
+}
+
+fn extract_segments_recursive(node: Node<'_>, source: &str, segments: &mut FxHashSet<u64>) {
+    if node.kind() == "call_expression" {
+        if let Some(func) = node.child_by_field_name("function") {
+            let name = &source[func.start_byte()..func.end_byte()];
+            if let Some(dot_pos) = name.rfind('.') {
+                let method = &name[dot_pos + 1..];
+                let mut h = FxHasher::default();
+                method.hash(&mut h);
+                segments.insert(h.finish());
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            extract_segments_recursive(cursor.node(), source, segments);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
 fn extract_calls_recursive(node: Node<'_>, source: &str, calls: &mut FxHashSet<u64>) {
     let kind = node.kind();
 
@@ -393,6 +434,7 @@ fn extract_semantic_markers(
     _node: Node<'_>,
     _source: &str,
     api_calls: &[u64],
+    api_call_segments: &[u64],
     property_accesses: &[u64],
 ) -> Vec<u64> {
     let mut markers = FxHashSet::default();
@@ -492,6 +534,7 @@ fn extract_semantic_markers(
             let mut h = FxHasher::default();
             api_name.hash(&mut h);
             if api_calls.binary_search(&h.finish()).is_ok()
+                || api_call_segments.binary_search(&h.finish()).is_ok()
                 || property_accesses.binary_search(&h.finish()).is_ok()
             {
                 let mut cat_h = FxHasher::default();
@@ -598,9 +641,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
             let api_calls = extract_api_calls(body, source_code);
+            let api_call_segments = extract_api_call_segments(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers =
-                extract_semantic_markers(body, source_code, &api_calls, &property_accesses);
+                extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
             for s in &skeleton {
@@ -608,7 +652,6 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 std::hash::Hash::hash(s, &mut hasher);
                 skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
             }
-
             let fp = FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
                 function_name,
@@ -634,8 +677,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 skeleton_hashes,
                 control_flow_hashes: control_flow,
                 api_calls,
+                api_call_segments,
                 property_accesses,
             };
+
             fingerprints.push((fp, node));
         }
 
@@ -715,9 +760,10 @@ pub fn extract_fingerprints(
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
             let api_calls = extract_api_calls(body, source_code);
+            let api_call_segments = extract_api_call_segments(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers =
-                extract_semantic_markers(body, source_code, &api_calls, &property_accesses);
+                extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
             for s in &skeleton {
@@ -725,7 +771,6 @@ pub fn extract_fingerprints(
                 std::hash::Hash::hash(s, &mut hasher);
                 skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
             }
-
             fingerprints.push(FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
                 function_name,
@@ -751,6 +796,7 @@ pub fn extract_fingerprints(
                 skeleton_hashes,
                 control_flow_hashes: control_flow,
                 api_calls,
+                api_call_segments,
                 property_accesses,
             });
         }
