@@ -108,13 +108,17 @@ impl PatternRegistry {
                 .collect();
         }
 
-        self.compute_and_apply_idf();
+        self.apply_ngram_idf();
+        // compute_api_idf skipped when weights came from the bundle
+        if self.api_idf_weights.is_empty() {
+            self.compute_api_idf();
+        }
         self.build_lsh_index();
         Ok(count)
     }
 
-    /// Compute IDF weights from corpus fingerprints and apply to all patterns.
-    fn compute_and_apply_idf(&mut self) {
+    /// Compute and apply n-gram IDF weights to all corpus fingerprints.
+    fn apply_ngram_idf(&mut self) {
         let all_positives: Vec<FunctionFingerprint> = self
             .patterns
             .iter()
@@ -127,7 +131,6 @@ impl PatternRegistry {
 
         self.idf_weights = compute_idf_weights(&all_positives);
 
-        // Apply IDF weights to all corpus fingerprints
         for pattern in &mut self.patterns {
             for fp in &mut pattern.positives {
                 apply_idf_weights(fp, &self.idf_weights);
@@ -136,26 +139,35 @@ impl PatternRegistry {
                 apply_idf_weights(fp, &self.idf_weights);
             }
         }
+    }
 
-        // Compute API-call IDF: how many distinct patterns does each API call appear in?
+    /// Compute API-call IDF weights from corpus patterns and store in `self.api_idf_weights`.
+    fn compute_api_idf(&mut self) {
         let total = self.patterns.len() as f32;
-        if total > 0.0 {
-            let mut api_doc_freq: FxHashMap<u64, f32> = FxHashMap::default();
-            for pattern in &self.patterns {
-                let mut seen_in_pattern: rustc_hash::FxHashSet<u64> = rustc_hash::FxHashSet::default();
-                for fp in &pattern.positives {
-                    for &call in &fp.api_calls {
-                        if seen_in_pattern.insert(call) {
-                            *api_doc_freq.entry(call).or_insert(0.0) += 1.0;
-                        }
+        if total == 0.0 {
+            return;
+        }
+        let mut api_doc_freq: FxHashMap<u64, f32> = FxHashMap::default();
+        for pattern in &self.patterns {
+            let mut seen_in_pattern: rustc_hash::FxHashSet<u64> = rustc_hash::FxHashSet::default();
+            for fp in &pattern.positives {
+                for &call in &fp.api_calls {
+                    if seen_in_pattern.insert(call) {
+                        *api_doc_freq.entry(call).or_insert(0.0) += 1.0;
                     }
                 }
             }
-            self.api_idf_weights = api_doc_freq
-                .into_iter()
-                .map(|(call, df)| (call, (total / df).ln()))
-                .collect();
         }
+        self.api_idf_weights = api_doc_freq
+            .into_iter()
+            .map(|(call, df)| (call, (total / df).ln()))
+            .collect();
+    }
+
+    /// Run both IDF passes. Called after `load_corpus` / `load_corpus_dirs`.
+    fn compute_and_apply_idf(&mut self) {
+        self.apply_ngram_idf();
+        self.compute_api_idf();
     }
 
     pub fn pattern_count(&self) -> usize {
