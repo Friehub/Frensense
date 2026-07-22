@@ -19,6 +19,7 @@
 pub mod ast_distance;
 pub mod auto_filter;
 pub mod cfg;
+pub mod function_role;
 pub mod context;
 pub mod corpus;
 pub mod data_flow;

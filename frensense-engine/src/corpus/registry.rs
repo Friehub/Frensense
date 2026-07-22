@@ -332,6 +332,16 @@ impl PatternRegistry {
                 continue;
             }
 
+            // Function role classifier: if the candidate's role is incompatible with the
+            // pattern's role, skip.  An HttpHandler cannot be a ShellExecutor or DbQuery.
+            let candidate_role = crate::function_role::classify_role(&weighted_fp);
+            if let Some(first_pos) = pattern.positives.first() {
+                let pattern_role = crate::function_role::classify_role(first_pos);
+                if crate::function_role::roles_are_incompatible(candidate_role, pattern_role) {
+                    continue;
+                }
+            }
+
             // Fast early exit: if the candidate shares almost no structural markers with the primary positive example,
             // it's highly unlikely to be a match. We can skip the expensive full scoring.
             if let Some(first_pos) = pattern.positives.first() {
