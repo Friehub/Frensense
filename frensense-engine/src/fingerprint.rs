@@ -308,65 +308,41 @@ fn extract_cf_recursive(
 
 /// Extract API calls from function body using AST traversal.
 /// This replaces text-based keyword matching with actual call expression detection.
-fn extract_api_calls(node: Node<'_>, source: &str) -> Vec<u64> {
+fn extract_api_calls(node: Node<'_>, source: &str) -> (Vec<u64>, Vec<u64>) {
     let mut calls = FxHashSet::default();
-    extract_calls_recursive(node, source, &mut calls);
-    let mut vec: Vec<u64> = calls.into_iter().collect();
-    vec.sort_unstable();
-    vec
-}
-
-/// Extract last-segment hashes of method calls (e.g., `"exec"` from `"child_process.exec"`).
-/// These are NOT included in `api_calls` IDF weighting but are still used for
-/// semantic marker matching.
-fn extract_api_call_segments(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut segments = FxHashSet::default();
-    extract_segments_recursive(node, source, &mut segments);
-    let mut vec: Vec<u64> = segments.into_iter().collect();
-    vec.sort_unstable();
-    vec
+    extract_calls_recursive(node, source, &mut calls, &mut segments);
+    let mut calls_vec: Vec<u64> = calls.into_iter().collect();
+    calls_vec.sort_unstable();
+    let mut seg_vec: Vec<u64> = segments.into_iter().collect();
+    seg_vec.sort_unstable();
+    (calls_vec, seg_vec)
 }
 
-fn extract_segments_recursive(node: Node<'_>, source: &str, segments: &mut FxHashSet<u64>) {
-    if node.kind() == "call_expression" {
-        if let Some(func) = node.child_by_field_name("function") {
-            let name = &source[func.start_byte()..func.end_byte()];
-            if let Some(dot_pos) = name.rfind('.') {
-                let method = &name[dot_pos + 1..];
-                let mut h = FxHasher::default();
-                method.hash(&mut h);
-                segments.insert(h.finish());
-            }
-        }
-    }
-    let mut cursor = node.walk();
-    if cursor.goto_first_child() {
-        loop {
-            extract_segments_recursive(cursor.node(), source, segments);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-    }
-}
-
-fn extract_calls_recursive(node: Node<'_>, source: &str, calls: &mut FxHashSet<u64>) {
+fn extract_calls_recursive(
+    node: Node<'_>,
+    source: &str,
+    calls: &mut FxHashSet<u64>,
+    segments: &mut FxHashSet<u64>,
+) {
     let kind = node.kind();
 
     // Match call expressions and extract the function name
     if kind == "call_expression" {
         if let Some(func) = node.child_by_field_name("function") {
             let name = &source[func.start_byte()..func.end_byte()];
+
+            // Full-form hash goes into `calls` (used for IDF)
             let mut h = FxHasher::default();
             name.hash(&mut h);
             calls.insert(h.finish());
 
-            // Also hash the "last segment" for method calls (e.g., "exec" from "child_process.exec")
+            // Last-segment hash goes into `segments` (kept separate to avoid IDF inflation)
             if let Some(dot_pos) = name.rfind('.') {
                 let method = &name[dot_pos + 1..];
                 let mut h2 = FxHasher::default();
                 method.hash(&mut h2);
-                calls.insert(h2.finish());
+                segments.insert(h2.finish());
             }
         }
     }
@@ -386,7 +362,7 @@ fn extract_calls_recursive(node: Node<'_>, source: &str, calls: &mut FxHashSet<u
     if cursor.goto_first_child() {
         loop {
             let child = cursor.node();
-            extract_calls_recursive(child, source, calls);
+            extract_calls_recursive(child, source, calls, segments);
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -640,8 +616,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
 
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
-            let api_calls = extract_api_calls(body, source_code);
-            let api_call_segments = extract_api_call_segments(body, source_code);
+            let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers =
                 extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
@@ -759,8 +734,7 @@ pub fn extract_fingerprints(
 
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
-            let api_calls = extract_api_calls(body, source_code);
-            let api_call_segments = extract_api_call_segments(body, source_code);
+            let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers =
                 extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
