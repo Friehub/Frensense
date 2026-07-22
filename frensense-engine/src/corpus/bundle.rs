@@ -117,6 +117,9 @@ struct BundlePayload {
     /// Trained at build time via logistic regression on corpus positive/negative pairs.
     #[serde(default)]
     category_weights: Vec<(String, [f64; 8])>,
+    /// Auto-derived semantic filter suggestions (import + call exclusivity).
+    #[serde(default)]
+    auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
 }
 
 /// Returned by `load_bundle`; carries both the deserialized patterns and
@@ -125,6 +128,7 @@ pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
     pub category_weights: Vec<(String, [f64; 8])>,
+    pub auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -234,10 +238,44 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
             .into_iter()
             .collect();
 
+    // Compute auto-derived semantic filter suggestions
+    // We need source text for each pattern to extract imports and call targets
+    let corpus_dir = std::env::current_dir()
+        .map(|d| d.join("corpus").join("targets"))
+        .unwrap_or_default();
+    let mut pattern_source_texts = std::collections::HashMap::new();
+    for bp in patterns {
+        // Try .ts, .tsx, .js, .jsx, .rs extensions for the positive file
+        for ext in &["ts", "tsx", "js", "jsx", "rs"] {
+            let path = format!("{}_{}.{}", bp.id, "positive", ext);
+            let full_path = corpus_dir.join(&path);
+            if let Ok(src) = std::fs::read_to_string(&full_path) {
+                pattern_source_texts.insert(bp.id.clone(), src);
+                break;
+            }
+        }
+    }
+    let auto_stats = crate::auto_filter::compute_auto_filters(patterns, &pattern_source_texts);
+    let auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)> = {
+        let mut v = Vec::new();
+        for (pid, imports) in &auto_stats.contains_import {
+            let calls = auto_stats.contains_call_to.get(pid).cloned().unwrap_or_default();
+            v.push((pid.clone(), imports.clone(), calls));
+        }
+        // Also include patterns that only have call suggestions
+        for (pid, calls) in &auto_stats.contains_call_to {
+            if !auto_stats.contains_import.contains_key(pid) {
+                v.push((pid.clone(), Vec::new(), calls.clone()));
+            }
+        }
+        v
+    };
+
     let payload = BundlePayload {
         patterns: patterns.to_vec(),
         api_idf_weights,
         category_weights: category_weights_vec,
+        auto_filter_stats,
     };
     let data = bincode::serialize(&payload).map_err(|e| e.to_string())?;
 
@@ -372,17 +410,18 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     // Deserialize as BundlePayload (version ≥ 3) with graceful fallback for v2 bundles
     // that serialized a bare Vec<BundlePattern>. bincode will fail on the wrong shape,
     // so we try the new format first and fall back to the legacy flat vec on error.
-    let (patterns, api_idf_weights, category_weights): (
+    let (patterns, api_idf_weights, category_weights, auto_filter_stats): (
         Vec<BundlePattern>,
         Vec<(u64, f32)>,
         Vec<(String, [f64; 8])>,
+        Vec<(String, Vec<String>, Vec<String>)>,
     ) = if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
-        (payload.patterns, payload.api_idf_weights, payload.category_weights)
+        (payload.patterns, payload.api_idf_weights, payload.category_weights, payload.auto_filter_stats)
     } else {
-        // Legacy v2 bundle — no embedded IDF or category weights; caller will recompute
+        // Legacy v2 bundle — no embedded metrics; caller will recompute
         let patterns: Vec<BundlePattern> =
             bincode::deserialize(data).map_err(|e| e.to_string())?;
-        (patterns, Vec::new(), Vec::new())
+        (patterns, Vec::new(), Vec::new(), Vec::new())
     };
 
     if patterns.len() != header.pattern_count as usize {
@@ -397,6 +436,7 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
         patterns,
         api_idf_weights,
         category_weights,
+        auto_filter_stats,
     })
 }
 

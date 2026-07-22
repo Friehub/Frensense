@@ -17,6 +17,7 @@
 )]
 
 pub mod ast_distance;
+pub mod auto_filter;
 pub mod cfg;
 pub mod context;
 pub mod corpus;

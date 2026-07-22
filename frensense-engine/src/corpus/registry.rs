@@ -31,6 +31,8 @@ pub struct PatternRegistry {
     api_idf_weights: FxHashMap<u64, f32>,
     /// Per-category learned feature weights (trained at build time or loaded from bundle).
     pub category_weights: std::collections::HashMap<String, [f64; 8]>,
+    /// Auto-derived semantic filter suggestions (import + call exclusivity).
+    pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
     source_sink: CorpusSourceSinkRegistry,
 }
 
@@ -45,6 +47,7 @@ impl PatternRegistry {
             idf_weights: FxHashMap::default(),
             api_idf_weights: FxHashMap::default(),
             category_weights: std::collections::HashMap::new(),
+            auto_filter_stats: None,
             source_sink: CorpusSourceSinkRegistry::default(),
         }
     }
@@ -117,6 +120,24 @@ impl PatternRegistry {
                 .category_weights
                 .into_iter()
                 .collect();
+        }
+
+        // Restore auto-derived filter suggestions from bundle
+        if !loaded.auto_filter_stats.is_empty() {
+            let mut contains_import = std::collections::HashMap::new();
+            let mut contains_call_to = std::collections::HashMap::new();
+            for (pid, imports, calls) in loaded.auto_filter_stats {
+                if !imports.is_empty() {
+                    contains_import.insert(pid.clone(), imports);
+                }
+                if !calls.is_empty() {
+                    contains_call_to.insert(pid, calls);
+                }
+            }
+            self.auto_filter_stats = Some(crate::auto_filter::AutoFilterStats {
+                contains_import,
+                contains_call_to,
+            });
         }
 
         self.apply_ngram_idf();
@@ -265,9 +286,21 @@ impl PatternRegistry {
                 // eprintln!("DEBUG: found pattern {} is candidate.", pattern.id);
             }
 
+            // Merge hand-authored semantic filter with auto-derived suggestions
+            let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
+                (Some(hand), Some(auto)) => Some(crate::auto_filter::merge_filters(
+                    hand, Some(auto), &pattern.id,
+                )),
+                (Some(hand), None) => Some(hand.clone()),
+                (None, Some(auto)) => Some(crate::auto_filter::merge_filters(
+                    &Default::default(), Some(auto), &pattern.id,
+                )),
+                (None, None) => None,
+            };
+
             // Apply semantic filter if present
             if let (Some(filter), Some(node), Some(src)) =
-                (&pattern.semantic_filter, func_node, source)
+                (merged_filter.as_ref(), func_node, source)
             {
                 if !filter.required_taint_flows.is_empty() && extracted_flows.is_none() {
                     extracted_flows = Some(crate::corpus::data_flow_extractor::extract_data_flows(
