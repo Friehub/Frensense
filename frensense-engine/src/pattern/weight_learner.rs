@@ -22,7 +22,7 @@ pub type FeatureVec = [f64; 11];
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
 // 8 original dims + tainted_api_sim + motif_sim + flow_sim at index 10
-const DEFAULT_WEIGHTS: FeatureVec = [0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
+pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
 
 /// Minimum number of positive + negative pairs required to train a per-category
 /// weight vector.  Below this threshold the fallback is returned.

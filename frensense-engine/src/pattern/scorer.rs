@@ -7,6 +7,7 @@ use crate::corpus::motifs::MOTIFS;
 use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
 use crate::pattern::evidence::MatchEvidence;
+use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
 use crate::pattern::matcher::MatchResult;
@@ -446,68 +447,14 @@ impl PatternScorer {
         candidate: &FunctionFingerprint,
         positive: &FunctionFingerprint,
     ) -> f64 {
-        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
-        let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
-        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
-            || positive.weighted_ngram_hashes.is_empty()
-        {
-            jaccard(&candidate.ngram_hashes, &positive.ngram_hashes)
-        } else {
-            weighted_jaccard(
-                &candidate.weighted_ngram_hashes,
-                &positive.weighted_ngram_hashes,
-            )
-        };
-        let cf_sim = jaccard(
-            &candidate.control_flow_hashes,
-            &positive.control_flow_hashes,
-        );
-        let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
-        let motif_sim = jaccard(&candidate.motif_hashes, &positive.motif_hashes);
-        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &positive.data_flow_path_hashes);
-        ngram_sim * 0.18
-            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.22
-            + jaccard_sorted(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.13
-            + jaccard_sorted(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
-            + type_usage_overlap(candidate, positive) * 0.05
-            + cf_sim * 0.08
-            + api_sim * 0.08
-            + motif_sim * 0.10
-            + flow_sim * 0.11
+        Self::compute_similarity(candidate, positive, true, 0.0, &DEFAULT_WEIGHTS)
     }
 
     pub fn similarity_to_negative(
         candidate: &FunctionFingerprint,
         negative: &FunctionFingerprint,
     ) -> f64 {
-        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
-        let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
-        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
-            || negative.weighted_ngram_hashes.is_empty()
-        {
-            jaccard(&candidate.ngram_hashes, &negative.ngram_hashes)
-        } else {
-            weighted_jaccard(
-                &candidate.weighted_ngram_hashes,
-                &negative.weighted_ngram_hashes,
-            )
-        };
-        let cf_sim = jaccard(
-            &candidate.control_flow_hashes,
-            &negative.control_flow_hashes,
-        );
-        let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
-        let motif_sim = jaccard(&candidate.motif_hashes, &negative.motif_hashes);
-        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &negative.data_flow_path_hashes);
-        ngram_sim * 0.18
-            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.22
-            + jaccard_sorted(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.13
-            + jaccard_sorted(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
-            + type_usage_overlap(candidate, negative) * 0.05
-            + cf_sim * 0.08
-            + api_sim * 0.08
-            + motif_sim * 0.10
-            + flow_sim * 0.11
+        Self::compute_similarity(candidate, negative, false, 0.0, &DEFAULT_WEIGHTS)
     }
 
     /// Compute a full `MatchEvidence` breakdown for a corpus match.

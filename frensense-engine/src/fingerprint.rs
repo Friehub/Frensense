@@ -270,9 +270,53 @@ fn extract_control_flow(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut hashes = FxHashSet::default();
     let mut path = Vec::new();
     extract_cf_recursive(node, source, &mut path, &mut hashes);
+
+    // Also hash the complete ordered sequence for order-sensitive patterns
+    // (e.g. exec→return vs. return→exec must produce different hashes).
+    let mut seq_h = FxHasher::default();
+    "cf_sequence".hash(&mut seq_h);
+    let ordered = collect_cf_sequence(node, source);
+    ordered.hash(&mut seq_h);
+    hashes.insert(seq_h.finish());
+
     let mut vec: Vec<u64> = hashes.into_iter().collect();
     vec.sort_unstable();
     vec
+}
+
+/// Collect control-flow event names in document order (pre-order traversal).
+fn collect_cf_sequence(node: Node<'_>, source: &str) -> Vec<String> {
+    let mut events = Vec::new();
+    collect_cf_seq_recursive(node, source, &mut events);
+    events
+}
+
+fn collect_cf_seq_recursive(node: Node<'_>, source: &str, events: &mut Vec<String>) {
+    let kind = node.kind();
+    let event = match kind {
+        "if_expression" | "if_statement"
+        | "match_expression" | "match_statement"
+        | "switch_statement" | "switch_expression"
+        | "conditional_expression" => Some("branch"),
+        "loop_expression" | "while_expression" | "for_expression" => Some("loop"),
+        "return_expression" | "return_statement" => Some("return"),
+        "break_expression" => Some("break"),
+        "try_expression" | "try_statement" => Some("try"),
+        "catch_clause" | "catch_block" => Some("catch"),
+        _ => None,
+    };
+    if let Some(e) = event {
+        events.push(e.to_string());
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            collect_cf_seq_recursive(cursor.node(), source, events);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
 }
 
 fn extract_cf_recursive(
