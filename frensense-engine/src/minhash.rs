@@ -19,18 +19,18 @@ pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
         return vec![0u64; num_hashes];
     }
 
-    let mut signature = Vec::with_capacity(num_hashes);
-
-    for i in 0..num_hashes {
-        let seed = i as u64;
-        let min_val = hashes
-            .iter()
-            .map(|&h| sha1_hash(h, seed))
-            .min()
-            .unwrap_or(0);
-        signature.push(min_val);
+    // Transposed loop: iterate over hashes once, updating all signature
+    // minimums in a single pass.  Cache-friendly — 1 sweep instead of
+    // num_hashes sweeps over the input vector.
+    let mut signature = vec![u64::MAX; num_hashes];
+    for &h in hashes {
+        for (i, min_val) in signature.iter_mut().enumerate() {
+            let candidate = sha1_hash(h, i as u64);
+            if candidate < *min_val {
+                *min_val = candidate;
+            }
+        }
     }
-
     signature
 }
 
