@@ -15,6 +15,21 @@ pub fn extract_skeleton(root: Node, _source: &str) -> Vec<String> {
     skeleton
 }
 
+/// Normalize node kind names so structurally equivalent constructs
+/// produce identical skeleton sequences (for↔while, if↔switch, etc.).
+fn normalize_kind(kind: &str) -> &str {
+    match kind {
+        "while_statement" | "for_statement" | "for_in_statement"
+        | "loop_expression" | "while_expression" | "for_expression" => "loop_node",
+        "if_statement" | "if_expression"
+        | "switch_statement" | "switch_expression"
+        | "match_expression" | "match_statement"
+        | "conditional_expression" => "branch_node",
+        "catch_clause" | "catch_block" | "try_expression" | "try_statement" => "catch_node",
+        other => other,
+    }
+}
+
 /// Recursively extract node kinds, skipping identifiers and literals.
 fn extract_skeleton_recursive(node: Node, skeleton: &mut Vec<String>) {
     if skeleton.len() > 256 {
@@ -38,7 +53,7 @@ fn extract_skeleton_recursive(node: Node, skeleton: &mut Vec<String>) {
         }
     }
 
-    skeleton.push(kind.to_string());
+    skeleton.push(normalize_kind(kind).to_string());
 
     // Recurse into children
     let mut cursor = node.walk();
