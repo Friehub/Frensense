@@ -344,10 +344,7 @@ fn run_findings_modules(
             }
         }
 
-        eprintln!(
-            "DEBUG CROSS_FILE_TAINT: registered {} exposed sources",
-            exposed_count
-        );
+        tracing::trace!(exposed_count, "cross-file taint: registered exposed sources");
     }
 
     let mut temporal_analyzer = frensense_engine::temporal::TemporalAnalyzer::new();
@@ -456,7 +453,7 @@ fn run_corpus_scan(
             let ctx = frensense_engine::context::FileContext::extract(&snap.path, &snap.content);
             let mut fps = Vec::new();
 
-            eprintln!("Extracting fingerprints for: {}", snap.path.display());
+            tracing::trace!(file = %snap.path.display(), "extracting fingerprints");
 
             frensense_engine::fingerprint::extract_fingerprints_with_nodes(
                 snap.tree.root_node(),
@@ -466,10 +463,10 @@ fn run_corpus_scan(
                 ngram_window_size,
             );
             if start_time.elapsed().as_millis() > 500 {
-                eprintln!(
-                    "Slow fingerprinting for {}: {}ms",
-                    snap.path.display(),
-                    start_time.elapsed().as_millis()
+                tracing::warn!(
+                    file = %snap.path.display(),
+                    ms = start_time.elapsed().as_millis(),
+                    "slow fingerprinting"
                 );
             }
             fps.into_iter()
@@ -478,9 +475,9 @@ fn run_corpus_scan(
         })
         .collect();
 
-    eprintln!(
-        "Fingerprinting completed for {} functions. Beginning scoring pipeline...",
-        all_fps.len()
+    tracing::info!(
+        count = all_fps.len(),
+        "fingerprinting completed; beginning scoring pipeline"
     );
     let scoring_start_time = std::time::Instant::now();
 
@@ -507,7 +504,7 @@ fn run_corpus_scan(
 
         let elapsed = start_time.elapsed().as_millis();
         if elapsed > 500 {
-            eprintln!("Slow scoring for {} in {}: {}ms", fp.function_name, snap.path.display(), elapsed);
+            tracing::warn!(function = %fp.function_name, file = %snap.path.display(), ms = elapsed, "slow scoring");
         }
 
         for m in &matches {
@@ -618,9 +615,9 @@ fn run_corpus_scan(
         result
     }).collect();
 
-    eprintln!(
-        "Scoring pipeline completed in {}ms.",
-        scoring_start_time.elapsed().as_millis()
+    tracing::info!(
+        ms = scoring_start_time.elapsed().as_millis(),
+        "scoring pipeline completed"
     );
 
     all_advisories.extend(new_advisories);

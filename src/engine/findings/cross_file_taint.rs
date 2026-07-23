@@ -11,11 +11,7 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     if let Some(resolver) = ctx.cross_file_taint.as_ref() {
         let paths = resolver.all_taint_paths(5);
         if !paths.is_empty() {
-            eprintln!(
-                "DEBUG CROSS_FILE_TAINT: found {} paths in {}",
-                paths.len(),
-                snap.path.display()
-            );
+            tracing::trace!(count = paths.len(), file = %snap.path.display(), "cross-file taint paths found");
         }
         for path in paths {
             // Only emit for the file where the source originated to avoid duplicates
