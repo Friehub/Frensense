@@ -656,8 +656,8 @@ pub(crate) fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprin
     if a.type_usages.is_empty() && b.type_usages.is_empty() {
         return 0.5;
     }
-    let set_a: std::collections::HashSet<_> = a.type_usages.iter().collect();
-    let set_b: std::collections::HashSet<_> = b.type_usages.iter().collect();
+    let set_a: rustc_hash::FxHashSet<_> = a.type_usages.iter().collect();
+    let set_b: rustc_hash::FxHashSet<_> = b.type_usages.iter().collect();
     let intersection = set_a.intersection(&set_b).count();
     let union = set_a.union(&set_b).count();
     if union == 0 {

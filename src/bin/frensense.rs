@@ -14,6 +14,14 @@ const CORPUS_BUNDLE: &[u8] = include_bytes!("../../frensense-corpus.frc");
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::INFO.into())
+                .from_env_lossy(),
+        )
+        .with_writer(std::io::stderr)
+        .init();
     // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
     if handle_early_args(&args) {
