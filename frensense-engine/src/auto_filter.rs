@@ -124,42 +124,30 @@ pub fn compute_auto_filters(
         let src_neg = get_negative_source(&p.id, source_texts);
 
         // --- Excludes call ---
-        // Only exclude calls present in ≥80% of negatives and absent from positives.
-        let neg_call_vec = extract_call_targets(&src_neg);
-        let neg_call_counts: std::collections::HashMap<&str, usize> = neg_call_vec
-            .iter()
-            .fold(std::collections::HashMap::new(), |mut acc, c| {
-                *acc.entry(c.as_str()).or_insert(0) += 1;
-                acc
-            });
+        // Exclude any call present in negatives but absent from positives.
+        // Since each file represents one codebase context, a single occurrence
+        // is meaningful — the call identifies what the positive never uses.
         let pos_call_set: std::collections::HashSet<String> =
             extract_call_targets(src_pos).into_iter().collect();
-        let neg_call_threshold = (count_lines(&src_neg).max(1) as f64 * 0.8) as usize;
-        let excludes: Vec<String> = neg_call_counts
-            .into_iter()
-            .filter(|(call, count)| *count >= neg_call_threshold && !pos_call_set.contains(*call))
-            .map(|(call, _)| call.to_string())
+        let neg_call_set: std::collections::HashSet<String> =
+            extract_call_targets(&src_neg).into_iter().collect();
+        let excludes: Vec<String> = neg_call_set
+            .difference(&pos_call_set)
+            .cloned()
             .collect();
         if !excludes.is_empty() {
             excludes_call.insert(p.id.clone(), excludes);
         }
 
         // --- Excludes node type ---
-        // Only exclude node types present in ≥80% of negatives and absent from positives.
-        let neg_node_vec = extract_node_types(&src_neg);
-        let neg_node_counts: std::collections::HashMap<&str, usize> = neg_node_vec
-            .iter()
-            .fold(std::collections::HashMap::new(), |mut acc, n| {
-                *acc.entry(n.as_str()).or_insert(0) += 1;
-                acc
-            });
+        // Any keyword-level node type present in negatives but absent from positives.
         let pos_node_set: std::collections::HashSet<String> =
             extract_node_types(src_pos).into_iter().collect();
-        let neg_node_threshold = (count_lines(&src_neg).max(1) as f64 * 0.8) as usize;
-        let excl_nodes: Vec<String> = neg_node_counts
-            .into_iter()
-            .filter(|(node, count)| *count >= neg_node_threshold && !pos_node_set.contains(*node))
-            .map(|(node, _)| node.to_string())
+        let neg_node_set: std::collections::HashSet<String> =
+            extract_node_types(&src_neg).into_iter().collect();
+        let excl_nodes: Vec<String> = neg_node_set
+            .difference(&pos_node_set)
+            .cloned()
             .collect();
         if !excl_nodes.is_empty() {
             excludes_node_type.insert(p.id.clone(), excl_nodes);
@@ -319,8 +307,15 @@ fn extract_call_targets(source: &str) -> Vec<String> {
             if ch.is_alphanumeric() || ch == '_' || ch == '.' || ch == '$' {
                 buf.push(ch);
             } else if ch == '(' && !buf.is_empty() {
-                let name = buf.rsplit('.').next().unwrap_or(&buf).to_string();
-                r.push(name);
+                // Emit both the full qualified name AND the short name.
+                // E.g. "res.redirect" → emits "res.redirect" AND "redirect".
+                // This lets the auto-filter learn both levels of specificity.
+                r.push(buf.clone());
+                if let Some(short) = buf.rsplit('.').next() {
+                    if short.len() < buf.len() {
+                        r.push(short.to_string());
+                    }
+                }
                 buf.clear();
             } else {
                 buf.clear();
