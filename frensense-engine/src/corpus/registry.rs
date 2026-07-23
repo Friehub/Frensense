@@ -137,17 +137,32 @@ impl PatternRegistry {
         if !loaded.auto_filter_stats.is_empty() {
             let mut contains_import = std::collections::HashMap::new();
             let mut contains_call_to = std::collections::HashMap::new();
-            for (pid, imports, calls) in loaded.auto_filter_stats {
-                if !imports.is_empty() {
-                    contains_import.insert(pid.clone(), imports);
-                }
-                if !calls.is_empty() {
-                    contains_call_to.insert(pid, calls);
-                }
+            let mut excludes_call = std::collections::HashMap::new();
+            let mut function_name_regex = std::collections::HashMap::new();
+            let mut excludes_node_type = std::collections::HashMap::new();
+            let mut excludes_function_name = std::collections::HashMap::new();
+            for entry in loaded.auto_filter_stats {
+                let pid = entry.0;
+                let imports = entry.1;
+                let calls = entry.2;
+                let excl_calls = entry.3;
+                let fn_re = entry.4;
+                let excl_nodes = entry.5;
+                let excl_fnames = entry.6;
+                if !imports.is_empty() { contains_import.insert(pid.clone(), imports); }
+                if !calls.is_empty() { contains_call_to.insert(pid.clone(), calls); }
+                if !excl_calls.is_empty() { excludes_call.insert(pid.clone(), excl_calls); }
+                if !fn_re.is_empty() { function_name_regex.insert(pid.clone(), fn_re); }
+                if !excl_nodes.is_empty() { excludes_node_type.insert(pid.clone(), excl_nodes); }
+                if !excl_fnames.is_empty() { excludes_function_name.insert(pid.clone(), excl_fnames); }
             }
             self.auto_filter_stats = Some(crate::auto_filter::AutoFilterStats {
                 contains_import,
                 contains_call_to,
+                excludes_call,
+                function_name_regex,
+                excludes_node_type,
+                excludes_function_name,
             });
         }
 

@@ -71,7 +71,7 @@ use crate::corpus::loader::load_corpus;
 use crate::fingerprint::FunctionFingerprint;
 
 pub const BUNDLE_MAGIC: &[u8; 4] = b"FRC1";
-pub const BUNDLE_VERSION: u32 = 3;
+pub const BUNDLE_VERSION: u32 = 4;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct BundleHeader {
@@ -119,7 +119,7 @@ struct BundlePayload {
     category_weights: Vec<(String, [f64; 11])>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     #[serde(default)]
-    auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
+    auto_filter_stats: Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)>,
     /// Per-pattern sigmoid calibration params (A, B).
     #[serde(default)]
     pattern_calibration: Vec<(String, f32, f32)>,
@@ -131,7 +131,7 @@ pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
     pub category_weights: Vec<(String, [f64; 11])>,
-    pub auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
+    pub auto_filter_stats: Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)>,
     pub pattern_calibration: Vec<(String, f32, f32)>,
 }
 
@@ -260,16 +260,20 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
         }
     }
     let auto_stats = crate::auto_filter::compute_auto_filters(patterns, &pattern_source_texts);
-    let auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)> = {
+    // Serialize auto-derived filter stats.  Each entry is:
+    // (pid, imports, calls, excludes_call, function_name_regex, excludes_nodes, excludes_fnames)
+    let auto_filter_stats: Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)> = {
         let mut v = Vec::new();
-        for (pid, imports) in &auto_stats.contains_import {
-            let calls = auto_stats.contains_call_to.get(pid).cloned().unwrap_or_default();
-            v.push((pid.clone(), imports.clone(), calls));
-        }
-        // Also include patterns that only have call suggestions
-        for (pid, calls) in &auto_stats.contains_call_to {
-            if !auto_stats.contains_import.contains_key(pid) {
-                v.push((pid.clone(), Vec::new(), calls.clone()));
+        let all_pids: std::collections::HashSet<&str> = patterns.iter().map(|p| p.id.as_str()).collect();
+        for pid in &all_pids {
+            let imports = auto_stats.contains_import.get(*pid).cloned().unwrap_or_default();
+            let calls = auto_stats.contains_call_to.get(*pid).cloned().unwrap_or_default();
+            let excl_calls = auto_stats.excludes_call.get(*pid).cloned().unwrap_or_default();
+            let fn_re = auto_stats.function_name_regex.get(*pid).cloned().unwrap_or_default();
+            let excl_nodes = auto_stats.excludes_node_type.get(*pid).cloned().unwrap_or_default();
+            let excl_fnames = auto_stats.excludes_function_name.get(*pid).cloned().unwrap_or_default();
+            if !imports.is_empty() || !calls.is_empty() || !excl_calls.is_empty() || !fn_re.is_empty() {
+                v.push((pid.to_string(), imports, calls, excl_calls, fn_re, excl_nodes, excl_fnames));
             }
         }
         v
@@ -426,7 +430,7 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
         Vec<BundlePattern>,
         Vec<(u64, f32)>,
         Vec<(String, [f64; 11])>,
-        Vec<(String, Vec<String>, Vec<String>)>,
+        Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)>,
         Vec<(String, f32, f32)>,
     ) = if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
         (payload.patterns, payload.api_idf_weights, payload.category_weights, payload.auto_filter_stats, payload.pattern_calibration)
