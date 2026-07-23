@@ -17,12 +17,12 @@ use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
 use crate::pattern::scorer::type_usage_overlap;
 
-pub type FeatureVec = [f64; 10];
+pub type FeatureVec = [f64; 11];
 
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
-// 8 original dims + tainted_api_sim + motif_sim at index 9
-const DEFAULT_WEIGHTS: FeatureVec = [0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.06];
+// 8 original dims + tainted_api_sim + motif_sim + flow_sim at index 10
+const DEFAULT_WEIGHTS: FeatureVec = [0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
 
 /// Minimum number of positive + negative pairs required to train a per-category
 /// weight vector.  Below this threshold the fallback is returned.
@@ -80,8 +80,9 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
     let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
     let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
     let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
+    let flow_sim = jaccard(&candidate.data_flow_path_hashes, &target.data_flow_path_hashes);
 
-    [ngram_sim, ast_sim, sig_sim, type_sim, type_usage_sim, semantic_sim, cf_sim, api_sim, tainted_api_sim, motif_sim]
+    [ngram_sim, ast_sim, sig_sim, type_sim, type_usage_sim, semantic_sim, cf_sim, api_sim, tainted_api_sim, motif_sim, flow_sim]
 }
 
 /// Logistic regression prediction: σ(w · x)
@@ -95,21 +96,21 @@ fn train_weights(
     positives: &[FeatureVec],
     negatives: &[FeatureVec],
 ) -> FeatureVec {
-    let mut w = [0.5f64; 10];
+    let mut w = [0.5f64; 11];
     let mut all = Vec::new();
     for f in positives { all.push((f, 1.0)); }
     for f in negatives { all.push((f, 0.0)); }
 
     for _ in 0..ITERATIONS {
-        let mut grad = [0.0f64; 10];
+        let mut grad = [0.0f64; 11];
         for (features, label) in &all {
             let pred = predict(features, &w);
             let error = pred - label;
-            for i in 0..10 {
+            for i in 0..11 {
                 grad[i] += error * features[i];
             }
         }
-        for i in 0..10 {
+        for i in 0..11 {
             w[i] -= LEARNING_RATE * grad[i] / all.len() as f64;
             w[i] = w[i].clamp(0.0, 1.0);
         }

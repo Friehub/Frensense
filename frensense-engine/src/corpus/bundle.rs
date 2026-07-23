@@ -116,7 +116,7 @@ struct BundlePayload {
     /// Per-category learned feature weights (8-d vector per category).
     /// Trained at build time via logistic regression on corpus positive/negative pairs.
     #[serde(default)]
-    category_weights: Vec<(String, [f64; 10])>,
+    category_weights: Vec<(String, [f64; 11])>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     #[serde(default)]
     auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
@@ -130,7 +130,7 @@ struct BundlePayload {
 pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
-    pub category_weights: Vec<(String, [f64; 10])>,
+    pub category_weights: Vec<(String, [f64; 11])>,
     pub auto_filter_stats: Vec<(String, Vec<String>, Vec<String>)>,
     pub pattern_calibration: Vec<(String, f32, f32)>,
 }
@@ -237,7 +237,7 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
             expected_context: bp.expected_context.clone(),
         })
         .collect();
-    let category_weights_vec: Vec<(String, [f64; 10])> =
+    let category_weights_vec: Vec<(String, [f64; 11])> =
         crate::pattern::weight_learner::learn_category_weights(&corpus_patterns)
             .into_iter()
             .collect();
@@ -425,7 +425,7 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     let (patterns, api_idf_weights, category_weights, auto_filter_stats, pattern_calibration): (
         Vec<BundlePattern>,
         Vec<(u64, f32)>,
-        Vec<(String, [f64; 10])>,
+        Vec<(String, [f64; 11])>,
         Vec<(String, Vec<String>, Vec<String>)>,
         Vec<(String, f32, f32)>,
     ) = if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {

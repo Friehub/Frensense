@@ -42,7 +42,7 @@ fn main() {
             apply_idf_weights(fp, &idf_weights);
         }
 
-        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.06];
+        let default_w = &[0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
 
         // Score positive examples against their own pattern (should be high = TP)
         for pos in &pos_fps {

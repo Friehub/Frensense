@@ -136,7 +136,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
-        weights: &[f64; 10],
+        weights: &[f64; 11],
     ) -> f64 {
         let mut best_pos_score = 0.0f64;
 
@@ -230,7 +230,7 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_positive: bool,
         ngram_sim_threshold: f64,
-        weights: &[f64; 10],
+        weights: &[f64; 11],
     ) -> f64 {
         let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
@@ -260,11 +260,8 @@ impl PatternScorer {
 
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
-        // Motif similarity: two functions calling exec() and Command::new() respectively
-        // score 1.0 on motif_sim even though api_sim ≈ 0.
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
-        // Tainted API sim: if the pattern's positive has no tainted calls, skip this dim.
-        // Otherwise, functions where input clearly does NOT flow into the sink get penalized.
+        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &target.data_flow_path_hashes);
         let tainted_api_sim = if target.tainted_api_calls.is_empty() {
             1.0
         } else {
@@ -281,6 +278,7 @@ impl PatternScorer {
             + api_sim * weights[7]
             + tainted_api_sim * weights[8]
             + motif_sim * weights[9]
+            + flow_sim * weights[10]
     }
 
     pub fn similarity_to_positive(
@@ -305,14 +303,16 @@ impl PatternScorer {
         );
         let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
         let motif_sim = jaccard(&candidate.motif_hashes, &positive.motif_hashes);
-        ngram_sim * 0.20
-            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.25
-            + jaccard_sorted(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.15
+        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &positive.data_flow_path_hashes);
+        ngram_sim * 0.18
+            + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.22
+            + jaccard_sorted(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.13
             + jaccard_sorted(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, positive) * 0.05
-            + cf_sim * 0.10
-            + api_sim * 0.10
+            + cf_sim * 0.08
+            + api_sim * 0.08
             + motif_sim * 0.10
+            + flow_sim * 0.11
     }
 
     pub fn similarity_to_negative(
@@ -337,14 +337,16 @@ impl PatternScorer {
         );
         let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
         let motif_sim = jaccard(&candidate.motif_hashes, &negative.motif_hashes);
-        ngram_sim * 0.20
-            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.25
-            + jaccard_sorted(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.15
+        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &negative.data_flow_path_hashes);
+        ngram_sim * 0.18
+            + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.22
+            + jaccard_sorted(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.13
             + jaccard_sorted(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, negative) * 0.05
-            + cf_sim * 0.10
-            + api_sim * 0.10
+            + cf_sim * 0.08
+            + api_sim * 0.08
             + motif_sim * 0.10
+            + flow_sim * 0.11
     }
 }
 
@@ -418,7 +420,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
-        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.06];
+        let default_w = &[0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
         let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(
             score > 0.5,
@@ -431,7 +433,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
-        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.06];
+        let default_w = &[0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
         let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(score < 0.6, "candidate closer to negative should score low");
     }
