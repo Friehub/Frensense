@@ -220,6 +220,12 @@ impl PatternScorer {
                 {
                     penalty *= 0.5;
                 }
+                if act.environment == crate::context::Environment::RouteHandler
+                    && exp.environment != crate::context::Environment::RouteHandler
+                    && exp.environment != crate::context::Environment::Unknown
+                {
+                    penalty *= 0.5;
+                }
                 penalty
             }
             _ => 1.0,
@@ -389,6 +395,12 @@ impl PatternScorer {
                 if exp.environment == crate::context::Environment::RouteHandler
                     && (act.environment == crate::context::Environment::Test
                         || act.environment == crate::context::Environment::Utility)
+                {
+                    penalty *= 0.5;
+                }
+                if act.environment == crate::context::Environment::RouteHandler
+                    && exp.environment != crate::context::Environment::RouteHandler
+                    && exp.environment != crate::context::Environment::Unknown
                 {
                     penalty *= 0.5;
                 }

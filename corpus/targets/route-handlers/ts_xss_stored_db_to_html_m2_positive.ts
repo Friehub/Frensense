@@ -1,0 +1,16 @@
+// [frensense]
+// observation: User-supplied data from the database is rendered directly into HTML without encoding through an intermediate variable.
+// impact: An attacker can store malicious HTML/JavaScript that executes in any viewer's browser
+// improvement: Always encode user data when rendering it in HTML, or sanitize on output
+
+async function handlerA(req: Request, res: Response) {
+    const val = comment.body;
+    const html = `<div>${val}</div>`; res.send(html);
+    res.json({ ok: true });
+}
+
+async function handlerB(req: Request, res: Response) {
+    const val = article.content;
+    const html = `<article><div>${val}</div></article>`; res.send(html);
+    res.json({ ok: true });
+}

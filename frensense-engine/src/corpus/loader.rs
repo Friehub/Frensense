@@ -29,9 +29,11 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
     );
     let mut pairs: HashMap<String, PatternEntry> = HashMap::new();
 
-    for entry in fs::read_dir(corpus_dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
+    if !corpus_dir.exists() {
+        return Err(format!("corpus directory does not exist: {}", corpus_dir.display()));
+    }
+    let entries = collect_corpus_files(corpus_dir);
+    for path in entries {
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
@@ -362,6 +364,21 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
 
 /// Returns true if a file name represents any negative variant:
 /// `_negative.ts`, `_negative2.ts`, `_negative3.ts`, etc.
+/// Recursively collect all corpus files from a directory tree.
+fn collect_corpus_files(dir: &Path) -> Vec<std::path::PathBuf> {
+    let mut result = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else { return result; };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            result.extend(collect_corpus_files(&path));
+        } else if path.is_file() {
+            result.push(path);
+        }
+    }
+    result
+}
+
 fn is_negative_file(file_name: &str) -> bool {
     // Strip the extension first, then check suffix
     let stem = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
