@@ -6,6 +6,7 @@ use crate::corpus::loader::{CorpusPattern, load_corpus};
 use crate::corpus::source_sink::{CorpusSourceSinkRegistry, build_registry_from_dir};
 use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
+use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::PatternScorer;
 use rustc_hash::FxHashMap;
 
@@ -18,6 +19,9 @@ pub struct PatternMatch {
     pub observation: Option<String>,
     pub impact: Option<String>,
     pub improvement: Option<String>,
+    /// Detailed per-dimension breakdown of why this match scored as it did.
+    /// Always `Some` for corpus matches; `None` for rule-based matches.
+    pub matched_evidence: Option<MatchEvidence>,
 }
 
 #[derive(Default)]
@@ -464,6 +468,12 @@ impl PatternRegistry {
                 // eprintln!("DEBUG: pattern {}, best_score {}, threshold {}", pattern.id, best_score, threshold);
             }
             if best_score >= threshold {
+                let matched_evidence = Some(PatternScorer::compute_evidence(
+                    &weighted_fp,
+                    &pattern.positives,
+                    &pattern.negatives,
+                    pat_weights,
+                ));
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),
                     score: best_score,
@@ -472,6 +482,7 @@ impl PatternRegistry {
                     observation: pattern.observation.clone(),
                     impact: pattern.impact.clone(),
                     improvement: pattern.improvement.clone(),
+                    matched_evidence,
                 });
             }
         }

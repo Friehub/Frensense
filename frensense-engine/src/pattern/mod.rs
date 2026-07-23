@@ -2,6 +2,7 @@
 
 pub mod canonical;
 pub mod compiler;
+pub mod evidence;
 pub mod matcher;
 pub mod scorer;
 pub mod weight_learner;

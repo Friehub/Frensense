@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use crate::fingerprint::FunctionFingerprint;
+use crate::pattern::evidence::MatchEvidence;
 use crate::minhash;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
@@ -347,6 +348,164 @@ impl PatternScorer {
             + api_sim * 0.08
             + motif_sim * 0.10
             + flow_sim * 0.11
+    }
+
+    /// Compute a full `MatchEvidence` breakdown for a corpus match.
+    /// Mirrors the logic of `score_against_corpus` but exposes each dimension.
+    pub fn compute_evidence(
+        candidate: &FunctionFingerprint,
+        positives: &[FunctionFingerprint],
+        negatives: &[FunctionFingerprint],
+        weights: &[f64; 11],
+    ) -> MatchEvidence {
+        let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
+
+        // Find the best-matching positive and record per-dimension values
+        let mut best_positive_index = 0usize;
+        let mut best_dim: Option<RawDimensions> = None;
+        let mut best_pos_score = 0.0f64;
+
+        for (i, positive) in positives.iter().enumerate() {
+            let dim = Self::raw_dimensions(candidate, positive, false);
+            let semantic_multiplier = if positive.semantic_markers.is_empty() {
+                1.0
+            } else if jaccard(&candidate.semantic_markers, &positive.semantic_markers) == 0.0 {
+                0.30
+            } else {
+                2.0
+            };
+            let transfer = crate::pattern::scorer::cross_lingual_penalty(
+                &positive.language,
+                &candidate.language,
+            );
+            let pos_score = dim.weighted_score(weights) * f64::from(transfer) * semantic_multiplier;
+            if pos_score > best_pos_score {
+                best_pos_score = pos_score;
+                best_positive_index = i;
+                best_dim = Some(dim);
+            }
+        }
+
+        let dim = best_dim.unwrap_or_else(|| {
+            Self::raw_dimensions(candidate, &positives[0], false)
+        });
+
+        // Compute negative similarity
+        let mut max_neg_sim = 0.0f64;
+        for negative in negatives {
+            let neg_dim = Self::raw_dimensions(candidate, negative, true);
+            let neg_score = neg_dim.weighted_score(weights);
+            if neg_score > max_neg_sim {
+                max_neg_sim = neg_score;
+            }
+        }
+
+        let flow_sim_val = jaccard(&candidate.data_flow_path_hashes, &positives[best_positive_index].data_flow_path_hashes);
+
+        MatchEvidence {
+            ngram_sim: dim.ngram_sim,
+            ast_sim: dim.ast_sim,
+            signature_sim: dim.signature_sim,
+            control_flow_sim: dim.cf_sim,
+            api_sim: dim.api_sim,
+            motif_sim: dim.motif_sim,
+            flow_sim: if flow_sim_val > 0.0 { Some(flow_sim_val) } else { None },
+            semantic_sim: dim.semantic_sim,
+            negative_sim: max_neg_sim,
+            matched_calls: Vec::new(),
+            missing_calls: Vec::new(),
+            matched_motifs: Vec::new(),
+            has_taint_path: !candidate.data_flow_path_hashes.is_empty()
+                && positives.iter().any(|p| !p.data_flow_path_hashes.is_empty()),
+            best_positive_index,
+        }
+    }
+
+    fn raw_dimensions(
+        candidate: &FunctionFingerprint,
+        target: &FunctionFingerprint,
+        _is_negative: bool,
+    ) -> RawDimensions {
+        let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
+        let jaccard_sorted = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
+
+        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
+            || target.weighted_ngram_hashes.is_empty()
+        {
+            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
+        } else {
+            weighted_jaccard(&candidate.weighted_ngram_hashes, &target.weighted_ngram_hashes)
+        };
+
+        let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
+
+        let ast_sim = if !candidate.skeleton_hashes.is_empty() && !target.skeleton_hashes.is_empty()
+        {
+            1.0 - crate::ast_distance::tree_edit_distance(
+                &candidate.skeleton_hashes,
+                &target.skeleton_hashes,
+            )
+        } else {
+            jaccard(&candidate.structural_markers, &target.structural_markers)
+        };
+
+        let signature_sim = jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams);
+        let param_type_sim = jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
+        let type_usage_sim = type_usage_overlap(candidate, target);
+        let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
+        let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+        let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
+        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &target.data_flow_path_hashes);
+        let tainted_api_sim = if target.tainted_api_calls.is_empty() {
+            1.0
+        } else {
+            jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+        };
+
+        RawDimensions {
+            ngram_sim,
+            ast_sim,
+            signature_sim,
+            param_type_sim,
+            type_usage_sim,
+            semantic_sim,
+            cf_sim,
+            api_sim,
+            motif_sim,
+            flow_sim,
+            tainted_api_sim,
+        }
+    }
+}
+
+/// Intermediate raw-dimension values used internally by evidence computation.
+struct RawDimensions {
+    ngram_sim: f64,
+    ast_sim: f64,
+    signature_sim: f64,
+    param_type_sim: f64,
+    type_usage_sim: f64,
+    semantic_sim: f64,
+    cf_sim: f64,
+    api_sim: f64,
+    motif_sim: f64,
+    flow_sim: f64,
+    tainted_api_sim: f64,
+}
+
+impl RawDimensions {
+    fn weighted_score(&self, w: &[f64; 11]) -> f64 {
+        self.ngram_sim * w[0]
+            + self.ast_sim * w[1]
+            + self.signature_sim * w[2]
+            + self.param_type_sim * w[3]
+            + self.type_usage_sim * w[4]
+            + self.semantic_sim * w[5]
+            + self.cf_sim * w[6]
+            + self.api_sim * w[7]
+            + self.tainted_api_sim * w[8]
+            + self.motif_sim * w[9]
+            + self.flow_sim * w[10]
     }
 }
 
