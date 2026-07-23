@@ -484,47 +484,37 @@ fn run_corpus_scan(
     );
     let scoring_start_time = std::time::Instant::now();
 
-    let new_advisories: Vec<Advisory> = all_fps.into_par_iter().flat_map(|(fp, func_node, snap, actual_context)| {
-        let mut local_advisories = Vec::new();
+    // Pre-group identical fingerprints to avoid redundant scoring.
+    let mut groups: rustc_hash::FxHashMap<u64, Vec<(
+        frensense_engine::fingerprint::FunctionFingerprint,
+        tree_sitter::Node<'_>,
+        &FileSnapshot,
+        frensense_engine::context::FileContext,
+    )>> = rustc_hash::FxHashMap::default();
+    for item in all_fps {
+        let hash = compute_fp_hash(&item.0);
+        groups.entry(hash).or_default().push(item);
+    }
 
-        thread_local! {
-            static AST_CACHE: std::cell::RefCell<rustc_hash::FxHashMap<u64, Vec<frensense_engine::corpus::registry::PatternMatch>>> = std::cell::RefCell::new(rustc_hash::FxHashMap::default());
+    let new_advisories: Vec<Advisory> = groups.into_par_iter().flat_map(|(_hash, group)| {
+        let start_time = std::time::Instant::now();
+        let use_data_flow = engine.use_data_flow;
+        let mut result = Vec::new();
+
+        // Score once — all group members share the same fingerprint hash
+        let (ref fp, func_node, ref snap, ref actual_context) = group[0];
+        let matches = registry.scan_function(fp, Some(func_node.clone()), Some(&snap.content), Some(actual_context));
+
+        let elapsed = start_time.elapsed().as_millis();
+        if elapsed > 500 {
+            eprintln!("Slow scoring for {} in {}: {}ms", fp.function_name, snap.path.display(), elapsed);
         }
-            let mut cache_hasher = rustc_hash::FxHasher::default();
-            std::hash::Hash::hash(&fp.ngram_hashes, &mut cache_hasher);
-            std::hash::Hash::hash(&fp.structural_markers, &mut cache_hasher);
-            std::hash::Hash::hash(&fp.api_calls, &mut cache_hasher);
-            std::hash::Hash::hash(&fp.control_flow_hashes, &mut cache_hasher);
-            let fp_hash = std::hash::Hasher::finish(&cache_hasher);
 
-            let matches = AST_CACHE.with(|cache| {
-                if let Some(cached) = cache.borrow().get(&fp_hash) {
-                    return Some(cached.clone());
-                }
-                None
-            });
+        for m in &matches {
+            // Replicate advisory across all group members
+            for (fp_i, func_node_i, snap_i, _ctx_i) in &group {
+                let mut local_advisories = Vec::new();
 
-            let start_time = std::time::Instant::now();
-            let use_data_flow = engine.use_data_flow;
-            let matches = if let Some(m) = matches {
-                m
-            } else {
-                let m = registry.scan_function(&fp, Some(func_node), Some(&snap.content), Some(&actual_context));
-                AST_CACHE.with(|cache| {
-                    cache.borrow_mut().insert(fp_hash, m.clone());
-                });
-                m
-            };
-            let elapsed = start_time.elapsed().as_millis();
-            if elapsed > 500 {
-                eprintln!("Slow scoring for {} in {}: {}ms", fp.function_name, snap.path.display(), elapsed);
-            }
-
-            if matches.is_empty() {
-                return local_advisories;
-            }
-
-            for m in matches {
                 let impact = m.impact.clone().unwrap_or_else(|| {
                     "Function shape matches a known violation pattern. Unsanitized data from `{{ source }}` reaches the `{{ sink }}` execution context.".to_string()
                 });
@@ -533,15 +523,12 @@ fn run_corpus_scan(
                 let observation = m.observation.clone().unwrap_or_else(|| {
                     format!(
                         "Corpus pattern: {} (score {:.2}) in '{}'",
-                        m.pattern_id, m.score, fp.function_name
+                        m.pattern_id, m.score, fp_i.function_name
                     )
                 });
 
-                // Apply confidence calibration if available
-                // Extract category from pattern ID for per-category calibration
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
-                let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration
-                {
+                let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = calibration {
                     params.calibrate(m.score)
@@ -549,22 +536,19 @@ fn run_corpus_scan(
                     m.score
                 };
 
-                // Apply per-pattern calibration on top of per-category scaling
-                // Each pattern has its own sigmoid (A, B) trained from held-out validation data
                 let pattern_params = registry.pattern_calibration.get(&m.pattern_id[..]);
                 confidence = frensense_engine::per_pattern_calibration::calibrate(confidence, pattern_params);
 
-                // Verify taint flow if we have a function node
                 let mut taint_verified = false;
                 let mut taint_detail = String::new();
                 let mut source_name = None;
                 let mut sink_name = None;
                 if use_data_flow {
                     let verification = verify_taint_flow(
-                        func_node,
-                        &snap.content,
-                        &snap.tree,
-                        &snap.path,
+                        func_node_i.clone(),
+                        &snap_i.content,
+                        &snap_i.tree,
+                        &snap_i.path,
                         symbols,
                         data_flow,
                         file_trees,
@@ -578,7 +562,6 @@ fn run_corpus_scan(
                     if verification.verified {
                         taint_verified = true;
                         taint_detail = verification.detail;
-                        // Boost confidence for verified findings
                         confidence = (confidence * 1.2).min(0.95);
                     }
                 }
@@ -599,10 +582,6 @@ fn run_corpus_scan(
                 improvement = improvement.replace("{{source}}", src_str);
                 improvement = improvement.replace("{{sink}}", snk_str);
 
-                // T-FIX-1 Composition Logic:
-                // If the structural score is below the high-confidence threshold (0.20),
-                // we REQUIRE the Taint Engine (Layer 2) to verify the data flow.
-                // If it fails to verify, this is a structural false positive and we drop it.
                 if !taint_verified && m.score < 0.20 {
                     continue;
                 }
@@ -610,35 +589,33 @@ fn run_corpus_scan(
                 let mut advisory = Advisory::bare(
                     format!("CORPUS_{}", m.pattern_id.to_uppercase()),
                     crate::Severity::Warning,
-                    snap.id,
-                    &snap.path,
+                    snap_i.id,
+                    &snap_i.path,
                     &observation,
                 )
                 .with_confidence(confidence)
-                .with_line(u32::try_from(fp.line).unwrap_or(u32::MAX))
-                .with_content(fp.function_name.clone())
-                .with_enclosing_symbol(fp.function_name.clone())
+                .with_line(u32::try_from(fp_i.line).unwrap_or(u32::MAX))
+                .with_content(fp_i.function_name.clone())
+                .with_enclosing_symbol(fp_i.function_name.clone())
                 .with_impact(&impact)
                 .with_improvement(&improvement)
                 .with_tags(["corpus", "pattern"]);
 
-                // Add taint verification info if available
                 if taint_verified {
                     advisory = advisory.with_tags(["corpus", "pattern", "taint-verified"]);
                     advisory.impact = format!("{impact}\n\nTaint flow verified: {taint_detail}");
                 }
 
-                // Attach evidence
                 advisory.match_evidence = m.matched_evidence.clone();
 
-                // Check suppressions
-                if is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap.path) {
-                    continue;
+                if !is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap_i.path) {
+                    local_advisories.push(advisory);
                 }
 
-                local_advisories.push(advisory);
+                result.extend(local_advisories);
             }
-        local_advisories
+        }
+        result
     }).collect();
 
     eprintln!(
@@ -649,6 +626,18 @@ fn run_corpus_scan(
     all_advisories.extend(new_advisories);
 
     registry.source_sink_registry().clone()
+}
+
+/// Compute a stable identity hash for a FunctionFingerprint.
+/// Used to group identical fingerprints before parallel scoring.
+fn compute_fp_hash(fp: &frensense_engine::fingerprint::FunctionFingerprint) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = rustc_hash::FxHasher::default();
+    fp.ngram_hashes.hash(&mut hasher);
+    fp.structural_markers.hash(&mut hasher);
+    fp.api_calls.hash(&mut hasher);
+    fp.control_flow_hashes.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn load_suppressions(root: &Path) -> Vec<(String, glob::Pattern)> {
