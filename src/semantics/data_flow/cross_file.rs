@@ -62,7 +62,7 @@ pub struct CrossFileVerifier<'a> {
     registry: TaintRegistry,
     _symbols: &'a SymbolRegistry,
     _data_flow: &'a DataFlowEngine,
-    _file_trees: &'a HashMap<
+    _file_trees: &'a rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -89,7 +89,7 @@ impl<'a> CrossFileVerifier<'a> {
         file_path: &str,
         symbols: &'a SymbolRegistry,
         data_flow: &'a DataFlowEngine,
-        file_trees: &'a HashMap<
+        file_trees: &'a rustc_hash::FxHashMap<
             String,
             (
                 tree_sitter::Tree,

@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 struct ProcessSnapshotsResult<'a> {
     symbols: SymbolRegistry,
     file_ids: Vec<(FileId, PathBuf)>,
-    snapshot_map: HashMap<FileId, &'a FileSnapshot>,
+    snapshot_map: rustc_hash::FxHashMap<FileId, &'a FileSnapshot>,
 }
 
 ///
@@ -30,8 +30,10 @@ fn process_snapshots<'a>(
     snapshots: &'a [FileSnapshot],
 ) -> Result<ProcessSnapshotsResult<'a>> {
     let mut symbols = SymbolRegistry::new();
-    let mut file_ids = Vec::new();
-    let mut snapshot_map = HashMap::new();
+    let mut file_ids = Vec::with_capacity(snapshots.len());
+    let mut snapshot_map = rustc_hash::FxHashMap::with_capacity_and_hasher(
+        snapshots.len(), Default::default(),
+    );
 
     for snap in snapshots {
         file_ids.push((snap.id, snap.path.clone()));
@@ -64,7 +66,7 @@ fn process_snapshots<'a>(
 /// Build `file_trees` map from snapshots.
 fn build_file_trees(
     snapshots: &[FileSnapshot],
-) -> HashMap<
+) -> rustc_hash::FxHashMap<
     String,
     (
         tree_sitter::Tree,
@@ -72,7 +74,9 @@ fn build_file_trees(
         Vec<crate::semantics::data_flow::normalization::SemanticOp>,
     ),
 > {
-    let mut file_trees = HashMap::new();
+    let mut file_trees = rustc_hash::FxHashMap::with_capacity_and_hasher(
+        snapshots.len(), Default::default(),
+    );
     for snap in snapshots {
         file_trees.insert(
             snap.path.to_string_lossy().to_string(),
@@ -114,7 +118,7 @@ fn run_findings_modules(
     root: &Path,
     snapshots: &[FileSnapshot],
     symbols: &SymbolRegistry,
-    _file_trees: &HashMap<
+    _file_trees: &rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -376,7 +380,7 @@ fn run_corpus_scan(
     snapshots: &[FileSnapshot],
     symbols: &crate::semantics::symbols::SymbolRegistry,
     data_flow: &frensense_engine::data_flow::DataFlowEngine,
-    file_trees: &HashMap<
+    file_trees: &rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -692,7 +696,7 @@ fn verify_taint_flow(
     file_path: &Path,
     symbols: &crate::semantics::symbols::SymbolRegistry,
     data_flow: &frensense_engine::data_flow::DataFlowEngine,
-    file_trees: &HashMap<
+    file_trees: &rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -838,7 +842,7 @@ impl Engine {
             .discover_symbols(path, id, content, &language, &tree)?;
         let semantic_ops = self.auditor.extract_semantic_ops(path, content, &tree);
 
-        let mut file_trees = HashMap::new();
+        let mut file_trees = rustc_hash::FxHashMap::default();
         file_trees.insert(
             path.to_string_lossy().to_string(),
             (tree.clone(), content.to_string(), semantic_ops.clone()),
@@ -980,7 +984,7 @@ impl Engine {
     fn run_taint_analysis(
         _snapshots: &[super::FileSnapshot],
         _symbols: &SymbolRegistry,
-        _file_trees: &std::collections::HashMap<
+        _file_trees: &rustc_hash::FxHashMap<
             String,
             (
                 tree_sitter::Tree,
@@ -1188,9 +1192,9 @@ impl Engine {
     fn perform_parallel_audit(
         &self,
         file_ids: &[(FileId, PathBuf)],
-        snapshot_map: &HashMap<FileId, &FileSnapshot>,
+        snapshot_map: &rustc_hash::FxHashMap<FileId, &FileSnapshot>,
         symbols: &mut SymbolRegistry,
-        file_trees: &HashMap<
+        file_trees: &rustc_hash::FxHashMap<
             String,
             (
                 tree_sitter::Tree,

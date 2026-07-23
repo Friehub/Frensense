@@ -360,7 +360,7 @@ pub struct FrensenseContext<'a> {
     pub graph: &'a crate::semantics::graph::SemanticGraph,
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub taint_cache: &'a TaintCache,
-    pub file_trees: &'a HashMap<
+    pub file_trees: &'a rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -375,7 +375,7 @@ pub struct FrensenseContext<'a> {
     pub ngram_window_size: usize,
 }
 
-pub type FileTreeMap = HashMap<
+pub type FileTreeMap = rustc_hash::FxHashMap<
     String,
     (
         tree_sitter::Tree,

@@ -42,7 +42,7 @@ pub struct AuditOptions<'a> {
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub symbols: &'a SymbolRegistry,
     pub graph: &'a crate::semantics::graph::SemanticGraph,
-    pub file_trees: &'a std::collections::HashMap<
+    pub file_trees: &'a rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,

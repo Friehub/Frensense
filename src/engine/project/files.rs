@@ -194,9 +194,9 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSn
 pub(crate) fn parallel_audit_impl(
     engine: &Engine,
     file_ids: &[(FileId, PathBuf)],
-    snapshot_map: &HashMap<FileId, &FileSnapshot>,
+    snapshot_map: &rustc_hash::FxHashMap<FileId, &FileSnapshot>,
     symbols: &mut SymbolRegistry,
-    file_trees: &HashMap<
+    file_trees: &rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
