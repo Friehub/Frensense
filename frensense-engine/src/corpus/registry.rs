@@ -24,6 +24,7 @@ pub struct PatternMatch {
 pub struct PatternRegistry {
     patterns: Vec<CorpusPattern>,
     lsh_index: Option<LSHIndex>,
+    lsh_index_api: Option<LSHIndex>,
     threshold: f64,
     ngram_sim_threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
@@ -43,6 +44,7 @@ impl PatternRegistry {
         Self {
             patterns: Vec::new(),
             lsh_index: None,
+            lsh_index_api: None,
             threshold,
             ngram_sim_threshold,
             threshold_overrides: std::collections::HashMap::new(),
@@ -242,15 +244,29 @@ impl PatternRegistry {
         // Maximize recall for sub-graph containment by setting bands=128, rows=1
         let num_bands = 128;
         let rows_per_band = num_hashes / num_bands;
-        let mut index = LSHIndex::new(num_bands, rows_per_band);
+
+        // Structural LSH (existing)
+        let mut struct_index = LSHIndex::new(num_bands, rows_per_band);
+        // API-call LSH (new — helps distinguish patterns by what they call)
+        let mut api_index = LSHIndex::new(num_bands, rows_per_band);
+
         for (i, pattern) in self.patterns.iter().enumerate() {
             if let Some(first_pos) = pattern.positives.first() {
-                // Use structural_markers (AST types) for robust Locality Sensitive Hashing instead of exact lexemes
-                let sig = minhash_signature(&first_pos.structural_markers, num_hashes);
-                index.insert(&sig, i as u64);
+                // Structural signature
+                let sig_s = minhash_signature(&first_pos.structural_markers, num_hashes);
+                struct_index.insert(&sig_s, i as u64);
+
+                // API-call signature (use api_calls, fall back to empty vec if none)
+                let sig_a = if !first_pos.api_calls.is_empty() {
+                    minhash_signature(&first_pos.api_calls, num_hashes)
+                } else {
+                    minhash_signature(&first_pos.structural_markers, num_hashes)
+                };
+                api_index.insert(&sig_a, i as u64);
             }
         }
-        self.lsh_index = Some(index);
+        self.lsh_index = Some(struct_index);
+        self.lsh_index_api = Some(api_index);
     }
 
     pub fn scan_function(
@@ -260,15 +276,38 @@ impl PatternRegistry {
         source: Option<&str>,
         actual_context: Option<&crate::context::FileContext>,
     ) -> Vec<PatternMatch> {
-        let candidates: Vec<usize> = if let Some(ref lsh) = self.lsh_index {
+        // Query both LSH tables (structural + API-call)
+        let struct_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) = self.lsh_index
+        {
             let sig = minhash_signature(&fp.structural_markers, 128);
-            lsh.query(&sig)
-                .iter()
-                .map(|&id| id as usize)
-                .filter(|&id| id < self.patterns.len())
-                .collect()
+            lsh.query(&sig).iter().map(|&id| id as usize).filter(|&id| id < self.patterns.len()).collect()
         } else {
             (0..self.patterns.len()).collect()
+        };
+        let api_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) = self.lsh_index_api
+        {
+            let sig = if !fp.api_calls.is_empty() {
+                minhash_signature(&fp.api_calls, 128)
+            } else {
+                minhash_signature(&fp.structural_markers, 128)
+            };
+            lsh.query(&sig).iter().map(|&id| id as usize).filter(|&id| id < self.patterns.len()).collect()
+        } else {
+            struct_candidates.clone()
+        };
+
+        // Merge: a candidate passes if it's in EITHER table (preserve recall).
+        // Track which table(s) it passed through for penalty application.
+        let all_candidates: Vec<(usize, bool)> = {
+            let mut seen = std::collections::HashSet::new();
+            let mut merged = Vec::new();
+            for &id in struct_candidates.iter().chain(api_candidates.iter()) {
+                if seen.insert(id) {
+                    let hit_both = struct_candidates.contains(&id) && api_candidates.contains(&id);
+                    merged.push((id, hit_both));
+                }
+            }
+            merged
         };
 
         // Apply IDF weights to candidate fingerprint for scoring
@@ -282,7 +321,7 @@ impl PatternRegistry {
         // eprintln!("DEBUG: fp.name = {:?}, api = {}, candidates = {}", fp.function_name, fp.api_calls.len(), candidates.len());
 
         let mut matches = Vec::new();
-        for &idx in &candidates {
+        for &(idx, hit_both) in &all_candidates {
             let pattern = &self.patterns[idx];
             // eprintln!("DEBUG: checking pattern {}", pattern.id);
             if pattern.id.contains("blocking_io") {
@@ -409,6 +448,15 @@ impl PatternRegistry {
                 self.ngram_sim_threshold,
                 pat_weights,
             );
+
+            // LSH multi-table penalty: if candidate only hit the structural table
+            // but NOT the API table, it's likely a structural FP. Reduce confidence.
+            let best_score = if !hit_both {
+                best_score * 0.85
+            } else {
+                best_score
+            };
+
             let threshold = self.threshold_for_pattern(&pattern.id);
             if pattern.id == "rust_async_blocking_io" || pattern.id.contains("async") {
                 // eprintln!("DEBUG: pattern {}, best_score {}, threshold {}", pattern.id, best_score, threshold);
