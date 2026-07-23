@@ -145,20 +145,31 @@ pub fn compute_auto_filters(
         }
 
         // --- Excludes function name ---
-        let pos_fnames: std::collections::HashSet<String> = p.positives
-            .iter().map(|fp| fp.function_name.clone()).collect();
-        let neg_fnames: std::collections::HashSet<String> = p.negatives
-            .iter().map(|fp| fp.function_name.clone()).collect();
-        let excl_fnames: Vec<String> = neg_fnames.difference(&pos_fnames).cloned().collect();
+        // Only exclude if the name appears in ≥80% of negatives and is absent from positives.
+        let neg_fname_counts: std::collections::HashMap<&str, usize> = p.negatives
+            .iter().fold(std::collections::HashMap::new(), |mut acc, fp| {
+                *acc.entry(fp.function_name.as_str()).or_insert(0) += 1;
+                acc
+            });
+        let pos_fname_set: std::collections::HashSet<&str> = p.positives
+            .iter().map(|fp| fp.function_name.as_str()).collect();
+        let neg_fname_threshold = (p.negatives.len() as f64 * 0.8) as usize;
+        let excl_fnames: Vec<String> = neg_fname_counts
+            .into_iter()
+            .filter(|(name, count)| *count >= neg_fname_threshold && !pos_fname_set.contains(name))
+            .map(|(name, _)| name.to_string())
+            .collect();
         if !excl_fnames.is_empty() {
             excludes_function_name.insert(p.id.clone(), excl_fnames);
         }
 
         // --- Function name regex ---
-        // If all positives share the same function name prefix, learn it.
+        // Only learn if the prefix is ≥4 chars (long enough to be meaningful).
         let pos_fnames_vec: Vec<&str> = p.positives.iter().map(|fp| fp.function_name.as_str()).collect();
         if let Some(prefix) = common_prefix(&pos_fnames_vec) {
-            function_name_regex.insert(p.id.clone(), format!("^{prefix}"));
+            if prefix.len() >= 4 {
+                function_name_regex.insert(p.id.clone(), format!("^{prefix}"));
+            }
         }
     }
 
@@ -186,23 +197,16 @@ pub fn merge_filters(
     if let Some(calls) = auto.contains_call_to.get(pid) {
         m.contains_call_to.extend(calls.iter().cloned());
     }
-    // Auto-learned must_not_contain constraints — DISABLED pending
-    // frequency-threshold tuning to avoid over-exclusion.
-    // See https://github.com/Friehub/Frensense/issues/auto-filter-excludes
-    // if let Some(excl) = auto.excludes_call.get(pid) {
-    //     m.must_not_contain_call_to.extend(excl.iter().cloned());
-    // }
-    // if let Some(re) = auto.function_name_regex.get(pid) {
-    //     if m.function_name_regex.is_none() {
-    //         m.function_name_regex = Some(re.clone());
-    //     }
-    // }
-    // if let Some(nodes) = auto.excludes_node_type.get(pid) {
-    //     m.must_not_contain_node_type.extend(nodes.iter().cloned());
-    // }
-    // if let Some(fnames) = auto.excludes_function_name.get(pid) {
-    //     m.must_not_match_function_name.extend(fnames.iter().cloned());
-    // }
+    // Auto-learned must_not_contain constraints — enabled with frequency
+    // thresholds to prevent over-exclusion.
+    if let Some(re) = auto.function_name_regex.get(pid) {
+        if m.function_name_regex.is_none() {
+            m.function_name_regex = Some(re.clone());
+        }
+    }
+    if let Some(fnames) = auto.excludes_function_name.get(pid) {
+        m.must_not_match_function_name.extend(fnames.iter().cloned());
+    }
     m
 }
 
