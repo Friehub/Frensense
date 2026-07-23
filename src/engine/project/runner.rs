@@ -123,7 +123,7 @@ fn run_findings_modules(
         ),
     >,
     _extra_taint_rule_dirs: &[PathBuf],
-    check_deps: bool,
+    mut dep_resolver: &mut frensense_engine::deps::DependencyResolver,
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     all_advisories: &mut Vec<Advisory>,
     use_data_flow: bool,
@@ -131,10 +131,6 @@ fn run_findings_modules(
     use crate::engine::findings::{FindingContext, registered_modules};
 
     let modules = registered_modules();
-
-    // Setup shared state needed by some modules
-    let mut dep_resolver = frensense_engine::deps::DependencyResolver::with_check_deps(check_deps);
-    dep_resolver.load_project(root);
 
     // Create a DataFlowEngine for cross-file taint analysis
     let data_flow_engine = frensense_engine::data_flow::DataFlowEngine::new();
@@ -392,6 +388,7 @@ fn run_corpus_scan(
         ),
     >,
     all_advisories: &mut Vec<Advisory>,
+    npm_deps: &std::collections::HashSet<String>,
 ) -> frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry {
     // Load suppressions from .frensense-suppress.yml
     let suppressions = load_suppressions(root);
@@ -443,11 +440,6 @@ fn run_corpus_scan(
     let ngram_window_size = engine.ngram_window_size;
     let per_category_calibration = engine.per_category_calibration.clone();
     let calibration = engine.calibration.clone();
-
-    let mut dep_resolver =
-        frensense_engine::deps::DependencyResolver::with_check_deps(engine.check_deps);
-    dep_resolver.load_project(root);
-    let npm_deps = dep_resolver.npm_deps().clone();
 
     let all_fps: Vec<(
         frensense_engine::fingerprint::FunctionFingerprint,
@@ -577,7 +569,7 @@ fn run_corpus_scan(
                         data_flow,
                         file_trees,
                         registry.source_sink_registry(),
-                        &npm_deps,
+                        npm_deps,
                     );
 
                     source_name = verification.source_name;
@@ -806,6 +798,12 @@ impl Engine {
         // Create DataFlowEngine for cross-file taint verification
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
 
+        // Shared dependency resolver — created once, used by both stages
+        let mut dep_resolver =
+            frensense_engine::deps::DependencyResolver::with_check_deps(self.check_deps);
+        dep_resolver.load_project(root);
+        let npm_deps = dep_resolver.npm_deps().clone();
+
         Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
         let source_sink = run_corpus_scan(
             self,
@@ -815,6 +813,7 @@ impl Engine {
             &data_flow,
             &file_trees,
             &mut all_advisories,
+            &npm_deps,
         );
         run_findings_modules(
             root,
@@ -822,7 +821,7 @@ impl Engine {
             &symbols,
             &file_trees,
             &self.extra_taint_rule_dirs,
-            self.check_deps,
+            &mut dep_resolver,
             &source_sink,
             &mut all_advisories,
             self.use_data_flow,
@@ -936,19 +935,19 @@ impl Engine {
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
-        apply_severity_overrides(
-            &mut all_advisories,
-            config.severity_override.as_ref(),
-            &self.severity_overrides,
-        );
-        self.apply_composition(&mut all_advisories);
-
         #[cfg(feature = "fingerprinting")]
         self.run_profile_analysis(&snapshots, &mut all_advisories);
 
         self.load_calibration();
         // Create DataFlowEngine for cross-file taint verification
         let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+
+        // Shared dependency resolver — created once, used by both stages
+        let mut dep_resolver =
+            frensense_engine::deps::DependencyResolver::with_check_deps(self.check_deps);
+        dep_resolver.load_project(root);
+        let npm_deps = dep_resolver.npm_deps().clone();
+
         let source_sink = run_corpus_scan(
             self,
             root,
@@ -957,6 +956,7 @@ impl Engine {
             &data_flow,
             &file_trees,
             &mut all_advisories,
+            &npm_deps,
         );
         Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
         run_findings_modules(
@@ -965,18 +965,19 @@ impl Engine {
             &symbols,
             &file_trees,
             &self.extra_taint_rule_dirs,
-            self.check_deps,
+            &mut dep_resolver,
             &source_sink,
             &mut all_advisories,
             self.use_data_flow,
         );
 
-        // Apply severity overrides to all findings
+        // Apply severity overrides and composition to all findings
         apply_severity_overrides(
             &mut all_advisories,
             config.severity_override.as_ref(),
             &self.severity_overrides,
         );
+        self.apply_composition(&mut all_advisories);
 
         if let Some(ref baseline_path) = self.baseline_path
             && let Ok(prev) = std::fs::read_to_string(baseline_path)
