@@ -115,41 +115,30 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSn
     use rayon::prelude::*;
     let files = collect_files(root, engine.language_filter.as_ref());
 
-    // Phase 1: Read files and register IDs synchronously (very fast)
-    let mut file_work = Vec::new();
-    for p in files {
-        let content = match std::fs::read_to_string(&p) {
-            Ok(c) => c,
-            Err(e) => {
-                engine.file_cache.remove(&p);
-                tracing::warn!("skipping unreadable file {}: {e}", p.display());
-                continue;
-            }
-        };
-        let id = engine.source_registry.register(&p, content.clone());
-        let unchanged = engine.file_cache.is_unchanged(&p, &content);
-        file_work.push((id, p, content, unchanged));
-    }
-
-    // Phase 2: Parse and discover symbols/edges in parallel (heavy lifting)
-    let auditor = &engine.auditor;
-    let parsed_results: Vec<_> = file_work
+    // Pre-assign file IDs from a monotonic counter before any parallel work.
+    // Phase 1 + 2 merged: read, parse, and discover symbols in parallel.
+    // Extract what we need before the parallel section (no &mut access in par_iter).
+    let file_cache: &crate::engine::project::cache::FileCache = &engine.file_cache;
+    let auditor: &crate::engine::auditor::FrensenseAuditor = &engine.auditor;
+    let parsed_results: Vec<_> = files
         .into_par_iter()
-        .map(|(id, p, content, unchanged)| {
+        .enumerate()
+        .map(|(seq, p)| {
+            let id = FileId(seq as u32);
+            let content = match std::fs::read_to_string(&p) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!("skipping unreadable file {}: {e}", p.display());
+                    return Err((p, false));
+                }
+            };
+
+            let unchanged = file_cache.is_unchanged(&p, &content);
             if unchanged {
                 if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
-                    return Ok((
-                        id,
-                        p,
-                        content,
-                        tree,
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        true,
-                    ));
+                    return Ok((id, p, content, tree, Vec::new(), Vec::new(), Vec::new(), true));
                 }
-                return Err(p);
+                return Err((p, false));
             }
 
             match auditor.parse_source(&p, &content) {
@@ -162,22 +151,23 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSn
                         Ok((id, p, content, tree, symbols, edges, semantic_ops, false))
                     } else {
                         tracing::warn!("symbol or edge discovery failed for {}", p.display());
-                        Err(p)
+                        Err((p, false))
                     }
                 }
                 Err(e) => {
                     tracing::warn!("skipping unparseable file {}: {e}", p.display());
-                    Err(p)
+                    Err((p, false))
                 }
             }
         })
         .collect();
 
-    // Phase 3: Update cache and build snapshots synchronously
+    // Phase 3: Register sources and build snapshots sequentially.
     let mut snapshots = Vec::new();
     for res in parsed_results {
         match res {
-            Ok((id, p, content, tree, symbols, edges, semantic_ops, was_unchanged)) => {
+            Ok((_pre_id, p, content, tree, symbols, edges, semantic_ops, was_unchanged)) => {
+                let id = engine.source_registry.register(&p, content.clone());
                 if !was_unchanged {
                     engine.file_cache.update(&p, &content);
                 }
@@ -191,16 +181,13 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSn
                     semantic_ops,
                 });
             }
-            Err(p) => {
+            Err((p, _was_unchanged)) => {
                 engine.file_cache.remove(&p);
             }
         }
     }
 
-    eprintln!(
-        "Finished collect_files_impl with {} snapshots.",
-        snapshots.len()
-    );
+    tracing::info!(count = snapshots.len(), "finished collect_files_impl");
     snapshots
 }
 
