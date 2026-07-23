@@ -22,7 +22,7 @@ pub type FeatureVec = [f64; 11];
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
 // 8 original dims + tainted_api_sim + motif_sim + flow_sim at index 10
-pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
+pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.04, 0.02];
 
 /// Minimum number of positive + negative pairs required to train a per-category
 /// weight vector.  Below this threshold the fallback is returned.
@@ -92,26 +92,45 @@ fn predict(features: &FeatureVec, weights: &FeatureVec) -> f64 {
 }
 
 /// Train weights for a single category using gradient descent.
+/// Positive and negative pairs are separately weighted to handle class imbalance.
 fn train_weights(
     positives: &[FeatureVec],
     negatives: &[FeatureVec],
 ) -> FeatureVec {
     let mut w = [0.5f64; 11];
-    let mut all = Vec::new();
-    for f in positives { all.push((f, 1.0)); }
-    for f in negatives { all.push((f, 0.0)); }
+
+    let n_pos = positives.len();
+    let n_neg = negatives.len();
+    let total = (n_pos + n_neg) as f64;
+    if total == 0.0 {
+        return DEFAULT_WEIGHTS;
+    }
+    // Balanced weight: each positive example counts for 1/(2*n_pos),
+    // each negative for 1/(2*n_neg). This prevents the majority class
+    // from dominating the gradient.
+    let pos_weight = if n_pos > 0 { 0.5 / n_pos as f64 } else { 0.0 };
+    let neg_weight = if n_neg > 0 { 0.5 / n_neg as f64 } else { 0.0 };
 
     for _ in 0..ITERATIONS {
         let mut grad = [0.0f64; 11];
-        for (features, label) in &all {
+        for features in positives {
             let pred = predict(features, &w);
-            let error = pred - label;
+            let error = pred - 1.0;
+            let wgt = pos_weight;
             for i in 0..11 {
-                grad[i] += error * features[i];
+                grad[i] += wgt * error * features[i];
+            }
+        }
+        for features in negatives {
+            let pred = predict(features, &w);
+            let error = pred - 0.0;
+            let wgt = neg_weight;
+            for i in 0..11 {
+                grad[i] += wgt * error * features[i];
             }
         }
         for i in 0..11 {
-            w[i] -= LEARNING_RATE * grad[i] / all.len() as f64;
+            w[i] -= LEARNING_RATE * grad[i];
             w[i] = w[i].clamp(0.0, 1.0);
         }
     }
@@ -120,6 +139,8 @@ fn train_weights(
     let sum: f64 = w.iter().sum();
     if sum > 0.0 {
         for wi in &mut w { *wi /= sum; }
+    } else {
+        for wi in &mut w { *wi = 1.0 / 11.0; }
     }
     w
 }
@@ -131,12 +152,16 @@ fn train_weights(
 /// positive fingerprint but is from a negative file, so it *shouldn't* match).
 /// Train logistic regression, store the resulting weights.
 ///
-/// Categories with fewer than `MIN_TRAINING_PAIRS` pairs get the global defaults.
+/// Categories with fewer than `MIN_TRAINING_PAIRS` pairs use globally trained
+/// defaults. The result always contains a `"_global"` key with weights trained
+/// on ALL pairs across all categories.
 pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, FeatureVec> {
-    let mut by_category: HashMap<&str, (Vec<FeatureVec>, Vec<FeatureVec>)> = HashMap::new();
+    let mut by_category: HashMap<String, (Vec<FeatureVec>, Vec<FeatureVec>)> = HashMap::new();
+    let mut global_pos = Vec::new();
+    let mut global_neg = Vec::new();
 
     for pattern in patterns {
-        let cat = extract_category(&pattern.id);
+        let cat = extract_category(&pattern.id).to_string();
         let pos_fps = &pattern.positives;
         let neg_fps = &pattern.negatives;
 
@@ -146,7 +171,8 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
         for i in 0..pos_fps.len() {
             for j in i + 1..pos_fps.len() {
                 let feats = compute_features(&pos_fps[i], &pos_fps[j]);
-                by_category.entry(cat).or_default().0.push(feats);
+                by_category.entry(cat.clone()).or_default().0.push(feats.clone());
+                global_pos.push(feats);
             }
         }
 
@@ -154,23 +180,34 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
         for pos in pos_fps {
             for neg in neg_fps {
                 let feats = compute_features(pos, neg);
-                by_category.entry(cat).or_default().1.push(feats);
+                by_category.entry(cat.clone()).or_default().1.push(feats.clone());
+                global_neg.push(feats);
             }
         }
     }
 
+    // Train global weights on ALL data (used as default for low-data categories)
+    let global_weights = if !global_pos.is_empty() || !global_neg.is_empty() {
+        train_weights(&global_pos, &global_neg)
+    } else {
+        DEFAULT_WEIGHTS
+    };
+
     let mut result = HashMap::new();
+    result.insert("_global".to_string(), global_weights);
+
     for (cat, (pos, neg)) in &by_category {
         let total = pos.len() + neg.len();
         if total >= MIN_TRAINING_PAIRS {
             let weights = train_weights(pos, neg);
-            result.insert(cat.to_string(), weights);
+            result.insert(cat.clone(), weights);
         }
     }
     result
 }
 
-/// Look up learned weights for a category, falling back to defaults.
+/// Look up learned weights for a category, falling back to the global default
+/// (trained on all categories), then to the hardcoded DEFAULT_WEIGHTS.
 pub fn category_weights<'a>(
     pattern_id: &str,
     learned: &'a HashMap<String, FeatureVec>,
@@ -178,3 +215,5 @@ pub fn category_weights<'a>(
     let cat = extract_category(pattern_id);
     learned.get(cat).unwrap_or(&DEFAULT_WEIGHTS)
 }
+
+

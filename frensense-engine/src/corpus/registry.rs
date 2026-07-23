@@ -454,6 +454,7 @@ impl PatternRegistry {
                 pattern.expected_context.as_ref(),
                 actual_context,
                 self.ngram_sim_threshold,
+                pat_weights,
             );
 
             // LSH multi-table penalty: if candidate only hit the structural table

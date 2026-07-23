@@ -230,20 +230,17 @@ impl PatternScorer {
     }
 
     /// Score a candidate against corpus and return both the final score and
-    /// a full `MatchEvidence` breakdown. Uses hardcoded weights so the evidence
-    /// is self-contained (no learned weights dependency).
-    /// Call-target strings are read from `candidate.raw_call_names` (populated
-    /// during fingerprint extraction) for matched/missing call reporting.
+    /// a full `MatchEvidence` breakdown. Uses the same learned `weights` as
+    /// `score_against_corpus` so scores are identical.
     pub fn score_against_corpus_with_evidence(
         candidate: &FunctionFingerprint,
         positives: &[FunctionFingerprint],
         negatives: &[FunctionFingerprint],
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
-        ngram_sim_threshold: f64,
+        _ngram_sim_threshold: f64,
+        weights: &[f64; 11],
     ) -> (f64, MatchEvidence) {
-        let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
-
         let mut evidence = MatchEvidence::default();
         let mut best_pos_score = 0.0f64;
 
@@ -254,54 +251,33 @@ impl PatternScorer {
                 if !has_overlap { continue; }
             }
 
-            let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
-                || positive.weighted_ngram_hashes.is_empty()
-            {
-                jaccard(&candidate.ngram_hashes, &positive.ngram_hashes)
-            } else {
-                weighted_jaccard(&candidate.weighted_ngram_hashes, &positive.weighted_ngram_hashes)
-            };
-            let ast_sim = if !candidate.skeleton_hashes.is_empty() && !positive.skeleton_hashes.is_empty() {
-                1.0 - crate::ast_distance::tree_edit_distance(&candidate.skeleton_hashes, &positive.skeleton_hashes)
-            } else {
-                jaccard(&candidate.structural_markers, &positive.structural_markers)
-            };
-            let sig_sim = minhash::jaccard_similarity_sorted(&candidate.signature_ngrams, &positive.signature_ngrams);
-            let cf_sim  = jaccard(&candidate.control_flow_hashes, &positive.control_flow_hashes);
-            let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
-            let motif_sim = jaccard(&candidate.motif_hashes, &positive.motif_hashes);
-            let flow_sim  = if candidate.data_flow_path_hashes.is_empty() && positive.data_flow_path_hashes.is_empty() {
-                None
-            } else {
-                Some(jaccard(&candidate.data_flow_path_hashes, &positive.data_flow_path_hashes))
-            };
-            let semantic_sim = jaccard(&candidate.semantic_markers, &positive.semantic_markers);
+            let dim = Self::raw_dimensions(candidate, positive, true);
             let sem_mult = if positive.semantic_markers.is_empty() { 1.0 }
-                else if semantic_sim == 0.0 { 0.30 }
+                else if dim.semantic_sim == 0.0 { 0.30 }
                 else { 2.0 };
             let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
-            let pos_score = (ngram_sim * 0.10 + ast_sim * 0.24 + sig_sim * 0.08
-                + cf_sim * 0.10 + api_sim * 0.08 + motif_sim * 0.10
-                + flow_sim.unwrap_or(0.0) * 0.10 + semantic_sim * 0.13
-                + type_usage_overlap(candidate, positive) * 0.03)
-                * f64::from(transfer) * sem_mult;
+            let pos_score = dim.weighted_score(weights) * f64::from(transfer) * sem_mult;
 
             if pos_score > best_pos_score {
                 best_pos_score = pos_score;
-                evidence.ngram_sim = ngram_sim;
-                evidence.ast_sim = ast_sim;
-                evidence.signature_sim = sig_sim;
-                evidence.control_flow_sim = cf_sim;
-                evidence.api_sim = api_sim;
-                evidence.motif_sim = motif_sim;
-                evidence.flow_sim = flow_sim;
-                evidence.semantic_sim = semantic_sim;
+                evidence.ngram_sim = dim.ngram_sim;
+                evidence.ast_sim = dim.ast_sim;
+                evidence.signature_sim = dim.signature_sim;
+                evidence.control_flow_sim = dim.cf_sim;
+                evidence.api_sim = dim.api_sim;
+                evidence.motif_sim = dim.motif_sim;
+                evidence.flow_sim = if dim.flow_sim > 0.0 || (!candidate.data_flow_path_hashes.is_empty()
+                    && !positive.data_flow_path_hashes.is_empty())
+                {
+                    Some(dim.flow_sim)
+                } else {
+                    None
+                };
+                evidence.semantic_sim = dim.semantic_sim;
                 evidence.best_positive_index = i;
-                evidence.has_taint_path = flow_sim.map_or(false, |s| s > 0.0);
+                evidence.has_taint_path = dim.flow_sim > 0.0;
             }
         }
-
-        evidence.best_positive_index = evidence.best_positive_index;
 
         // Populate matched/missing calls
         if let Some(best_pos) = positives.get(evidence.best_positive_index) {
@@ -315,7 +291,6 @@ impl PatternScorer {
                     evidence.missing_calls.push(name.clone());
                 }
             }
-            // Matched motifs
             for motif in MOTIFS {
                 let mut h = rustc_hash::FxHasher::default();
                 motif.name.hash(&mut h);
@@ -331,29 +306,11 @@ impl PatternScorer {
         // Negative similarity
         let mut max_neg_sim = 0.0f64;
         for negative in negatives {
-            let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
-                || negative.weighted_ngram_hashes.is_empty()
-            {
-                jaccard(&candidate.ngram_hashes, &negative.ngram_hashes)
-            } else {
-                weighted_jaccard(&candidate.weighted_ngram_hashes, &negative.weighted_ngram_hashes)
-            };
-            let ast_sim = if !candidate.skeleton_hashes.is_empty() && !negative.skeleton_hashes.is_empty() {
-                1.0 - crate::ast_distance::tree_edit_distance(&candidate.skeleton_hashes, &negative.skeleton_hashes)
-            } else {
-                jaccard(&candidate.structural_markers, &negative.structural_markers)
-            };
-            let sig_sim = minhash::jaccard_similarity_sorted(&candidate.signature_ngrams, &negative.signature_ngrams);
-            let cf_sim = jaccard(&candidate.control_flow_hashes, &negative.control_flow_hashes);
-            let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
-            let motif_sim = jaccard(&candidate.motif_hashes, &negative.motif_hashes);
-            let flow_sim = jaccard(&candidate.data_flow_path_hashes, &negative.data_flow_path_hashes);
-            let semantic_sim = jaccard(&candidate.semantic_markers, &negative.semantic_markers);
-            let neg_score = ngram_sim * 0.10 + ast_sim * 0.24 + sig_sim * 0.08
-                + cf_sim * 0.10 + api_sim * 0.08 + motif_sim * 0.10
-                + flow_sim * 0.10 + semantic_sim * 0.13
-                + type_usage_overlap(candidate, negative) * 0.03;
-            if neg_score > max_neg_sim { max_neg_sim = neg_score; }
+            let dim = Self::raw_dimensions(candidate, negative, false);
+            let neg_score = dim.weighted_score(weights);
+            if neg_score > max_neg_sim {
+                max_neg_sim = neg_score;
+            }
         }
         evidence.negative_sim = max_neg_sim;
 
@@ -363,7 +320,6 @@ impl PatternScorer {
             1.0 - (max_neg_sim * 0.3)
         };
 
-        // Context Featurization Penalty
         let context_multiplier = match (expected_context, actual_context) {
             (Some(exp), Some(act)) => {
                 let mut penalty = 1.0;
