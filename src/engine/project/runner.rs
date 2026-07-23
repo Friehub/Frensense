@@ -772,7 +772,7 @@ impl Engine {
     /// Returns an error if file reading, parsing, or auditing fails.
     pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
         let _config = self.initialize_auditor_and_config(root);
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
 
         let snapshots = self.snapshot_files(root, files);
         let ProcessSnapshotsResult {
@@ -818,7 +818,7 @@ impl Engine {
         );
         self.apply_composition(&mut all_advisories);
 
-        self.file_cache.save(root, self.language_filter.as_deref());
+        self.file_cache.save(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
         Ok(all_advisories)
     }
 
@@ -910,7 +910,7 @@ impl Engine {
                 format!("path does not exist: {}", root.display()),
             )));
         }
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
+        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
         self.cache_root = Some(root.to_path_buf());
 
         let config = self.initialize_auditor_and_config(root);
@@ -977,7 +977,7 @@ impl Engine {
             all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
         }
 
-        self.file_cache.save(root, self.language_filter.as_deref());
+        self.file_cache.save(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
         Ok((all_advisories, symbols))
     }
 

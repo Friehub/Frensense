@@ -130,6 +130,13 @@ impl Engine {
         self.corpus_bundle = Some(bundle);
     }
 
+    /// blake3 hash of the corpus bundle, used for cache invalidation.
+    #[must_use]
+    pub fn corpus_bundle_hash(&self) -> Option<String> {
+        self.corpus_bundle
+            .map(|b| blake3::hash(b).to_hex().to_string())
+    }
+
     pub fn set_baseline_path(&mut self, path: std::path::PathBuf) {
         self.baseline_path = Some(path);
     }
