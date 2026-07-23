@@ -136,7 +136,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
-        weights: &[f64; 9],
+        weights: &[f64; 10],
     ) -> f64 {
         let mut best_pos_score = 0.0f64;
 
@@ -230,7 +230,7 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_positive: bool,
         ngram_sim_threshold: f64,
-        weights: &[f64; 9],
+        weights: &[f64; 10],
     ) -> f64 {
         let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
@@ -246,10 +246,6 @@ impl PatternScorer {
             )
         };
 
-        // We used to early exit if ngram_sim < ngram_sim_threshold here.
-        // However, in a structural-first architecture, variable names (ngrams) might be completely
-        // different while the AST skeleton is identical. So we must not prune purely on lexical differences.
-
         let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
 
         let ast_sim = if !candidate.skeleton_hashes.is_empty() && !target.skeleton_hashes.is_empty()
@@ -264,19 +260,13 @@ impl PatternScorer {
 
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
-        // Motif sim: if both sides have motif hashes, compute a separate overlap.
-        // When api_sim is low but motif_sim is high, the candidate calls a variant
-        // within the same motif group (e.g. spawn instead of exec).
-        let motif_sim = if !candidate.motif_hashes.is_empty() && !target.motif_hashes.is_empty() {
-            jaccard(&candidate.motif_hashes, &target.motif_hashes)
-        } else {
-            0.0
-        };
-        let api_sim = api_sim.max(motif_sim * 0.8);
+        // Motif similarity: two functions calling exec() and Command::new() respectively
+        // score 1.0 on motif_sim even though api_sim ≈ 0.
+        let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
         // Tainted API sim: if the pattern's positive has no tainted calls, skip this dim.
         // Otherwise, functions where input clearly does NOT flow into the sink get penalized.
         let tainted_api_sim = if target.tainted_api_calls.is_empty() {
-            1.0  // no taint info in pattern — don't penalize or boost
+            1.0
         } else {
             jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
@@ -290,6 +280,7 @@ impl PatternScorer {
             + cf_sim * weights[6]
             + api_sim * weights[7]
             + tainted_api_sim * weights[8]
+            + motif_sim * weights[9]
     }
 
     pub fn similarity_to_positive(
@@ -313,19 +304,15 @@ impl PatternScorer {
             &positive.control_flow_hashes,
         );
         let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
-        let motif_sim = if !candidate.motif_hashes.is_empty() && !positive.motif_hashes.is_empty() {
-            jaccard(&candidate.motif_hashes, &positive.motif_hashes)
-        } else {
-            0.0
-        };
-        let api_sim = api_sim.max(motif_sim * 0.8);
+        let motif_sim = jaccard(&candidate.motif_hashes, &positive.motif_hashes);
         ngram_sim * 0.20
             + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.25
             + jaccard_sorted(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.15
             + jaccard_sorted(&candidate.param_type_ngrams, &positive.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, positive) * 0.05
-            + cf_sim * 0.15
-            + api_sim * 0.15
+            + cf_sim * 0.10
+            + api_sim * 0.10
+            + motif_sim * 0.10
     }
 
     pub fn similarity_to_negative(
@@ -349,19 +336,15 @@ impl PatternScorer {
             &negative.control_flow_hashes,
         );
         let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
-        let motif_sim = if !candidate.motif_hashes.is_empty() && !negative.motif_hashes.is_empty() {
-            jaccard(&candidate.motif_hashes, &negative.motif_hashes)
-        } else {
-            0.0
-        };
-        let api_sim = api_sim.max(motif_sim * 0.8);
+        let motif_sim = jaccard(&candidate.motif_hashes, &negative.motif_hashes);
         ngram_sim * 0.20
             + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.25
             + jaccard_sorted(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.15
             + jaccard_sorted(&candidate.param_type_ngrams, &negative.param_type_ngrams) * 0.05
             + type_usage_overlap(candidate, negative) * 0.05
-            + cf_sim * 0.15
-            + api_sim * 0.15
+            + cf_sim * 0.10
+            + api_sim * 0.10
+            + motif_sim * 0.10
     }
 }
 
@@ -435,7 +418,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
-        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.12, 0.12, 0.17];
+        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.06];
         let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(
             score > 0.5,
@@ -448,7 +431,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
-        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.12, 0.12, 0.17];
+        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.06];
         let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(score < 0.6, "candidate closer to negative should score low");
     }

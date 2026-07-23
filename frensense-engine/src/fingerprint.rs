@@ -49,6 +49,14 @@ pub struct FunctionFingerprint {
     #[cfg_attr(feature = "serialize", serde(default))]
     pub motif_hashes: Vec<u64>,
 
+    /// Data-flow path hashes: hashes of abstract source→sink chains found
+    /// inside this function. Each hash represents a path like:
+    ///   "UserInputSource → assignment → call → CommandExecutionSink"
+    /// Variable names and helper names are replaced by their motif category,
+    /// making the path robust to renaming.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub data_flow_path_hashes: Vec<u64>,
+
     /// Hashes of API calls where at least one argument is (or contains) a function parameter.
     /// E.g., `exec(cmd)` where `cmd` is a param → hash of `"exec"` is included.
     /// `exec("ls")` where `"ls"` is a constant → NOT included.
@@ -792,6 +800,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
             let raw_call_names = collect_raw_call_names(body, source_code);
             let motif_hashes = extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
+            let data_flow_path_hashes =
+                crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
 
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
@@ -828,6 +838,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                   api_call_segments,
                   property_accesses,
                   motif_hashes,
+                  data_flow_path_hashes,
                    tainted_api_calls,
                };
 
@@ -940,6 +951,8 @@ pub fn extract_fingerprints(
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
             let raw_call_names = collect_raw_call_names(body, source_code);
             let motif_hashes = extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
+            let data_flow_path_hashes =
+                crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
 
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
@@ -976,6 +989,7 @@ pub fn extract_fingerprints(
                 api_call_segments,
                 property_accesses,
                 motif_hashes,
+                data_flow_path_hashes,
                 tainted_api_calls,
             });
         }

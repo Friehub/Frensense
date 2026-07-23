@@ -191,6 +191,7 @@ mod tests {
             api_call_segments,
             property_accesses: Vec::new(),
             motif_hashes: Vec::new(),
+            data_flow_path_hashes: Vec::new(),
             tainted_api_calls: Vec::new(),
         }
     }

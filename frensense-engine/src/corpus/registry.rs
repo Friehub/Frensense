@@ -31,7 +31,7 @@ pub struct PatternRegistry {
     idf_weights: FxHashMap<u64, f32>,
     api_idf_weights: FxHashMap<u64, f32>,
     /// Per-category learned feature weights (trained at build time or loaded from bundle).
-    pub category_weights: std::collections::HashMap<String, [f64; 9]>,
+    pub category_weights: std::collections::HashMap<String, [f64; 10]>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
     /// Per-pattern sigmoid calibration (A, B) parameters, keyed by pattern id.
