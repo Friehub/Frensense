@@ -404,6 +404,7 @@ fn run_corpus_scan(
     let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(
         engine.corpus_threshold,
         engine.ngram_sim_threshold,
+        0.05,
     );
     for (category, threshold) in &engine.threshold_overrides {
         registry.set_threshold_override(category.clone(), *threshold);

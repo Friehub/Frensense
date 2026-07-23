@@ -31,6 +31,7 @@ pub struct PatternRegistry {
     lsh_index_api: Option<LSHIndex>,
     threshold: f64,
     ngram_sim_threshold: f64,
+    struct_overlap_threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
     idf_weights: FxHashMap<u64, f32>,
     api_idf_weights: FxHashMap<u64, f32>,
@@ -44,13 +45,14 @@ pub struct PatternRegistry {
 }
 
 impl PatternRegistry {
-    pub fn new(threshold: f64, ngram_sim_threshold: f64) -> Self {
+    pub fn new(threshold: f64, ngram_sim_threshold: f64, struct_overlap_threshold: f64) -> Self {
         Self {
             patterns: Vec::new(),
             lsh_index: None,
             lsh_index_api: None,
             threshold,
             ngram_sim_threshold,
+            struct_overlap_threshold,
             threshold_overrides: std::collections::HashMap::new(),
             idf_weights: FxHashMap::default(),
             api_idf_weights: FxHashMap::default(),
@@ -396,7 +398,7 @@ impl PatternRegistry {
                     &first_pos.structural_markers,
                 );
 
-                if struct_sim < self.ngram_sim_threshold {
+                if struct_sim < self.struct_overlap_threshold {
                     continue; // Prune this candidate early
                 }
 
@@ -417,21 +419,21 @@ impl PatternRegistry {
                     };
                     if !api_overlap && !motif_overlap {
                         if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                            // Co-occurrence gate: require at least 2 of the top-3 IDF-weighted
-                            // API calls from the pattern's positive to appear in the candidate.
-                            let mut top_k: Vec<(u64, f32)> = gate_pos
-                                .api_calls
-                                .iter()
-                                .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
-                                .collect();
-                            top_k.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                            top_k.truncate(3);
-
-                            let hits = top_k.iter().filter(|(call, _)| {
-                                weighted_fp.api_calls.contains(call)
-                            }).count();
-                            let needed = if top_k.len() <= 1 { 1 } else { 2 };
-                            if hits < needed {
+                            // Top-3 IDF gate: require at least 1 of the top-3 IDF-weighted
+                            // calls from the pattern to appear in the candidate.
+                            let top_calls: Vec<u64> = {
+                                let mut scored: Vec<(u64, f32)> = gate_pos
+                                    .api_calls
+                                    .iter()
+                                    .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
+                                    .collect();
+                                scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                                scored.into_iter().take(3).map(|(h, _)| h).collect()
+                            };
+                            let hit_count = top_calls.iter()
+                                .filter(|&&h| weighted_fp.api_calls.contains(&h))
+                                .count();
+                            if hit_count == 0 {
                                 continue;
                             }
                         } else {
