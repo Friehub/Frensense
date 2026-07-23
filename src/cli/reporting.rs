@@ -109,7 +109,7 @@ pub fn print_results(
                         "{} {}: {} ({}:{}:{})",
                         severity_label, v.rule_id, v.observation, v.file_path, v.line, v.column
                     );
-                    if let Some(ref ev) = v.matched_evidence {
+                    if let Some(ref ev) = v.match_evidence {
                         println!("{}", format_evidence(ev));
                     }
                     println!("   - Impact: {}", v.impact);

@@ -636,7 +636,7 @@ fn run_corpus_scan(
                 }
 
                 // Attach evidence
-                advisory.matched_evidence = m.matched_evidence.clone();
+                advisory.match_evidence = m.matched_evidence.clone();
 
                 // Check suppressions
                 if is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap.path) {
