@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use rustc_hash::{FxHashSet, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use std::hash::{Hash, Hasher};
 
 const DEFAULT_NUM_HASHES: usize = 128;
@@ -109,7 +109,11 @@ pub fn signature_similarity(a: &[u64], b: &[u64]) -> f64 {
 }
 
 pub struct LSHIndex {
-    bands: Vec<FxHashSet<u64>>,
+    /// Each band has a HashMap from bucket-hash → list of pattern IDs.
+    /// Unlike the old fixed-size bucket array (which collapsed all items
+    /// into `num_bands` slots), this scales naturally with item count —
+    /// essential for the target 45k+ corpus scale.
+    bands: Vec<FxHashMap<u64, Vec<u64>>>,
     num_bands: usize,
     rows_per_band: usize,
 }
@@ -117,7 +121,7 @@ pub struct LSHIndex {
 impl Default for LSHIndex {
     fn default() -> Self {
         Self {
-            bands: vec![FxHashSet::default(); DEFAULT_BANDS],
+            bands: vec![FxHashMap::default(); DEFAULT_BANDS],
             num_bands: DEFAULT_BANDS,
             rows_per_band: DEFAULT_ROWS_PER_BAND,
         }
@@ -127,13 +131,12 @@ impl Default for LSHIndex {
 impl LSHIndex {
     pub fn new(num_bands: usize, rows_per_band: usize) -> Self {
         Self {
-            bands: vec![FxHashSet::default(); num_bands],
+            bands: vec![FxHashMap::default(); num_bands],
             num_bands,
             rows_per_band,
         }
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     pub fn insert(&mut self, signature: &[u64], item_id: u64) {
         for band in 0..self.num_bands {
             let start = band * self.rows_per_band;
@@ -145,12 +148,11 @@ impl LSHIndex {
             for &val in &signature[start..end] {
                 val.hash(&mut hasher);
             }
-            let bucket = hasher.finish() % self.num_bands as u64;
-            self.bands[bucket as usize].insert(item_id);
+            let bucket_key = hasher.finish();
+            self.bands[band].entry(bucket_key).or_default().push(item_id);
         }
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     pub fn query(&self, signature: &[u64]) -> Vec<u64> {
         let mut candidates = FxHashSet::default();
         for band in 0..self.num_bands {
@@ -163,16 +165,20 @@ impl LSHIndex {
             for &val in &signature[start..end] {
                 val.hash(&mut hasher);
             }
-            let bucket = hasher.finish() % self.num_bands as u64;
-            for fp in &self.bands[bucket as usize] {
-                candidates.insert(*fp);
+            let bucket_key = hasher.finish();
+            if let Some(ids) = self.bands[band].get(&bucket_key) {
+                for &fp in ids {
+                    candidates.insert(fp);
+                }
             }
         }
         candidates.into_iter().collect()
     }
 
-    pub fn buckets(&self) -> &[FxHashSet<u64>] {
-        &self.bands
+    /// Returns the total number of stored (band, bucket) entries across all bands.
+    /// Useful for diagnostics — at 45k patterns each band has ~bucket_count entries.
+    pub fn bucket_count(&self) -> usize {
+        self.bands.iter().map(|b| b.len()).sum()
     }
 }
 
