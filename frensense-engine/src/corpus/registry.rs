@@ -401,34 +401,36 @@ impl PatternRegistry {
                 // The actual vulnerability typically has a distinctive API call.
                 let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
                 if let Some(gate_pos) = gate_pos {
-                    if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                        // Co-occurrence gate: require at least 2 of the top-3 IDF-weighted
-                        // API calls from the pattern's positive to appear in the candidate.
-                        // A single common call (res.status, idf≈3.6) is not enough;
-                        // we need genuine sink-call overlap (exec + getCommand, idf≈4+).
-                        let mut top_k: Vec<(u64, f32)> = gate_pos
-                            .api_calls
-                            .iter()
-                            .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
-                            .collect();
-                        top_k.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                        top_k.truncate(3);
+                    let api_overlap = if !weighted_fp.api_calls.is_empty() {
+                        gate_pos.api_calls.iter().any(|h| weighted_fp.api_calls.contains(h))
+                    } else {
+                        false
+                    };
+                    let motif_overlap = if !weighted_fp.motif_hashes.is_empty() && !gate_pos.motif_hashes.is_empty() {
+                        gate_pos.motif_hashes.iter().any(|h| weighted_fp.motif_hashes.contains(h))
+                    } else {
+                        false
+                    };
+                    if !api_overlap && !motif_overlap {
+                        if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
+                            // Co-occurrence gate: require at least 2 of the top-3 IDF-weighted
+                            // API calls from the pattern's positive to appear in the candidate.
+                            let mut top_k: Vec<(u64, f32)> = gate_pos
+                                .api_calls
+                                .iter()
+                                .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
+                                .collect();
+                            top_k.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                            top_k.truncate(3);
 
-                        let hits = top_k.iter().filter(|(call, _)| {
-                            weighted_fp.api_calls.contains(call)
-                        }).count();
-                        // Require at least 2 of top-3, or 1 if there's only 1 top call
-                        let needed = if top_k.len() <= 1 { 1 } else { 2 };
-                        if hits < needed {
-                            continue;
-                        }
-                    } else if !weighted_fp.api_calls.is_empty() {
-                        // Fallback when IDF not computed: require any overlap
-                        let has_any_overlap = gate_pos
-                            .api_calls
-                            .iter()
-                            .any(|h| weighted_fp.api_calls.contains(h));
-                        if !has_any_overlap {
+                            let hits = top_k.iter().filter(|(call, _)| {
+                                weighted_fp.api_calls.contains(call)
+                            }).count();
+                            let needed = if top_k.len() <= 1 { 1 } else { 2 };
+                            if hits < needed {
+                                continue;
+                            }
+                        } else {
                             continue;
                         }
                     }

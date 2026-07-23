@@ -42,6 +42,13 @@ pub struct FunctionFingerprint {
     /// Property accesses: hashes of object property access names (e.g., 'price' in 'item.price')
     pub property_accesses: Vec<u64>,
 
+    /// Motif hashes: hashes of the canonical motif name for each API call
+    /// that belongs to a known motif group (e.g. exec/spawn/Command::new →
+    /// all hash as "CommandExecutionSink"). These replace literal call hashes
+    /// for cross-variant matching without requiring separate corpus patterns.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub motif_hashes: Vec<u64>,
+
     /// Hashes of API calls where at least one argument is (or contains) a function parameter.
     /// E.g., `exec(cmd)` where `cmd` is a param → hash of `"exec"` is included.
     /// `exec("ls")` where `"ls"` is a constant → NOT included.
@@ -492,6 +499,57 @@ fn extract_properties_recursive(node: Node<'_>, source: &str, accesses: &mut FxH
 /// Extract semantic markers from function body using AST-aware API call detection.
 /// Uses actual `call_expression` nodes instead of text search to eliminate false positives
 /// from comments, strings, and variable names.
+/// Collect raw call target name strings from a function body (for motif lookup).
+fn collect_raw_call_names(node: Node<'_>, source: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    collect_raw_calls_recursive(node, source, &mut names);
+    names
+}
+
+fn collect_raw_calls_recursive(node: Node<'_>, source: &str, names: &mut Vec<String>) {
+    if node.kind() == "call_expression" {
+        if let Some(func) = node.child_by_field_name("function") {
+            names.push(source[func.start_byte()..func.end_byte()].to_string());
+        }
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            collect_raw_calls_recursive(cursor.node(), source, names);
+            if !cursor.goto_next_sibling() { break; }
+        }
+    }
+}
+
+/// Given raw call target name strings, produce sorted deduplicated motif hashes.
+fn extract_motif_hashes(
+    call_names: &[String],
+    motif_lookup: &rustc_hash::FxHashMap<String, &'static str>,
+) -> Vec<u64> {
+    use std::hash::{Hash, Hasher};
+    let mut set = rustc_hash::FxHashSet::default();
+    for call in call_names {
+        // Check the full call name
+        if let Some(&motif_name) = motif_lookup.get(call.as_str()) {
+            let mut h = rustc_hash::FxHasher::default();
+            motif_name.hash(&mut h);
+            set.insert(h.finish());
+        }
+        // Also check the last segment (e.g. "spawn" from "child_process.spawn")
+        if let Some(pos) = call.rfind("::").or_else(|| call.rfind('.')) {
+            let seg = &call[pos + 1..];
+            if let Some(&motif_name) = motif_lookup.get(seg) {
+                let mut h = rustc_hash::FxHasher::default();
+                motif_name.hash(&mut h);
+                set.insert(h.finish());
+            }
+        }
+    }
+    let mut vec: Vec<u64> = set.into_iter().collect();
+    vec.sort_unstable();
+    vec
+}
+
 fn extract_semantic_markers(
     _node: Node<'_>,
     _source: &str,
@@ -732,6 +790,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 })
                 .unwrap_or_default();
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
+            let raw_call_names = collect_raw_call_names(body, source_code);
+            let motif_hashes = extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
 
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
@@ -767,10 +827,11 @@ pub fn extract_fingerprints_with_nodes<'a>(
                   api_calls,
                   api_call_segments,
                   property_accesses,
-                  tainted_api_calls,
-              };
+                  motif_hashes,
+                   tainted_api_calls,
+               };
 
-             fingerprints.push((fp, node));
+              fingerprints.push((fp, node));
         }
 
         if cursor.goto_first_child() {
@@ -877,6 +938,8 @@ pub fn extract_fingerprints(
                 })
                 .unwrap_or_default();
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
+            let raw_call_names = collect_raw_call_names(body, source_code);
+            let motif_hashes = extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
 
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
@@ -912,6 +975,7 @@ pub fn extract_fingerprints(
                 api_calls,
                 api_call_segments,
                 property_accesses,
+                motif_hashes,
                 tainted_api_calls,
             });
         }

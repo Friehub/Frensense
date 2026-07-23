@@ -145,13 +145,19 @@ impl PatternScorer {
         //    skip that positive entirely — structural match is coincidental.
         for positive in positives {
             // API-call gate: zero API overlap = skip (not a real match)
+            // Fall back to motif overlap if literal API calls don't match.
             if !positive.api_calls.is_empty() && !candidate.api_calls.is_empty() {
                 let has_overlap = positive
                     .api_calls
                     .iter()
                     .any(|h| candidate.api_calls.contains(h));
                 if !has_overlap {
-                    continue;
+                    let motif_overlap = !candidate.motif_hashes.is_empty()
+                        && !positive.motif_hashes.is_empty()
+                        && positive.motif_hashes.iter().any(|h| candidate.motif_hashes.contains(h));
+                    if !motif_overlap {
+                        continue;
+                    }
                 }
             }
 
@@ -258,6 +264,15 @@ impl PatternScorer {
 
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+        // Motif sim: if both sides have motif hashes, compute a separate overlap.
+        // When api_sim is low but motif_sim is high, the candidate calls a variant
+        // within the same motif group (e.g. spawn instead of exec).
+        let motif_sim = if !candidate.motif_hashes.is_empty() && !target.motif_hashes.is_empty() {
+            jaccard(&candidate.motif_hashes, &target.motif_hashes)
+        } else {
+            0.0
+        };
+        let api_sim = api_sim.max(motif_sim * 0.8);
         // Tainted API sim: if the pattern's positive has no tainted calls, skip this dim.
         // Otherwise, functions where input clearly does NOT flow into the sink get penalized.
         let tainted_api_sim = if target.tainted_api_calls.is_empty() {
@@ -298,6 +313,12 @@ impl PatternScorer {
             &positive.control_flow_hashes,
         );
         let api_sim = jaccard(&candidate.api_calls, &positive.api_calls);
+        let motif_sim = if !candidate.motif_hashes.is_empty() && !positive.motif_hashes.is_empty() {
+            jaccard(&candidate.motif_hashes, &positive.motif_hashes)
+        } else {
+            0.0
+        };
+        let api_sim = api_sim.max(motif_sim * 0.8);
         ngram_sim * 0.20
             + jaccard(&candidate.structural_markers, &positive.structural_markers) * 0.25
             + jaccard_sorted(&candidate.signature_ngrams, &positive.signature_ngrams) * 0.15
@@ -328,6 +349,12 @@ impl PatternScorer {
             &negative.control_flow_hashes,
         );
         let api_sim = jaccard(&candidate.api_calls, &negative.api_calls);
+        let motif_sim = if !candidate.motif_hashes.is_empty() && !negative.motif_hashes.is_empty() {
+            jaccard(&candidate.motif_hashes, &negative.motif_hashes)
+        } else {
+            0.0
+        };
+        let api_sim = api_sim.max(motif_sim * 0.8);
         ngram_sim * 0.20
             + jaccard(&candidate.structural_markers, &negative.structural_markers) * 0.25
             + jaccard_sorted(&candidate.signature_ngrams, &negative.signature_ngrams) * 0.15
