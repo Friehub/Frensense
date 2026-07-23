@@ -326,6 +326,7 @@ dependencies = [
  "bincode",
  "blake3",
  "petgraph",
+ "rayon",
  "regex",
  "rustc-hash",
  "serde",

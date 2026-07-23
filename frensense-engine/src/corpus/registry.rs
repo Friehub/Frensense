@@ -8,6 +8,7 @@ use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_wei
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::PatternScorer;
+use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
@@ -325,16 +326,10 @@ impl PatternRegistry {
 
         let mut extracted_flows: Option<std::collections::HashSet<(String, String)>> = None;
 
-        // eprintln!("DEBUG: fp.name = {:?}, api = {}, candidates = {}", fp.function_name, fp.api_calls.len(), candidates.len());
-
         let mut dim_cache = rustc_hash::FxHashMap::default();
         let mut matches = Vec::new();
         for &(idx, hit_both) in &all_candidates {
             let pattern = &self.patterns[idx];
-            // eprintln!("DEBUG: checking pattern {}", pattern.id);
-            if pattern.id.contains("blocking_io") {
-                // eprintln!("DEBUG: found pattern {} is candidate.", pattern.id);
-            }
 
             // Merge hand-authored semantic filter with auto-derived suggestions
             let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
@@ -368,22 +363,15 @@ impl PatternRegistry {
                 }
             }
 
-            // Semantic gate: skip trivially small functions that can't match complex patterns.
-            // Uses structural marker count as a proxy for function complexity.
-            // A function with < 3 structural markers is too simple to be a real vulnerability.
-            // Prevents fn main() {} from matching patterns that require actual logic.
+            // Semantic gate: skip trivially small functions
             if weighted_fp.structural_markers.len() < 3 {
                 continue;
             }
-
-            // Skip functions with no control flow AND no API calls — trivial getters/setters
-            // But allow functions that have API calls (like eval()) even without control flow
             if weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty() {
                 continue;
             }
 
-            // Function role classifier: if the candidate's role is incompatible with the
-            // pattern's role, skip.  An HttpHandler cannot be a ShellExecutor or DbQuery.
+            // Function role classifier
             let candidate_role = crate::function_role::classify_role(&weighted_fp);
             if let Some(first_pos) = pattern.positives.first() {
                 let pattern_role = crate::function_role::classify_role(first_pos);
@@ -392,21 +380,16 @@ impl PatternRegistry {
                 }
             }
 
-            // Fast early exit: if the candidate shares almost no structural markers with the primary positive example,
-            // it's highly unlikely to be a match. We can skip the expensive full scoring.
+            // Structural overlap gate + API-call gate
             if let Some(first_pos) = pattern.positives.first() {
                 let struct_sim = crate::minhash::overlap_coefficient_sorted(
                     &weighted_fp.structural_markers,
                     &first_pos.structural_markers,
                 );
-
                 if struct_sim < self.struct_overlap_threshold {
-                    continue; // Prune this candidate early
+                    continue;
                 }
 
-                // API-call gate: find the first positive with non-empty api_calls.
-                // Helper functions (like getCommand) often appear first but have no calls.
-                // The actual vulnerability typically has a distinctive API call.
                 let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
                 if let Some(gate_pos) = gate_pos {
                     let api_overlap = if !weighted_fp.api_calls.is_empty() {
@@ -414,15 +397,11 @@ impl PatternRegistry {
                     } else {
                         false
                     };
-                    let motif_overlap = if !weighted_fp.motif_hashes.is_empty() && !gate_pos.motif_hashes.is_empty() {
-                        gate_pos.motif_hashes.iter().any(|h| weighted_fp.motif_hashes.contains(h))
-                    } else {
-                        false
-                    };
+                    let motif_overlap = !weighted_fp.motif_hashes.is_empty()
+                        && !gate_pos.motif_hashes.is_empty()
+                        && gate_pos.motif_hashes.iter().any(|h| weighted_fp.motif_hashes.contains(h));
                     if !api_overlap && !motif_overlap {
                         if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                            // Top-3 IDF gate: require at least 1 of the top-3 IDF-weighted
-                            // calls from the pattern to appear in the candidate.
                             let top_calls: Vec<u64> = {
                                 let mut scored: Vec<(u64, f32)> = gate_pos
                                     .api_calls
@@ -460,18 +439,9 @@ impl PatternRegistry {
                 &mut dim_cache,
             );
 
-            // LSH multi-table penalty: if candidate only hit the structural table
-            // but NOT the API table, it's likely a structural FP. Reduce confidence.
-            let best_score = if !hit_both {
-                best_score * 0.85
-            } else {
-                best_score
-            };
+            let best_score = if !hit_both { best_score * 0.85 } else { best_score };
 
             let threshold = self.threshold_for_pattern(&pattern.id);
-            if pattern.id == "rust_async_blocking_io" || pattern.id.contains("async") {
-                // eprintln!("DEBUG: pattern {}, best_score {}, threshold {}", pattern.id, best_score, threshold);
-            }
             if best_score >= threshold {
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),

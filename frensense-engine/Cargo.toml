@@ -18,6 +18,7 @@ tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-javascript = { version = "0.23", optional = true }
 tree-sitter-python = { version = "0.23", optional = true }
 rustc-hash = "1.1"
+rayon = "1"
 petgraph = "0.6"
 regex = "1"
 serde = { version = "1.0", features = ["derive"], optional = true }

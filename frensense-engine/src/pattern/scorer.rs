@@ -258,9 +258,9 @@ impl PatternScorer {
         )
     }
 
-    /// Like `score_against_corpus_with_evidence` but accepts a reusable
-    /// `DimCache` so that `raw_dimensions(candidate, target)` is computed
-    /// at most once per unique target across all pattern calls.
+    /// Like `score_against_corpus_with_evidence` but accepts a pre-computed
+    /// `DimCache` for read-only lookup.  The caller must guarantee the cache
+    /// contains `raw_dimensions(candidate, target)` for every target.
     pub fn score_against_corpus_with_evidence_cached(
         candidate: &FunctionFingerprint,
         positives: &[FunctionFingerprint],
@@ -542,7 +542,7 @@ impl PatternScorer {
         }
     }
 
-    fn raw_dimensions(
+    pub(crate) fn raw_dimensions(
         candidate: &FunctionFingerprint,
         target: &FunctionFingerprint,
         _is_negative: bool,
