@@ -246,10 +246,11 @@ impl PatternRegistry {
         if self.patterns.len() < 10 {
             return;
         }
-        let num_hashes = 128;
-        // Maximize recall for sub-graph containment by setting bands=128, rows=1
-        let num_bands = 128;
-        let rows_per_band = num_hashes / num_bands;
+        let num_hashes = 120;
+        // Standard LSH: bands=40, rows=3.  Gives ~95%+ recall for J≥0.4
+        // while filtering out most J<0.2 false positives.
+        let num_bands = 40;
+        let rows_per_band = 3;
 
         // Structural LSH (existing)
         let mut struct_index = LSHIndex::new(num_bands, rows_per_band);

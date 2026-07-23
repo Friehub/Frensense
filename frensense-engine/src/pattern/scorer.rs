@@ -45,10 +45,15 @@ pub fn weighted_jaccard(
 /// but should be heavily penalized to avoid false positives.
 fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
     if pattern_lang == candidate_lang || pattern_lang == "unknown" || candidate_lang == "unknown" {
-        1.0
-    } else {
-        0.20 // 80% penalty for cross-language matching
+        return 1.0;
     }
+    // TypeScript and JavaScript share the same AST structure (tree-sitter-typescript
+    // parses JS too). Treat them as equivalent for cross-lingual matching.
+    let js_like = |l: &str| l == "typescript" || l == "javascript";
+    if js_like(pattern_lang) && js_like(candidate_lang) {
+        return 1.0;
+    }
+    0.20 // 80% penalty for genuinely different languages (e.g. Rust ↔ TypeScript)
 }
 
 #[derive(Debug, Clone)]
