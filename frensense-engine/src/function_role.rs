@@ -192,6 +192,7 @@ mod tests {
             property_accesses: Vec::new(),
             motif_hashes: Vec::new(),
             data_flow_path_hashes: Vec::new(),
+            raw_call_names: Vec::new(),
             tainted_api_calls: Vec::new(),
         }
     }

@@ -445,14 +445,13 @@ impl PatternRegistry {
                 &pattern.id,
                 &self.category_weights,
             );
-            let best_score = PatternScorer::score_against_corpus(
+            let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence(
                 &weighted_fp,
                 &pattern.positives,
                 &pattern.negatives,
                 pattern.expected_context.as_ref(),
                 actual_context,
                 self.ngram_sim_threshold,
-                pat_weights,
             );
 
             // LSH multi-table penalty: if candidate only hit the structural table
@@ -468,21 +467,15 @@ impl PatternRegistry {
                 // eprintln!("DEBUG: pattern {}, best_score {}, threshold {}", pattern.id, best_score, threshold);
             }
             if best_score >= threshold {
-                let matched_evidence = Some(PatternScorer::compute_evidence(
-                    &weighted_fp,
-                    &pattern.positives,
-                    &pattern.negatives,
-                    pat_weights,
-                ));
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),
                     score: best_score,
-                    positive_similarity: 0.0,
-                    negative_similarity: 0.0,
+                    positive_similarity: evidence.api_sim,
+                    negative_similarity: evidence.negative_sim,
                     observation: pattern.observation.clone(),
                     impact: pattern.impact.clone(),
                     improvement: pattern.improvement.clone(),
-                    matched_evidence,
+                    matched_evidence: Some(evidence),
                 });
             }
         }

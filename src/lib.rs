@@ -32,6 +32,7 @@ pub use crate::engine::auditor::{FrensenseAuditor, ScanResult};
 use crate::semantics::SymbolRegistry;
 
 pub use frensense_engine::{FileId, ScopeId};
+use frensense_engine::pattern::evidence::MatchEvidence;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
@@ -141,6 +142,10 @@ pub struct Advisory {
     /// Used by composition layer to suppress hollow validators.
     #[serde(default)]
     pub taint_branch_ratio: Option<f64>,
+    /// Per-dimension evidence breakdown for corpus pattern matches.
+    /// Populated when the advisory originates from a corpus scan.
+    #[serde(default)]
+    pub matched_evidence: Option<MatchEvidence>,
 }
 
 /// Lossless usize → u32, saturating at `u32::MAX`.
@@ -185,6 +190,7 @@ impl Advisory {
             requires_human: true,
             tags: Vec::new(),
             taint_branch_ratio: None,
+            matched_evidence: None,
         }
     }
 

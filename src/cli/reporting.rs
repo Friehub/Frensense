@@ -1,8 +1,46 @@
 use super::options::CliOptions;
 use crate::reporter::Reporter;
 use crate::{Advisory, Engine, FrensenseError, Result};
+use frensense_engine::pattern::evidence::MatchEvidence;
 use std::collections::HashSet;
 use std::path::Path;
+
+/// Format a MatchEvidence as a human-readable block for the CLI reporter.
+pub fn format_evidence(ev: &MatchEvidence) -> String {
+    let mut lines = Vec::new();
+
+    lines.push("  Matched:".to_string());
+    for call in &ev.matched_calls {
+        lines.push(format!("    v {}()", call));
+    }
+    for motif in &ev.matched_motifs {
+        lines.push(format!("    v {} motif", motif));
+    }
+    if ev.has_taint_path {
+        lines.push("    v user-input -> sink taint path".to_string());
+    }
+    if ev.control_flow_sim > 0.5 {
+        lines.push(format!("    v control flow ({:.0}% match)", ev.control_flow_sim * 100.0));
+    }
+    if ev.ast_sim > 0.7 {
+        lines.push(format!("    v AST structure ({:.0}% match)", ev.ast_sim * 100.0));
+    }
+
+    if !ev.missing_calls.is_empty() || ev.negative_sim > 0.4 {
+        lines.push("  Differed:".to_string());
+        for call in &ev.missing_calls {
+            lines.push(format!("    x {} not found", call));
+        }
+        if ev.negative_sim > 0.4 {
+            lines.push(format!(
+                "    x {:.0}% similar to safe (negative) example",
+                ev.negative_sim * 100.0
+            ));
+        }
+    }
+
+    lines.join("\n")
+}
 
 /// Print the results of the analysis in the requested format.
 ///
@@ -71,6 +109,9 @@ pub fn print_results(
                         "{} {}: {} ({}:{}:{})",
                         severity_label, v.rule_id, v.observation, v.file_path, v.line, v.column
                     );
+                    if let Some(ref ev) = v.matched_evidence {
+                        println!("{}", format_evidence(ev));
+                    }
                     println!("   - Impact: {}", v.impact);
                     println!("   - Suggestion: {}\n", v.improvement);
                 }

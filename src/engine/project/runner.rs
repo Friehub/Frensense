@@ -7,6 +7,7 @@ use crate::engine::suppression::SuppressConfig;
 
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
+use frensense_engine::pattern::evidence::MatchEvidence;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -633,6 +634,9 @@ fn run_corpus_scan(
                     advisory = advisory.with_tags(["corpus", "pattern", "taint-verified"]);
                     advisory.impact = format!("{impact}\n\nTaint flow verified: {taint_detail}");
                 }
+
+                // Attach evidence
+                advisory.matched_evidence = m.matched_evidence.clone();
 
                 // Check suppressions
                 if is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap.path) {
