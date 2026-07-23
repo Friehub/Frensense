@@ -25,10 +25,10 @@ pub fn weighted_jaccard(
     }
     let mut intersection = 0.0f64;
     let mut union = 0.0f64;
-    let all_keys: std::collections::HashSet<_> = a.keys().chain(b.keys()).collect();
+    let all_keys: rustc_hash::FxHashSet<_> = a.keys().chain(b.keys()).collect();
     for key in all_keys {
-        let wa = f64::from(a.get(key).copied().unwrap_or(0.0));
-        let wb = f64::from(b.get(key).copied().unwrap_or(0.0));
+        let wa = f64::from(a.get(&key).copied().unwrap_or(0.0));
+        let wb = f64::from(b.get(&key).copied().unwrap_or(0.0));
         intersection += wa.min(wb);
         union += wa.max(wb);
     }
@@ -507,7 +507,11 @@ impl PatternScorer {
 
         let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
 
-        let ast_sim = if !candidate.skeleton_hashes.is_empty() && !target.skeleton_hashes.is_empty()
+        // Tree-edit distance is O(n²) LCS — skip when ngram is too low for
+        // a perfect AST match to meaningfully move the weighted score.
+        let ast_sim = if !candidate.skeleton_hashes.is_empty()
+            && !target.skeleton_hashes.is_empty()
+            && ngram_sim > 0.12
         {
             1.0 - crate::ast_distance::tree_edit_distance(
                 &candidate.skeleton_hashes,
