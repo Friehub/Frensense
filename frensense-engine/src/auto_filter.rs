@@ -124,22 +124,43 @@ pub fn compute_auto_filters(
         let src_neg = get_negative_source(&p.id, source_texts);
 
         // --- Excludes call ---
-        let pos_calls: std::collections::HashSet<String> =
+        // Only exclude calls present in ≥80% of negatives and absent from positives.
+        let neg_call_vec = extract_call_targets(&src_neg);
+        let neg_call_counts: std::collections::HashMap<&str, usize> = neg_call_vec
+            .iter()
+            .fold(std::collections::HashMap::new(), |mut acc, c| {
+                *acc.entry(c.as_str()).or_insert(0) += 1;
+                acc
+            });
+        let pos_call_set: std::collections::HashSet<String> =
             extract_call_targets(src_pos).into_iter().collect();
-        let neg_calls: std::collections::HashSet<String> =
-            extract_call_targets(&src_neg).into_iter().collect();
-        // Calls in ALL negatives but NO positives
-        let excludes: Vec<String> = neg_calls.difference(&pos_calls).cloned().collect();
+        let neg_call_threshold = (count_lines(&src_neg).max(1) as f64 * 0.8) as usize;
+        let excludes: Vec<String> = neg_call_counts
+            .into_iter()
+            .filter(|(call, count)| *count >= neg_call_threshold && !pos_call_set.contains(*call))
+            .map(|(call, _)| call.to_string())
+            .collect();
         if !excludes.is_empty() {
             excludes_call.insert(p.id.clone(), excludes);
         }
 
         // --- Excludes node type ---
-        let pos_nodes: std::collections::HashSet<String> =
+        // Only exclude node types present in ≥80% of negatives and absent from positives.
+        let neg_node_vec = extract_node_types(&src_neg);
+        let neg_node_counts: std::collections::HashMap<&str, usize> = neg_node_vec
+            .iter()
+            .fold(std::collections::HashMap::new(), |mut acc, n| {
+                *acc.entry(n.as_str()).or_insert(0) += 1;
+                acc
+            });
+        let pos_node_set: std::collections::HashSet<String> =
             extract_node_types(src_pos).into_iter().collect();
-        let neg_nodes: std::collections::HashSet<String> =
-            extract_node_types(&src_neg).into_iter().collect();
-        let excl_nodes: Vec<String> = neg_nodes.difference(&pos_nodes).cloned().collect();
+        let neg_node_threshold = (count_lines(&src_neg).max(1) as f64 * 0.8) as usize;
+        let excl_nodes: Vec<String> = neg_node_counts
+            .into_iter()
+            .filter(|(node, count)| *count >= neg_node_threshold && !pos_node_set.contains(*node))
+            .map(|(node, _)| node.to_string())
+            .collect();
         if !excl_nodes.is_empty() {
             excludes_node_type.insert(p.id.clone(), excl_nodes);
         }
@@ -207,6 +228,12 @@ pub fn merge_filters(
     if let Some(fnames) = auto.excludes_function_name.get(pid) {
         m.must_not_match_function_name.extend(fnames.iter().cloned());
     }
+    if let Some(calls) = auto.excludes_call.get(pid) {
+        m.must_not_contain_call_to.extend(calls.iter().cloned());
+    }
+    if let Some(nodes) = auto.excludes_node_type.get(pid) {
+        m.must_not_contain_node_type.extend(nodes.iter().cloned());
+    }
     m
 }
 
@@ -233,6 +260,11 @@ fn extract_imports(source: &str) -> Vec<String> {
         }
     }
     r
+}
+
+/// Rough line count for a source string (used as threshold denominator).
+fn count_lines(s: &str) -> usize {
+    s.bytes().filter(|&b| b == b'\n').count().max(1)
 }
 
 /// Get source text for a pattern's negative variant (try _negative.ts, _negative2.ts, etc.)
