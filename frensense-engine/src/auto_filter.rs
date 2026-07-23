@@ -255,13 +255,19 @@ fn count_lines(s: &str) -> usize {
     s.bytes().filter(|&b| b == b'\n').count().max(1)
 }
 
-/// Get source text for a pattern's negative variant (try _negative.ts, _negative2.ts, etc.)
+/// Get concatenated source text for all negative variants of a pattern.
+/// Negative sources are stored under "{pattern_id}_neg" (or "_neg2", "_neg3").
+/// Returns empty string if no negative source found.
 fn get_negative_source(pattern_id: &str, sources: &HashMap<String, String>) -> String {
-    // Try exact match first (negative file content may be keyed under pattern_id)
-    if let Some(src) = sources.get(pattern_id) {
-        return src.clone();
+    let mut combined = String::new();
+    for suffix in &["_neg", "_neg2", "_neg3", "_neg4"] {
+        let key = format!("{pattern_id}{suffix}");
+        if let Some(src) = sources.get(&key) {
+            combined.push_str(src);
+            combined.push('\n');
+        }
     }
-    String::new()
+    combined
 }
 
 /// Extract AST node type names from source text (crude heuristic: match keywords).

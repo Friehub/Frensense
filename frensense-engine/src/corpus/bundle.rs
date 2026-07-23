@@ -247,15 +247,45 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
     let corpus_dir = std::env::current_dir()
         .map(|d| d.join("corpus").join("targets"))
         .unwrap_or_default();
+    // Recursively find a corpus file by its pattern ID and variant.
+    fn find_corpus_file(id: &str, variant: &str, dir: &Path) -> Option<String> {
+        for ext in &["ts", "tsx", "js", "jsx", "rs"] {
+            let target = format!("{}_{}.{}", id, variant, ext);
+            let result = find_file_recursive(dir, &target);
+            if result.is_some() {
+                return result;
+            }
+        }
+        None
+    }
+
+    fn find_file_recursive(dir: &Path, target: &str) -> Option<String> {
+        let Ok(entries) = std::fs::read_dir(dir) else { return None; };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(src) = find_file_recursive(&path, target) {
+                    return Some(src);
+                }
+            } else if path.is_file() {
+                if path.file_name().and_then(|n| n.to_str()) == Some(target) {
+                    return std::fs::read_to_string(&path).ok();
+                }
+            }
+        }
+        None
+    }
+
     let mut pattern_source_texts = std::collections::HashMap::new();
     for bp in patterns {
-        // Try .ts, .tsx, .js, .jsx, .rs extensions for the positive file
-        for ext in &["ts", "tsx", "js", "jsx", "rs"] {
-            let path = format!("{}_{}.{}", bp.id, "positive", ext);
-            let full_path = corpus_dir.join(&path);
-            if let Ok(src) = std::fs::read_to_string(&full_path) {
-                pattern_source_texts.insert(bp.id.clone(), src);
-                break;
+        // Read positive and up to 4 negative source files for auto-filter learning.
+        // Files may be in any subdirectory under corpus_dir.
+        if let Some(src) = find_corpus_file(&bp.id, "positive", corpus_dir.as_path()) {
+            pattern_source_texts.insert(bp.id.clone(), src);
+        }
+        for variant in &["negative", "negative2", "negative3", "negative4"] {
+            if let Some(src) = find_corpus_file(&bp.id, variant, corpus_dir.as_path()) {
+                pattern_source_texts.insert(format!("{}_neg", bp.id), src);
             }
         }
     }
