@@ -327,6 +327,7 @@ impl PatternRegistry {
 
         // eprintln!("DEBUG: fp.name = {:?}, api = {}, candidates = {}", fp.function_name, fp.api_calls.len(), candidates.len());
 
+        let mut dim_cache = rustc_hash::FxHashMap::default();
         let mut matches = Vec::new();
         for &(idx, hit_both) in &all_candidates {
             let pattern = &self.patterns[idx];
@@ -448,7 +449,7 @@ impl PatternRegistry {
                 &pattern.id,
                 &self.category_weights,
             );
-            let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence(
+            let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence_cached(
                 &weighted_fp,
                 &pattern.positives,
                 &pattern.negatives,
@@ -456,6 +457,7 @@ impl PatternRegistry {
                 actual_context,
                 self.ngram_sim_threshold,
                 pat_weights,
+                &mut dim_cache,
             );
 
             // LSH multi-table penalty: if candidate only hit the structural table

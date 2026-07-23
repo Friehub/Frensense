@@ -237,6 +237,10 @@ impl PatternScorer {
     /// Score a candidate against corpus and return both the final score and
     /// a full `MatchEvidence` breakdown. Uses the same learned `weights` as
     /// `score_against_corpus` so scores are identical.
+    ///
+    /// When `dim_cache` is provided, `raw_dimensions` results are memoised
+    /// across all patterns, keyed by `fingerprint_id(&target)`.  The caller
+    /// must guarantee the candidate is unchanged across calls sharing a cache.
     pub fn score_against_corpus_with_evidence(
         candidate: &FunctionFingerprint,
         positives: &[FunctionFingerprint],
@@ -246,6 +250,55 @@ impl PatternScorer {
         _ngram_sim_threshold: f64,
         weights: &[f64; 11],
     ) -> (f64, MatchEvidence) {
+        Self::score_against_corpus_with_evidence_impl(
+            candidate, positives, negatives,
+            expected_context, actual_context,
+            _ngram_sim_threshold, weights,
+            None,
+        )
+    }
+
+    /// Like `score_against_corpus_with_evidence` but accepts a reusable
+    /// `DimCache` so that `raw_dimensions(candidate, target)` is computed
+    /// at most once per unique target across all pattern calls.
+    pub fn score_against_corpus_with_evidence_cached(
+        candidate: &FunctionFingerprint,
+        positives: &[FunctionFingerprint],
+        negatives: &[FunctionFingerprint],
+        expected_context: Option<&crate::context::FileContext>,
+        actual_context: Option<&crate::context::FileContext>,
+        _ngram_sim_threshold: f64,
+        weights: &[f64; 11],
+        dim_cache: &mut DimCache,
+    ) -> (f64, MatchEvidence) {
+        Self::score_against_corpus_with_evidence_impl(
+            candidate, positives, negatives,
+            expected_context, actual_context,
+            _ngram_sim_threshold, weights,
+            Some(dim_cache),
+        )
+    }
+
+    fn score_against_corpus_with_evidence_impl(
+        candidate: &FunctionFingerprint,
+        positives: &[FunctionFingerprint],
+        negatives: &[FunctionFingerprint],
+        expected_context: Option<&crate::context::FileContext>,
+        actual_context: Option<&crate::context::FileContext>,
+        _ngram_sim_threshold: f64,
+        weights: &[f64; 11],
+        mut dim_cache: Option<&mut DimCache>,
+    ) -> (f64, MatchEvidence) {
+        // Inline helper: look up or compute raw_dimensions for a target.
+        let mut raw_dim = |target: &FunctionFingerprint, is_negative: bool| -> RawDimensions {
+            if let Some(ref mut cache) = dim_cache {
+                let key = fingerprint_id(target);
+                *cache.entry(key).or_insert_with(|| Self::raw_dimensions(candidate, target, is_negative))
+            } else {
+                Self::raw_dimensions(candidate, target, is_negative)
+            }
+        };
+
         let mut evidence = MatchEvidence::default();
         let mut best_pos_score = 0.0f64;
 
@@ -256,7 +309,7 @@ impl PatternScorer {
                 if !has_overlap { continue; }
             }
 
-            let dim = Self::raw_dimensions(candidate, positive, true);
+            let dim = raw_dim(positive, false);
             let sem_mult = if positive.semantic_markers.is_empty() { 1.0 }
                 else if dim.semantic_sim == 0.0 { 0.30 }
                 else { 2.0 };
@@ -311,7 +364,7 @@ impl PatternScorer {
         // Negative similarity
         let mut max_neg_sim = 0.0f64;
         for negative in negatives {
-            let dim = Self::raw_dimensions(candidate, negative, false);
+            let dim = raw_dim(negative, true);
             let neg_score = dim.weighted_score(weights);
             if neg_score > max_neg_sim {
                 max_neg_sim = neg_score;
@@ -550,8 +603,26 @@ impl PatternScorer {
     }
 }
 
+/// A lightweight identity-hash for a fingerprint, used as a cache key.
+/// Computed from a few identifying fields — collisions are astronomically unlikely.
+pub fn fingerprint_id(fp: &FunctionFingerprint) -> u64 {
+    let structural_hash = fp.structural_markers.first().copied().unwrap_or(0);
+    let api_hash = fp.api_calls.first().copied().unwrap_or(0);
+    let ngram_len = fp.ngram_hashes.len() as u64;
+    structural_hash.wrapping_mul(3)
+        ^ api_hash.wrapping_mul(7)
+        ^ ngram_len.wrapping_mul(11)
+        ^ (fp.skeleton_hashes.len() as u64).wrapping_mul(13)
+}
+
+/// Global cache for `raw_dimensions` results across all patterns in a scan.
+/// Safe to reuse across `score_against_corpus_with_evidence` calls because
+/// the candidate is constant within a single `scan_function` invocation.
+pub type DimCache = rustc_hash::FxHashMap<u64, RawDimensions>;
+
 /// Intermediate raw-dimension values used internally by evidence computation.
-struct RawDimensions {
+#[derive(Clone, Copy)]
+pub(crate) struct RawDimensions {
     ngram_sim: f64,
     ast_sim: f64,
     signature_sim: f64,
