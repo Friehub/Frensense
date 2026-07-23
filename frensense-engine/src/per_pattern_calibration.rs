@@ -59,13 +59,14 @@ fn compute_calibration_features(
     };
     let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
     let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+    let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
 
     // Use hardcoded fallback weights for calibration (avoids circular dependency)
-    ngram_sim * 0.12 + ast_sim * 0.28
+    ngram_sim * 0.12 + ast_sim * 0.25
         + jaccard(&candidate.signature_ngrams, &target.signature_ngrams) * 0.08
         + jaccard(&candidate.param_type_ngrams, &target.param_type_ngrams) * 0.04
         + type_usage_overlap(candidate, target) * 0.03
-        + semantic_sim * 0.15 + cf_sim * 0.15 + api_sim * 0.15
+        + semantic_sim * 0.13 + cf_sim * 0.13 + api_sim * 0.13 + tainted_api_sim * 0.09
 }
 
 /// Train per-pattern calibration parameters from corpus patterns.

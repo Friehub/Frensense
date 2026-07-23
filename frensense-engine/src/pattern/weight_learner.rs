@@ -17,11 +17,12 @@ use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
 use crate::pattern::scorer::type_usage_overlap;
 
-pub type FeatureVec = [f64; 8];
+pub type FeatureVec = [f64; 9];
 
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
-const DEFAULT_WEIGHTS: FeatureVec = [0.12, 0.28, 0.08, 0.04, 0.03, 0.15, 0.15, 0.15];
+// 8 original dims + tainted_api_sim at index 8
+const DEFAULT_WEIGHTS: FeatureVec = [0.12, 0.25, 0.08, 0.04, 0.03, 0.13, 0.13, 0.13, 0.09];
 
 /// Minimum number of positive + negative pairs required to train a per-category
 /// weight vector.  Below this threshold the fallback is returned.
@@ -77,8 +78,9 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
     let type_usage_sim = type_usage_overlap(candidate, target);
     let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
     let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+    let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
 
-    [ngram_sim, ast_sim, sig_sim, type_sim, type_usage_sim, semantic_sim, cf_sim, api_sim]
+    [ngram_sim, ast_sim, sig_sim, type_sim, type_usage_sim, semantic_sim, cf_sim, api_sim, tainted_api_sim]
 }
 
 /// Logistic regression prediction: σ(w · x)
@@ -92,7 +94,7 @@ fn train_weights(
     positives: &[FeatureVec],
     negatives: &[FeatureVec],
 ) -> FeatureVec {
-    let mut w = [0.5f64; 8];
+    let mut w = [0.5f64; 9];
     let mut all = Vec::new();
     for f in positives { all.push((f, 1.0)); }
     for f in negatives { all.push((f, 0.0)); }

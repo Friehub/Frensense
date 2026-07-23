@@ -190,6 +190,7 @@ mod tests {
             api_calls,
             api_call_segments,
             property_accesses: Vec::new(),
+            tainted_api_calls: Vec::new(),
         }
     }
 

@@ -41,6 +41,13 @@ pub struct FunctionFingerprint {
     pub api_call_segments: Vec<u64>,
     /// Property accesses: hashes of object property access names (e.g., 'price' in 'item.price')
     pub property_accesses: Vec<u64>,
+
+    /// Hashes of API calls where at least one argument is (or contains) a function parameter.
+    /// E.g., `exec(cmd)` where `cmd` is a param → hash of `"exec"` is included.
+    /// `exec("ls")` where `"ls"` is a constant → NOT included.
+    /// Separated from `api_calls` so scoring can distinguish tainted from untainted sinks.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub tainted_api_calls: Vec<u64>,
 }
 
 /// M1: Compute IDF weights for n-grams from a set of fingerprints.
@@ -370,6 +377,76 @@ fn extract_calls_recursive(
     }
 }
 
+/// Extract tainted API calls — calls where at least one argument is a function parameter.
+/// This distinguishes `exec(cmd)` from `exec("ls")` at the fingerprint level.
+/// Pure AST traversal, no data flow graph needed.
+fn extract_tainted_calls(node: Node<'_>, source: &str, param_names: &[String]) -> Vec<u64> {
+    let mut tainted = FxHashSet::default();
+    extract_tainted_recursive(node, source, param_names, &mut tainted);
+    let mut vec: Vec<u64> = tainted.into_iter().collect();
+    vec.sort_unstable();
+    vec
+}
+
+fn extract_tainted_recursive(
+    node: Node<'_>,
+    source: &str,
+    param_names: &[String],
+    tainted: &mut FxHashSet<u64>,
+) {
+    if node.kind() == "call_expression" {
+        if let Some(args_node) = node.child_by_field_name("arguments") {
+            if has_param_ref(args_node, source, param_names) {
+                if let Some(func) = node.child_by_field_name("function") {
+                    let name = &source[func.start_byte()..func.end_byte()];
+                    let mut h = FxHasher::default();
+                    name.hash(&mut h);
+                    tainted.insert(h.finish());
+                }
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            extract_tainted_recursive(cursor.node(), source, param_names, tainted);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+/// Check if a subtree contains any identifier that matches a parameter name.
+fn has_param_ref(node: Node<'_>, source: &str, _param_names: &[String]) -> bool {
+    // Simplify: any identifier in a call argument is treated as potentially tainted.
+    // Pure literals (strings, numbers, booleans, null) are not.
+    // This catches exec(cmd), exec(toUrl), exec(result.value) without needing
+    // full data flow — any variable reference COULD carry user input.
+    match node.kind() {
+        "identifier" => true,
+        "member_expression" | "subscript_expression" => {
+            // Property access like query.to or obj[key] — always tainted
+            true
+        }
+        "string" | "string_fragment" | "number" | "true" | "false" | "null" => false,
+        _ => {
+            let mut cursor = node.walk();
+            if cursor.goto_first_child() {
+                loop {
+                    if has_param_ref(cursor.node(), source, _param_names) {
+                        return true;
+                    }
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+            false
+        }
+    }
+}
+
 /// Extract object property accesses (e.g. `item.price`)
 fn extract_property_accesses(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut accesses = FxHashSet::default();
@@ -620,6 +697,33 @@ pub fn extract_fingerprints_with_nodes<'a>(
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers =
                 extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
+
+            // Extract tainted API calls: calls where an argument references a parameter
+            let param_names: Vec<String> = node
+                .child_by_field_name("parameters")
+                .map(|p| {
+                    let mut names = Vec::new();
+                    let mut c = p.walk();
+                    if c.goto_first_child() {
+                        loop {
+                            let child = c.node();
+                            if let Some(name) = child.child_by_field_name("pattern")
+                                .or_else(|| child.child_by_field_name("name"))
+                            {
+                                let text = &source_code[name.start_byte()..name.end_byte()];
+                                // Extract identifier from destructuring and object patterns
+                                if child.kind() == "identifier" || child.kind() == "required_parameter" {
+                                    names.push(text.to_string());
+                                }
+                            }
+                            if !c.goto_next_sibling() { break; }
+                        }
+                    }
+                    names
+                })
+                .unwrap_or_default();
+            let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
+
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
             for s in &skeleton {
@@ -650,13 +754,14 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 semantic_markers,
                 skeleton,
                 skeleton_hashes,
-                control_flow_hashes: control_flow,
-                api_calls,
-                api_call_segments,
-                property_accesses,
-            };
+                 control_flow_hashes: control_flow,
+                  api_calls,
+                  api_call_segments,
+                  property_accesses,
+                  tainted_api_calls,
+              };
 
-            fingerprints.push((fp, node));
+             fingerprints.push((fp, node));
         }
 
         if cursor.goto_first_child() {
@@ -738,6 +843,32 @@ pub fn extract_fingerprints(
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers =
                 extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
+
+            // Extract tainted API calls
+            let param_names: Vec<String> = node
+                .child_by_field_name("parameters")
+                .map(|p| {
+                    let mut names = Vec::new();
+                    let mut c = p.walk();
+                    if c.goto_first_child() {
+                        loop {
+                            let child = c.node();
+                            if let Some(name) = child.child_by_field_name("pattern")
+                                .or_else(|| child.child_by_field_name("name"))
+                            {
+                                let text = &source_code[name.start_byte()..name.end_byte()];
+                                if child.kind() == "identifier" || child.kind() == "required_parameter" {
+                                    names.push(text.to_string());
+                                }
+                            }
+                            if !c.goto_next_sibling() { break; }
+                        }
+                    }
+                    names
+                })
+                .unwrap_or_default();
+            let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
+
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
             for s in &skeleton {
@@ -772,6 +903,7 @@ pub fn extract_fingerprints(
                 api_calls,
                 api_call_segments,
                 property_accesses,
+                tainted_api_calls,
             });
         }
 
