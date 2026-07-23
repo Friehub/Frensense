@@ -43,7 +43,7 @@ fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
     if pattern_lang == candidate_lang || pattern_lang == "unknown" || candidate_lang == "unknown" {
         1.0
     } else {
-        0.40 // 60% penalty for cross-language matching (was 25%, too weak)
+        0.20 // 80% penalty for cross-language matching
     }
 }
 
@@ -408,7 +408,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
-        let default_w = &[0.12, 0.25, 0.08, 0.04, 0.03, 0.13, 0.13, 0.13, 0.09];
+        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.12, 0.12, 0.17];
         let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(
             score > 0.5,
@@ -421,7 +421,7 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
-        let default_w = &[0.12, 0.25, 0.08, 0.04, 0.03, 0.13, 0.13, 0.13, 0.09];
+        let default_w = &[0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.12, 0.12, 0.17];
         let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(score < 0.6, "candidate closer to negative should score low");
     }

@@ -77,6 +77,27 @@ pub fn apply_idf_weights(fingerprint: &mut FunctionFingerprint, idf_weights: &Fx
     }
 }
 
+/// Normalize a token to its canonical form so that structurally equivalent
+/// constructs (for/while, if/switch/match, helper/inline) hash identically.
+/// This is applied BEFORE n-gram computation to make fingerprints invariant
+/// to common code transformations that attackers use to evade detection.
+fn normalize_token(tok: &str) -> &str {
+    match tok {
+        // Loop family → canonical "loop"
+        "while" | "for" | "loop" | "do" => "loop",
+        // Branch family → canonical "branch"
+        "if" | "switch" | "match" => "branch",
+        // Error handling family → canonical "catch"
+        "catch" | "except" | "rescue" | "recover" => "catch",
+        // Async/await family
+        "async" | "await" | "yield" | "suspend" => "async_op",
+        // Return/break family
+        "return" | "break" | "continue" | "throw" | "raise" => "exit",
+        // Everything else unchanged
+        other => other,
+    }
+}
+
 /// M9: Position-weighted n-gram hashing.
 /// Combines position with token hash so that `return` at line 5 differs from `return` at line 50.
 fn token_ngrams_positional(tokens: &[String], window_size: usize) -> Vec<u64> {
@@ -241,28 +262,13 @@ fn extract_cf_recursive(
 ) {
     let kind = node.kind();
 
-    // Record control flow nodes
+    // Record control flow nodes (normalized to canonical forms)
     match kind {
-        "if_expression" | "if_statement" => {
-            path.push("if".to_string());
-            // Hash the condition text for condition-aware matching
-            if let Some(cond) = node.child_by_field_name("condition") {
-                let cond_text = &source[cond.start_byte()..cond.end_byte()];
-                let mut h = FxHasher::default();
-                "if_cond".hash(&mut h);
-                cond_text.len().hash(&mut h); // length as proxy for complexity
-                hashes.insert(h.finish());
-            }
-        }
-        "match_expression" | "match_statement" => {
-            path.push("match".to_string());
-            if let Some(body) = node.child_by_field_name("body") {
-                let arm_count = body.child_count();
-                let mut h = FxHasher::default();
-                "match_arms".hash(&mut h);
-                arm_count.hash(&mut h);
-                hashes.insert(h.finish());
-            }
+        "if_expression" | "if_statement"
+        | "match_expression" | "match_statement"
+        | "switch_statement" | "switch_expression"
+        | "conditional_expression" => {
+            path.push("branch".to_string());
         }
         "loop_expression" | "while_expression" | "for_expression" => {
             path.push("loop".to_string());
@@ -303,7 +309,10 @@ fn extract_cf_recursive(
 
     // Pop path when leaving control flow nodes
     match kind {
-        "if_expression" | "if_statement" | "match_expression" | "match_statement"
+        "if_expression" | "if_statement"
+        | "match_expression" | "match_statement"
+        | "switch_statement" | "switch_expression"
+        | "conditional_expression"
         | "loop_expression" | "while_expression" | "for_expression" | "return_expression"
         | "return_statement" | "break_expression" | "try_expression" | "try_statement"
         | "catch_clause" | "catch_block" => {
@@ -677,7 +686,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
             let tokens: Vec<String> = body_code
                 .split_whitespace()
                 .filter(|t| !t.is_empty() && !t.starts_with("//"))
-                .map(String::from)
+                .map(|t| normalize_token(t).to_string())
                 .collect();
 
             let total_bytes = body.end_byte() - body.start_byte();
@@ -823,7 +832,7 @@ pub fn extract_fingerprints(
             let tokens: Vec<String> = body_code
                 .split_whitespace()
                 .filter(|t| !t.is_empty() && !t.starts_with("//"))
-                .map(String::from)
+                .map(|t| normalize_token(t).to_string())
                 .collect();
 
             let total_bytes = body.end_byte() - body.start_byte();

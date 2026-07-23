@@ -62,11 +62,11 @@ fn compute_calibration_features(
     let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
 
     // Use hardcoded fallback weights for calibration (avoids circular dependency)
-    ngram_sim * 0.12 + ast_sim * 0.25
+    ngram_sim * 0.12 + ast_sim * 0.20
         + jaccard(&candidate.signature_ngrams, &target.signature_ngrams) * 0.08
         + jaccard(&candidate.param_type_ngrams, &target.param_type_ngrams) * 0.04
         + type_usage_overlap(candidate, target) * 0.03
-        + semantic_sim * 0.13 + cf_sim * 0.13 + api_sim * 0.13 + tainted_api_sim * 0.09
+        + semantic_sim * 0.12 + cf_sim * 0.12 + api_sim * 0.12 + tainted_api_sim * 0.17
 }
 
 /// Train per-pattern calibration parameters from corpus patterns.

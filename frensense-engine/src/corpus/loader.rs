@@ -977,6 +977,28 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
         );
     }
 
+    filters.insert(
+        "ts_events_emitter_sync_throw".to_string(),
+        SemanticFilter {
+            contains_call_to: vec!["EventEmitter".to_string(), "listenerCount".to_string(), "on".to_string()],
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_role_without_status_check".to_string(),
+        SemanticFilter {
+            function_name_regex: Some("role".to_string()),
+            ..Default::default()
+        },
+    );
+    filters.insert(
+        "ts_role_default_to_admin".to_string(),
+        SemanticFilter {
+            function_name_regex: Some("role".to_string()),
+            ..Default::default()
+        },
+    );
+
     filters
 }
 
