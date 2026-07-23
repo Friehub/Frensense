@@ -8,7 +8,6 @@ use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_wei
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::PatternScorer;
-use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
@@ -364,10 +363,9 @@ impl PatternRegistry {
             }
 
             // Semantic gate: skip trivially small functions
-            if weighted_fp.structural_markers.len() < 3 {
-                continue;
-            }
-            if weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty() {
+            if weighted_fp.structural_markers.len() < 3
+                || (weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty())
+            {
                 continue;
             }
 
@@ -392,11 +390,8 @@ impl PatternRegistry {
 
                 let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
                 if let Some(gate_pos) = gate_pos {
-                    let api_overlap = if !weighted_fp.api_calls.is_empty() {
-                        gate_pos.api_calls.iter().any(|h| weighted_fp.api_calls.contains(h))
-                    } else {
-                        false
-                    };
+                    let api_overlap = !weighted_fp.api_calls.is_empty()
+                        && gate_pos.api_calls.iter().any(|h| weighted_fp.api_calls.contains(h));
                     let motif_overlap = !weighted_fp.motif_hashes.is_empty()
                         && !gate_pos.motif_hashes.is_empty()
                         && gate_pos.motif_hashes.iter().any(|h| weighted_fp.motif_hashes.contains(h));
@@ -411,10 +406,7 @@ impl PatternRegistry {
                                 scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
                                 scored.into_iter().take(3).map(|(h, _)| h).collect()
                             };
-                            let hit_count = top_calls.iter()
-                                .filter(|&&h| weighted_fp.api_calls.contains(&h))
-                                .count();
-                            if hit_count == 0 {
+                            if top_calls.iter().all(|h| !weighted_fp.api_calls.contains(h)) {
                                 continue;
                             }
                         } else {
