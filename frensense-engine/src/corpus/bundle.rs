@@ -96,6 +96,16 @@ pub struct BundlePattern {
     pub improvement: Option<String>,
     #[serde(default)]
     pub expected_context: Option<crate::context::FileContext>,
+    #[serde(default)]
+    pub cwe: Option<String>,
+    #[serde(default)]
+    pub cvss: Option<f32>,
+    #[serde(default)]
+    pub owasp: Option<String>,
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub runtime_probe: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -185,6 +195,11 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
             impact: p.impact,
             improvement: p.improvement,
             expected_context: p.expected_context,
+            cwe: p.cwe,
+            cvss: p.cvss,
+            owasp: p.owasp,
+            severity: p.severity,
+            runtime_probe: p.runtime_probe,
         })
         .collect();
 
@@ -235,6 +250,11 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
             impact: bp.impact.clone(),
             improvement: bp.improvement.clone(),
             expected_context: bp.expected_context.clone(),
+            cwe: bp.cwe.clone(),
+            cvss: bp.cvss,
+            owasp: bp.owasp.clone(),
+            severity: bp.severity.clone(),
+            runtime_probe: bp.runtime_probe.clone(),
         })
         .collect();
     let category_weights_vec: Vec<(String, [f64; 11])> =
@@ -360,6 +380,11 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
             impact: p.impact,
             improvement: p.improvement,
             expected_context: p.expected_context,
+            cwe: p.cwe,
+            cvss: p.cvss,
+            owasp: p.owasp,
+            severity: p.severity,
+            runtime_probe: p.runtime_probe,
         })
         .collect();
 

@@ -137,6 +137,9 @@ fn test_sarif_output_properties() {
         tags: vec!["security".into(), "rust".into()],
         taint_branch_ratio: None,
         match_evidence: None,
+        cwe: None,
+        cvss: None,
+        owasp: None,
     };
 
     let sarif = Reporter::to_sarif(&[adv], Path::new("."));

@@ -608,6 +608,9 @@ fn run_corpus_scan(
                 }
 
                 advisory.match_evidence = m.matched_evidence.clone();
+                advisory.cwe = m.cwe.clone();
+                advisory.cvss = m.cvss;
+                advisory.owasp = m.owasp.clone();
 
                 if !is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap_i.path) {
                     local_advisories.push(advisory);

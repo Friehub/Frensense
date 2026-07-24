@@ -113,13 +113,26 @@ async fn main() {
                 };
 
                 let route = match_finding_to_route(advisory, &routes);
-                let route_binding = route.cloned().unwrap_or_else(|| RouteBinding {
-                    method: frensense_runtime::route_extractor::HttpMethod::Post,
-                    path_pattern: "/".to_string(),
-                    handler_file: advisory.file_path.clone(),
-                    handler_function: advisory.enclosing_symbol.clone().unwrap_or_default(),
-                    injection_points: Vec::new(),
-                    framework: frensense_runtime::route_extractor::Framework::Unknown,
+                let route_binding = route.cloned().unwrap_or_else(|| {
+                    let fp = advisory.file_path.trim_end_matches(".ts").trim_end_matches(".js").trim_end_matches(".rs").trim_end_matches(".go");
+                    let guessed_path = if fp.contains('/') {
+                        format!("/{}", fp)
+                    } else {
+                        format!("/{}", fp)
+                    };
+                    let guessed_method = if advisory.rule_id.contains("xss") || advisory.rule_id.contains("sqli") {
+                        frensense_runtime::route_extractor::HttpMethod::Get
+                    } else {
+                        frensense_runtime::route_extractor::HttpMethod::Post
+                    };
+                    RouteBinding {
+                        method: guessed_method,
+                        path_pattern: guessed_path,
+                        handler_file: advisory.file_path.clone(),
+                        handler_function: advisory.enclosing_symbol.clone().unwrap_or_default(),
+                        injection_points: Vec::new(),
+                        framework: frensense_runtime::route_extractor::Framework::Unknown,
+                    }
                 });
 
                 let auth_convention = adapter.as_ref()

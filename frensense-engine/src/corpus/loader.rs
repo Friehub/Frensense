@@ -17,6 +17,11 @@ pub struct CorpusPattern {
     pub impact: Option<String>,
     pub improvement: Option<String>,
     pub expected_context: Option<crate::context::FileContext>,
+    pub cwe: Option<String>,
+    pub cvss: Option<f32>,
+    pub owasp: Option<String>,
+    pub severity: Option<String>,
+    pub runtime_probe: Option<String>,
 }
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
@@ -164,6 +169,11 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             impact,
             improvement,
             expected_context,
+            cwe: comment_advisory.cwe.or(toml_advisory.cwe),
+            cvss: comment_advisory.cvss.or(toml_advisory.cvss),
+            owasp: comment_advisory.owasp.or(toml_advisory.owasp),
+            severity: comment_advisory.severity.or(toml_advisory.severity),
+            runtime_probe: comment_advisory.runtime_probe.or(toml_advisory.runtime_probe),
         });
     }
 
@@ -176,6 +186,11 @@ struct AdvisoryText {
     impact: Option<String>,
     improvement: Option<String>,
     expected_context: Option<crate::context::FileContext>,
+    cwe: Option<String>,
+    cvss: Option<f32>,
+    owasp: Option<String>,
+    severity: Option<String>,
+    runtime_probe: Option<String>,
 }
 
 /// M3: Synthesize advisory text from what the AST diff already tells us.
@@ -209,6 +224,11 @@ fn synthesize_advisory(
         impact: None,
         improvement: Some(improvement),
         expected_context: None,
+        cwe: None,
+        cvss: None,
+        owasp: None,
+        severity: None,
+        runtime_probe: None,
     }
 }
 
@@ -266,6 +286,11 @@ fn parse_frensense_block(source: &str) -> AdvisoryText {
                     "observation" => result.observation = Some(value),
                     "impact" => result.impact = Some(value),
                     "improvement" => result.improvement = Some(value),
+                    "cwe" => result.cwe = Some(value),
+                    "cvss" => result.cvss = value.parse::<f32>().ok(),
+                    "owasp" => result.owasp = Some(value),
+                    "severity" => result.severity = Some(value),
+                    "runtime_probe" => result.runtime_probe = Some(value),
                     _ => {}
                 }
             }
@@ -342,6 +367,11 @@ fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> Adviso
             .and_then(|v| v.as_str())
             .map(String::from),
         expected_context,
+        cwe: doc.get("cwe").and_then(|v| v.as_str()).map(String::from),
+        cvss: doc.get("cvss").and_then(|v| v.as_float().map(|f| f as f32)),
+        owasp: doc.get("owasp").and_then(|v| v.as_str()).map(String::from),
+        severity: doc.get("severity").and_then(|v| v.as_str()).map(String::from),
+        runtime_probe: doc.get("runtime_probe").and_then(|v| v.as_str()).map(String::from),
     }
 }
 

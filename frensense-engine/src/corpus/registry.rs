@@ -22,6 +22,11 @@ pub struct PatternMatch {
     /// Detailed per-dimension breakdown of why this match scored as it did.
     /// Always `Some` for corpus matches; `None` for rule-based matches.
     pub matched_evidence: Option<MatchEvidence>,
+    pub cwe: Option<String>,
+    pub cvss: Option<f32>,
+    pub owasp: Option<String>,
+    pub severity: Option<String>,
+    pub runtime_probe: Option<String>,
 }
 
 #[derive(Default)]
@@ -114,6 +119,11 @@ impl PatternRegistry {
                 impact: bp.impact,
                 improvement: bp.improvement,
                 expected_context: bp.expected_context,
+                cwe: bp.cwe.clone(),
+                cvss: bp.cvss,
+                owasp: bp.owasp.clone(),
+                severity: bp.severity.clone(),
+                runtime_probe: bp.runtime_probe.clone(),
             })
             .collect();
 
@@ -459,6 +469,11 @@ impl PatternRegistry {
                     impact: pattern.impact.clone(),
                     improvement: pattern.improvement.clone(),
                     matched_evidence: Some(evidence),
+                    cwe: pattern.cwe.clone(),
+                    cvss: pattern.cvss,
+                    owasp: pattern.owasp.clone(),
+                    severity: pattern.severity.clone(),
+                    runtime_probe: pattern.runtime_probe.clone(),
                 });
             }
         }

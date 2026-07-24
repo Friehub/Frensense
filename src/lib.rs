@@ -145,6 +145,15 @@ pub struct Advisory {
     /// Per-dimension match breakdown, present when finding comes from corpus matching.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub match_evidence: Option<MatchEvidence>,
+    /// CWE identifier (e.g. "CWE-918"), from the pattern's [frensense] block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwe: Option<String>,
+    /// CVSS v3 score (e.g. 8.8), from the pattern's [frensense] block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cvss: Option<f32>,
+    /// OWASP Top 10 category (e.g. "A10:2021"), from the pattern's [frensense] block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owasp: Option<String>,
 }
 
 /// Lossless usize → u32, saturating at `u32::MAX`.
@@ -190,6 +199,9 @@ impl Advisory {
             tags: Vec::new(),
             taint_branch_ratio: None,
             match_evidence: None,
+            cwe: None,
+            cvss: None,
+            owasp: None,
         }
     }
 

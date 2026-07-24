@@ -56,19 +56,27 @@ impl Reporter {
         let mut rules_map = std::collections::BTreeMap::new();
         for adv in advisories {
             if !rules_map.contains_key(&adv.rule_id) {
-                rules_map.insert(
-                    adv.rule_id.clone(),
-                    serde_json::json!({
-                        "id": adv.rule_id,
-                        "shortDescription": {
-                            "text": adv.observation.clone()
+                let mut rule = serde_json::json!({
+                    "id": adv.rule_id,
+                    "shortDescription": {
+                        "text": adv.observation.clone()
+                    },
+                    "fullDescription": {
+                        "text": format!("{}\n\nImpact: {}\n\nImprovement: {}", adv.observation, adv.impact, adv.improvement)
+                    },
+                    "helpUri": format!("https://friehub.github.io/frensense/rules/{}", adv.rule_id)
+                });
+                // Add CWE relationship if available (SARIF 2.1 §3.49.10)
+                if let Some(ref cwe) = adv.cwe {
+                    rule["relationships"] = serde_json::json!([{
+                        "target": {
+                            "id": cwe,
+                            "toolComponent": { "name": "CWE", "guid": "https://cwe.mitre.org/" }
                         },
-                        "fullDescription": {
-                            "text": format!("{}\n\nImpact: {}\n\nImprovement: {}", adv.observation, adv.impact, adv.improvement)
-                        },
-                        "helpUri": format!("https://friehub.github.io/frensense/rules/{}", adv.rule_id)
-                    }),
-                );
+                        "kinds": ["superset"]
+                    }]);
+                }
+                rules_map.insert(adv.rule_id.clone(), rule);
             }
         }
         let rules_list: Vec<_> = rules_map.into_values().collect();
@@ -121,7 +129,10 @@ impl Reporter {
                         "confidence": adv.confidence,
                         "auto_fixable": adv.auto_fixable,
                         "requires_human": adv.requires_human,
-                        "tags": adv.tags
+                        "tags": adv.tags,
+                        "cwe": adv.cwe,
+                        "cvss": adv.cvss,
+                        "owasp": adv.owasp
                     }
                 });
 
