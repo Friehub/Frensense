@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
 use frensense_runtime::canary::CanaryServer;
 use frensense_runtime::oracle::{evaluate_oracle, Verdict};
@@ -66,8 +67,9 @@ async fn run_mock_server(port: u16) {
                     let ms: u64 = if body.contains("\"ms\":") {
                         body.split("\"ms\":")
                             .nth(1)
+                            .map(|s| s.trim_start().trim_end_matches('}').trim_matches('"'))
                             .and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next())
-                            .and_then(|s| s.parse().ok())
+                            .and_then(|s| if s.is_empty() { None } else { s.parse().ok() })
                             .unwrap_or(0)
                     } else {
                         0
@@ -137,18 +139,6 @@ fn make_canary_probe(canary: &str) -> Probe {
         },
         risk: ProbeRisk::Safe,
         description: "Test probe".to_string(),
-    }
-}
-
-fn make_timing_probe(threshold: u64) -> Probe {
-    Probe {
-        id: "timing-probe".to_string(),
-        payload: "{\"ms\": 5000}".to_string(),
-        oracle: OracleKind::TimingDelta {
-            threshold_ms: threshold,
-        },
-        risk: ProbeRisk::Safe,
-        description: "Timing test probe".to_string(),
     }
 }
 
@@ -469,14 +459,15 @@ async fn test_canary_server_tcp_callback() {
     canary_server.register_pending(probe_id);
 
     // Simulate an inbound TCP connection with the probe ID in the payload
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     let addr: SocketAddr = ([127, 0, 0, 1], canary_port).into();
-    let client = tokio::net::TcpStream::connect(addr)
+    let mut stream = tokio::net::TcpStream::connect(addr)
         .await
         .unwrap();
     let payload = format!("GET /frensense-probe?pid={probe_id} HTTP/1.1\r\nHost: test\r\n\r\n");
-    let _ = client.writable().await;
+    let _ = stream.write_all(payload.as_bytes()).await;
 
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
     assert!(
         canary_server.check_received(probe_id),

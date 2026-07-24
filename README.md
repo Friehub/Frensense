@@ -133,6 +133,124 @@ The Frensense detection corpus is built from real-world vulnerability data:
 
 > Semgrep, Inc. (2024). *Semgrep Rules Repository*. GitHub. https://github.com/semgrep/semgrep-rules
 
+## Corpus Quality Guide
+
+The engine is only as good as its corpus. A pattern with a 3-line toy function
+(`function redirect(next) { res.redirect(next); }`) produces near-zero signal —
+no imports, no control flow, no taint source. Every Express route handler that
+calls `res.redirect` will match it. A good pattern has real imports, multiple
+functions, explicit taint sources, and a proper `[frensense]` comment block.
+
+### Good Positive Checklist
+
+```
+✓  Has a [frensense] block with observation/impact/improvement
+✓  Has at least one real import statement
+✓  Has 2–5 functions, not just one
+✓  Proper HTTP handler signature (req, res, ctx, c)
+✓  Taint source is explicit (req.body.X, c.Query("X"))
+✓  Sink call present (exec, query, fetch, res.redirect)
+✓  Typed parameters (not `req: any` everywhere)
+✓  Bug is inside a named function (not top-level)
+```
+
+### Good Negative Checklist
+
+```
+✓  Has a // SAFE: comment explaining the fix
+✓  Same structure as positive (imports, functions, params) — only the fix differs
+✓  Uses the REAL fix, not a toy allowlist
+✓  Still has the same sink call — used safely
+✓  Does NOT simply delete the vulnerable call
+```
+
+### All Metadata Goes in `[frensense]` — No TOML
+
+Frensense does NOT use TOML sidecar files. All per-pattern metadata belongs in
+the `[frensense]` comment block at the top of the positive file:
+
+```typescript
+// [frensense]
+// observation: User-controlled URL is passed to fetch() without host validation.
+// impact: Server can be used as a proxy to reach internal services.
+// improvement: Validate URL against an allowlist of permitted external hosts.
+// cwe: CWE-918
+```
+
+Supported fields: `observation`, `impact`, `improvement`, `cwe`.
+
+### Template: Good CMDI Pair
+
+**`ts_cmdi_exec_shell_positive.ts`:**
+```typescript
+// [frensense]
+// observation: User-controlled input from req.body.script is passed to exec()
+//              via shell string interpolation, allowing arbitrary command execution.
+// impact: An attacker can execute any OS command.
+// improvement: Replace exec() with execFile() and pass arguments as an array.
+// cwe: CWE-78
+
+import { exec } from "child_process";
+import express from "express";
+import { Router } from "express";
+
+const router = Router();
+
+async function resolveScript(scriptName: string): Promise<string> {
+    return `/scripts/${scriptName}`;
+}
+
+router.post("/api/jobs/run", async (req: express.Request, res: express.Response) => {
+    const { script, args } = req.body as { script: string; args: string };
+    const resolved = await resolveScript(script);
+    exec(`${resolved} ${args}`, (err, stdout, stderr) => {
+        if (err) return res.status(500).json({ error: stderr });
+        res.json({ output: stdout });
+    });
+});
+
+router.post("/api/admin/command", (req: express.Request, res: express.Response) => {
+    const cmd = req.body.cmd as string;
+    exec(cmd, (error, stdout) => {
+        res.json({ result: stdout, error: error?.message });
+    });
+});
+
+export default router;
+```
+
+**`ts_cmdi_exec_shell_negative.ts`** (fix: execFile + allowlist):
+```typescript
+// SAFE: Replaced exec() with execFile() — arguments passed as array.
+
+import { execFile } from "child_process";
+import express from "express";
+import { Router } from "express";
+
+const router = Router();
+const ALLOWED_SCRIPTS = new Set(["report", "backup", "health-check"]);
+const ALLOWED_ARGS_RE = /^[a-zA-Z0-9_\-\.]+$/;
+
+router.post("/api/jobs/run", async (req: express.Request, res: express.Response) => {
+    const { script, args } = req.body as { script: string; args: string };
+    if (!ALLOWED_SCRIPTS.has(script)) return res.status(403).json({ error: "Script not permitted" });
+    if (args && !ALLOWED_ARGS_RE.test(args)) return res.status(400).json({ error: "Invalid format" });
+    execFile(`/scripts/${script}`, args ? [args] : [], (err, stdout) => {
+        if (err) return res.status(500).json({ error: "Execution failed" });
+        res.json({ output: stdout });
+    });
+});
+
+router.post("/api/admin/command", (_req, res) => {
+    res.status(403).json({ error: "Direct command execution not permitted" });
+});
+
+export default router;
+```
+
+See `FRENSENSE_CORPUS_GUIDE.md` for the full quality guide, CWE mapping table,
+mutation guidelines, and the Frensense Hub corpus exchange proposal.
+
 ## License
 
 MIT
