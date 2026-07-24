@@ -1,5 +1,5 @@
 [workspace]
-members = ["frensense-engine"]
+members = ["frensense-engine", "frensense-runtime"]
 resolver = "2"
 
 [package]

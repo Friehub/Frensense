@@ -1,0 +1,234 @@
+use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
+
+use clap::Parser;
+use tracing_subscriber::EnvFilter;
+
+use frensense_runtime::adapters::detector::detect_framework;
+use frensense_runtime::adapters::AuthConvention;
+use frensense_runtime::advisory::RuntimeAdvisory;
+use frensense_runtime::canary::CanaryServer;
+use frensense_runtime::config::{ProbeRisk, RuntimeConfig};
+use frensense_runtime::probes::category_from_rule_id;
+use frensense_runtime::route_extractor::{match_finding_to_route, RouteBinding};
+use frensense_runtime::scheduler::{
+    probe_concurrency_degradation, run_probe_campaign, strategy_for_rule_id,
+    ConcurrencyVerdict, ProbeStrategy,
+};
+
+#[derive(Parser, Debug)]
+#[clap(name = "frensense-runtime", about = "Corpus-driven runtime verification for Frensense static findings")]
+struct Cli {
+    #[clap(long, short, help = "Path to frensense static report JSON")]
+    report: PathBuf,
+
+    #[clap(long, short, help = "Target base URL (e.g. http://localhost:3000)")]
+    target: String,
+
+    #[clap(long, help = "Canary server bind address (default: 0.0.0.0:9999)", default_value = "0.0.0.0:9999")]
+    canary_host: String,
+
+    #[clap(long, help = "Maximum probe risk level (safe, low, medium, destructive)", default_value = "safe")]
+    max_risk: ProbeRisk,
+
+    #[clap(long, help = "Authorization header to include in requests")]
+    auth_header: Option<String>,
+
+    #[clap(long, help = "Delay between probes in milliseconds", default_value = "500")]
+    inter_probe_delay: u64,
+
+    #[clap(long, help = "Output path for runtime report JSON")]
+    output: Option<String>,
+
+    #[clap(long, help = "Enable destructive probes (requires confirmation)", default_value_t = false)]
+    destructive: bool,
+
+    #[clap(long, help = "Disable endpoint/probe limits", default_value_t = false)]
+    no_limit: bool,
+
+    #[clap(long, help = "Project root directory for framework auto-detection")]
+    project_root: Option<PathBuf>,
+}
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
+    let cli = Cli::parse();
+
+    let report_content = tokio::fs::read_to_string(&cli.report)
+        .await
+        .expect("Failed to read report file");
+    let findings: Vec<frensense::Advisory> = serde_json::from_str(&report_content)
+        .expect("Failed to parse report JSON");
+
+    let canary_addr: SocketAddr = cli
+        .canary_host
+        .parse()
+        .expect("Invalid canary bind address");
+    let canary_server = CanaryServer::new(canary_addr);
+    canary_server.start().await;
+
+    let config = RuntimeConfig {
+        base_url: cli.target,
+        canary_bind: cli.canary_host,
+        max_risk: cli.max_risk,
+        inter_probe_delay_ms: cli.inter_probe_delay,
+        max_probes_per_endpoint: 10,
+        max_endpoints_per_session: 30,
+        auth_header: cli.auth_header.clone(),
+        output_path: cli.output.clone(),
+        destructive_probes: cli.destructive,
+        no_limit: cli.no_limit,
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("Failed to build HTTP client");
+
+    let mut runtime_advisories: Vec<RuntimeAdvisory> = Vec::new();
+
+    for advisory in &findings {
+        let strategy = strategy_for_rule_id(
+            &advisory.rule_id,
+            &canary_server.bind_addr.to_string(),
+        );
+
+        match strategy {
+            ProbeStrategy::Http(template) => {
+                let adapter = cli.project_root.as_ref().map(|root| {
+                    detect_framework(root, &advisory.rule_id)
+                });
+
+                let routes: Vec<RouteBinding> = if let Some(ref adapter) = adapter {
+                    adapter.extract_routes(
+                        Path::new(&advisory.file_path),
+                        &advisory.original_content,
+                    )
+                } else {
+                    Vec::new()
+                };
+
+                let route = match_finding_to_route(advisory, &routes);
+                let route_binding = route.cloned().unwrap_or_else(|| RouteBinding {
+                    method: frensense_runtime::route_extractor::HttpMethod::Post,
+                    path_pattern: "/".to_string(),
+                    handler_file: advisory.file_path.clone(),
+                    handler_function: advisory.enclosing_symbol.clone().unwrap_or_default(),
+                    injection_points: Vec::new(),
+                    framework: frensense_runtime::route_extractor::Framework::Unknown,
+                });
+
+                let auth_convention = adapter.as_ref()
+                    .map(|a| a.auth_convention())
+                    .unwrap_or(AuthConvention::BearerToken);
+                let auth = cli.auth_header.as_ref().map(|token| {
+                    (&auth_convention, token.as_str())
+                });
+
+                tracing::info!(
+                    "Probing: {} — {}:{} ({})",
+                    advisory.rule_id,
+                    advisory.file_path,
+                    advisory.line,
+                    category_from_rule_id(&advisory.rule_id),
+                );
+
+                let result = run_probe_campaign(
+                    advisory,
+                    &route_binding,
+                    &template,
+                    &client,
+                    &canary_server,
+                    &config,
+                    auth,
+                )
+                .await;
+
+                if result.is_confirmed() {
+                    tracing::info!(
+                        "[CONFIRMED] {} — combined confidence: {:.1}%",
+                        advisory.rule_id,
+                        result.combined_confidence() * 100.0
+                    );
+                }
+
+                println!("{}", result.format_report());
+                runtime_advisories.push(result);
+            }
+            ProbeStrategy::ConcurrentStress(prober) => {
+                let url = format!("{}/", config.base_url.trim_end_matches('/'));
+                tracing::info!(
+                    "Stress testing: {} — {} (concurrency: {}, duration: {}ms)",
+                    advisory.rule_id,
+                    advisory.file_path,
+                    prober.concurrency,
+                    prober.duration_ms,
+                );
+
+                let verdict = probe_concurrency_degradation(&client, &url, &prober).await;
+                match verdict {
+                    ConcurrencyVerdict::Confirmed { p50_ms, p99_ms, degradation_ratio } => {
+                        tracing::info!(
+                            "[CONFIRMED] {} — p50={}ms p99={}ms ratio={:.1}x",
+                            advisory.rule_id, p50_ms, p99_ms, degradation_ratio
+                        );
+                        let adv = format!(
+                            "[CONFIRMED] {} — {}:{}\n\
+                             Concurrent stress confirmed degradation\n\
+                             p50: {}ms, p99: {}ms, ratio: {:.1}x",
+                            advisory.rule_id, advisory.file_path, advisory.line,
+                            p50_ms, p99_ms, degradation_ratio,
+                        );
+                        println!("{adv}");
+                    }
+                    ConcurrencyVerdict::NotConfirmed => {
+                        let adv = format!(
+                            "[UNCONFIRMED] {} — {}:{}\n\
+                             Concurrent stress: no significant degradation detected",
+                            advisory.rule_id, advisory.file_path, advisory.line,
+                        );
+                        println!("{adv}");
+                    }
+                    ConcurrencyVerdict::Error(e) => {
+                        let adv = format!(
+                            "[INCONCLUSIVE] {} — {}:{}\n{}",
+                            advisory.rule_id, advisory.file_path, advisory.line, e,
+                        );
+                        println!("{adv}");
+                    }
+                }
+                runtime_advisories.push(RuntimeAdvisory::inconclusive(
+                    advisory.clone(),
+                    "Concurrent stress probing applied (see output above)",
+                ));
+            }
+            ProbeStrategy::CannotProbeAtRuntime { reason } => {
+                tracing::info!(
+                    "[SKIP] {} — {}:{} — {}",
+                    advisory.rule_id,
+                    advisory.file_path,
+                    advisory.line,
+                    reason
+                );
+                runtime_advisories.push(RuntimeAdvisory::inconclusive(
+                    advisory.clone(),
+                    reason,
+                ));
+            }
+        }
+
+        println!("---");
+    }
+
+    if let Some(output_path) = &config.output_path {
+        let json = serde_json::to_string_pretty(&runtime_advisories)
+            .expect("Failed to serialize runtime advisories");
+        tokio::fs::write(output_path, json)
+            .await
+            .expect("Failed to write output report");
+    }
+}

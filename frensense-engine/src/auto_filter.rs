@@ -123,14 +123,24 @@ pub fn compute_auto_filters(
         let src_pos = source_texts.get(&p.id).map(|s| s.as_str()).unwrap_or("");
         let src_neg = get_negative_source(&p.id, source_texts);
 
-        // --- Excludes call ---
-        // Exclude any call present in negatives but absent from positives.
-        // Since each file represents one codebase context, a single occurrence
-        // is meaningful — the call identifies what the positive never uses.
+        // --- Contains call (pattern-level) ---
+        // Calls present in positives but absent from negatives. This catches
+        // common-but-distinctive calls like fetch, exec, redirect that the
+        // category-level exclusivity check misses because they span categories.
         let pos_call_set: std::collections::HashSet<String> =
             extract_call_targets(src_pos).into_iter().collect();
         let neg_call_set: std::collections::HashSet<String> =
             extract_call_targets(&src_neg).into_iter().collect();
+        let includes: Vec<String> = pos_call_set
+            .difference(&neg_call_set)
+            .cloned()
+            .collect();
+        if !includes.is_empty() {
+            contains_call_to.entry(p.id.clone()).or_default().extend(includes);
+        }
+
+        // --- Excludes call ---
+        // Exclude any call present in negatives but absent from positives.
         let excludes: Vec<String> = neg_call_set
             .difference(&pos_call_set)
             .cloned()
