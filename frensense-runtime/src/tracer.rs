@@ -195,8 +195,7 @@ fn build_request(
     };
 
     if let Some(session) = target.session {
-        let sm = crate::session::SessionManager::new("");
-        sm.apply_to_request(session, request)
+        crate::session::apply_session_to_request(session, request)
     } else {
         request
     }

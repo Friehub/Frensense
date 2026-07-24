@@ -147,21 +147,22 @@ impl SessionManager {
         })
     }
 
-    pub fn apply_to_request(&self, session: &Session, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        let cookie_str = session
-            .cookies
-            .iter()
-            .map(|(k, v)| format!("{k}={v}"))
-            .collect::<Vec<_>>()
-            .join("; ");
+}
 
-        let request = request.header("Cookie", cookie_str);
+pub fn apply_session_to_request(session: &Session, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    let cookie_str = session
+        .cookies
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join("; ");
 
-        if let Some(ref token) = session.csrf_token {
-            request.header("X-CSRF-Token", token)
-        } else {
-            request
-        }
+    let request = request.header("Cookie", cookie_str);
+
+    if let Some(ref token) = session.csrf_token {
+        request.header("X-CSRF-Token", token)
+    } else {
+        request
     }
 }
 

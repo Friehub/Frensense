@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-tasks] - 2026-07-24
+
+### Added
+- **CWE/CVSS/OWASP injection**: `[frensense]` comment block now supports `cwe:`, `cvss:`, `owasp:`, `severity:`, `runtime_probe:` fields. Parsed by `parse_frensense_block()`, stored on `AdvisoryText` and surfaced in JSON/SARIF output. SARIF emits CWE as `relationships` array per SARIF 2.1 §3.49.10.
+- **Corpus quality scoring tool**: `cargo run --bin corpus-quality -- corpus/targets/` scores each pattern pair 0-100 based on structural quality heuristics, with tier-specific requirement checks (positives, negatives, cvss, runtime_probe, owasp, exploit_scenario, reference).
+- **Five corpus tiers**: Documented in `FRENSENSE_CORPUS_GUIDE.md` with specific requirements per tier (Tier 1: 7 positives, 4 negatives, cvss, runtime_probe; Tier 2-5: graduated requirements).
+- **Per-pattern `contains_call_to` learning**: Auto-filter now learns calls present in positives but absent from negatives, catching distinctive APIs like `fetch`, `exec`, `redirect` that category-level exclusivity checks miss.
+- **Bidirectional context penalty**: Score now penalizes non-RouteHandler patterns matching RouteHandler files (config patterns on route files get 50% penalty).
+- **Content-based route handler detection**: `FileContext::extract` now detects route handlers by code structure (20+ heuristics: `(req, res)` parameters, `app.get(`, `router.post(`, `res.json()`, `res.redirect()`) — works for any directory convention.
+- **Qualified call names**: `extract_call_targets` now emits both full qualified names (`res.redirect`) and short names (`redirect`), enabling finer-grained auto-filter constraints.
+- **High-quality corpus pairs**: Added `ts_cmdi_exec_shell` (CWE-78), `ts_open_redirect` (CWE-601), `ts_cmdi_exec_direct` (CWE-78), `ts_ssrf_fetch_direct` (CWE-918), `ts_sqli_concat_direct` (CWE-89), `ts_xss_reflected_response` (CWE-79) — all with proper `[frensense]` blocks, real imports, typed handlers, multiple functions, explicit taint sources, and Tier 1-compliant counts (7+ positives, 4+ negatives).
+- **Corpus restructuring**: Files reorganized into subdirectories (`route-handlers/`, `config/`, `middleware/`, `utility/`, `test/`, `mock/`) enabling `FileContext`-based environment detection.
+- **Motif abstraction layer**: 10 sink/source motif groups (CommandExecutionSink, SqlSink, HttpOutboundSink, etc.) mapped to canonical names. Patterns trained on `exec()` now automatically match `spawn()`, `Command::new()`.
+- **Data-flow path fingerprints**: `data_flow_path_hashes` captures abstract source→sink chains (e.g., `UserInputSource → taint_flow → CommandExecutionSink`) invariant to variable renaming.
+- **Match evidence**: `MatchEvidence` struct with per-dimension breakdown (ngram, ast, cf, api, motif, flow, semantic, negative similarity) exposed in JSON/SARIF output and CLI reporter.
+- **Transformation-invariant fingerprints**: Token normalization, CF-path normalization (`if`/`switch`→`branch`), and skeleton normalization (`for`/`while`→`loop_node`) make fingerprints robust to common code mutations.
+- **Tainted API calls dimension**: `tainted_api_calls` separates calls where arguments are function parameters from constants, enabling the scorer to penalize untainted sinks.
+- **LSH multi-table**: Separate LSH tables for structural markers and API calls, with `hit_both` penalty when only one table produces a candidate.
+
+### Changed
+- **All hand-crafted semantic filters removed**: `load_semantic_filters()` returns empty HashMap. ~150 manually authored `contains_call_to`/`contains_import`/`function_name_regex` filters replaced by auto-learned constraints from `compute_auto_filters`.
+- **Auto-learner now learns 6 constraint types**: `contains_call_to`, `contains_import`, `excludes_call`, `excludes_node_type`, `excludes_function_name`, `function_name_regex` — all with frequency thresholds to prevent over-exclusion.
+- **Negative source files now read for auto-filter learning**: `get_negative_source()` concatenates all negative variants, enabling proper `excludes_call` and `excludes_node_type` learning.
+- **Bundle format v4**: Auto-filter stats expanded to 7-tuple (pid, imports, calls, excludes_call, fn_regex, excludes_nodes, excludes_fnames). Bundle version bumped to 4.
+- **No TOML**: All metadata goes in `[frensense]` comment blocks. TOML sidecar files deprecated.
+- **Context penalty bidirectional**: Previously only penalized RouteHandler→Test/Utility. Now also penalizes non-RouteHandler patterns on RouteHandler files.
+- **Corpus quality guide**: Full guide with CWE mapping table (40+ entries), template patterns, mutation guidelines, and tier requirements.
+
+### Fixed
+- **58→4 findings on NodeGoat**: 93% FP reduction after auto-filter constraints enabled with proper negative source learning.
+- **FileCache invalidation**: Cache now invalidated when corpus bundle hash changes (new patterns fire on unchanged files).
+- **Sequential file I/O → parallel**: `collect_files_impl` now reads + parses files in parallel via `par_iter()`.
+- **std::HashMap → FxHashMap**: All hot-path maps (snapshot_map, file_trees) replaced with FxHashMap for 3-5x faster lookups.
+- **eprintln! → tracing::trace!/warn!/info!**: Hot-path debug output now uses tracing macros (zero-cost in production). DEBUG CROSS_FILE_TAINT calls removed.
+- **DependencyResolver deduplicated**: Created once per scan, shared between `run_corpus_scan` and `run_findings_modules`.
+- **apply_severity_overrides deduplicated**: Removed premature first call. Composition now sees all findings including corpus patterns.
+- **Pre-grouped identical fingerprints**: Eliminated the useless `thread_local! AST_CACHE`. Identical fingerprints scored once, advisories replicated.
+- **LSH bucket scaling**: Replaced fixed 32-slot `Vec<FxHashSet>` with per-band `HashMap<u64, Vec<u64>>`. Bucket capacity now scales with item count (essential for 45k target).
+- **Minhash loop transposed**: O(hashes × num_hashes) → O(hashes) by iterating over hashes once and updating all signature minimums.
+- **`type_usage_overlap`**: std::HashSet → FxHashSet (SipHash eliminated).
+
 ## [0.5.0] - 2026-07-07
 
 > **Note:** Versions 0.3.1 and 0.4.0 were major internal architectural iterations and were not published to NPM/Crates.io. Their changes are rolled into the 0.5.0 release, but their specific changelogs are preserved below for historical tracking.

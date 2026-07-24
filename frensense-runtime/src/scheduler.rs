@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::adapters::AuthConvention;
@@ -78,7 +77,6 @@ pub async fn run_probe_campaign(
         taint_origin: None,
     };
     let injection_point = route.injection_points.first().unwrap_or(&default_point);
-    let session = session.map(Arc::new);
 
     let baseline = execute_probe(
         client,
@@ -87,7 +85,7 @@ pub async fn run_probe_campaign(
             base_url: &config.base_url,
             injection_point,
             auth,
-            session: session.as_deref(),
+            session,
         },
         &Probe {
             id: "baseline".to_string(),
@@ -123,7 +121,7 @@ pub async fn run_probe_campaign(
                 base_url: &config.base_url,
                 injection_point,
                 auth,
-                session: session.as_deref(),
+                session,
             },
             probe,
             canary_server,

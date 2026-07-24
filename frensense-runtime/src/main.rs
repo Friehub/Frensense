@@ -221,6 +221,7 @@ async fn main() {
                     &canary_server,
                     &config,
                     auth,
+                    session.as_ref(),
                 )
                 .await;
 

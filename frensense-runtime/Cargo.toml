@@ -16,7 +16,7 @@ path = "src/main.rs"
 frensense = { path = "..", version = "0.5.0" }
 frensense-engine = { path = "../frensense-engine", version = "0.5.0" }
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "cookies"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4", features = ["derive"] }

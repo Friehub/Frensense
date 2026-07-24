@@ -256,6 +256,25 @@ export default router;
 See `FRENSENSE_CORPUS_GUIDE.md` for the full quality guide, CWE mapping table,
 mutation guidelines, and the Frensense Hub corpus exchange proposal.
 
+### Quality Scoring
+
+```bash
+# Score all corpus patterns (0-100). Run anytime to assess quality.
+cargo run --bin corpus-quality -- corpus/targets/
+
+# Output: TSV sorted by score (lowest first). Patterns below 50 need rewrites.
+# Includes per-tier breakdown showing how many patterns need work.
+```
+
+### Latest Benchmark (NodeGoat, July 2026)
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Findings at 0.5 threshold | 62 | **4** |
+| False positive rate | 76% | **50%** |
+| Hand-crafted filters | ~150 | **0** (all auto-learned) |
+| Scan time (113 functions) | ~48s | **~43s** |
+
 ## License
 
 MIT
