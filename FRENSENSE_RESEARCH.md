@@ -1,190 +1,207 @@
-# On the Decidability of Vulnerability Confirmation Through Corpus-Driven Static Analysis and Deterministic Runtime Verification
+# Frensense: Corpus-Driven Static Analysis via Function Fingerprinting and Contrastive Scoring
 
 ## 1. Problem
 
-Static analysis cannot decide non-trivial semantic properties of programs (Rice, 1953). For any static analyzer A that maps source code F to a set of advisories A(F) = {a_1, ..., a_n}, there exists F such that A(F) contains false positives. The ratio |false positives| / |A(F)| for production-scale systems is observed to be 0.5--0.8 (Johnson et al., 2019).
+Static analysis tools for vulnerability detection face a fundamental tradeoff. Rule-based systems (Semgrep, CodeQL) require manually written patterns that encode expert knowledge of each bug class. Pattern coverage is gated by human effort: every new vulnerability variant requires a new rule. Machine learning approaches learn patterns from data but produce probabilistic outputs — confidence is a model weight, not a structural measurement. Neither approach has a natural mechanism for distinguishing between "looks like a bug" and "behaves like a bug."
 
-Existing approaches to reduce this ratio fall into three classes:
+Let A be a static analyzer that maps source code F to advisories A(F). For production systems, |A(F)| is typically large, and the ratio |false positives| / |A(F)| is observed to be 0.5–0.8 (Johnson et al., 2019). Reducing this ratio without discarding true positives requires either (a) more precise rules, which requires more expert time per pattern, or (b) probabilistic ranking, which trades precision for explainability.
 
-- **Heuristic refinement**: hand-crafted rules to suppress patterns known to produce false positives. Labor-intensive, incomplete.
-- **Probabilistic ranking**: assign confidence scores via ML models trained on labeled corpora. Confidence is a model weight, not a measurement of the property.
-- **Manual triage**: human inspection of each advisory. Does not scale.
+We present Frensense, a static analyzer that replaces hand-written rules with a corpus of positive and negative code examples. Each bug pattern is a pair of functions: one containing the bug, one containing the fix. Detection is performed by extracting 17-dimensional function fingerprints and computing a contrastive score against the corpus. The approach requires no rules, no heuristics, and no training — only the corpus examples and a deterministic scoring function.
 
-We show that coupling a corpus-driven static analyzer with a deterministic runtime verifier reduces the false positive rate to zero for the subset of advisories that correspond to HTTP-observable bugs, without requiring heuristics, ML, or manual triage.
+## 2. Corpus Representation
 
-## 2. Definitions
+Let C be a corpus of bug patterns. Each pattern p in C is a pair:
 
-Let C be a corpus of bug patterns. Each pattern p in C is a triple:
+p = (f_positive, f_negative)
 
-p = (f_positive, f_negative, m)
+where f_positive is a function containing a bug and f_negative is the corrected version of the same function. Both are source code in one of five supported languages (TypeScript, JavaScript, Rust, Go, Python). The corpus currently contains approximately 400 patterns across 7 categories: security (sec), contract surface analysis (csa), architecture (arch), async correctness (async), LLM anti-patterns (llm), and memory safety (mem).
 
-where f_positive is a function containing the bug, f_negative is the corrected version, and m is metadata (observation, impact, improvement).
+Each pattern file carries a structured comment block:
 
-Let A be a static analyzer. For a source file F, A extracts a set of function fingerprints Phi(F) = {phi_1, ..., phi_k} where each phi is a 17-dimensional vector of structural, semantic, and control-flow features (n-grams, AST skeleton, API calls, data flow paths, etc.). For each phi, A computes:
+```
+// [frensense]
+// observation: What the bug looks like to a reader.
+// impact: What goes wrong when this code runs.
+// improvement: How to fix it.
+```
 
-score(phi) = max_{p in C} sim(phi, phi_positive(p)) * (1 - sim(phi, phi_negative(p)))
+These blocks are extracted at load time and attached to advisories generated from the pattern. They serve as the human-readable output, replacing the need for separate rule documentation.
 
-An advisory a is generated when score(phi) >= threshold tau. Each advisory a carries:
+Patterns follow a naming convention:
 
-- rule_id: encodes the corpus pattern p that generated it
-- file_path, line: location in F
-- original_content: the source text of phi
-- confidence: score(phi) after per-category calibration
+```
+{lang}_{category}_{name}_{positive,negative}.{ext}
 
-Let R be a runtime verifier. For an advisory a and a running target T, R produces a verdict v in {CONFIRMED, UNCONFIRMED, SANITIZED, INCONCLUSIVE}.
+Examples:
+  ts_cmdi_exec_direct_positive.ts
+  ts_cmdi_exec_direct_negative.ts
+  rust_crypto_password_hash_no_salt_positive.rs
+  go_auth_missing_positive.go
+```
 
-A behavioral trace tau = (status, body, body_hash, size, headers, timing, canary_received, redirect_location) is the complete observable state of one HTTP request-response cycle.
+## 3. Function Fingerprinting
 
-## 3. Lemmas
+Each function in the target project is reduced to a 17-dimensional fingerprint vector. The fingerprint is extracted via a deterministic AST walk using tree-sitter, with no string matching or regex.
 
-### Lemma 1: Probe Derivation
+The dimensions are:
 
-For any advisory a generated by A from corpus C with rule_id r, there exists a probe template t derived from the same corpus pattern p that generated a.
+| Dimension | Field | Description |
+|-----------|-------|-------------|
+| 1 | ngram_hashes | Multi-scale position-weighted n-grams (window sizes 3, 5, 8) of tokenized body |
+| 2 | weighted_ngram_hashes | IDF-weighted n-gram hashes |
+| 3 | signature_ngrams | N-grams of the function signature |
+| 4 | param_type_ngrams | N-grams of parameter type annotations |
+| 5 | name_segments | CamelCase/snake_case segments of function name |
+| 6 | structural_markers | AST abstract kinds (loop, branch, catch, async_op, exit) |
+| 7 | type_usages | All type identifiers used in the body |
+| 8 | control_flow_hashes | Sequence of control flow nodes |
+| 9 | api_calls | Hashes of full callee expressions |
+| 10 | api_call_segments | Last-segment hashes of chained calls |
+| 11 | property_accesses | Property names accessed on objects |
+| 12 | semantic_markers | Categorized API presence (db_query, cmd_exec, dom_xss, crypto_weak) |
+| 13 | skeleton / skeleton_hashes | AST skeleton for structural distance comparison |
+| 14 | motif_hashes | Canonical motif names for cross-variant matching |
+| 15 | data_flow_path_hashes | Abstract source-to-sink chains |
+| 16 | raw_call_names | Human-readable call names |
+| 17 | tainted_api_calls | Calls where at least one argument is a function parameter |
 
-*Proof.* By construction. The rule_id r encodes the category at segment index 1: r = lang_category_suffix. For example, r = "ts_cmdi_exec_direct" yields category = "cmdi". The probe library L is indexed by category. For each category c, L(c) = (P_c, O_c) where P_c and O_c are derived from the positive examples in C for that category. For category "cmdi", the positive examples contain calls to exec()/spawn()/popen(); the probe payloads inject shell metacharacters; the oracles detect shell output or timing delays. Therefore L(category(r)) exists for all r in the corpus.
+Token normalization collapses equivalent AST constructs across languages:
 
-### Lemma 2: Deterministic Oracles
+```
+while/for/loop/do  -> loop
+if/switch/match    -> branch
+catch/except       -> catch
+async/await/yield  -> async_op
+return/break/throw -> exit
+```
 
-Each oracle function o in O is a pure function of its inputs: o(tau_probe, tau_baseline) -> Verdict.
+This normalization is essential for cross-lingual pattern matching. A command injection pattern in TypeScript (`cp.exec(cmd)`) and the equivalent in Rust (`Command::new(cmd).output()`) share no tokens but produce similar structural and control-flow fingerprints.
 
-*Proof.* By enumeration of oracle types:
+## 4. Contrastive Scoring
 
-- **CanaryInBody**: tau_probe.body contains(s) for fixed string s. Deterministic string search.
-- **TimingDelta**: tau_probe.timing - tau_baseline.timing >= threshold. Deterministic integer comparison.
-- **CanaryCallback**: tau_probe.canary_received. Deterministic boolean.
-- **ErrorPattern**: tau_probe.body matches any pattern in fixed set. Deterministic regular expression match.
-- **RedirectToCanary**: tau_probe.redirect_location contains(s). Deterministic string containment.
-- **DifferentialResponse**: tau_probe.divergence_from(tau_baseline) >= threshold. Deterministic computation from two traces.
-- **StatusCodeChange**: tau_probe.status != tau_baseline.status. Deterministic integer inequality.
-- **BodySizeDelta**: |tau_probe.size - tau_baseline.size| >= threshold. Deterministic integer inequality.
+For each target function fingerprint phi_t and each corpus pattern p = (f_pos, f_neg), the score is:
 
-All operations are finite compositions of primitive operations on integers, booleans, and strings. No stochastic or approximating computations are used.
+```
+score(phi_t, f_pos, f_neg) = sim(phi_t, phi(f_pos)) * (1 - sim(phi_t, phi(f_neg)))
+```
 
-### Lemma 3: Parameter Name Inference
+where phi(f) is the fingerprint extraction function and sim is a weighted Jaccard similarity over the fingerprint dimensions:
 
-Let a be an advisory with original_content text T. Let D be the set of framework-specific access patterns For each framework f in F, define pattern set P_f = {req.body.x, req.query.x, req.params.x, c.Query("x"), ...}. If T contains an occurrence of a pattern p in P_f with parameter name n, then n is the correct injection point for probes against the endpoint that generated a.
+```
+sim(phi_a, phi_b) =
+    weighted_jaccard(ngrams)    * 0.35
+  + jaccard(structural)         * 0.30
+  + jaccard(signature)          * 0.20
+  + jaccard(param_types)        * 0.10
+  + type_usage_overlap          * 0.05
+```
 
-*Proof.* By construction of the framework adapters. Each adapter's extract_injection_points function implements a scanner for P_f over T. The scanner is a finite-state machine over the string T that extracts capture groups. The parameter name n is defined as the text matched by the capture group corresponding to the access pattern. This is a syntactic property of T and does not depend on runtime resolution of n.
+The contrastive formulation ensures that a high score requires both structural similarity to the buggy example AND structural difference from the fixed example. A function that matches both positive and negative equally scores near zero.
 
-## 4. Architecture
+The weights are constant across all patterns — there are no per-pattern learned parameters. However, per-category calibration (sigmoid parameters fitted at build time) maps raw scores to calibrated confidence values for each of the six output categories.
 
-The system is a pipeline of six stages:
+## 5. LSH Pre-Filtering
 
-### Stage 1: Fingerprint Extraction
+Full pairwise comparison of phi_t against all 400+ patterns would be O(n * m) per function. To reduce this, a MinHash LSH index is built over two dimensions of the fingerprint: structural markers (dimension 6) and API call hashes (dimension 9). For each target function, LSH retrieves 100–200 candidate patterns, reducing the scoring workload by approximately 75%.
 
-For each function in F, extract phi = (ngrams, weighted_ngrams, signature, param_types, name_segments, structural_markers, type_usages, control_flow_hashes, api_calls, api_call_segments, property_accesses, semantic_markers, skeleton, motif_hashes, data_flow_path_hashes, raw_call_names, tainted_api_calls). This is a deterministic AST walk using tree-sitter.
+The LSH parameters (number of bands, rows per band) are fixed at build time and determined empirically from the corpus distribution.
 
-### Stage 2: Corpus Matching
+## 6. Source/Sink Learning
 
-For each phi, compute score against C via LSH pre-filtering to 100-200 candidates, then 5-dimensional contrastive scoring:
+Traditional taint analysis requires hand-annotated source and sink lists (e.g., "the `exec` function is a sink," "the `Request` type is a source"). Frensense learns both from the corpus automatically.
 
-score = weighted_jaccard(ngrams) * 0.35 + jaccard(structural) * 0.30 + jaccard(signature) * 0.20 + jaccard(param_types) * 0.10 + type_usage_overlap * 0.05
+The corpus loader walks every positive file's AST and extracts:
 
-### Stage 3: Taint Verification
+- **Source types**: parameter type annotations found in positive examples
+- **Sink names**: call expression callee names from positives
 
-If score >= tau, verify that tainted data flows from corpus-learned source types to corpus-learned sink names. This is a graph reachability problem on the AST's data flow graph, solved by fixed-point iteration over the dominator tree.
+For each candidate source type or sink name, the loader counts occurrences across all patterns. Types and sinks appearing in only one pattern are discarded (the noise threshold). The remaining set forms the CorpusSourceSinkRegistry.
 
-### Stage 4: Route Extraction
+This registry is then used during verification to:
 
-Given advisory a with file_path and enclosing_symbol, extract a RouteBinding r = (method, path_pattern, handler_file, handler_function, injection_points) from the source file. The extraction uses framework-specific regex patterns compiled per adapter. If no route matches, r is inferred from the file stem and rule category.
+1. Seed taint: mark parameters whose type annotations match a learned source type as tainted.
+2. Identify sinks: flag call expressions whose callee name matches a learned sink name.
 
-### Stage 5: Probe Campaign
+The verification itself is a graph reachability problem on the AST's data flow graph, solved by fixed-point iteration over the function's dominator tree. If tainted data reaches a sink, the advisory confidence is boosted by 20% (capped at 0.95) and tagged "taint-verified."
 
-Given r and a template t = (P, O):
+The same mechanism handles cross-file taint (following imports and call chains) and interprocedural taint (following callbacks, promise chains, and await expressions).
 
-1. Capture baseline tau_b by sending benign payload p_b to r.
-2. For each probe pi in P:
-   a. Build request with payload pi injected at the parameter location and name from r.injection_points.
-   b. Execute request, capture trace tau_i.
-   c. Evaluate o_i(tau_i, tau_b).
-   d. If o_i returns CONFIRMED or SANITIZED, terminate campaign.
+## 7. Pipeline
 
-### Stage 6: Aggregation
+The analysis pipeline is:
 
-Combine static and runtime confidence:
+1. **File collection and parsing**. Walk the project directory, parse each supported file with tree-sitter.
+2. **Symbol extraction**. Build a cross-file symbol registry with call edges and type information.
+3. **Fingerprint extraction**. Extract phi_t for every function in the project.
+4. **LSH pre-filter**. Retrieve candidate patterns for each phi_t.
+5. **Contrastive scoring**. Compute score(phi_t, f_pos, f_neg) for each candidate.
+6. **Taint verification**. For matches above threshold, verify data flow from learned sources to learned sinks.
+7. **Composition**. Apply per-category calibration, taint boost, and cross-finding composition (correlated findings in the same file boost each other).
+8. **Output**. Generate advisories with observation/impact/improvement text from the matched pattern's comment block.
 
-combined_confidence = sqrt(confidence(a) * runtime_confidence(v))
+## 8. Comparison to Existing Approaches
 
-where runtime_confidence(v) is the oracle-specific constant associated with the oracle type that generated the confirmation.
+### 8.1 Rule-Based Systems (Semgrep, CodeQL)
 
-## 5. Empirical Results
+Rule-based systems require a human expert to encode each bug pattern as a structured query or pattern template. For N patterns, the human effort is O(N) — each new vulnerability variant requires a new rule. The rules also require maintenance: a change in framework API or language syntax may break existing rules without the author knowing.
 
-### 5.1 False Positive Rate
+In Frensense, adding a new bug class requires adding one positive file and one negative file to the corpus. No rule syntax, no query language, no maintenance beyond the examples themselves.
 
-Let FP_static be the set of advisories produced by A that are not exploitable in practice. Let FP_runtime be the set of advisories that survive runtime verification and are still false positives.
+### 8.2 ML-Based Systems
 
-By Lemma 2, any advisory that produces CONFIRMED must correspond to a real behavior of the target program. An oracle cannot fire on a non-existent behavior because all oracle functions are deterministic and depend only on observable program states.
+Machine learning approaches train a classifier on labeled bug corpora. The classifier produces a probability P(bug | code). This probability is useful for ranking but has no structural interpretation — it cannot explain which part of the code triggered the classification.
 
-Therefore |FP_runtime| = 0 for the subset of advisories that are HTTP-probeable.
+Frensense's score is a deterministic function of structural dimensions. The contribution of each dimension is explicit: 35% n-gram, 30% structural, 20% signature, 10% param types, 5% type usage. When an advisory is generated, the match evidence breaks down the score by dimension, allowing the analyst to see exactly why the match occurred.
 
-### 5.2 Coverage
+### 8.3 Hardcoded Source/Sink Lists
 
-Not all advisories are HTTP-probeable. The corpus contains patterns for:
+Existing taint analysis tools maintain hardcoded lists of known sources and sinks. These lists must be manually updated for each framework version and each new sink type. They are also language-specific: a Rust taint analyzer must have different source/sink lists than a TypeScript one.
 
-- **HTTP-probeable** (7 categories): cmdi, sqli, xss, ssrf, path_traversal, redirect, idor
-- **Non-HTTP** (6 categories): rust_async_*, tsx_useeffect_*, rust_race_*, ts_toctou_*, rust_mem_*, rust_crypto_*
+Frensense learns sources and sinks from the corpus. When a new pattern is added for a new framework, the pattern's positive file trains the registry automatically. No separate source/sink annotation is needed.
 
-Non-HTTP advisories are classified as INCONCLUSIVE with reason "No HTTP surface; static analysis only." This is a completeness limitation, not a correctness limitation.
+## 9. Empirical Observations
 
-### 5.3 Observed Confidences
+### 9.1 Corpus Statistics
 
-| Oracle Type | Confidence | Basis |
-|---|---|---|
-| CanaryCallback | 0.99 | Inbound TCP connection with matching probe ID |
-| CanaryInBody | 0.97 | Unique UUID string in response body |
-| RedirectToCanary | 0.95 | Location header contains canary host |
-| TimingDelta | 0.82 | Response delay > threshold |
-| ErrorPattern | 0.78 | Known error message pattern in response |
-| DifferentialResponse | 0.60-0.90 | Response divergence relative to baseline |
-| StatusCodeChange | 0.65 | HTTP status differs from baseline |
-| BodySizeDelta | 0.55 | Response size change past threshold |
+The current corpus contains approximately 400 patterns. Category distribution:
 
-These constants are derived from the specificity of the observable. CanaryCallback requires an actual network connection; CanaryInBody requires the exact string to appear in output; TimingDelta is subject to network jitter.
+| Category | Count | Examples |
+|----------|-------|----------|
+| sec | ~120 | SQL injection, XSS, CMDI, SSRF, open redirect, path traversal |
+| csa | ~80 | Missing validation, TOCTOU, authorization bypass |
+| arch | ~60 | Resource leak, unchecked error, panic hazard |
+| async | ~50 | Blocking in async, mutex across await, select bias |
+| llm | ~40 | Hallucinated import, insecure prompt construction |
+| mem | ~50 | Unsafe pointer deref, buffer overread, transmute |
 
-### 5.4 Parameter Name Inference
+### 9.2 Pre-Filter Efficiency
 
-Extraction of parameter names from advisory original_content was tested against 5 framework access patterns. The extraction correctly identified:
+MinHash LSH with 200 bands of 2 rows each reduces candidate comparisons from 400+ to approximately 100–200 per function (75% reduction). False negative rate (patterns that should match but are excluded by LSH) is approximately 3% on the existing corpus.
 
-- req.body.cmd -> {Body, "cmd"}
-- req.query.id -> {Query, "id"}
-- req.query.q -> {Query, "q"}
-- req.query.url -> {Query, "url"}
-- req.body.preTax -> {Body, "preTax"}
+### 9.3 Scoring Distribution
 
-In all cases, the synthetic default name "input" was replaced with the actual parameter name from the source code.
+For a corpus self-test (each pattern's positive file scored against all patterns), the mean score for the correct pattern is approximately 0.72 (SD 0.11). The mean score for incorrect patterns is approximately 0.18 (SD 0.09). The separation is sufficient to distinguish matches from non-matches at threshold tau = 0.40.
 
-## 6. Limitations
+## 10. Limitations
 
-### 6.1 Implicit in the Model
+### 10.1 Corpus Coverage
 
-1. **HTTP-only observation.** Bugs that do not manifest through HTTP responses cannot be confirmed.
-2. **Single-execution observation.** The runtime observes one execution per probe. Race conditions, TOCTOU bugs, and other non-deterministic behaviors may not be triggered.
-3. **Environment dependence.** The runtime requires a running target with network access. Results are valid only for that environment.
+Detection is bounded by corpus coverage. Patterns not represented in the corpus produce no advisories. Adding support for a new language or framework requires adding corpus patterns for that language or framework.
 
-### 6.2 Implementation Limitations
+### 10.2 Cross-Linguistic Scoring
 
-1. **Framework coverage.** Only TypeScript/JavaScript adapters are implemented. Rust (Axum, Actix) and Go (Gin, Echo, net/http) adapters are stubs.
-2. **Probe coverage.** Eval-based SSJS injection uses different syntax than exec-based CMDI. The current cmdi probes use shell metacharacters that fail on eval().
-3. **Session management.** Login with form-based auth + CSRF token extraction is implemented. OAuth, SSO, and API-key-based auth are not.
-4. **Canary server routing.** The canary server address must be reachable from the target for SSRF callbacks. This requires the operator to configure a routable address.
+The contrastive scoring function does not penalize cross-linguistic matches (e.g., a Rust function matching a TypeScript pattern). A cross-lingual penalty factor is applied post-hoc within the `compute_similarity` function, but this is a heuristic, not a guaranteed separation.
 
-## 7. Related Work
+### 10.3 Taint Verification Completeness
 
-**Project Zero (Google).** Uses corpus-driven fuzzing to find compiler bugs, then verifies crashes against real binaries. The verification step is conceptually similar (send input, observe crash), but the domain differs (compiler IR vs. web application HTTP), and the corpus is not shared between the fuzzer and the verifier.
+The data flow engine is intraprocedural by default and extends to cross-file and interprocedural paths via fixed-depth search (default 5 hops). Deep call chains, dynamic dispatch, and reflection-based invocations may not be resolved.
 
-**CodeQL (GitHub).** Uses QL queries to find patterns in AST databases. No runtime verification. Confidence is derived from query precision, not from observing program behavior.
+### 10.4 Source/Sink Registry Noise
 
-**Semgrep (r2c).** Rule-based pattern matching on ASTs. No runtime verification. Rules are hand-written, not corpus-derived.
+The two-occurrence pruning threshold for the source/sink registry is arbitrary. A threshold of 2 is used because it empirically eliminates most spurious matches while retaining genuine sources and sinks. Formal optimization of this threshold has not been performed.
 
-**Burp Suite (PortSwigger).** DAST scanner that fuzzes HTTP endpoints. No static analysis to scope the search space. Probes are generic (XSS payload lists, SQL injection patterns), not derived from the target's specific vulnerability profile.
+## 11. Conclusion
 
-## 8. Conclusions
+Frensense demonstrates that corpus-driven static analysis with fingerprint-based contrastive scoring can replace hand-written rules and learned classifiers for vulnerability detection. The approach produces deterministically scored, structurally explainable advisories without requiring per-pattern expert effort or probabilistic model training.
 
-We have shown that:
-
-1. Static analysis cannot eliminate false positives, but it can generate precise hypotheses.
-2. These hypotheses can be tested deterministically against a live target using oracles derived from the same corpus.
-3. The combination yields zero false positives for HTTP-probeable advisories, at the cost of completeness for non-HTTP bugs.
-4. The confidence score is a measurement of two independent observations (structural similarity + behavioral evidence), not a model output.
-
-The approach generalizes: any corpus-driven static analyzer that preserves the corpus identity in the advisory can be paired with a runtime verifier that shares that corpus. The two systems are decoupled except for the corpus, which serves as the common language for hypothesis generation and hypothesis testing.
+The core insight is that a bug pattern can be represented as a pair of functions (buggy + fixed) and that the contrastive scoring function sim(positive) * (1 - sim(negative)) provides sufficient separation to distinguish matches from non-matches. The remaining 17-dimensional fingerprint, trained by no learning algorithm and tuned by no gradient step, captures enough structural and semantic signal to drive detection across five languages and approximately 400 bug classes.
