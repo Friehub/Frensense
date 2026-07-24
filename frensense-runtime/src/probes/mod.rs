@@ -49,6 +49,13 @@ pub fn template_for_category(category: &str, canary_host: &str) -> Option<ProbeT
 }
 
 pub fn category_from_rule_id(rule_id: &str) -> &str {
+    // Known multi-word categories map
+    let known = ["path_traversal"];
+    for k in &known {
+        if rule_id.contains(k) {
+            return k;
+        }
+    }
     rule_id.split('_').nth(1).unwrap_or("unknown")
 }
 

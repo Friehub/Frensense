@@ -9,10 +9,10 @@ pub fn template() -> ProbeTemplate {
         probes: vec![
             Probe {
                 id: Uuid::new_v4().to_string(),
-                payload: format!("; echo {canary} #"),
+                payload: format!("echo {canary}"),
                 oracle: OracleKind::CanaryInBody { canary: canary.clone() },
                 risk: ProbeRisk::Safe,
-                description: "Shell canary echo — output appears in response".to_string(),
+                description: "Command substitution canary — output appears in response".to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),

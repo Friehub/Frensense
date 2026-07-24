@@ -108,6 +108,7 @@ async fn main() {
 
     let client = reqwest::Client::builder()
         .cookie_store(true)
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("Failed to build HTTP client");
