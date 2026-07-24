@@ -15,6 +15,7 @@ use frensense_runtime::scheduler::{
     probe_concurrency_degradation, run_probe_campaign, strategy_for_rule_id,
     ConcurrencyVerdict, ProbeStrategy,
 };
+use frensense_runtime::session::SessionManager;
 
 #[derive(Parser, Debug)]
 #[clap(name = "frensense-runtime", about = "Corpus-driven runtime verification for Frensense static findings")]
@@ -48,6 +49,27 @@ struct Cli {
 
     #[clap(long, help = "Project root directory for framework auto-detection")]
     project_root: Option<PathBuf>,
+
+    #[clap(long, help = "Login URL for session acquisition (e.g. http://localhost:3000/login)")]
+    login_url: Option<String>,
+
+    #[clap(long, help = "Username for login")]
+    auth_username: Option<String>,
+
+    #[clap(long, help = "Password for login")]
+    auth_password: Option<String>,
+
+    #[clap(long, help = "Login form username field name (default: userName)", default_value = "userName")]
+    login_username_field: String,
+
+    #[clap(long, help = "Login form password field name (default: password)", default_value = "password")]
+    login_password_field: String,
+
+    #[clap(long, help = "CSRF form field name (default: _csrf)", default_value = "_csrf")]
+    csrf_field: String,
+
+    #[clap(long, help = "Session cookie name (default: connect.sid)", default_value = "connect.sid")]
+    session_cookie: String,
 }
 
 #[tokio::main]
@@ -85,9 +107,33 @@ async fn main() {
     };
 
     let client = reqwest::Client::builder()
+        .cookie_store(true)
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("Failed to build HTTP client");
+
+    // Acquire session if login URL and credentials are provided
+    let session = if let (Some(login_url), Some(username), Some(password)) =
+        (&cli.login_url, &cli.auth_username, &cli.auth_password)
+    {
+        let sm = SessionManager::new(login_url)
+            .with_credentials(&cli.login_username_field, &cli.login_password_field)
+            .with_csrf(&cli.csrf_field, "_csrf")
+            .with_session_cookie(&cli.session_cookie);
+
+        match sm.acquire_session(&client, username, password).await {
+            Ok(s) => {
+                tracing::info!("Session acquired ({} cookies)", s.cookies.len());
+                Some(s)
+            }
+            Err(e) => {
+                tracing::warn!("Session acquisition failed: {e}. Proceeding without auth.");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     let mut runtime_advisories: Vec<RuntimeAdvisory> = Vec::new();
 

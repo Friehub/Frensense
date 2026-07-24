@@ -6,6 +6,7 @@ use crate::canary::CanaryServer;
 use crate::probes::{OracleKind, Probe};
 use crate::route_extractor::{InjectionPoint, ParameterLocation, RouteBinding};
 use crate::route_extractor::{HttpMethod};
+use crate::session::Session;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BehavioralTrace {
@@ -28,6 +29,7 @@ pub struct ProbeTarget<'a> {
     pub base_url: &'a str,
     pub injection_point: &'a InjectionPoint,
     pub auth: Option<(&'a AuthConvention, &'a str)>,
+    pub session: Option<&'a Session>,
 }
 
 impl BehavioralTrace {
@@ -186,8 +188,15 @@ fn build_request(
         }
     };
 
-    if let Some((auth, token)) = target.auth {
+    let request = if let Some((auth, token)) = target.auth {
         auth.apply_auth(request, token)
+    } else {
+        request
+    };
+
+    if let Some(session) = target.session {
+        let sm = crate::session::SessionManager::new("");
+        sm.apply_to_request(session, request)
     } else {
         request
     }

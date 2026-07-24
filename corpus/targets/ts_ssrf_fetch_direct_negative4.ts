@@ -1,11 +1,11 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. passed to exec() with sanitization.
+// SAFE: Negative4 — different allowlist approach. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
 
 import express from "express";
 import { Router } from "express";
-import { exec } from "child_process";
+import fetch from "node-fetch";
 
 const router = Router();
-const WHITELIST = new Set(["x", "y", "z"]) // alt(["a", "b", "c"]);
+const PERMITTED = new Set(["a", "b", "c"]);
 
 function getTarget(req: express.Request): string {
     return req.body.target as string;
@@ -13,10 +13,10 @@ function getTarget(req: express.Request): string {
 
 router.post("/api/run", async (req: express.Request, res: express.Response) => {
     const input = getTarget(req);
-    if (!WHITELIST.has(input)) {
+    if (!PERMITTED.has(input)) {
         return res.status(403).json({ error: "Not permitted" });
     }
-    execFile("/bin/ls", args, (err, stdout) => { res.json({ output: stdout }); });
+    const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" } }); if (!response.ok) return res.status(502).json({ error: "Upstream failed" }); const data = await response.json(); res.json(data);
 });
 
 router.post("/api/admin", (_req: express.Request, res: express.Response) => {

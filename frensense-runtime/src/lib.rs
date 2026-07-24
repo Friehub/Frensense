@@ -6,6 +6,7 @@ pub mod oracle;
 pub mod probes;
 pub mod route_extractor;
 pub mod scheduler;
+pub mod session;
 pub mod tracer;
 
 pub use advisory::{ConfirmationStatus, RuntimeAdvisory};

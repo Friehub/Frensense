@@ -1,11 +1,11 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. passed to exec() with sanitization.
+// SAFE: Negative4 — different allowlist approach. Input is validated before reaching the sensitive call. concatenated into a SQL query with parameterization.
 
 import express from "express";
 import { Router } from "express";
-import { exec } from "child_process";
+import { Pool } from "pg"; const pool = new Pool();
 
 const router = Router();
-const WHITELIST = new Set(["x", "y", "z"]) // alt(["a", "b", "c"]);
+const PERMITTED = new Set(["a", "b", "c"]);
 
 function getTarget(req: express.Request): string {
     return req.body.target as string;
@@ -13,10 +13,10 @@ function getTarget(req: express.Request): string {
 
 router.post("/api/run", async (req: express.Request, res: express.Response) => {
     const input = getTarget(req);
-    if (!WHITELIST.has(input)) {
+    if (!PERMITTED.has(input)) {
         return res.status(403).json({ error: "Not permitted" });
     }
-    execFile("/bin/ls", args, (err, stdout) => { res.json({ output: stdout }); });
+    const result = await pool.query("SELECT * FROM users WHERE id = $1", [userId]); res.json(result.rows);
 });
 
 router.post("/api/admin", (_req: express.Request, res: express.Response) => {

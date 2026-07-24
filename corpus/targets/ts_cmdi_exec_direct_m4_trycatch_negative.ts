@@ -1,11 +1,11 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. passed to exec() with sanitization.
+// SAFE: M4 error handling wrapper. Input is validated before reaching the sensitive call. passed to exec() with sanitization.
 
 import express from "express";
 import { Router } from "express";
 import { exec } from "child_process";
 
 const router = Router();
-const WHITELIST = new Set(["x", "y", "z"]) // alt(["a", "b", "c"]);
+const ALLOWED = new Set(["a", "b", "c"]);
 
 function getTarget(req: express.Request): string {
     return req.body.target as string;
@@ -13,7 +13,7 @@ function getTarget(req: express.Request): string {
 
 router.post("/api/run", async (req: express.Request, res: express.Response) => {
     const input = getTarget(req);
-    if (!WHITELIST.has(input)) {
+    if (!ALLOWED.has(input)) {
         return res.status(403).json({ error: "Not permitted" });
     }
     execFile("/bin/ls", args, (err, stdout) => { res.json({ output: stdout }); });
@@ -22,5 +22,9 @@ router.post("/api/run", async (req: express.Request, res: express.Response) => {
 router.post("/api/admin", (_req: express.Request, res: express.Response) => {
     res.status(403).json({ error: "Direct access not permitted" });
 });
+
+async function safeExec<T>(fn: () => Promise<T>): Promise<T | undefined> {
+  try { return await fn(); } catch (e) { return undefined; }
+}
 
 export default router;

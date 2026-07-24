@@ -24,21 +24,20 @@ fn main() {
     let mut by_pattern: HashMap<String, Vec<PathBuf>> = HashMap::new();
     for path in &files {
         let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-        let pattern = name
-            .strip_suffix("_positive")
-            .or_else(|| name.strip_suffix("_negative")
-                .or_else(|| {
-                    for suffix in &["_negative2", "_negative3", "_negative4"] {
-                        if let Some(p) = name.strip_suffix(suffix) {
-                            return Some(p);
-                        }
-                    }
-                    None
-                }))
-            .map(|p| p.to_string())
-            .unwrap_or_default();
-        if !pattern.is_empty() {
-            by_pattern.entry(pattern).or_default().push(path.clone());
+        // Normalize: strip _positive2, _positive3, _negative2, _negative3, _negative4, _m1_async, etc.
+        // down to the base pattern name.
+        let mut normalized = name.to_string();
+        for suffix in &["_positive9", "_positive8", "_positive7", "_positive6",
+                        "_positive5", "_positive4", "_positive3", "_positive2",
+                        "_negative5", "_negative4", "_negative3", "_negative2",
+                        "_positive", "_negative"] {
+            if let Some(stripped) = normalized.strip_suffix(suffix) {
+                normalized = stripped.to_string();
+                break;
+            }
+        }
+        if !normalized.is_empty() {
+            by_pattern.entry(normalized).or_default().push(path.clone());
         }
     }
 

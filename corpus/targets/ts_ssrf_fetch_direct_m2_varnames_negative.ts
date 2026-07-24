@@ -1,19 +1,19 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
+// SAFE: M2 different variable naming. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
 
 import express from "express";
 import { Router } from "express";
 import fetch from "node-fetch";
 
 const router = Router();
-const WHITELIST = new Set(["x", "y", "z"]) // alt(["a", "b", "c"]);
+const ALLOWED = new Set(["a", "b", "c"]);
 
-function getTarget(req: express.Request): string {
-    return req.body.target as string;
+function resolveParam(req: express.Request): string {
+    return req.body.payload as string;
 }
 
-router.post("/api/run", async (req: express.Request, res: express.Response) => {
-    const input = getTarget(req);
-    if (!WHITELIST.has(input)) {
+router.post("/api/exec", async (req: express.Request, res: express.Response) => {
+    const payload = resolveParam(req);
+    if (!ALLOWED.has(payload)) {
         return res.status(403).json({ error: "Not permitted" });
     }
     const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" } }); if (!response.ok) return res.status(502).json({ error: "Upstream failed" }); const data = await response.json(); res.json(data);

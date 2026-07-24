@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::adapters::AuthConvention;
@@ -7,6 +8,7 @@ use crate::config::RuntimeConfig;
 use crate::oracle::{evaluate_oracle, Verdict};
 use crate::probes::{category_from_rule_id, template_for_category, Probe, ProbeRisk, ProbeTemplate};
 use crate::route_extractor::{InjectionPoint, RouteBinding};
+use crate::session::Session;
 use crate::tracer::{execute_probe, ProbeTarget};
 
 pub enum ProbeStrategy {
@@ -68,6 +70,7 @@ pub async fn run_probe_campaign(
     canary_server: &CanaryServer,
     config: &RuntimeConfig,
     auth: Option<(&AuthConvention, &str)>,
+    session: Option<&Session>,
 ) -> RuntimeAdvisory {
     let default_point = InjectionPoint {
         location: crate::route_extractor::ParameterLocation::Body,
@@ -75,6 +78,7 @@ pub async fn run_probe_campaign(
         taint_origin: None,
     };
     let injection_point = route.injection_points.first().unwrap_or(&default_point);
+    let session = session.map(Arc::new);
 
     let baseline = execute_probe(
         client,
@@ -83,6 +87,7 @@ pub async fn run_probe_campaign(
             base_url: &config.base_url,
             injection_point,
             auth,
+            session: session.as_deref(),
         },
         &Probe {
             id: "baseline".to_string(),
@@ -118,6 +123,7 @@ pub async fn run_probe_campaign(
                 base_url: &config.base_url,
                 injection_point,
                 auth,
+                session: session.as_deref(),
             },
             probe,
             canary_server,
