@@ -317,11 +317,27 @@ These are novel, framework-specific, and often have no CWE mapping.
 
 ## CWE Mapping
 
-Add CWE identifiers to the `[frensense]` comment block.
-This allows teams to filter findings by standard classifications and feeds into
-compliance reporting (SOC2, PCI-DSS, ISO27001).
+Add CWE identifiers to the `[frensense]` comment block of every positive file.
+**No TOML sidecar files** — all metadata belongs in the `[frensense]` block:
+
+```typescript
+// [frensense]
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
+```
+
+These fields are parsed by `parse_frensense_block()` in `loader.rs` and surfaced
+in JSON/SARIF output. SARIF emits CWE as a `relationships` array per the
+SARIF 2.1 specification (§3.49.10), making findings filterable in GitHub
+Advanced Security, GitLab, and SonarQube.
 
 ### Complete Category → CWE Map
+
+Add the corresponding `cwe:` and `cvss:` to every positive file's
+`[frensense]` block. Use the table below to find the right identifiers.
 
 | Pattern prefix | Vulnerability | CWE | OWASP 2021 | CVSS Base (typical) |
 |---|---|---|---|---|
@@ -365,102 +381,6 @@ compliance reporting (SOC2, PCI-DSS, ISO27001).
 | `ts_llm_*` | LLM-Generated Antipattern | — (Novel) | — | varies |
 
 ---
-
-## Injecting CWE into the Corpus Format
-
-### Update the `[frensense]` comment block schema
-
-Add two new optional fields to the comment block parser in `loader.rs`:
-
-```typescript
-// [frensense]
-// observation: User-controlled URL is passed to fetch() without host validation.
-// impact: Server can be used as a proxy to reach internal services.
-// improvement: Validate URL against an allowlist of permitted external hosts.
-// cwe: CWE-918
-// cvss: 8.8
-// owasp: A10:2021
-// severity: High
-// runtime_probe: ssrf
-```
-
-The loader parses these fields and stores them on `AdvisoryText`:
-
-```rust
-// frensense-engine/src/corpus/loader.rs
-pub struct AdvisoryText {
-    pub observation: Option<String>,
-    pub impact: Option<String>,
-    pub improvement: Option<String>,
-    pub expected_context: Option<crate::context::FileContext>,
-    // NEW:
-    pub cwe: Option<String>,           // "CWE-918"
-    pub cvss: Option<f32>,             // 8.8
-    pub owasp: Option<String>,         // "A10:2021"
-    pub severity: Option<String>,      // "Critical|High|Medium|Low|Info"
-    pub runtime_probe: Option<String>, // "ssrf" — links to probe template
-}
-```
-
-### Update the TOML schema
-
-For patterns that use TOML instead of inline comments:
-
-```toml
-# corpus/targets/ts_ssrf_fetch.toml  — UPDATED
-id = "TS_SSRF_FETCH"
-severity = "High"
-cwe = "CWE-918"
-cvss = 8.8
-owasp = "A10:2021"
-is_security = true
-tier = 1
-runtime_probe = "ssrf"
-exploit_scenario = """
-An attacker sends POST /api/proxy with body {"url":"http://169.254.169.254/latest/meta-data/iam/security-credentials/"}. 
-The server fetches the AWS metadata endpoint and returns the IAM credentials in the response body.
-"""
-observation = "User-controlled URL is passed to fetch() without validating the target host."
-impact = "An attacker can reach internal services, cloud metadata endpoints, or scan the internal network."
-improvement = "Validate the URL against a strict allowlist of permitted external hosts and schemes."
-
-[expected_context]
-environment = "RouteHandler"
-sensitivity = "High"
-frameworks = ["express", "fastify", "hono"]
-```
-
-### Surface CWE in output
-
-In `Advisory` and JSON/SARIF output, surface the CWE:
-
-```json
-{
-  "rule_id": "ts_ssrf_aws_metadata",
-  "cwe": "CWE-918",
-  "cvss": 8.8,
-  "owasp": "A10:2021",
-  "severity": "High",
-  "confidence": 0.89,
-  "file": "src/routes/proxy.ts",
-  "line": 14,
-  "observation": "User-controlled URL passed to fetch() without host validation."
-}
-```
-
-In SARIF, map CWE to the rule's `relationships` array per the SARIF 2.1 spec:
-
-```json
-{
-  "rules": [{
-    "id": "ts_ssrf_aws_metadata",
-    "relationships": [{
-      "target": { "id": "CWE-918", "toolComponent": { "name": "CWE" } },
-      "kinds": ["superset"]
-    }]
-  }]
-}
-```
 
 ---
 

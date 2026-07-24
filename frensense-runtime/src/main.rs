@@ -135,6 +135,23 @@ async fn main() {
                     }
                 });
 
+                // Learn injection points from advisory content — same principle as
+                // Frensense static learning sources from the corpus: extract param
+                // names from the source code rather than guessing.
+                let mut route_binding = route_binding;
+                if route_binding.injection_points.is_empty() {
+                    let points = adapter.as_ref()
+                        .map(|a| a.extract_injection_points(&advisory.original_content))
+                        .filter(|p| !p.is_empty())
+                        .unwrap_or_else(|| {
+                            frensense_runtime::route_extractor::extract_injection_points_from_advisory(advisory)
+                        });
+                    if !points.is_empty() {
+                        route_binding.injection_points = points;
+                    }
+                }
+                // If still empty, leave synthetic fallback in scheduler
+
                 let auth_convention = adapter.as_ref()
                     .map(|a| a.auth_convention())
                     .unwrap_or(AuthConvention::BearerToken);
