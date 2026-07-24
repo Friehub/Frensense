@@ -43,20 +43,29 @@ fn main() {
     }
 
     for (pattern, files) in &by_pattern {
-        let pos = files.iter().find(|p| {
+        let pos: Vec<&PathBuf> = files.iter().filter(|p| {
             let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             name.contains("_positive")
-        });
-        let negs: Vec<&PathBuf> = files.iter().filter(|p| {
+        }).collect();
+        let mut negs: Vec<&PathBuf> = files.iter().filter(|p| {
             let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             name.contains("_negative")
         }).collect();
+        // Sort negatives so _negative.ts comes first
+        negs.sort_by_key(|p| {
+            let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            if name.ends_with("_negative") { 0 } else { 1 }
+        });
 
-        let Some(pos_path) = pos else { continue; };
+        let Some(pos_path) = pos.first() else { continue; };
         let src = match std::fs::read_to_string(pos_path) {
             Ok(s) => s,
             Err(_) => continue,
         };
+
+        // Determine tier from pattern ID
+        let cat = pattern.split('_').nth(1).unwrap_or("");
+        let tier = classify_tier(cat, pattern);
 
         let mut score: u32 = 0;
         let mut checks: Vec<String> = Vec::new();
@@ -81,7 +90,7 @@ fn main() {
 
         // +15 Has 2+ functions
         let fn_count = src.matches("function ").count()
-            + src.matches("=>").count() / 2; // rough estimate
+            + src.matches("=>").count() / 2;
         if fn_count >= 2 {
             score += 15;
         } else {
@@ -126,7 +135,6 @@ fn main() {
         // +10 Negative uses same sink call safely
         if let Some(neg_path) = negs.first() {
             if let Ok(neg_src) = std::fs::read_to_string(neg_path) {
-                // Check if negative imports the same modules (just the fix variant)
                 let pos_imports: Vec<&str> = src.lines()
                     .filter(|l| l.trim().starts_with("import ") || l.trim().starts_with("const "))
                     .collect();
@@ -143,6 +151,66 @@ fn main() {
             }
         } else {
             checks.push("no_negative".to_string());
+        }
+
+        // === Tier-specific requirements (from FRENSENSE_CORPUS_GUIDE.md) ===
+        let pos_count = pos.len();
+        let neg_count = negs.len();
+        let mut mut_count = 0usize;
+        for f in files {
+            let name = f.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            // Count mutation variants: files with m1, m2, m3 etc. in the name
+            // that don't start with "negative" (positives that are also mutations)
+            if name.contains("_m") && name.contains("_positive") {
+                mut_count += 1;
+            }
+        }
+
+        // Tier 1: requires ≥7 positives (base + 4 mutations) + ≥4 negatives
+        // Tier 2: requires ≥5 positives + ≥3 negatives
+        // Tier 3: requires ≥4 positives + ≥2 negatives
+        // Tier 4: requires ≥3 positives + ≥2 negatives
+        // Tier 5: requires ≥2 positives + ≥1 negative
+        let (needed_pos, needed_neg): (i32, i32) = match tier {
+            1 => (7, 4),
+            2 => (5, 3),
+            3 => (4, 2),
+            4 => (3, 2),
+            _ => (2, 1),
+        };
+
+        let pos_gap = needed_pos - pos_count as i32;
+        let neg_gap = needed_neg - neg_count as i32;
+        if pos_gap > 0 {
+            score = score.saturating_sub((pos_gap as u32) * 5);
+            checks.push(format!("need_{}_more_pos_tier{tier}", pos_gap));
+        }
+        if neg_gap > 0 {
+            score = score.saturating_sub((neg_gap as u32) * 5);
+            checks.push(format!("need_{}_more_neg_tier{tier}", neg_gap));
+        }
+
+        // Tier 1: cvss + runtime_probe required
+        if tier == 1 && !lower.contains("cvss:") {
+            checks.push("tier1_missing_cvss".to_string());
+        }
+        if tier == 1 && !lower.contains("runtime_probe:") {
+            checks.push("tier1_missing_runtime_probe".to_string());
+        }
+
+        // Tier 2: owasp required
+        if tier == 2 && !lower.contains("owasp:") {
+            checks.push("tier2_missing_owasp".to_string());
+        }
+
+        // Tier 3: exploit_scenario required
+        if tier == 3 && !lower.contains("exploit_scenario:") {
+            checks.push("tier3_missing_exploit_scenario".to_string());
+        }
+
+        // Tier 4: reference required
+        if tier == 4 && !lower.contains("reference:") {
+            checks.push("tier4_missing_reference".to_string());
         }
 
         // -20 File under 10 lines
@@ -176,6 +244,20 @@ fn main() {
         scores.push((score, pattern.clone(), checks));
     }
 
+    // Summary by tier
+    let mut by_tier: [u32; 6] = [0; 6];
+    let mut below50_by_tier: [u32; 6] = [0; 6];
+    for (score, pattern, _) in &scores {
+        let cat = pattern.split('_').nth(1).unwrap_or("");
+        let t = classify_tier(cat, pattern);
+        by_tier[t] += 1;
+        if *score < 50 { below50_by_tier[t] += 1; }
+    }
+    eprintln!();
+    for t in 1..=5 {
+        eprintln!("  Tier {t}: {} patterns ({} below 50)", by_tier[t], below50_by_tier[t]);
+    }
+
     // Sort by score ascending
     scores.sort_by_key(|(s, _, _)| *s);
 
@@ -196,6 +278,24 @@ fn collect_files(dir: &std::path::Path) -> Vec<PathBuf> {
     let mut result = Vec::new();
     collect_recursive(dir, &mut result);
     result
+}
+
+/// Classify a pattern into a tier (1-5) based on its category prefix.
+fn classify_tier(cat: &str, pattern: &str) -> usize {
+    let tier1 = ["cmdi", "sqli", "ssrf", "xss", "path", "open", "eval", "ldap", "xpath", "ssti", "nosqli", "xxe", "prototype", "deserialization"];
+    let tier2 = ["jwt", "auth", "idor", "bac", "rbac", "cors", "csrf", "session", "oauth", "oidc", "cookie", "mfa", "ratelimit"];
+    let tier3 = ["race", "toctou", "integer", "deadlock", "payment", "ownership"];
+    let tier4 = ["crypto", "hardcoded", "regex", "env", "debug", "rand", "weak", "error"];
+    // Tier 5: anything React/LLM/Rust-specific not in tiers 1-4
+    if pattern.contains("tsx_") || pattern.contains("llm_") || pattern.contains("rust_async") || pattern.contains("rust_transmute") || pattern.contains("edition2024") {
+        return 5;
+    }
+    if tier1.contains(&cat) { return 1; }
+    if tier2.contains(&cat) { return 2; }
+    if tier3.contains(&cat) { return 3; }
+    if tier4.contains(&cat) { return 4; }
+    // Default: Tier 5 (framework-specific / unclassified)
+    5
 }
 
 fn collect_recursive(dir: &std::path::Path, out: &mut Vec<PathBuf>) {

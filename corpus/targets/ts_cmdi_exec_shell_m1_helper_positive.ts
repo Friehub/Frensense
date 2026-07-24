@@ -5,6 +5,7 @@
 // improvement: Use execFile with array arguments.
 // cwe: CWE-78
 // cvss: 9.8
+// runtime_probe: cmdi
 
 import { exec } from "child_process";
 import express from "express";
