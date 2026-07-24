@@ -8,8 +8,8 @@ pub fn detect_framework(project_root: &Path, advisory_rule_id: &str) -> Box<dyn 
 
     match lang_prefix {
         "ts" | "tsx" | "nodejs" => detect_ts_framework(project_root),
-        "rust" => Box::new(super::express::FastifyAdapter),
-        "go" => Box::new(super::express::FastifyAdapter),
+        "rust" => Box::new(UnknownAdapter),
+        "go" => Box::new(UnknownAdapter),
         _ => Box::new(UnknownAdapter),
     }
 }

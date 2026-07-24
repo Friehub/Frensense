@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::adapters::AuthConvention;
 use crate::canary::CanaryServer;
-use crate::probes::Probe;
+use crate::probes::{OracleKind, Probe};
 use crate::route_extractor::{InjectionPoint, ParameterLocation, RouteBinding};
 use crate::route_extractor::{HttpMethod};
 
@@ -102,8 +102,12 @@ pub async fn execute_probe(
             let body = resp.bytes().await.unwrap_or_default().to_vec();
             let body_hash = hash_bytes(&body);
 
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            let canary_received = canary_server.check_received(&probe_id);
+            let canary_received = if matches!(probe.oracle, OracleKind::CanaryCallback { .. }) {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                canary_server.check_received(&probe_id)
+            } else {
+                canary_server.check_received(&probe_id)
+            };
 
             BehavioralTrace {
                 probe_id,
@@ -163,8 +167,8 @@ fn build_request(
                 .query(&[(&point.name, payload)])
         }
         ParameterLocation::PathParam => {
-            let url = format!("{}{}", base_url, target.route.path_pattern)
-                .replace(&format!(":{}", point.name), &urlencoding(payload));
+                    let url = format!("{}{}", base_url, target.route.path_pattern)
+                .replace(&format!(":{}", point.name), &urlencoding::encode(payload).into_owned());
             client.request(method, &url)
         }
         ParameterLocation::Header => {
@@ -189,17 +193,4 @@ fn build_request(
     }
 }
 
-fn urlencoding(s: &str) -> String {
-    s.chars().flat_map(|c| match c {
-        'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => {
-            vec![c]
-        }
-        _ => {
-            let mut buf = [0u8; 4];
-            let bytes = c.encode_utf8(&mut buf);
-            bytes.as_bytes().iter().flat_map(|&b| {
-                format!("%{:02X}", b).chars().collect::<Vec<_>>()
-            }).collect()
-        }
-    }).collect()
-}
+

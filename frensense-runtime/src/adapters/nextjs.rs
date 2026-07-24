@@ -9,7 +9,7 @@ pub struct NextJsAdapter;
 impl FrameworkAdapter for NextJsAdapter {
     fn name(&self) -> &'static str { "Next.js" }
     fn extensions(&self) -> &'static [&'static str] { &["ts", "tsx", "js"] }
-    fn framework_enum(&self) -> Framework { Framework::NestJs }
+    fn framework_enum(&self) -> Framework { Framework::NextJs }
 
     fn extract_routes(&self, file_path: &Path, source: &str) -> Vec<RouteBinding> {
         let path_str = file_path.to_string_lossy();
@@ -36,7 +36,7 @@ impl FrameworkAdapter for NextJsAdapter {
                 handler_file: file_path.to_string_lossy().to_string(),
                 handler_function: cap[1].to_string(),
                 injection_points: Vec::new(),
-                framework: Framework::NestJs,
+                framework: Framework::NextJs,
             }
         }).collect();
 
@@ -47,7 +47,7 @@ impl FrameworkAdapter for NextJsAdapter {
                 handler_file: file_path.to_string_lossy().to_string(),
                 handler_function: "handler".to_string(),
                 injection_points: Vec::new(),
-                framework: Framework::NestJs,
+                framework: Framework::NextJs,
             });
         }
         routes

@@ -9,7 +9,7 @@ pub struct RemixAdapter;
 impl FrameworkAdapter for RemixAdapter {
     fn name(&self) -> &'static str { "Remix" }
     fn extensions(&self) -> &'static [&'static str] { &["ts", "tsx", "js"] }
-    fn framework_enum(&self) -> Framework { Framework::Unknown }
+    fn framework_enum(&self) -> Framework { Framework::Remix }
 
     fn extract_routes(&self, file_path: &Path, source: &str) -> Vec<RouteBinding> {
         let path_str = file_path.to_string_lossy();
@@ -36,7 +36,7 @@ impl FrameworkAdapter for RemixAdapter {
                 handler_file: file_path.to_string_lossy().to_string(),
                 handler_function: "loader".to_string(),
                 injection_points: Vec::new(),
-                framework: Framework::Unknown,
+                framework: Framework::Remix,
             });
         }
         if has_action {
@@ -46,7 +46,7 @@ impl FrameworkAdapter for RemixAdapter {
                 handler_file: file_path.to_string_lossy().to_string(),
                 handler_function: "action".to_string(),
                 injection_points: Vec::new(),
-                framework: Framework::Unknown,
+                framework: Framework::Remix,
             });
         }
         routes

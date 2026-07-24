@@ -228,9 +228,9 @@ that get CVEs, cause data breaches, and appear in bug bounty programs.
 - 2+ functions per file (the vulnerable one + a helper that feeds it)
 - Typed parameters throughout
 - Full `[frensense]` block with CVE reference if one exists
-- CWE identifier in TOML
-- CVSS v3 score in TOML
-- Runtime probe template linked (`runtime_probe: "cmdi"`)
+- `cwe:` field in `[frensense]` comment block
+- `cvss:` field in `[frensense]` comment block
+- `runtime_probe:` field in `[frensense]` comment block
 
 **Categories in Tier 1:**
 `*_cmdi`, `*_sqli`, `*_ssrf`, `*_xss`, `*_path`, `ts_open_redirect`,
@@ -250,8 +250,8 @@ when present.
 - Minimum 3 negative files
 - Must include the surrounding auth middleware context (not just the handler)
 - Must show the flow: auth check → [vulnerable: skipped or bypassable] → action
-- OWASP Top 10 category noted in TOML (`owasp: "A01:2021"`)
-- CWE identifier required
+- `owasp:` field in `[frensense]` comment block
+- `cwe:` field required in `[frensense]` block
 
 **Categories in Tier 2:**
 `ts_jwt`, `ts_auth`, `*_idor`, `ts_bac`, `ts_rbac`, `ts_cors`,
@@ -272,7 +272,7 @@ fingerprint but very valuable.
 - The positive MUST show the temporal/logical flow that creates the bug
   (check then act, not just the action alone)
 - Comments explaining what makes this a bug (not always obvious)
-- `exploit_scenario` field in TOML (a concrete attacker narrative)
+- `exploit_scenario:` field in `[frensense]` comment block
 
 **Categories in Tier 3:**
 `ts_race`, `ts_toctou`, `ts_integer`, `rust_race`, `rust_deadlock`,
@@ -290,7 +290,7 @@ leakage, insecure defaults. Important but lower likelihood of direct exploitatio
 - Minimum 1 positive + 2 mutation variants
 - Minimum 2 negative files
 - Clear comment on WHY this is a problem (not always obvious that MD5 is bad)
-- Link to a reference (NIST, OWASP) in TOML
+- `reference:` field in `[frensense]` comment block
 
 **Categories in Tier 4:**
 `*_crypto`, `ts_hardcoded`, `ts_regex`, `ts_env`, `ts_debug`,
@@ -307,7 +307,7 @@ These are novel, framework-specific, and often have no CWE mapping.
 - Minimum 1 positive + 1 negative
 - If the bug is not a security bug, the `is_security: false` flag must be set
 - Must have a `remediation_effort: "low|medium|high"` estimate
-- TOML `category: "correctness"` or `"performance"` instead of `"security"`
+- `category:` field in `[frensense]` block ("correctness" or "performance")
 
 **Categories in Tier 5:**
 `tsx_useeffect`, `tsx_usememo`, `rust_async`, `ts_llm_*`, `tsx_*`,
@@ -317,7 +317,7 @@ These are novel, framework-specific, and often have no CWE mapping.
 
 ## CWE Mapping
 
-Add CWE identifiers to the TOML metadata and to the `[frensense]` comment block.
+Add CWE identifiers to the `[frensense]` comment block.
 This allows teams to filter findings by standard classifications and feeds into
 compliance reporting (SOC2, PCI-DSS, ISO27001).
 
@@ -772,50 +772,35 @@ frensense-hub gaps
 
 ## Mutation Guidelines
 
-Every base pattern should have M1–M5 mutation variants. Mutations make the
-engine robust to the code transformations attackers use to evade detection.
-
-| Mutation | What changes | What stays the same |
-|---|---|---|
-| M1 Helper extraction | Vulnerable logic moved into a separate helper function | The taint source and sink |
-| M2 Async/await | `exec(cmd)` → `await execAsync(cmd)` (promisified) | The exec call with user input |
-| M3 Class method | Module function → class method | The parameter source and sink |
-| M4 Different variable name | `cmd` → `userInput` → `command` → `payload` | The taint path structure |
-| M5 Error handling wrapper | Vulnerable call wrapped in try/catch | The unsanitized call still inside |
-| M6 Conditional execution | `if (enabled) { exec(cmd) }` | User input still reaches exec |
-| M7 Array destructuring | `const [cmd] = req.body.cmds` instead of `req.body.cmd` | Same taint, different syntax |
-
-Each mutation gets its own `positive_mN.ts` and `negative_mN.ts`. The negative
-is the M1-mutated version of the primary negative, not a new fix.
+Frensense Hub is a planned public corpus registry where researchers can submit
+pattern pairs. See the README and project roadmap for current status.
 
 ---
 
-## Coverage Gaps to Fill First
+## Coverage Gaps to Fill
 
-Based on the current corpus distribution (`ls corpus/targets | sort -u`), these
-are the most valuable gaps:
+Based on the current corpus distribution, the most valuable gaps are:
 
 ### Missing Languages
-- **Python**: Zero patterns. Flask, FastAPI, Django all missing entirely.
-  Most web servers are still Python. This is the single largest gap.
+- **Python**: Zero patterns. Flask, FastAPI, Django all missing.
 - **PHP**: Zero patterns. Laravel still powers 30%+ of the web.
 - **Java**: Zero patterns. Spring Boot is dominant in enterprise.
 
 ### Missing Frameworks (existing languages)
-- **TypeScript + tRPC**: Only stub coverage. tRPC is increasingly common.
+- **TypeScript + tRPC**: Only minimal coverage.
 - **Rust + Rocket**: Some patterns but not across all injection categories.
 - **Go + Fiber**: Only Gin and net/http covered.
 
 ### Missing Vulnerability Classes
-- **HTTP Request Smuggling** (`ts_smuggling` exists but only 1 pair)
-- **GraphQL injection** (`ts_graphql` has 12 patterns but no query injection)
-- **WebSocket injection** (`ts_websocket` / `ts_ws` — not in corpus)
-- **gRPC injection** (`rust_tonic` has patterns but none for input injection)
-- **LDAP injection for Go** (`ts_ldap` exists but `go_ldap` missing)
+- **HTTP Request Smuggling** — only a few pairs
+- **GraphQL injection** — no query injection patterns
+- **WebSocket injection** — not in corpus
+- **gRPC injection** — none for input injection
+- **LDAP injection for Go** — missing
 
 ### Undertested CWEs
 | CWE | Current count | Target |
-|---|---|---|
+|-----|--------------|--------|
 | CWE-90 (LDAP) | 2 | 15 |
 | CWE-643 (XPath) | 3 | 10 |
 | CWE-352 (CSRF) | 4 | 15 |
@@ -825,24 +810,5 @@ are the most valuable gaps:
 
 ---
 
-## Summary: The Three Things That Will Fix Corpus Quality
-
-**1. The quality gate enforces standards on every new submission.**
-Nothing merges to the corpus without passing the tier-appropriate gate.
-This stops the rot from getting worse immediately.
-
-**2. The rewrite pass fixes existing patterns below score 50.**
-The `corpus-quality` tool identifies the worst offenders. Rewriting 200 thin
-patterns (those under 50 points) will do more for engine accuracy than adding
-200 new patterns. Quality over quantity.
-
-**3. Frensense Hub opens the corpus to the community.**
-The internal team cannot cover Python, PHP, Java, and every framework.
-A public submission process with clear standards and automated quality gates
-allows the security research community to fill the gaps. The CWE index
-makes it easy for a researcher to say "I want to add a pattern for CWE-90"
-and find the right place to put it.
-
-The corpus is the moat. A well-structured, community-maintained, CWE-mapped
-corpus is a moat that compounds over time — not just because it grows, but
-because the community has a stake in its quality.
+**The corpus is the moat.** A well-structured, CWE-mapped, community-maintained
+corpus is a moat that compounds over time.

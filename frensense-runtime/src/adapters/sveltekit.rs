@@ -9,7 +9,7 @@ pub struct SvelteKitAdapter;
 impl FrameworkAdapter for SvelteKitAdapter {
     fn name(&self) -> &'static str { "SvelteKit" }
     fn extensions(&self) -> &'static [&'static str] { &["ts", "js"] }
-    fn framework_enum(&self) -> Framework { Framework::Unknown }
+    fn framework_enum(&self) -> Framework { Framework::SvelteKit }
 
     fn extract_routes(&self, file_path: &Path, source: &str) -> Vec<RouteBinding> {
         let path_str = file_path.to_string_lossy();
@@ -34,7 +34,7 @@ impl FrameworkAdapter for SvelteKitAdapter {
                 handler_file: file_path.to_string_lossy().to_string(),
                 handler_function: cap[1].to_string(),
                 injection_points: Vec::new(),
-                framework: Framework::Unknown,
+                framework: Framework::SvelteKit,
             }
         }).collect()
     }

@@ -175,9 +175,14 @@ the `[frensense]` comment block at the top of the positive file:
 // impact: Server can be used as a proxy to reach internal services.
 // improvement: Validate URL against an allowlist of permitted external hosts.
 // cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// runtime_probe: ssrf
+// tier: 1
 ```
 
-Supported fields: `observation`, `impact`, `improvement`, `cwe`.
+Supported fields: `observation`, `impact`, `improvement`, `cwe`, `cvss`, `owasp`,
+`severity`, `runtime_probe`, `tier`, `exploit_scenario`, `reference`.
 
 ### Template: Good CMDI Pair
 

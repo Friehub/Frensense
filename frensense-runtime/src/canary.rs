@@ -73,12 +73,13 @@ impl CanaryServer {
                             state.received.insert(
                                 id.clone(),
                                 ReceivedCallback {
-                                    probe_id: id,
+                                    probe_id: id.clone(),
                                     source_ip: peer.ip(),
                                     payload_snippet: payload.chars().take(200).collect(),
                                     received_at: std::time::SystemTime::now(),
                                 },
                             );
+                            state.pending.remove(&id);
                         }
                     });
                 }

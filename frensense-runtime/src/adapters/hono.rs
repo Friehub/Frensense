@@ -9,7 +9,7 @@ pub struct HonoAdapter;
 impl FrameworkAdapter for HonoAdapter {
     fn name(&self) -> &'static str { "Hono" }
     fn extensions(&self) -> &'static [&'static str] { &["ts", "js"] }
-    fn framework_enum(&self) -> Framework { Framework::Unknown }
+    fn framework_enum(&self) -> Framework { Framework::Hono }
 
     fn extract_routes(&self, file_path: &Path, source: &str) -> Vec<RouteBinding> {
         let route_re = regex::Regex::new(
@@ -23,7 +23,7 @@ impl FrameworkAdapter for HonoAdapter {
                 handler_file: file_path.to_string_lossy().to_string(),
                 handler_function: String::new(),
                 injection_points: Vec::new(),
-                framework: Framework::Unknown,
+                framework: Framework::Hono,
             }
         }).collect()
     }
