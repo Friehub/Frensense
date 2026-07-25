@@ -258,6 +258,8 @@ mutation guidelines, and the Frensense Hub corpus exchange proposal.
 
 See `docs/AUTO_FILTER.md` for how the auto-filter learns 6 constraint types from corpus pairs.
 See `docs/CORPUS_CONVENTIONS.md` for naming, tier requirements, and multi-API variant creation.
+See `docs/SCORING_DIMENSIONS.md` for the 11-dimensional similarity model, default weights,
+flow_sim generalization issue, and the complete scoring pipeline.
 
 ### Quality Scoring
 

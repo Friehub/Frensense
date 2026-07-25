@@ -21,7 +21,13 @@ pub type FeatureVec = [f64; 11];
 
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
-// 8 original dims + tainted_api_sim + motif_sim + flow_sim at index 10
+// Index mapping: 0=ngram, 1=ast, 2=signature, 3=param_type, 4=type_usage,
+//                5=semantic, 6=cf, 7=api, 8=tainted_api, 9=motif, 10=flow
+//
+// KNOWN ISSUE: flow_sim (index 10) is 0.02 — too low to make data-flow paths
+// the primary signal. Raising it to 0.10-0.12 would eliminate the need for
+// M1-M15 mutation variants by making similarity API-invariant.
+// See docs/SCORING_DIMENSIONS.md for analysis.
 pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.04, 0.02];
 
 /// Minimum number of positive + negative pairs required to train a per-category
