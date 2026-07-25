@@ -2,6 +2,10 @@
 // observation: Webhook handler does not check the event timestamp, allowing attacker-injected replay of old webhook events.
 // impact: An attacker who captures a previous webhook payload (e.g., payment.completed for an order already fulfilled) can replay it to trigger duplicate order fulfillment, refunds, or subscription activations.
 // improvement: Check the webhook event timestamp against a tolerance window (e.g., 5 minutes). Reject events outside that window.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 app.post('/webhooks/stripe', async (req, res) => {
   const event = req.body;

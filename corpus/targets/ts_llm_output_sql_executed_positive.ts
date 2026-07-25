@@ -2,6 +2,10 @@
 // observation: LLM-generated SQL is executed directly against the database without validation or parameterization.
 // impact: An attacker who influences the LLM output can perform SQL injection, extracting or modifying database contents.
 // improvement: Validate LLM output against an expected schema before executing. Use parameterized queries, never raw model-generated SQL.
+// cwe: CWE-20
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 import OpenAI from 'openai';
 import { PrismaClient } from '@prisma/client';

@@ -2,6 +2,10 @@
 // observation: When a user's subscription is downgraded to a lower tier, their premium features are not revoked, so they continue to have access.
 // impact: A user can downgrade to a cheaper plan but keep using premium features indefinitely, receiving more value than they pay for.
 // improvement: Remove or disable all premium entitlements when the plan is downgraded.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function downgradePlan(userId: string, newPlanId: string, env: Env) {
   const sub = await env.DB.prepare(

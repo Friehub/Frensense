@@ -2,6 +2,10 @@
 // observation: The LLM model name is taken directly from the user's request, allowing selection of arbitrary models.
 // impact: An attacker can select a less restricted or cheaper model, bypassing safety filters or incurring unexpected costs.
 // improvement: Whitelist the allowed model names server-side and ignore the client's model selection.
+// cwe: CWE-20
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 import OpenAI from 'openai';
 

@@ -2,6 +2,10 @@
 // observation: When an order is cancelled, the stock reservation is not released, causing the reserved quantity to remain unavailable for other customers.
 // impact: Cancelled orders permanently tie up inventory, eventually causing all stock to appear reserved and blocking legitimate purchases.
 // improvement: Always restore the reserved stock quantity when an order transitions to CANCELLED.
+// cwe: CWE-841
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function cancelOrder(orderId: string, env: Env) {
   const order = await env.DB.prepare(

@@ -2,6 +2,10 @@
 // observation: mutation variables come from user input (form data, search params, etc.) without any schema validation, so arbitrary or malformed data is sent to the server
 // impact: injection attacks or data corruption — an attacker can send manipulated mutation variables (e.g., setting `role: 'admin'`, injecting SQL via string fields, or sending oversized payloads)
 // improvement: validate mutation variables against a schema (e.g., zod) before passing them to `mutate`, or validate inside the `mutationFn`
+// cwe: CWE-601
+// cvss: 6.1
+// owasp: A01:2021
+// severity: Medium
 
 import { useMutation } from '@tanstack/react-query'
 import { useSearchParams } from '@tanstack/react-router'

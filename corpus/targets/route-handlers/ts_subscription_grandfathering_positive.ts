@@ -2,6 +2,10 @@
 // observation: When the price of a subscription plan is increased, all existing subscribers are charged the new price immediately without being grandfathered into their original rate.
 // impact: Customers experience unexpected price hikes, leading to churn, chargebacks, and potential legal issues with subscription agreements.
 // improvement: Maintain the original price for existing subscribers when a plan price is increased, applying the new price only to new subscribers.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

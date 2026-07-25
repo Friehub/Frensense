@@ -2,6 +2,10 @@
 // observation: Archive extraction writes file entries to paths that include '../', allowing files to be written outside the intended extraction directory.
 // impact: A malicious archive containing '.../../etc/cron.d/evil' can overwrite system files or install malware. Zip Slip is a critical vulnerability affecting zip, tar, jar, and 7z formats.
 // improvement: Validate that the resolved path of each archive entry stays within the extraction directory by checking against path.resolve(base, entry) prefix.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
 
 import AdmZip from 'adm-zip';
 

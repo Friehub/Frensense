@@ -2,6 +2,10 @@
 // observation: Affiliate commission is paid immediately when the order is placed, even if the order is later cancelled, and the commission is never reversed.
 // impact: A fraudulent affiliate can refer orders, collect commission, then cancel the orders, earning money without bringing any real sales.
 // improvement: Defer commission payment until the order is delivered/completed, or reverse commission on cancellation.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function processOrder(userId: string, affiliateCode: string, total: number, env: Env) {
   const order = await env.DB.prepare(

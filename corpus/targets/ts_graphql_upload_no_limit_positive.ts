@@ -2,6 +2,10 @@
 // observation: A GraphQL upload mutation accepts file data without enforcing any size limit, allowing clients to upload arbitrarily large files.
 // impact: An attacker can upload multi-gigabyte files, filling disk space, exhausting memory during processing, and causing denial of service.
 // improvement: Enforce a maximum file size in the upload resolver before processing the file payload.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { ApolloServer, gql } from 'apollo-server-express';
 import { GraphQLUpload } from 'graphql-upload-minimal';

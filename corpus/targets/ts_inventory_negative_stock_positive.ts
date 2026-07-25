@@ -2,6 +2,10 @@
 // observation: Stock is decremented without a guard that prevents it from going below zero, allowing negative inventory levels.
 // impact: Negative stock causes systemic accounting problems, allows overselling reports to show fake inventory levels, and prevents accurate reorder calculations.
 // improvement: Use an atomic UPDATE with a WHERE stock >= qty guard to prevent the stock from ever going negative.
+// cwe: CWE-841
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function deductStock(productId: string, quantity: number, env: Env) {
   // VULNERABLE: stock can go negative

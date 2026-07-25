@@ -2,6 +2,10 @@
 // observation: `placeholderData` returns an object with a different shape or type than the actual query data, so consuming code that expects the real shape crashes at runtime
 // impact: runtime type error — placeholder data with missing fields or wrong types causes `undefined is not an object` or similar crashes when the UI tries to render nested properties
 // improvement: ensure placeholderData matches the exact shape and type of the real query data, or use a type guard before accessing placeholder fields
+// cwe: CWE-601
+// cvss: 6.1
+// owasp: A01:2021
+// severity: Medium
 
 import { useQuery } from '@tanstack/react-query'
 

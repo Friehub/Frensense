@@ -2,6 +2,10 @@
 // observation: The stock availability check and the stock decrement are separate database operations, creating a TOCTOU race condition that allows overselling.
 // impact: Concurrent purchase requests can both see available stock and both decrement it, resulting in more items sold than available and forcing the merchant to cancel orders.
 // improvement: Use a single atomic UPDATE with a stock guard (WHERE stock >= qty) or use a database transaction with row-level locking.
+// cwe: CWE-841
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function purchaseProduct(productId: string, quantity: number, userId: string, env: Env) {
   // VULNERABLE: read stock, then decrement — race window

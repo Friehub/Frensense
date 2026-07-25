@@ -2,6 +2,10 @@
 // observation: Webhook handler processes all incoming events without checking the event type against a whitelist, allowing unexpected event types to trigger unintended logic.
 // impact: A Stripe `payment_intent.canceled` event arriving at the `checkout.session.completed` endpoint could trigger account activation or order fulfillment for unpaid/cancelled orders.
 // improvement: Validate event type against an explicit allowlist before dispatching to handlers.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 import { Request, Response } from 'express';
 

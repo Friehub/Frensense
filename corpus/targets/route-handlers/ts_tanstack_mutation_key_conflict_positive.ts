@@ -2,6 +2,10 @@
 // observation: two unrelated mutations share the same mutation key, so `useMutationState` and cache observers from one mutation fire callbacks for the other
 // impact: cross-component side effects — a payment success listener fires when a unrelated profile update mutation completes
 // improvement: use unique, descriptive mutation keys that include a domain prefix
+// cwe: CWE-601
+// cvss: 6.1
+// owasp: A01:2021
+// severity: Medium
 
 import { useMutation, useMutationState } from '@tanstack/react-query'
 

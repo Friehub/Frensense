@@ -2,6 +2,10 @@
 // observation: React components pass untrusted or unvalidated props directly into dangerouslySetInnerHTML.
 // impact: Execution of arbitrary JavaScript in the victim's browser (Cross-Site Scripting, XSS) via malicious HTML payloads.
 // improvement: Sanitize the HTML using DOMPurify before injecting it, or prefer standard React rendering instead.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
 import { useState } from 'react';
 
 export function UserBio() {

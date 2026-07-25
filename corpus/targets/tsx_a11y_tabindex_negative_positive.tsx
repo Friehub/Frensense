@@ -2,6 +2,10 @@
 // observation: tabIndex={-1} applied to a focusable element, intentionally removing it from sequential keyboard navigation.
 // impact: Keyboard-only users cannot reach the element, creating a keyboard trap and violating WCAG 2.1.1.
 // improvement: Use tabIndex={0} for natural focus order or remove tabIndex entirely for native focusability.
+// cwe: CWE-20
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 interface FocusTrapProps {
   onClose: () => void;

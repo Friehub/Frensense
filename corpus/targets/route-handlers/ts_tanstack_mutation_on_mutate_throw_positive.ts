@@ -2,6 +2,10 @@
 // observation: `onMutate` performs an async operation (e.g., optimistic cache update) and throws an error without a try-catch, so the rejection propagates as an unhandled promise rejection
 // impact: the mutation's `onError` handler is never called, the optimistic update is never rolled back, and the UI remains in an incorrect state after the failure — plus an unhandled promise rejection warning in the console
 // improvement: wrap `onMutate` logic in a try-catch block and return the rollback context, or avoid throwing in `onMutate`
+// cwe: CWE-601
+// cvss: 6.1
+// owasp: A01:2021
+// severity: Medium
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 

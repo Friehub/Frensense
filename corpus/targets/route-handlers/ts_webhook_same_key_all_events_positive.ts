@@ -2,6 +2,10 @@
 // observation: Same webhook signing key reused across all event types — a leaked Stripe webhook secret for `invoice.paid` can forge `checkout.session.completed` events.
 // impact: Attacker who acquires the key via one integration path (e.g., repo leak, error log) can impersonate any webhook event type, triggering payments, refunds, or account changes.
 // improvement: Derive per-event-type signing keys or verify event type against a allowlist scoped per endpoint.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 import { Request, Response } from 'express';
 import crypto from 'crypto';

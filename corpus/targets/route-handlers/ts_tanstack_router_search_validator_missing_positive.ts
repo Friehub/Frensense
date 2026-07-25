@@ -2,6 +2,10 @@
 // observation: a route definition does not include a `validateSearch` option, so search params are not validated against a schema and arbitrary values can be injected
 // impact: search param injection — an attacker can craft a URL with malicious or unexpected search param values that bypass intended constraints (e.g., `?role=admin&page=-1`), potentially causing injection attacks or logic errors
 // improvement: add a `validateSearch` option to the route definition that uses zod (or another validator) to define and enforce the expected search param schema
+// cwe: CWE-601
+// cvss: 6.1
+// owasp: A01:2021
+// severity: Medium
 
 import { createRoute, createRootRoute, createRouter } from '@tanstack/react-router'
 

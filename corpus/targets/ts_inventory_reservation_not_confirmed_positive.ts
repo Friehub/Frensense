@@ -2,6 +2,10 @@
 // observation: An inventory reservation is created when the order is placed, but it is never confirmed after payment succeeds, leaving the reservation in a permanent limbo state.
 // impact: Reserved inventory is never converted to a confirmed deduction, so the stock remains artificially locked even after payment, potentially blocking other customers.
 // improvement: After payment succeeds, confirm the reservation by either converting it to a stock deduction or releasing it.
+// cwe: CWE-841
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function placeOrder(userId: string, productId: string, quantity: number, env: Env) {
   // Reserve inventory

@@ -2,6 +2,10 @@
 // observation: The tenant ID used to scope database queries is taken directly from the request body or URL parameter instead of from the authenticated user's session.
 // impact: An attacker can specify any tenant ID in the request, gaining access to another organization's data by simply changing the tenant ID parameter.
 // improvement: Always derive the tenant ID from the authenticated user's session or JWT token, never from client-supplied input.
+// cwe: CWE-200
+// cvss: 6.5
+// owasp: A01:2021
+// severity: Medium
 
 export async function getWorkspaceData(req: Request, db: DB): Promise<Response> {
   const tenantId = req.body.tenantId || req.query.tenantId;

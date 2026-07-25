@@ -2,6 +2,10 @@
 // observation: A component uses Tailwind's container query variants (`@max-sm:`, `@min-md:`) to render different UI content based on the container size. If user input controls the layout or container width, an attacker can manipulate the container size to trigger a different UI state that shows phishing content, fake login forms, or hides security elements.
 // impact: An attacker can manipulate container dimensions (via injected styles, resizing, or iframe) to trigger container query breakpoints that swap UI content. This enables phishing attacks where a legitimate-looking form appears only at specific container sizes, or security warnings are hidden at other sizes.
 // improvement: Never use container queries to show or hide security-critical content or authentication UI. Use container queries only for cosmetic responsive layout adjustments, and keep security UI consistent across all container sizes.
+// cwe: CWE-200
+// cvss: 4.3
+// owasp: 
+// severity: Low
 
 'use client';
 

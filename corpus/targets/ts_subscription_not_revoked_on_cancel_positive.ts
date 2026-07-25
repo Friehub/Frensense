@@ -2,6 +2,10 @@
 // observation: When a subscription is cancelled, the user's entitlements (e.g., premium features, storage, API access) are not immediately revoked.
 // impact: A user can cancel their subscription and continue enjoying premium features indefinitely until the next entitlement sync, causing ongoing revenue loss.
 // improvement: Immediately revoke all premium entitlements when the subscription is cancelled.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function cancelSubscription(subscriptionId: string, env: Env) {
   const sub = await env.DB.prepare(

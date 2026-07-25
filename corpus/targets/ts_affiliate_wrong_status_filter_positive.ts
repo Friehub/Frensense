@@ -2,6 +2,10 @@
 // observation: The commission eligibility check uses the wrong order status (COMPLETED instead of DELIVERED), so commissions are either paid too early or not at all.
 // impact: Orders that are actually delivered never trigger commission payouts if the filter checks for COMPLETED but orders transition to COMPLETED only after a separate step, or vice versa.
 // improvement: Use the correct order status that aligns with the business logic for when a commission should be earned.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function payAffiliateCommission(orderId: string, env: Env) {
   const order = await env.DB.prepare(

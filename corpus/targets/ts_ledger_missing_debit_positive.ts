@@ -2,6 +2,10 @@
 // observation: A ledger entry records a CREDIT without a corresponding DEBIT in the counterparty's ledger, breaking double-entry accounting.
 // impact: The accounting system becomes unbalanced; the total of all credits does not equal the total of all debits, enabling funds to be created from nothing or disappear without trace.
 // improvement: Always record both sides of a transaction atomically: CREDIT for the recipient and DEBIT for the sender.
+// cwe: CWE-841
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 export async function transferFunds(fromUserId: string, toUserId: string, amount: number, env: Env) {
   // VULNERABLE: credits the recipient but never debits the sender

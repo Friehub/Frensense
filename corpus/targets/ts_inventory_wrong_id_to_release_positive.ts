@@ -2,6 +2,10 @@
 // observation: The stock release function receives an orderId instead of a reservationId, attempting to release the wrong record and failing to restore inventory.
 // impact: Cancelling orders never actually releases stock because the releaseStock function queries by the wrong identifier, causing indefinite stock locking.
 // improvement: Pass the correct reservationId (not orderId) to the releaseStock function, or join through the order to find the reservation.
+// cwe: CWE-841
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 export async function cancelOrder(orderId: string, env: Env) {
   const order = await env.DB.prepare(

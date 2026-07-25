@@ -2,6 +2,10 @@
 // observation: Invoice generation does not check for an existing invoice before creating a new one, and no idempotency key is required.
 // impact: Duplicate invocations of the invoice endpoint create multiple invoices for the same order, leading to double-charging customers.
 // improvement: Use an idempotency key to ensure invoice generation is only processed once per request.
+// cwe: CWE-754
+// cvss: 6.5
+// owasp: 
+// severity: Medium
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

@@ -2,6 +2,10 @@
 // observation: Suspense is triggered by a state update without being wrapped in `startTransition`, causing the fallback to appear on every navigation
 // impact: unwanted fallbacks flash on every page transition, creating a jarring UX with loading spinners for fast navigations
 // improvement: wrap the state update in `startTransition` to let React avoid showing the fallback if the data loads quickly
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
 
 'use client'
 
