@@ -24,11 +24,12 @@ pub type FeatureVec = [f64; 11];
 // Index mapping: 0=ngram, 1=ast, 2=signature, 3=param_type, 4=type_usage,
 //                5=semantic, 6=cf, 7=api, 8=tainted_api, 9=motif, 10=flow
 //
-// KNOWN ISSUE: flow_sim (index 10) is 0.02 — too low to make data-flow paths
-// the primary signal. Raising it to 0.10-0.12 would eliminate the need for
-// M1-M15 mutation variants by making similarity API-invariant.
+// flow_sim (0.10) makes data-flow path similarity the primary generalization
+// signal — API-invariant (exec vs spawn vs Command::new all produce the
+// same UserInputSource→CommandExecutionSink path). Eliminates need for
+// M1-M15 mutation variants.
 // See docs/SCORING_DIMENSIONS.md for analysis.
-pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [0.12, 0.20, 0.08, 0.04, 0.03, 0.12, 0.10, 0.10, 0.15, 0.04, 0.02];
+pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10];
 
 /// Minimum number of positive + negative pairs required to train a per-category
 /// weight vector.  Below this threshold the fallback is returned.

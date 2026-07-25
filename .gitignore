@@ -68,3 +68,4 @@ tests/benchmarks/samples/
 
 # Secrets
 .env
+corpus/archived/
