@@ -2,6 +2,10 @@
 // observation: Multi-step form uses browser history state for flow control. Pressing the browser "back" button after step 1 reveals stale data (pre-filled fields, cached responses) that can be resubmitted.
 // impact: Idempotency bypass — resubmitting stale data from a previous step can trigger duplicate orders, double charges, or inconsistent application state.
 // improvement: Use server-side session state for flow control; invalidate previous steps on completion.
+// cwe: CWE-345
+// cvss: 5.3
+// owasp: A01:2021
+// severity: Medium
 
 import { Request, Response } from 'express';
 

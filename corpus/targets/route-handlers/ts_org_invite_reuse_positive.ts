@@ -2,6 +2,11 @@
 // observation: Organization invitation tokens can be used multiple times, allowing an invitee to join the org, leave, and re-join using the same token.
 // impact: Invitation tokens become permanent backdoors into organizations, bypassing admin approval for re-entry.
 // improvement: Mark invitation tokens as used after a single successful redemption, or tie them to a specific email address.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

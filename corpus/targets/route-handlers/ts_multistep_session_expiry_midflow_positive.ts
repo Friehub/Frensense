@@ -2,6 +2,10 @@
 // observation: Multi-step flow accumulates state across requests without handling session expiry midway. If the session expires between step 2 and step 3, the user sees a generic error and the accumulated data is lost.
 // impact: Poor UX leads to data loss and support tickets. Worse: if the flow partially commits (e.g., payment captured, but order not created), it creates financial inconsistencies without recovery.
 // improvement: Persist wizard state to database with a TTL; on expiry, provide a recovery link to resume from the last completed step.
+// cwe: CWE-613
+// cvss: 6.5
+// owasp: A07:2021
+// severity: Medium
 
 import { Request, Response } from 'express';
 

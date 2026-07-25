@@ -2,6 +2,10 @@
 // observation: The Express route accepts both Content-Length and Transfer-Encoding: chunked headers. When a reverse proxy parses Content-Length and the backend parses Transfer-Encoding, an attacker can craft a request that the front-end and back-end interpret differently.
 // impact: An attacker can smuggle a request past security checks, accessing protected endpoints or poisoning the socket pool for subsequent requests.
 // improvement: Reject requests that contain both Content-Length and Transfer-Encoding headers, or configure the proxy to strip one of them.
+// cwe: CWE-444
+// cvss: 8.6
+// owasp: A03:2021
+// severity: High
 
 import express from 'express';
 

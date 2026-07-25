@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to require() or createRequire(), allowing arbitrary module loading and code execution.
 // impact: An attacker can specify a path to a malicious module file, or a package name that executes arbitrary code during module loading, leading to RCE.
 // improvement: Validate the module path against an allowlist of permitted modules, or use a module registry.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 function loadPlugin(req: Request, res: Response) {
     const pluginName = req.body.plugin;

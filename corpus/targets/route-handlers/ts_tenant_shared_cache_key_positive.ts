@@ -2,6 +2,10 @@
 // observation: Cache keys (Redis, Memcached, in-memory) do not include a tenant namespace, so data from one tenant can be served to another.
 // impact: A user from Tenant A might see cached data belonging to Tenant B if the data was cached under a non-namespaced key, violating tenant isolation.
 // improvement: Prefix all cache keys with the tenant ID to ensure data isolation between tenants.
+// cwe: CWE-200
+// cvss: 6.5
+// owasp: A01:2021
+// severity: Medium
 
 import { Redis } from 'ioredis';
 

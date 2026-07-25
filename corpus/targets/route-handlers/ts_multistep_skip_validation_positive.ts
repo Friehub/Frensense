@@ -2,6 +2,10 @@
 // observation: Multi-step wizard validates input only on its own endpoint, but endpoints for later steps have no guard ensuring prior steps were completed — allowing direct calls to `/api/checkout/payment` without completing `/api/checkout/address`.
 // impact: State machine bypass — an attacker can skip validation steps (e.g., address verification, terms acceptance) by directly calling the final endpoint, resulting in incomplete or invalid orders.
 // improvement: Each endpoint must verify that all prerequisite steps are completed before processing.
+// cwe: CWE-862
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
 
 import { Request, Response } from 'express';
 

@@ -2,6 +2,10 @@
 // observation: Webhook handler retries downstream API calls on failure without circuit breaker or backoff, causing retry storms that amplify load.
 // impact: A downstream outage triggers exponential retry amplification, DDoSing the downstream service and incurring excessive costs.
 // improvement: Implement exponential backoff, circuit breaker, and max retry limits.
+// cwe: CWE-770
+// cvss: 7.5
+// owasp: A04:2021
+// severity: High
 
 import { Request, Response } from 'express';
 

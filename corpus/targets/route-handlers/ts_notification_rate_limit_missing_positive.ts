@@ -2,6 +2,10 @@
 // observation: The notification sending endpoint has no rate limiting, allowing an authenticated user to spam notifications to themselves or other users.
 // impact: Attackers can abuse the notification system to send thousands of emails/SMS, causing financial cost from third-party API usage and spam complaints.
 // improvement: Apply rate limiting per user per channel on notification endpoints.
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

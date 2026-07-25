@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed as a Common Expression Language (CEL) expression, allowing injection of arbitrary expressions that access data fields.
 // impact: An attacker can craft CEL expressions that access all fields of the input object, iterate over maps, or use CEL functions to extract sensitive data.
 // improvement: Validate the CEL expression against an allowlist or use a fixed expression with variables for user input.
+// cwe: CWE-94
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import { cel } from "cel-js";
 

@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to dynamic import(), allowing loading of arbitrary modules or URLs.
 // impact: An attacker can import malicious modules from npm or external URLs, leading to arbitrary code execution via the imported module's initialization code.
 // improvement: Validate the import path against an allowlist before calling import(), or use a static import map.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 async function loadFeature(req: Request, res: Response) {
     const moduleName = req.body.module;

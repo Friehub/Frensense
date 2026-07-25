@@ -2,6 +2,10 @@
 // observation: The proxy forwards hop-by-hop headers like Connection, Keep-Alive, and Transfer-Encoding to the backend without stripping them as required by the HTTP specification.
 // impact: An attacker can inject a Connection: Upgrade or Transfer-Encoding header that the proxy forwards, causing the backend to interpret the request differently than the proxy, enabling request smuggling.
 // improvement: Configure the proxy to strip all hop-by-hop headers (Connection, Keep-Alive, Transfer-Encoding, Upgrade, Proxy-Authorization, etc.) before forwarding requests to the backend.
+// cwe: CWE-444
+// cvss: 8.6
+// owasp: A03:2021
+// severity: High
 
 import express from 'express';
 import http from 'node:http';

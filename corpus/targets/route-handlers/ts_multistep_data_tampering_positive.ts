@@ -2,6 +2,10 @@
 // observation: Multi-step flow stores intermediate data in the client (hidden form fields, sessionStorage) or in server state without integrity protection. An attacker can tamper with accumulated step data between submissions.
 // impact: Price manipulation, address tampering, or privilege escalation — an attacker submits a legitimate step 1 (cart with $100 item), then modifies the stored data before step 2 to $1.
 // improvement: Store all intermediate data server-side with HMAC integrity; never trust client-stored accumulated state.
+// cwe: CWE-345
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
 
 import { Request, Response } from 'express';
 

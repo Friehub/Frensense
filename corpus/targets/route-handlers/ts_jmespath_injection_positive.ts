@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed as a JMESPath expression, allowing injection of arbitrary search expressions that can access and transform JSON data.
 // impact: An attacker can craft JMESPath expressions that access nested data, use functions like keys() or values() to enumerate structure, or perform data extraction.
 // improvement: Validate the JMESPath expression against an allowlist of safe expressions before evaluation.
+// cwe: CWE-643
+// cvss: 7.5
+// owasp: A03:2021
+// severity: High
 
 import { search } from "jmespath";
 
