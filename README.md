@@ -260,6 +260,8 @@ See `docs/AUTO_FILTER.md` for how the auto-filter learns 6 constraint types from
 See `docs/CORPUS_CONVENTIONS.md` for naming, tier requirements, and multi-API variant creation.
 See `docs/SCORING_DIMENSIONS.md` for the 11-dimensional similarity model, default weights,
 flow_sim generalization issue, and the complete scoring pipeline.
+See `docs/MATCH_EVIDENCE.md` for the per-dimension evidence breakdown — the equivalent
+of a compiler telling you which variable has a type error.
 
 ### Quality Scoring
 
