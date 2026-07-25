@@ -256,12 +256,17 @@ export default router;
 See `FRENSENSE_CORPUS_GUIDE.md` for the full quality guide, CWE mapping table,
 mutation guidelines, and the Frensense Hub corpus exchange proposal.
 
-See `docs/AUTO_FILTER.md` for how the auto-filter learns 6 constraint types from corpus pairs.
-See `docs/CORPUS_CONVENTIONS.md` for naming, tier requirements, and multi-API variant creation.
-See `docs/SCORING_DIMENSIONS.md` for the 11-dimensional similarity model, default weights,
-flow_sim generalization issue, and the complete scoring pipeline.
-See `docs/MATCH_EVIDENCE.md` for the per-dimension evidence breakdown — the equivalent
-of a compiler telling you which variable has a type error.
+## Documentation
+
+| Document | What it covers |
+|----------|---------------|
+| `docs/ARCHITECTURE.md` | Complete module map with every .rs file, key types, and design decisions |
+| `docs/AUTO_FILTER.md` | How the auto-filter learns 6 constraint types from corpus pairs |
+| `docs/CORPUS_CONVENTIONS.md` | Naming, tier requirements, multi-API variant creation |
+| `docs/SCORING_DIMENSIONS.md` | 11-dimensional similarity model, default weights, flow_sim generalization gap |
+| `docs/MATCH_EVIDENCE.md` | Per-dimension evidence breakdown — the equivalent of a compiler telling you which variable has a type error |
+| `FRENSENSE_CORPUS_GUIDE.md` | Five tiers, CWE mapping table, mutation guidelines |
+| `FRENSENSE_VS_LITERATURE.md` | Comparison against 227 academic studies from the 2025 systematic review |
 
 ### Quality Scoring
 
