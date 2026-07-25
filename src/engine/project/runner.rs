@@ -418,7 +418,16 @@ fn run_corpus_scan(
                     corpus_loaded = true;
                 }
                 Ok(_) => {}
-                Err(e) => eprintln!("Bundle load error: {e}"),
+                Err(_e) => {
+                    // Bundle format mismatch — fall through to corpus directory
+                }
+            }
+        }
+        // If bundle failed, try loading from the default corpus directory
+        if !corpus_loaded {
+            let default_corpus = std::path::Path::new("corpus/targets");
+            if default_corpus.exists() {
+                corpus_dirs.push(default_corpus);
             }
         }
     }

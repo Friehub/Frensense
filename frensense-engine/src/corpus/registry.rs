@@ -94,7 +94,44 @@ impl PatternRegistry {
         self.patterns = all_patterns;
         self.compute_and_apply_idf();
         self.build_lsh_index();
+        // Compute auto-filter stats from loaded patterns (fallback when bundle unavailable)
+        if self.auto_filter_stats.is_none() {
+            self.compute_auto_filter_stats(dirs);
+        }
         Ok(count)
+    }
+
+    /// Compute auto-derived semantic filter suggestions from corpus files.
+    /// Only used as a fallback when the embedded bundle doesn't contain them.
+    fn compute_auto_filter_stats(&mut self, dirs: &[&Path]) {
+        use std::collections::HashMap;
+        let mut source_texts = HashMap::new();
+        for dir in dirs {
+            collect_source_texts(dir, &mut source_texts);
+        }
+        if source_texts.is_empty() {
+            return;
+        }
+        // Convert patterns to BundlePattern format for the auto-filter function
+        let bundle_patterns: Vec<crate::corpus::bundle::BundlePattern> = self.patterns.iter().map(|p| {
+            crate::corpus::bundle::BundlePattern {
+                id: p.id.clone(),
+                positives: p.positives.clone(),
+                negatives: p.negatives.clone(),
+                semantic_filter: p.semantic_filter.clone(),
+                observation: p.observation.clone(),
+                impact: p.impact.clone(),
+                improvement: p.improvement.clone(),
+                expected_context: p.expected_context.clone(),
+                cwe: p.cwe.clone(),
+                cvss: p.cvss,
+                owasp: p.owasp.clone(),
+                severity: p.severity.clone(),
+                runtime_probe: p.runtime_probe.clone(),
+            }
+        }).collect();
+        let stats = crate::auto_filter::compute_auto_filters(&bundle_patterns, &source_texts);
+        self.auto_filter_stats = Some(stats);
     }
 
     /// Get the corpus-learned source/sink registry.
@@ -484,5 +521,27 @@ impl PatternRegistry {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         matches
+    }
+}
+
+/// Recursively collect source texts from a corpus directory for auto-filter computation.
+fn collect_source_texts(
+    dir: &std::path::Path,
+    out: &mut std::collections::HashMap<String, String>,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return; };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_source_texts(&path, out);
+        } else if path.is_file() {
+            let fname = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            // Only collect positive and negative files
+            if fname.contains("_positive") || fname.contains("_negative") {
+                if let Ok(src) = std::fs::read_to_string(&path) {
+                    out.insert(fname.to_string(), src);
+                }
+            }
+        }
     }
 }

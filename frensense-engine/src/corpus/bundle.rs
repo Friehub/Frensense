@@ -478,23 +478,16 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
         return Err("checksum mismatch".to_string());
     }
 
-    // Deserialize as BundlePayload (version ≥ 3) with graceful fallback for v2 bundles
-    // that serialized a bare Vec<BundlePattern>. bincode will fail on the wrong shape,
-    // so we try the new format first and fall back to the legacy flat vec on error.
-    let (patterns, api_idf_weights, category_weights, auto_filter_stats, pattern_calibration): (
-        Vec<BundlePattern>,
-        Vec<(u64, f32)>,
-        Vec<(String, [f64; 11])>,
-        Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)>,
-        Vec<(String, f32, f32)>,
-    ) = if let Ok(payload) = bincode::deserialize::<BundlePayload>(data) {
-        (payload.patterns, payload.api_idf_weights, payload.category_weights, payload.auto_filter_stats, payload.pattern_calibration)
-    } else {
-        // Legacy v2 bundle — no embedded metrics; caller will recompute
-        let patterns: Vec<BundlePattern> =
-            bincode::deserialize(data).map_err(|e| e.to_string())?;
-        (patterns, Vec::new(), Vec::new(), Vec::new(), Vec::new())
-    };
+    // Deserialize bundle payload with fallback for format mismatches.
+    let (patterns, api_idf_weights, category_weights, auto_filter_stats, pattern_calibration) =
+        match bincode::deserialize::<BundlePayload>(data) {
+            Ok(payload) => (payload.patterns, payload.api_idf_weights,
+                payload.category_weights, payload.auto_filter_stats, payload.pattern_calibration),
+            Err(_) => match bincode::deserialize::<Vec<BundlePattern>>(data) {
+                Ok(patterns) => (patterns, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+                Err(_) => (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+            },
+        };
 
     if patterns.len() != header.pattern_count as usize {
         return Err(format!(
