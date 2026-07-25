@@ -256,6 +256,9 @@ export default router;
 See `FRENSENSE_CORPUS_GUIDE.md` for the full quality guide, CWE mapping table,
 mutation guidelines, and the Frensense Hub corpus exchange proposal.
 
+See `docs/AUTO_FILTER.md` for how the auto-filter learns 6 constraint types from corpus pairs.
+See `docs/CORPUS_CONVENTIONS.md` for naming, tier requirements, and multi-API variant creation.
+
 ### Quality Scoring
 
 ```bash
