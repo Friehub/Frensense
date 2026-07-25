@@ -2,6 +2,10 @@
 // observation: XML parser configured with external entity expansion enabled, allowing XXE (XML External Entity) attacks via DOCTYPE declarations.
 // impact: Attackers can read local files (file:///etc/passwd), perform SSRF to internal services, or cause denial of service via billion laughs attack. XXE is one of the most critical XML vulnerabilities.
 // improvement: Disable external entity processing (DTD, entities, external general entities) in the XML parser configuration.
+// cwe: CWE-611
+// cvss: 7.5
+// owasp: A05:2021
+// severity: High
 
 import { parseString } from 'xml2js';
 

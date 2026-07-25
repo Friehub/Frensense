@@ -2,6 +2,10 @@
 // observation: intercepted route `(..)photo/[id]` bypasses the layout's auth check
 // impact: unauthenticated users access protected content via modal interception
 // improvement: duplicate auth check in the intercepted route or use a shared guard
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { use } from 'react'
 

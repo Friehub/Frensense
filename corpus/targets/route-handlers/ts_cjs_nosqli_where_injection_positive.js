@@ -2,6 +2,10 @@
 // observation: The $where operator in a MongoDB query uses string interpolation with user-controlled input, allowing server-side JavaScript injection.
 // impact: An attacker can inject arbitrary JavaScript into the $where clause, potentially extracting data from other collections, causing denial of service, or in some configurations achieving remote code execution.
 // improvement: Avoid $where entirely. Use regular query operators like $eq, $gt, $in with sanitized inputs. If $where is unavoidable, validate input strictly against an allowlist.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 var express = require('express');
 

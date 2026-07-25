@@ -2,6 +2,10 @@
 // observation: An auth token is invalidated (e.g., removed from the DB or cache) but a concurrent request that already passed token validation completes with the now-revoked token. The revoker and the token holder race.
 // impact: A revoked session or token can still be used if a request was in-flight during the revocation — the check passed before the token was removed but the action occurs after.
 // improvement: Use a token version number or blacklist check at the critical action point, not just at the entry middleware.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 import express from "express";
 

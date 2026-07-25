@@ -2,6 +2,10 @@
 // observation: User-controlled input is used to construct an LDAP distinguished name (DN) for bind/add/delete operations, allowing LDAP injection via crafted DN components.
 // impact: An attacker can manipulate the DN structure to bind as a different user, add entries to unauthorized parts of the tree, or delete arbitrary directory entries.
 // improvement: Escape DN special characters in each RDN component before constructing the DN string.
+// cwe: CWE-90
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import ldap from "ldapjs";
 

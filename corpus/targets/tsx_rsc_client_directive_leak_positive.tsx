@@ -2,6 +2,10 @@
 // observation: `'use client'` component imports a server-only module (database client, internal tokens) causing the server-only code to be bundled into the client JavaScript
 // impact: server-side secrets, database credentials, and internal APIs are exposed in the client bundle
 // improvement: keep server-only imports in server components; pass data as props from server to client
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

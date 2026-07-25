@@ -2,6 +2,10 @@
 // observation: The data export endpoint processes and returns a full data archive without requiring the user to re-authenticate or confirm their password.
 // impact: If a user's session is hijacked or left unattended, an attacker can exfiltrate all of the user's data in a single export request.
 // improvement: Require re-authentication (password confirmation) before initiating a data export.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

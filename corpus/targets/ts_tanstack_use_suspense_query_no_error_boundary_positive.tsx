@@ -2,6 +2,10 @@
 // observation: `useSuspenseQuery` is used without a `<Suspense>` or `<ErrorBoundary>` parent, so when the query is pending or fails, React throws the promise/error unhandled
 // impact: the entire component tree unmounts or the app crashes with an unhandled error when the query is loading or fails, because no Suspense boundary catches the thrown promise
 // improvement: wrap the component using `useSuspenseQuery` in a `<Suspense fallback={...}>` and optionally an `<ErrorBoundary>` to handle loading and error states gracefully
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 import { useSuspenseQuery } from '@tanstack/react-query'
 

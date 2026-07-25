@@ -2,6 +2,10 @@
 // observation: The same state parameter value is reused across multiple OAuth authorization flows, making CSRF attacks possible.
 // impact: An attacker can forge an authorization response using a captured state value, enabling CSRF-based account linking attacks.
 // improvement: Generate a unique, cryptographically random state value for each authorization request and validate it on callback.
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import { Injectable } from '@angular/core';
 

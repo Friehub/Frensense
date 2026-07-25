@@ -2,6 +2,10 @@
 // observation: Regex validation pattern missing ^ and $ anchors, allowing partial matches against invalid input.
 // impact: A pattern like /\\d{5}/ matches 'abc12345xyz' as valid, even though the full value should be exactly 5 digits. Attackers can inject malicious content as a prefix or suffix.
 // improvement: Always anchor regex patterns with ^ at the start and $ at the end for full-string validation.
+// cwe: CWE-1333
+// cvss: 7.5
+// owasp: A06:2021
+// severity: High
 
 function isValidZipCode(zip: string): boolean {
   // VULNERABLE: no anchors — matches substring

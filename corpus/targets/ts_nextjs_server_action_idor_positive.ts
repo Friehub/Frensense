@@ -2,6 +2,10 @@
 // observation: A Server Action accepts a `userId` parameter from the client and uses it to look up or modify data without verifying that the authenticated user owns that userId.
 // impact: An attacker can supply any arbitrary `userId` to read or modify other users' data, leading to horizontal privilege escalation.
 // improvement: Derive the user identity from the session token rather than trusting client-provided parameters, or verify ownership before acting.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
 
 'use server'
 

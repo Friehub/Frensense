@@ -2,6 +2,10 @@
 // observation: The BFF response times differ measurably based on whether the user is logged in (session lookup) versus anonymous (no session lookup), creating a timing side-channel.
 // impact: An attacker can enumerate valid user accounts or detect logged-in sessions by measuring response latency across the BFF.
 // improvement: Ensure anonymous and authenticated code paths take the same amount of time, or deny information at the edge before the BFF.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { Request, Response } from 'express';
 

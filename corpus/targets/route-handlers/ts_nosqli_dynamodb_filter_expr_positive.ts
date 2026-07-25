@@ -2,6 +2,10 @@
 // observation: User-controlled values are concatenated directly into DynamoDB FilterExpression strings, allowing NoSQL injection through expression attribute manipulation.
 // impact: An attacker can craft input that breaks the expression syntax, bypassing filters or extracting data from unrelated attributes.
 // improvement: Use ExpressionAttributeValues with placeholders (:val) instead of string concatenation in FilterExpression.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";

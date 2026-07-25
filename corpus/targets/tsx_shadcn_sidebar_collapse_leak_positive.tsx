@@ -2,6 +2,10 @@
 // observation: shadcn sidebar collapsed state reveals sensitive navigation labels via CSS `::after` pseudo-elements or tooltip fallbacks when collapsed
 // impact: information disclosure — sensitive nav item labels (e.g., "Admin Panel", "User 123's Account") are exposed through tooltips or aria-labels even in collapsed state
 // improvement: conditionally render aria-labels or use a controlled tooltip that respects collapsed state
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

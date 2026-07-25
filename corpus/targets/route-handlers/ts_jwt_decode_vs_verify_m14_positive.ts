@@ -2,6 +2,10 @@
 // observation: JWT token is decoded without verifying the signature with renamed variables.
 // impact: An attacker can craft arbitrary JWTs.
 // improvement: Always use jwt.verify() instead of jwt.decode()
+// cwe: CWE-345
+// cvss: 9.1
+// owasp: A02:2021
+// severity: Critical
 
 import jwt from "jsonwebtoken";
 

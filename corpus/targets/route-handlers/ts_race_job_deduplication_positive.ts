@@ -2,6 +2,10 @@
 // observation: A queue message/job is processed without deduplication; if the job is delivered twice (at-least-once semantics), it runs twice instead of once.
 // impact: Duplicate processing: double-charge, duplicate notification, or duplicate database writes for the same job.
 // improvement: Use a deduplication key (job ID or idempotency key) with a unique constraint in the database before processing each job.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 import express from "express";
 

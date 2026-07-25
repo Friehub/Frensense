@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to nunjucks.renderString() as a template, allowing server-side template injection via Nunjucks syntax.
 // impact: An attacker can inject {{ }} expressions to access the global context, call template functions, or execute arbitrary code through Nunjucks built-in features.
 // improvement: Use static template files with nunjucks.render() and pass user input only as context data.
+// cwe: CWE-1336
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import nunjucks from "nunjucks";
 

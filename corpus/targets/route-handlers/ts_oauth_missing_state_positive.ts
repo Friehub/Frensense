@@ -2,6 +2,10 @@
 // observation: The OAuth authorization flow initiates without generating or validating the state parameter, leaving the callback vulnerable to CSRF attacks.
 // impact: An attacker can initiate an OAuth flow, intercept the callback, and link the victim's account to an attacker-controlled identity, resulting in account takeover.
 // improvement: Generate a cryptographically random state value, store it in the session before redirect, and verify it in the callback handler.
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 export function initiateGoogleLogin(req: Request, res: Response): void {
   const redirectUri = 'https://app.example.com/callback';

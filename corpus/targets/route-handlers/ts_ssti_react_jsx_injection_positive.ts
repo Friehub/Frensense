@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to eval() or new Function() within JSX rendering logic, allowing code injection through React element construction.
 // impact: An attacker can inject arbitrary JavaScript execution on the server by crafting input that reaches eval() inside React.createElement or JSX compilation.
 // improvement: Never use eval() with user input; use React.createElement directly with validated props.
+// cwe: CWE-1336
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import React from "react";
 import { renderToString } from "react-dom/server";

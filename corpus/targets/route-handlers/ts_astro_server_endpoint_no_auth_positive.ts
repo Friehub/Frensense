@@ -2,6 +2,10 @@
 // observation: Astro API endpoint handler does not verify authentication before returning data
 // impact: unauthenticated users can access sensitive data through the endpoint
 // improvement: check for auth token or session cookie at the start of each endpoint handler
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import type { APIRoute } from 'astro'
 import { db, eq, users } from 'astro:db'

@@ -2,6 +2,10 @@
 // observation: AES-CBC or AES-GCM initialized with a fixed, hardcoded IV or nonce.
 // impact: Reusing an IV with the same key destroys the semantic security of the cipher. For CBC, the first block can be recovered. For GCM, the authentication key is compromised.
 // improvement: Generate a fresh random IV for every encryption operation using crypto.randomBytes().
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { createCipheriv } from 'node:crypto';
 

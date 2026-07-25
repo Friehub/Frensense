@@ -2,6 +2,10 @@
 // observation: `useTransition` `isPending` flag is used to display the internal operation name in the loading indicator
 // impact: attackers can observe which internal operation is running, leaking business logic and operation identifiers
 // improvement: use a generic loading message that does not expose internal operation names
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

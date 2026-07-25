@@ -2,6 +2,10 @@
 // observation: In a serverless environment, data from a previous request stored at module scope is visible to a new request during cold-start reuse.
 // impact: User A's private data may be returned to User B when the cloud provider reuses the same execution environment.
 // improvement: Never store per-request data in module-level variables. Use external storage like KV or databases.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 const requestCache = new Map<string, any>();
 

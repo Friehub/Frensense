@@ -2,6 +2,10 @@
 // observation: User-controlled input is used as an LDAP attribute name in search or compare operations, allowing injection of unintended attribute access.
 // impact: An attacker can specify arbitrary attribute names to extract sensitive directory data (e.g., userPassword, ssn) from LDAP entries.
 // improvement: Validate attribute names against an allowlist before using them in LDAP operations.
+// cwe: CWE-90
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import ldap from "ldapjs";
 

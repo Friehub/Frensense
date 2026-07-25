@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to Mustache.render() as a template string, allowing injection via Mustache tags that reference context properties.
 // impact: An attacker can access any property in the render context using {{ }} syntax, potentially leaking sensitive data or triggering side effects via getters.
 // improvement: Use precompiled Mustache templates from disk and pass user input only as view data.
+// cwe: CWE-1336
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import Mustache from "mustache";
 

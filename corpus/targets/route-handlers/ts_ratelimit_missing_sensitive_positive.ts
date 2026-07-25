@@ -2,6 +2,10 @@
 // observation: The login/OTP/reset endpoint has no rate limiting, allowing an unlimited number of requests in a short time.
 // impact: An attacker can brute-force passwords or OTP codes without any throttling, gaining unauthorized access to accounts.
 // improvement: Apply rate limiting to sensitive endpoints using a sliding window or token bucket algorithm, keyed by IP and/or user ID.
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 export async function login(req: Request, env: Env) {
   const { email, password } = await req.json() as { email: string; password: string };

@@ -2,6 +2,10 @@
 // observation: The application checks if a session exists for a user before creating a new one, but the check and creation are not atomic. Two concurrent login requests can both pass the check and create duplicate sessions.
 // impact: A user logging in twice rapidly can end up with two valid sessions, each with different session tokens, potentially causing state confusion or security bypass.
 // improvement: Use a unique constraint on user_id in the sessions table, or wrap the check+create in a transaction.
+// cwe: CWE-384
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import express from "express";
 

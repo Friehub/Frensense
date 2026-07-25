@@ -2,6 +2,10 @@
 // observation: `screen.debug()` from @testing-library/react is left in a production component, printing the entire DOM snapshot to the console
 // impact: information disclosure — DOM snapshot contains sensitive data (user emails, CSRF tokens, internal IDs) that are leaked via browser console
 // improvement: remove `screen.debug()` calls from production code; use a build-time lint rule to catch them
+// cwe: CWE-489
+// cvss: 5.3
+// owasp: A05:2021
+// severity: Medium
 
 'use client'
 

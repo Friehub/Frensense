@@ -2,6 +2,10 @@
 // observation: "Rate limiting is configured but the rate limit headers (RateLimit-Remaining, RateLimit-Reset, etc.) are not sent to the client."
 // impact: "Clients cannot observe their remaining quota or when the limit resets, causing poor user experience and unnecessary retries that increase server load."
 // improvement: "Enable standard rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, or the Retry-After header on 429)."
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 import rateLimit from 'express-rate-limit';
 import express from 'express';

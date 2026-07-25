@@ -2,6 +2,10 @@
 // observation: A server action returns the full database result object directly, potentially including sensitive fields like passwordHash or internal IDs.
 // impact: Sensitive data is returned to the client and can be inspected in network responses or React dev tools.
 // improvement: Select only the fields needed for the client response and never return raw database objects.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use server';
 

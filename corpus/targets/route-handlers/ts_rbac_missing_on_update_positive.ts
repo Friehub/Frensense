@@ -2,6 +2,10 @@
 // observation: Create operations enforce RBAC checks, but update operations on the same resource type do not.
 // impact: Users who can create resources (e.g., draft articles) can update resources they should not be able to edit (e.g., published articles or other users' articles), leading to unauthorized data modification.
 // improvement: Apply consistent RBAC checks across all CRUD operations (create, read, update, delete).
+// cwe: CWE-284
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 export async function createArticle(req: Request, db: DB): Promise<Response> {
   const session = getSession(req);

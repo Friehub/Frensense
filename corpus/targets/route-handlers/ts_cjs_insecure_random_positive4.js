@@ -2,6 +2,10 @@
 // observation: Math.random() is used for security-sensitive values like reset tokens.
 // impact: Math.random() is not cryptographically secure. An attacker can predict future tokens by enumerating possible values.
 // improvement: Use crypto.randomBytes() or crypto.randomUUID() for all security-sensitive random values.
+// cwe: CWE-338
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 function TokenController(db) {
     "use strict";

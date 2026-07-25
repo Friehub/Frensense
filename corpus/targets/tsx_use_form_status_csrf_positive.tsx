@@ -2,6 +2,10 @@
 // observation: `useActionState` form handler does not include or validate a CSRF token before processing the request
 // impact: attackers can forge cross-site requests that execute state-changing actions without user consent
 // improvement: include a server-validated CSRF token in the form action or use SameSite cookies with CSRF header checks
+// cwe: CWE-352
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 'use client'
 

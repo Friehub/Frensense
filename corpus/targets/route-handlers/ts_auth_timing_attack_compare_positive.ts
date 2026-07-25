@@ -2,6 +2,10 @@
 // observation: Password comparison uses (===) which is not constant-time, leaking character-by-character timing information.
 // impact: An attacker can determine the correct password through network timing measurements, drastically reducing brute-force attempts.
 // improvement: Use crypto.timingSafeEqual() or bcrypt.compare() for constant-time comparison.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import crypto from 'crypto';
 

@@ -2,6 +2,10 @@
 // observation: the error boundary fallback renders user-controlled input (e.g., from error.message or URL params) without sanitization
 // impact: XSS — an attacker can craft an error message or URL parameter that executes arbitrary JavaScript in the fallback UI
 // improvement: sanitize any user-influenced text in the error boundary fallback before rendering
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 'use client'
 

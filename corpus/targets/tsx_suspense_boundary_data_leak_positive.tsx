@@ -2,6 +2,10 @@
 // observation: an error boundary wraps a Suspense fallback or async component that throws during fetch — the error boundary catches the rejection and renders error details including the stack trace
 // impact: internal fetch URLs, query parameters, and server error messages are exposed to users through the error boundary UI
 // improvement: sanitize the error before rendering; never show error.message or error.stack to users
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

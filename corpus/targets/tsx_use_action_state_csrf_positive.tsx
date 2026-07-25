@@ -2,6 +2,10 @@
 // observation: `useActionState` action performs a state-changing fetch without including or validating a CSRF token
 // impact: cross-site request forgery — an attacker can submit the form from a malicious site and the server accepts the state change
 // improvement: include a server-validated CSRF token in the action payload or use SameSite cookies with a custom header check
+// cwe: CWE-352
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 'use client'
 

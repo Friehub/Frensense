@@ -2,6 +2,10 @@
 // observation: Login endpoint returns different error messages for 'user not found' vs 'wrong password', allowing attackers to enumerate valid usernames.
 // impact: An attacker can compile a list of valid user accounts by trying many emails/usernames and observing the error message. This list feeds credential stuffing, phishing, or targeted attacks.
 // improvement: Return the same generic error message regardless of which credential is incorrect.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;

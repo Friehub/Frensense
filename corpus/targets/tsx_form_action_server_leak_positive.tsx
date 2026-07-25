@@ -2,6 +2,10 @@
 // observation: `<form>` uses a server action reference directly in the `action` prop, which embeds the internal action ID in the client bundle
 // impact: the server action's internal identifier (e.g., hashed function name) is exposed in the HTML/JS bundle, enabling CSRF or action enumeration attacks
 // improvement: use a wrapper API endpoint or pass the action through a server component with proper CSRF protection
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

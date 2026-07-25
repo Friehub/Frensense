@@ -2,6 +2,10 @@
 // observation: PBKDF2 invoked with 10,000 iterations, well below the OWASP 2023 minimum recommendation of 600,000 for SHA-256.
 // impact: Weak derivation allows attackers to brute-force the derived key at high speed given the password hash.
 // improvement: Use at least 600,000 iterations for SHA-256 or switch to a memory-hard KDF like scrypt or argon2.
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 

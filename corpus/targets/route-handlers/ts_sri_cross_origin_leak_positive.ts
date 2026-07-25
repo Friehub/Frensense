@@ -2,6 +2,10 @@
 // observation: A script is loaded with an integrity attribute but without the crossorigin="anonymous" attribute. When CORS is not explicitly requested via the crossorigin attribute, the browser cannot perform the integrity check because the script response may not be CORS-enabled.
 // impact: Modern browsers skip the SRI integrity check on cross-origin scripts that do not include the crossorigin attribute. The script loads and executes even if its content does not match the integrity hash, rendering the SRI protection useless.
 // improvement: Always add crossorigin="anonymous" to cross-origin <script> elements that include an integrity attribute.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import express from 'express';
 

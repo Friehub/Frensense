@@ -2,6 +2,10 @@
 // observation: A server component recursively renders deeply nested child components based on user-controlled depth parameter, creating an exponential rendering tree.
 // impact: An attacker can supply a large depth value causing the server to exhaust memory and crash, leading to denial of service (CVE-2025-55184 variant).
 // improvement: Impose a maximum recursion depth limit, or use an iterative approach instead of recursive component rendering.
+// cwe: CWE-400
+// cvss: 7.5
+// owasp: 
+// severity: High
 // CVE: CVE-2025-55184
 
 import { ReactNode } from 'react'

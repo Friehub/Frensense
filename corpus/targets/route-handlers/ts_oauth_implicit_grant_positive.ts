@@ -2,6 +2,10 @@
 // observation: OAuth2 implicit grant flow is used, returning the access token in the URL fragment after redirect.
 // impact: Access tokens are exposed in the browser URL and browser history, making them vulnerable to leakage via referrer headers and shoulder surfing.
 // improvement: Use the authorization code flow with PKCE instead of the deprecated implicit grant.
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';

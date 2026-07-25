@@ -2,6 +2,10 @@
 // observation: A Hono application uses a hardcoded, short, or weak secret for signing cookies, making signed cookies trivial to forge.
 // impact: An attacker can forge signed session cookies, impersonate other users, or tamper with signed cookie values.
 // improvement: Use a cryptographically random secret of at least 32 characters, stored in an environment variable.
+// cwe: CWE-614
+// cvss: 5.4
+// owasp: A02:2021
+// severity: Medium
 
 import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';

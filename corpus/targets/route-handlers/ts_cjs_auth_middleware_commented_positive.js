@@ -2,6 +2,10 @@
 // observation: The authentication middleware call in the route definition is commented out, leaving the endpoint unprotected and accessible to unauthenticated users.
 // impact: Any unauthenticated user can access the admin panel, perform privileged operations, or access sensitive data without providing credentials.
 // improvement: Ensure the authentication middleware is active and not commented out, and enforce auth at the router level rather than individual routes.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 var express = require('express');
 

@@ -2,6 +2,10 @@
 // observation: Two subscription activation requests can run concurrently; both check whether a subscription exists and both proceed to activate a new subscription, creating duplicate subscriptions.
 // impact: The same user ends up with two active subscriptions, double-billed for the same period, or duplicate access grants.
 // improvement: Use a unique constraint on user_id + plan_id in active subscriptions, or wrap the check+create in a transaction.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 import express from "express";
 

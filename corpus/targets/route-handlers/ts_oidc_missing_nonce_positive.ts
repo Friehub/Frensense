@@ -2,6 +2,10 @@
 // observation: The OIDC callback verifies the ID token signature and expiration but does not validate the nonce claim.
 // impact: An attacker can replay an intercepted ID token in a different authentication session, potentially linking a victim's account to an attacker-controlled identity.
 // improvement: Generate a nonce before the authorization request, store it in the session, and validate it against the nonce claim in the ID token.
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import { Issuer } from 'openid-client';
 

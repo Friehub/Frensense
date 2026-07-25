@@ -2,6 +2,10 @@
 // observation: A GraphQL union or interface type has a resolver that returns sensitive data for specific member types without checking whether the requesting user is authorized to see that data.
 // impact: An attacker can query a union field and, by using inline fragments, extract sensitive fields from restricted types that should not be visible to their role.
 // improvement: Add authorization checks in the type resolver or in each member type's field resolvers before returning sensitive data.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { ApolloServer, gql } from 'apollo-server-express';
 

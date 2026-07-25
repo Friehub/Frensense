@@ -2,6 +2,10 @@
 // observation: A cache check (key lookup) and cache write (key set) are not atomic. Two concurrent requests for the same uncached data both miss the cache, both compute the value, and both write to the cache, causing duplicate work and potential data inconsistency.
 // impact: Cache stampede — multiple concurrent requests repeat expensive computation (DB query, API call) after a cache miss, wasting resources and potentially returning stale data.
 // improvement: Use an atomic SETNX (set-if-not-exists) operation to ensure only one request computes and writes the cache value.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 import express from "express";
 

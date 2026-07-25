@@ -2,6 +2,10 @@
 // observation: The API key is included verbatim in error responses returned to the client, exposing the full credential in stack traces or validation errors.
 // impact: An attacker who triggers a validation error via malformed input receives the raw API key in the response body, enabling unauthorized API access.
 // improvement: Never include raw credentials in error responses. Log them server-side and redact or omit them from client-facing output.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { Router, Request, Response } from 'express';
 

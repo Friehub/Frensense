@@ -2,6 +2,10 @@
 // observation: MD5 hash used for security-sensitive purpose such as password verification or signature.
 // impact: MD5 is vulnerable to collision attacks and can be computed at high speed (10+ GHash/s on consumer hardware), making it trivially reversible for common passwords.
 // improvement: Use bcrypt, scrypt, or argon2 for password hashing. Use SHA-256 with a keyed HMAC for signatures.
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { createHash } from 'node:crypto';
 

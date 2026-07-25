@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed directly to Redis EVAL as a Lua script, allowing arbitrary server-side command execution.
 // impact: An attacker can inject malicious Lua code that reads or modifies any key in the Redis database, bypassing access controls and potentially compromising the entire cache layer.
 // improvement: Never pass user input to EVAL/EVALSHA as a script. Use parameterized Redis commands or pass user values as KEYS/ARGV to the script instead.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import { createClient } from "redis";
 

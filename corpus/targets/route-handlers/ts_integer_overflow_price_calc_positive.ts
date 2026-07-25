@@ -2,6 +2,10 @@
 // observation: Price multiplied by quantity without overflow protection. JavaScript uses IEEE 754 doubles — integers above Number.MAX_SAFE_INTEGER (9,007,199,254,740,991) lose precision.
 // impact: Large quantities or prices cause silent precision loss. $9,007,199,254,740,992 + 1 = $9,007,199,254,740,992 (no change). E-commerce platforms with high-volume orders or cryptocurrency microtransactions are most at risk.
 // improvement: Use BigInt for financial calculations, or check against Number.MAX_SAFE_INTEGER before multiplication.
+// cwe: CWE-190
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 app.post('/api/checkout', async (req, res) => {
   const items = req.body.items;

@@ -2,6 +2,10 @@
 // observation: The entire request body is passed directly as a MongoDB query selector without any sanitization or schema validation.
 // impact: An attacker can inject operators like $gt, $ne, $regex, or $where to escalate privileges, bypass authentication, or extract all documents from a collection.
 // improvement: Strip query operators from user input or whitelist allowed fields before constructing the query.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { MongoClient } from "mongodb";
 

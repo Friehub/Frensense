@@ -2,6 +2,10 @@
 // observation: Full-text search endpoint searches across all documents without filtering by document visibility or user permissions, returning results the user should not have access to.
 // impact: Cross-tenant data leak via search — a user in tenant A searches for "confidential" and sees documents from tenant B, or a low-privilege user searches across admin-only records.
 // improvement: Always apply permission filters to search queries; restrict search index to documents the user is authorized to access.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';

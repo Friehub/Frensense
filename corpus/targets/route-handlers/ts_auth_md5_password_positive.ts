@@ -2,6 +2,10 @@
 // observation: User passwords are hashed using the MD5 algorithm, which is cryptographically broken and vulnerable to collision and preimage attacks.
 // impact: An attacker who gains access to the password database can reverse or rainbow-table MD5 hashes to recover plaintext passwords.
 // improvement: Use a strong, adaptive hashing algorithm like bcrypt, scrypt, or Argon2.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import crypto from 'crypto';
 

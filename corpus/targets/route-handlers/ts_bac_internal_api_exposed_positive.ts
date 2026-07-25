@@ -2,6 +2,10 @@
 // observation: An internal service-to-service API endpoint is accessible from the public internet without authentication or network-level restrictions.
 // impact: External attackers can call internal APIs directly, bypassing the main application's authentication and authorization controls, leading to data breaches or privilege escalation.
 // improvement: Restrict internal APIs to the internal network (firewall rules, Kubernetes network policies) and require a service-to-service authentication token.
+// cwe: CWE-284
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 import express from 'express';
 

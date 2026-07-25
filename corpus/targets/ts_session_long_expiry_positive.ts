@@ -2,6 +2,10 @@
 // observation: JWT or session cookie is issued with an excessively long expiry (365 days or no expiry at all) with no revocation mechanism.
 // impact: A stolen token remains valid for an entire year. Without a revocation list, there is no way to invalidate a compromised session.
 // improvement: Use short expiry (15-60 minutes) combined with refresh tokens, or at most 7 days for long-lived sessions with a revocation mechanism.
+// cwe: CWE-384
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import jwt from 'jsonwebtoken';
 

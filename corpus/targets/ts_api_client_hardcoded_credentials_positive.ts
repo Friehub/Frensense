@@ -2,6 +2,10 @@
 // observation: API client credentials such as usernames, passwords, or tokens are hardcoded directly in the source code.
 // impact: Credentials are exposed to anyone with access to the source code, version control history, or compiled bundles. An attacker with read access can reuse these credentials against production systems.
 // improvement: Read credentials from environment variables or a secrets manager at runtime.
+// cwe: CWE-798
+// cvss: 9.8
+// owasp: A02:2021
+// severity: Critical
 
 const API_USERNAME = 'admin';
 const API_PASSWORD = 'super_secret_p@ssw0rd';

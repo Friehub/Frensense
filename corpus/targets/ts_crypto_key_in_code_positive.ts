@@ -2,6 +2,10 @@
 // observation: Encryption key, HMAC secret, or signing key hardcoded as a string literal in source code.
 // impact: Anyone with access to the source repository (developers, CI logs, npm packages) can extract the key. Compromise of one deployment compromises all encrypted data.
 // improvement: Load keys from environment variables, a secrets manager (HashiCorp Vault, AWS Secrets Manager), or encrypted config files.
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { createCipheriv, createDecipheriv, createHmac } from 'node:crypto';
 

@@ -2,6 +2,10 @@
 // observation: A state-changing API route (POST/PUT/DELETE) parses cookies for authentication but fails to validate a CSRF token.
 // impact: An attacker can host a malicious site that submits state-changing requests to the API using the victim's ambient cookie credentials (CSRF).
 // improvement: Require a custom request header (e.g., X-CSRF-Token) or migrate to Bearer token authentication instead of ambient cookies.
+// cwe: CWE-352
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 app.post('/api/settings/update', async (req, res) => {
   // VULNERABLE: Relies strictly on a cookie for auth, with no CSRF guard

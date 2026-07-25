@@ -2,6 +2,10 @@
 // observation: HTTP response headers leak framework or server version information (X-Powered-By, Server, x-powered-by).
 // impact: Version strings help attackers identify known CVEs for the specific framework version. Express 4.17.1 has different vulnerabilities than 4.18.0. This information is used in targeted exploit selection.
 // improvement: Disable X-Powered-By, configure Server header minimally, and remove version numbers from response headers.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import express from 'express';
 

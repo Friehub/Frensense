@@ -2,6 +2,10 @@
 // observation: A layout uses Partial Prerendering (PPR) with a static shell that contains user-specific data from the first request, causing that user's data to be cached and served to subsequent visitors.
 // impact: User A's personal information (name, avatar) rendered in the PPR shell is served to User B and all anonymous visitors via the shared static response.
 // improvement: Ensure user-specific data is excluded from the static PPR shell and only rendered in the dynamic suspended boundaries.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { ReactNode } from 'react'
 

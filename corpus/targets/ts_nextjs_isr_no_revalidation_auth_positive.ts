@@ -2,6 +2,10 @@
 // observation: An ISR revalidation API endpoint (revalidatePath or on-demand revalidation) is exposed without authentication.
 // impact: Any attacker who discovers the endpoint can trigger cache purges at will, causing performance degradation or bypassing cached content protections.
 // improvement: Protect revalidation endpoints with a shared secret or authentication check.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';

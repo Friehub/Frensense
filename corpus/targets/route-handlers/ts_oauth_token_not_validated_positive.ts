@@ -2,6 +2,10 @@
 // observation: OAuth access token from an identity provider (Google, GitHub, Facebook) is accepted without server-side introspection or validation.
 // impact: An attacker can forge tokens, reuse expired tokens, or use tokens from other users. Without validation against the provider's introspection endpoint, any string that passes client-side checks is accepted.
 // improvement: Validate the token server-side using the provider's token introspection endpoint or by verifying the JWT signature and claims.
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 app.post('/api/auth/google', async (req, res) => {
   // VULNERABLE: token not validated server-side

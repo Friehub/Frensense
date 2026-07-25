@@ -2,6 +2,10 @@
 // observation: `beforeLoad` on a public route returns early without performing an authentication check, so if the route later accesses protected data, unauthenticated users can reach it
 // impact: auth bypass — an unauthenticated user can access routes that are intended to be protected because `beforeLoad` was skipped on a "public" route that actually contains sensitive operations
 // improvement: add an authentication check in `beforeLoad` for all routes that access protected data, even if the route is meant to be mostly public
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { createRouter, createRoute, createRootRoute } from '@tanstack/react-router'
 

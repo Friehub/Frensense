@@ -2,6 +2,10 @@
 // observation: provide/inject is used to pass sensitive data (tokens, user info) down the component tree
 // impact: any deeply nested child component can inject and expose sensitive data via template or computed props
 // improvement: use provide/inject only for non-sensitive data; pass tokens via store with getters, or pinia
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { provide, ref, type Ref } from 'vue'
 

@@ -2,6 +2,10 @@
 // observation: Feature flags for premium/paid features are evaluated only on the client side, and the server accepts requests without verifying the flag.
 // impact: An attacker can enable premium features by manipulating client-side state or directly calling API endpoints without paying, bypassing the paywall entirely.
 // improvement: Enforce feature flag checks on the server side for every API endpoint that gates premium functionality.
+// cwe: CWE-284
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 export async function uploadLargeFile(req: Request): Promise<Response> {
   if (req.body.file.size > 100 * 1024 * 1024 && !req.body.premium) {

@@ -2,6 +2,10 @@
 // observation: Error boundary wraps a component that throws an error asynchronously (inside setTimeout, Promise, or event handler) — the error boundary does not catch it
 // impact: uncaught async errors crash the process (or cause unhandled rejections) with no fallback UI shown to the user
 // improvement: catch async errors manually and call `reject` with the error, or use React's error boundary with `useErrorHandler` hook
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 'use client'
 

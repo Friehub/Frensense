@@ -2,6 +2,10 @@
 // observation: The operator parameter in a Firestore .where() call is taken directly from user input without validation, allowing NoSQL operator injection.
 // impact: An attacker can supply operators like array-contains-any, not-in, or custom field paths to bypass security filters and access unauthorized data.
 // improvement: Validate the operator against an allowlist of safe operators before calling .where().
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { Firestore } from "@google-cloud/firestore";
 

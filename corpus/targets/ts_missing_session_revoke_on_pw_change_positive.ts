@@ -2,6 +2,10 @@
 // observation: User changes their password but existing sessions are not invalidated, allowing the old password to still work via active session tokens.
 // impact: If an attacker has a session token (from XSS, malware, or session leak), changing the password does not lock them out. They continue accessing the account until the session expires or is manually revoked.
 // improvement: Invalidate all existing sessions when password is changed. Either rotate the session ID or store a session version that increments on password change.
+// cwe: CWE-384
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 async function changePassword(userId: string, newPassword: string, db: DB): Promise<void> {
   const hash = await bcrypt.hash(newPassword, 12);

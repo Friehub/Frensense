@@ -2,6 +2,10 @@
 // observation: a parallel route slot `@analytics` renders without any auth guard, accessible alongside the authenticated main slot
 // impact: unauthenticated content renders alongside authenticated pages, leaking data or exposing admin actions
 // improvement: add auth check to the parallel route slot's own layout or page
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 export default async function AnalyticsSlot() {
   const data = await fetch('https://internal-api/admin/analytics').then(r => r.json())

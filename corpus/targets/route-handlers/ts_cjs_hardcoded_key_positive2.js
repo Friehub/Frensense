@@ -2,6 +2,10 @@
 // observation: API keys and secrets are hardcoded as string literals in source code.
 // impact: Anyone with access to the source code repository can extract valid credentials and use them for unauthorized access.
 // improvement: Load secrets from environment variables or a secrets manager at runtime.
+// cwe: CWE-798
+// cvss: 9.8
+// owasp: A02:2021
+// severity: Critical
 
 var express = require('express');
 var app = express();

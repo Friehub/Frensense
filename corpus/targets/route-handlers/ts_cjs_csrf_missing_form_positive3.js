@@ -2,6 +2,10 @@
 // observation: Form submission endpoints accept POST requests but never validate a CSRF token against the session, making them vulnerable to cross-site request forgery.
 // impact: An attacker can craft a malicious HTML form that submits to this endpoint from another site, performing actions like changing email, password, or transferring funds without the victim's consent.
 // improvement: Generate a CSRF token, embed it in forms, and validate it on the server against the session-stored token before processing the request.
+// cwe: CWE-352
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 var express = require('express');
 var app = express();

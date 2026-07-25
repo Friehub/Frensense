@@ -2,6 +2,10 @@
 // observation: The `instrumentation.ts` file registers telemetry and logging hooks that send request data to an external service without any authentication or rate limiting, executing on every request before middleware is invoked.
 // impact: An attacker can flood the instrumentation endpoint with requests to exfiltrate internal request metadata (IPs, user agents, paths) or cause a telemetry data leak (CVE-2025-47764 variant).
 // improvement: Add authentication and rate limiting to instrumentation callbacks, or avoid sending sensitive metadata to external collectors.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {

@@ -2,6 +2,10 @@
 // observation: Password validation uses the regex pattern .{1,20} which accepts single-character passwords and any weak input up to 20 chars.
 // impact: Users can set extremely weak passwords (e.g. "a" or "123"), making brute-force and credential-stuffing attacks trivial.
 // improvement: Enforce a strong password policy with minimum length, complexity requirements (uppercase, lowercase, digits, special chars), and a reasonable maximum.
+// cwe: CWE-338
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 var express = require('express');
 var bcrypt = require('bcrypt');

@@ -2,6 +2,10 @@
 // observation: An expensive operation (LLM inference, image generation, or heavy computation) has no rate limit, allowing unlimited calls that accumulate cloud costs.
 // impact: A user can call the expensive endpoint thousands of times per minute, causing unexpectedly high cloud bills and potentially exhausting the budget.
 // improvement: Apply a per-user rate limit on all expensive operations to control cost exposure.
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 export async function generateImage(req: Request, env: Env) {
   const { prompt } = await req.json() as { prompt: string };

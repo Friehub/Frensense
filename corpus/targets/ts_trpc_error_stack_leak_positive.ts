@@ -2,6 +2,10 @@
 // observation: The tRPC error formatter returns the full error object including stack traces to the client.
 // impact: Internal stack traces, file paths, and code structure are leaked to API consumers, aiding attackers in reconnaissance.
 // improvement: Use a custom error formatter that strips stack traces in production and only returns safe error messages.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 import { initTRPC } from '@trpc/server';
 

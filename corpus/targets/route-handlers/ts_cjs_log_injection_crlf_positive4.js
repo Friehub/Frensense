@@ -2,6 +2,10 @@
 // observation: User-controlled input is concatenated directly into console.log() calls without stripping CRLF characters, allowing log injection.
 // impact: An attacker can inject fake log entries via CRLF in the username field, corrupting log analysis and potentially framing legitimate users.
 // improvement: Remove or escape CRLF characters from user input before logging, or use structured parameterized logging.
+// cwe: CWE-117
+// cvss: 5.3
+// owasp: A09:2021
+// severity: Medium
 
 function LogHandler(db) {
     "use strict";

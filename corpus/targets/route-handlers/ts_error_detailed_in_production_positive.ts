@@ -2,6 +2,10 @@
 // observation: Production Express error handler returns the full error object including stack trace, query parameters, and file paths in the response body.
 // impact: Information disclosure — an attacker can trigger errors to learn database table names, internal IPs, file system structure, and framework versions, enabling targeted exploits.
 // improvement: Log detailed errors server-side; return only a generic message to the client in production.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 import { Request, Response, NextFunction } from 'express';
 

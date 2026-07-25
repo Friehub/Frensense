@@ -2,6 +2,10 @@
 // observation: An error handling block for an authorization or quota check returns a success/allowed result.
 // impact: A fail-open authorization mechanism allows users to bypass security or billing limits if the downstream service is temporarily unavailable, leading to abuse.
 // improvement: Fail closed in production. If the authorization service is down, deny the request (return false or allowed: false) to maintain security and quotas.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 export async function checkAndConsumeQuota(userId: string): Promise<{ allowed: boolean, remaining?: number }> {
     try {

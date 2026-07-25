@@ -2,6 +2,10 @@
 // observation: The rate limit is only checked per-endpoint, not globally per user, allowing a user to bypass the limit by rotating through different endpoints.
 // impact: An attacker can spread requests across multiple endpoints, each with its own limit, achieving a much higher total request rate than intended.
 // improvement: Apply a global per-user rate limit in addition to per-endpoint limits.
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 export async function apiHandler(req: Request, env: Env) {
   const auth = await resolveAuth(req);

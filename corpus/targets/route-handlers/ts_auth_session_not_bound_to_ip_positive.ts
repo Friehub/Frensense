@@ -2,6 +2,10 @@
 // observation: Session token is not bound to the IP address of the authenticated client. An attacker who steals the session cookie can use it from any IP address.
 // impact: Session hijacking — stolen cookies from XSS, network sniffing, or side-channel attacks can be reused from attacker-controlled infrastructure without restriction.
 // improvement: Bind session to the IP address at login and verify on each request, with grace period for legitimate IP changes.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { Request, Response, NextFunction } from 'express';
 import session from 'express-session';

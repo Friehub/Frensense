@@ -2,6 +2,10 @@
 // observation: `<Activity>` mounts a component on visibility change, and that component fetches data without checking authentication
 // impact: an unauthenticated user can trigger the Activity (e.g., by scrolling or tabbing) and access sensitive data
 // improvement: wrap Activity children with an authentication guard that checks the session before fetching
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 'use client'
 

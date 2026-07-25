@@ -2,6 +2,10 @@
 // observation: A Radix UI Tooltip displays sensitive server-side data (e.g., full SSN, internal API keys, database IDs) on hover, exposing it to any user who hovers over the trigger element.
 // impact: Sensitive information is leaked via the tooltip on hover. Shoulder surfing, screen recording, or accidental hovers expose PII, internal identifiers, or secrets to unauthorized users or observers.
 // improvement: Never place sensitive data in tooltip content. Mask or truncate the data, or use tooltips only for non-sensitive metadata with a separate "show details" action for sensitive information.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import * as Tooltip from '@radix-ui/react-tooltip';
 

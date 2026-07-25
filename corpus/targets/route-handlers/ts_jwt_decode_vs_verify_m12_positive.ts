@@ -2,6 +2,10 @@
 // observation: JWT token is decoded without verifying the signature inside a try-catch block.
 // impact: An attacker can craft arbitrary JWTs, with errors silently caught.
 // improvement: Always use jwt.verify() instead of jwt.decode()
+// cwe: CWE-345
+// cvss: 9.1
+// owasp: A02:2021
+// severity: Critical
 
 import jwt from "jsonwebtoken";
 

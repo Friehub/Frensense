@@ -2,6 +2,10 @@
 // observation: 500 error page displays internal IP address, hostname, or container ID in the HTML response or JSON body, exposing network topology.
 // impact: Internal network reconnaissance — an attacker learns server IPs (e.g., 10.0.1.5, 172.17.0.2) and hostnames, enabling targeted SSRF attacks and lateral movement planning.
 // improvement: Never include system metadata in error responses. Log internally and return a generic message.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 import { Request, Response, NextFunction } from 'express';
 import os from 'os';

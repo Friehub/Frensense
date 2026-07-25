@@ -2,6 +2,10 @@
 // observation: SvelteKit +server.ts endpoint processes requests without checking authentication
 // impact: unauthenticated users can read or mutate data through the API endpoint
 // improvement: use event.locals to check authentication at the start of each handler
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import type { RequestEvent } from '@sveltejs/kit'
 import { db } from '$lib/database'

@@ -2,6 +2,10 @@
 // observation: Diffie-Hellman initialized with a well-known 1024-bit prime from RFC 5114, vulnerable to Logjam attack.
 // impact: Nation-state attackers can pre-compute discrete logs against standardized primes, enabling real-time TLS decryption.
 // improvement: Use a minimum 2048-bit group or switch to ECDH which uses modern elliptic-curve cryptography.
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { createDiffieHellman } from 'node:crypto';
 

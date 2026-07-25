@@ -2,6 +2,10 @@
 // observation: Function name implies authentication (authenticate*) but every failure path — empty token, JWT decode error, expired exp, unrecognized issuer — falls back to a default identity or proceeds instead of rejecting the request.
 // impact: An empty, malformed, expired, or wrong-issuer token still returns a usable AuthResult. Callers that check for a null/thrown rejection to gate access never see one — auth is effectively bypassed.
 // improvement: Return null (or throw) on each failure branch instead of substituting a fallback payload, extending an expired exp, or accepting an unknown issuer.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 interface AuthResult {
     id: number;

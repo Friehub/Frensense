@@ -2,6 +2,10 @@
 // observation: libxml2-based XML parsing with external entity and DTD loading enabled, allowing XXE-based SSRF attacks.
 // impact: External entities can reference internal HTTP endpoints, cloud metadata services (169.254.169.254), or file:// URLs. This SSRF variant bypasses network-level firewalls since the request originates from the application server.
 // improvement: Disable external entity loading (XML_PARSE_NOENT, XML_PARSE_DTDLOAD) in libxml2 configuration.
+// cwe: CWE-611
+// cvss: 7.5
+// owasp: A05:2021
+// severity: High
 
 import * as libxml from 'libxmljs';
 

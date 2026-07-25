@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to pug.render() as a template string, allowing server-side template injection via Pug syntax.
 // impact: An attacker can inject Pug mixins or JavaScript interpolation (#{}) to execute arbitrary code on the server, leading to RCE.
 // improvement: Use precompiled Pug template files and pass user input only as template locals.
+// cwe: CWE-1336
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import pug from "pug";
 

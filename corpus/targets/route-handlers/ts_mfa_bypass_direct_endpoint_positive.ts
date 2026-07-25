@@ -2,6 +2,10 @@
 // observation: Sensitive endpoints (e.g., password change, profile update, funds transfer) can be called directly without requiring MFA verification, even when the user has MFA enabled.
 // impact: An attacker who compromises a session token can perform account-takeover actions without passing the MFA check, completely bypassing the second factor.
 // improvement: Require MFA verification for sensitive operations. Use a "sudo mode" pattern where MFA is checked and cached temporarily (e.g., 15 minutes).
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 export async function changePassword(req: Request, db: DB): Promise<Response> {
   const session = await getSession(req);

@@ -2,6 +2,10 @@
 // observation: User-controlled input is concatenated into an XPath query string, allowing XPath injection via crafted values that modify the query logic.
 // impact: An attacker can inject XPath operators to bypass authentication, extract all documents from the XML database, or enumerate the XML structure.
 // improvement: Use parameterized XPath with variables or escape XPath special characters in user input.
+// cwe: CWE-643
+// cvss: 7.5
+// owasp: A03:2021
+// severity: High
 
 import { XPathSelect } from "xpath";
 

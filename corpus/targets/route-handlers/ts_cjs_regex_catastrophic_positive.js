@@ -2,6 +2,10 @@
 // observation: User input is validated against a regex with nested quantifiers (([0-9]+)+#) causing catastrophic backtracking on non-matching input.
 // impact: An attacker can send a crafted string like "999999999999999999999" causing CPU-bound ReDoS (Regular Expression Denial of Service), making the server unresponsive.
 // improvement: Remove nested quantifiers, use atomic groups, set a regex execution timeout, or use a simpler validation approach.
+// cwe: CWE-1333
+// cvss: 7.5
+// owasp: A06:2021
+// severity: High
 
 var express = require('express');
 

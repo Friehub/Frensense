@@ -2,6 +2,10 @@
 // observation: The logout endpoint clears the client-side cookie but does not invalidate the server-side session or token.
 // impact: A stolen session token remains valid even after the legitimate user logs out, allowing the attacker to continue using the session.
 // improvement: Delete the session record from the server store or add the token to a revocation list on logout.
+// cwe: CWE-384
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import jwt from 'jsonwebtoken';
 

@@ -2,6 +2,10 @@
 // observation: User-controlled values are passed directly as startkey/endkey to a CouchDB view query, enabling data extraction beyond the intended range.
 // impact: An attacker can enumerate all documents in a database by manipulating key boundaries, or use empty/undefined keys to access restricted data.
 // improvement: Validate that the startkey and endkey values match the expected type and are within an acceptable range before querying.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import nano from "nano";
 

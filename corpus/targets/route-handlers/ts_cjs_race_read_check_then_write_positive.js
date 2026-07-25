@@ -2,6 +2,10 @@
 // observation: The server reads a value, checks it against a threshold, then writes — all as separate non-atomic operations. Under concurrent requests, this TOCTOU pattern allows bypassing the limit.
 // impact: An attacker can send multiple concurrent requests to exceed intended limits (e.g., withdraw more than balance, use a coupon multiple times) before the check sees the updated value.
 // improvement: Use MongoDB's findOneAndUpdate with a conditional filter to atomically check and update in a single operation.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 const express = require('express');
 const mongodb = require('mongodb');

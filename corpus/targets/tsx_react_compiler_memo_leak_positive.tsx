@@ -2,6 +2,10 @@
 // observation: React Compiler auto-memoizes a component but misses a dependency on an external ref, causing the callback to capture a stale closure value
 // impact: stale closure — UI displays outdated data or fires incorrect API calls because the compiler-optimized component didn't re-render when the external value changed
 // improvement: explicitly declare ref dependencies or use `useCallback`/`useEffect` with proper deps instead of relying solely on the compiler
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

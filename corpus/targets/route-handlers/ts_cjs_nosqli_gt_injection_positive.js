@@ -2,6 +2,10 @@
 // observation: User-controlled query parameters are used directly in MongoDB $gt operator without type validation, allowing NoSQL injection through object/array payloads.
 // impact: An attacker can pass a MongoDB operator object like {"$gt": ""} via query parameters, bypassing authentication logic or extracting all records by manipulating comparison operators (e.g. {"$ne": ""}, {"$gt": ""}).
 // improvement: Validate that user input is the expected primitive type (string/number) before using it in query operators, and sanitize inputs to prevent operator injection.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 var express = require('express');
 

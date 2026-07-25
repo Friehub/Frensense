@@ -2,6 +2,10 @@
 // observation: Formik initialValues populated directly from API response without filtering sensitive fields, exposing PII in form state.
 // impact: Sensitive fields from API response (email, phone, internal notes) are exposed in the DOM, visible to browser extensions and other scripts.
 // improvement: Selectively map only needed fields from the API response into initialValues, never spreading the entire response.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { Formik, Form, Field } from "formik";
 

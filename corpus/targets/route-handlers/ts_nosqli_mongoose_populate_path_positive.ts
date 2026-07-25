@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed directly to Mongoose's .populate() method as the path string, allowing unintended collection access.
 // impact: An attacker can traverse to arbitrary collections by injecting path traversal separators (e.g., "admin.secret"), potentially exposing sensitive data.
 // improvement: Validate the populate path against an allowlist of permitted relations before calling .populate().
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import mongoose from "mongoose";
 

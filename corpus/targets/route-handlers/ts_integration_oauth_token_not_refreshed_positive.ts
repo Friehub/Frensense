@@ -2,6 +2,10 @@
 // observation: OAuth access token used for downstream API calls without refresh logic — when the token expires, the integration silently fails or returns stale data.
 // impact: Expired tokens cause silent data loss: failed syncs, missed webhooks, corrupted state. User sees stale data without any error indication.
 // improvement: Implement token refresh with retry, and surface refresh failures to the user.
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import { Request, Response } from 'express';
 

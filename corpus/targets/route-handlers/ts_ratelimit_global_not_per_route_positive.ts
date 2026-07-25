@@ -2,6 +2,10 @@
 // observation: A single global rate limit counter is shared across all API routes, so an attacker can exhaust the limit by hammering a cheap health-check or static-resource endpoint, starving legitimate requests to expensive routes.
 // impact: Denial of service against critical endpoints (login, checkout) by flooding a low-cost endpoint that shares the same global rate limit budget.
 // improvement: Apply per-route rate limits with separate budgets, and only count expensive endpoints against the global user limit.
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 import { Request, Response, NextFunction } from 'express';
 import { createClient } from 'redis';

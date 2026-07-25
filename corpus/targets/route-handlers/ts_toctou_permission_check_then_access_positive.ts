@@ -2,6 +2,10 @@
 // observation: The application checks file permissions or ownership, then accesses the file. Between the check and access, an attacker can swap the file (e.g., via a symlink rename), causing the application to operate on a different file.
 // impact: An attacker can escalate privileges by making the application perform an operation on a file it should not have access to, after passing the permission check.
 // improvement: Open the file first, then check permissions on the open file descriptor. Or use a single atomic check.
+// cwe: CWE-367
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 import express from "express";
 import fs from "fs";

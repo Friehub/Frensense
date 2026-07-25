@@ -2,6 +2,10 @@
 // observation: The session ID from the pre-login cookie is reused after authentication; regenerateSession is never called.
 // impact: An attacker can fixate a session ID, trick the victim into logging in with that ID, and then hijack the authenticated session.
 // improvement: Call req.session.regenerate() or similar session rotation after successful login.
+// cwe: CWE-384
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import session from 'express-session';
 

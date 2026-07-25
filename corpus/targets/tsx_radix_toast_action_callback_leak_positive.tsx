@@ -2,6 +2,10 @@
 // observation: A Toast's `action` onClick handler captures a closure variable that becomes stale by the time the user clicks the action button, causing the wrong action to execute (e.g., approving the wrong friend request, confirming the wrong deletion).
 // impact: In a multi-toast scenario (e.g., multiple pending friend requests), all toast action buttons capture the last value of the closure variable. When the user clicks any action, the same (last) action fires, potentially approving the wrong user's request or performing the wrong operation.
 // improvement: Ensure each Toast action captures its own unique scope, either by using a separate component or by binding the correct value at creation time.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import * as Toast from '@radix-ui/react-toast';
 import { Button } from '@/components/ui/button';

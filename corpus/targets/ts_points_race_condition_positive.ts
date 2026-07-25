@@ -2,6 +2,10 @@
 // observation: Points balance is read, checked, and written as separate operations, creating a race condition where two concurrent redemptions can both succeed.
 // impact: A user can redeem points for two items simultaneously, spending the same points twice and causing double payout.
 // improvement: Use an atomic decrement operation for points deduction, similar to inventory stock deduction.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 export async function redeemPoints(userId: string, cost: number, env: Env) {
   // VULNERABLE: read-check-write race condition

@@ -2,6 +2,10 @@
 // observation: Web Crypto API subtle.encrypt called with a fixed algorithm parameter object that ignores the provided algorithm argument.
 // impact: Algorithm agility is lost; if the algorithm parameter is updated to a stronger one, the fixed reference silently uses the old weak algorithm.
 // improvement: Use the algorithm argument directly or spread it rather than referencing a module-level constant.
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { subtle } from 'node:crypto';
 

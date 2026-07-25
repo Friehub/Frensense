@@ -2,6 +2,10 @@
 // observation: createResource fetches data from an API endpoint without including auth credentials
 // impact: the resource fetch may fail for authenticated-only endpoints, or worse, succeed without context
 // improvement: include auth token in fetch headers or pass credentials: 'include'
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { Component, createResource } from 'solid-js'
 

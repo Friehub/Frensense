@@ -2,6 +2,10 @@
 // observation: User registration inserts the password field directly into the database without hashing it with bcrypt or any other algorithm.
 // impact: If the database is breached, all user passwords are exposed in plaintext, allowing attackers to compromise accounts and potentially reuse credentials on other services.
 // improvement: Hash passwords using bcrypt before storing them in the database.
+// cwe: CWE-521
+// cvss: 7.5
+// owasp: A07:2021
+// severity: High
 
 var express = require('express');
 var MongoClient = require('mongodb').MongoClient;

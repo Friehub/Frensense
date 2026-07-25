@@ -2,6 +2,10 @@
 // observation: `useMemo` returns a new array reference on every render via spread operator, causing downstream `useEffect` to run infinitely
 // impact: infinite render loop leads to UI freeze, CPU exhaustion, or API spam
 // improvement: memoize the derived value with stable dependencies or use `useRef` for constant arrays
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

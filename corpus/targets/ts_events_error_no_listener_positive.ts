@@ -2,6 +2,10 @@
 // observation: 'error' event emitted on an EventEmitter without any 'error' listener registered.
 // impact: Node.js throws the error as an unhandled exception, crashing the process and terminating all connections.
 // improvement: Always register an 'error' listener on EventEmitters, or use a domain/catch-all handler.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';

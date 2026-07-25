@@ -2,6 +2,10 @@
 // observation: Debug or development-only endpoints (e.g., /debug, /env, /config, /health/detailed) are accessible in production environments.
 // impact: Attackers can discover internal configuration details, environment variables (including secrets), dependency versions, and infrastructure layout. This dramatically reduces the effort needed for targeted exploitation.
 // improvement: Guard debug endpoints behind environment checks, authentication, or remove them entirely from production builds.
+// cwe: CWE-489
+// cvss: 5.3
+// owasp: A05:2021
+// severity: Medium
 
 app.get('/debug/env', (req, res) => {
   // VULNERABLE: exposes all environment variables including secrets

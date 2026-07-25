@@ -2,6 +2,10 @@
 // observation: User input is used as a computed property key or operator in a MongoDB query, enabling NoSQL injection through operator manipulation.
 // impact: An attacker can inject MongoDB operators like $ne, $gt, $regex, or $where to bypass authentication, extract data, or perform unauthorized operations.
 // improvement: Validate that the operator or field name matches an allowlist before using it as a computed key.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { MongoClient } from "mongodb";
 

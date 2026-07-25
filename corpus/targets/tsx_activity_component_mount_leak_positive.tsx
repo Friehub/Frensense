@@ -2,6 +2,10 @@
 // observation: `<Activity>` mounts a child component when its visibility becomes true, but the child fetches sensitive data without checking authentication
 // impact: unauthorized users can see sensitive data by triggering the Activity visibility (e.g., scrolling, tab focus)
 // improvement: wrap the Activity children with an auth guard or pass authentication state before mounting
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

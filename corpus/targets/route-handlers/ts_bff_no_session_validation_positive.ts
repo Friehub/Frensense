@@ -2,6 +2,10 @@
 // observation: The BFF accepts any session cookie without validating that the session's origin IP or user agent matches the original login context.
 // impact: An attacker who steals a session cookie can replay it from any device or location, and the BFF will serve the authenticated session without additional checks.
 // improvement: Bind sessions to origin attributes (IP, user-agent) at login and verify them on each BFF request.
+// cwe: CWE-384
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import { Request, Response } from 'express';
 

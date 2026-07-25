@@ -2,6 +2,10 @@
 // observation: Date.now() or new Date().getTime() used as a security nonce or token.
 // impact: Timestamps are predictable and reversible. An attacker can enumerate future tokens by correlating token generation time with known event times.
 // improvement: Use crypto.randomBytes() or crypto.randomUUID() for all security-sensitive random values.
+// cwe: CWE-338
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 function generateCsrfToken(): string {
   // VULNERABLE: timestamp is predictable

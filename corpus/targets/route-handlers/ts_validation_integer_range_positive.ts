@@ -2,6 +2,10 @@
 // observation: Integer input accepted without minimum or maximum range validation.
 // impact: Negative or overflow values can cause logical errors (negative price, infinite loops), financial loss, or security bypasses. For example, setting age to -1 or quantity to 999999999 during checkout.
 // improvement: Validate integer inputs with explicit min/max bounds. Use zod, express-validator, or manual range checks.
+// cwe: CWE-190
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 app.post('/api/checkout', async (req, res) => {
   // VULNERABLE: quantity not range-checked

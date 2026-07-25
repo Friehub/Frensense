@@ -2,6 +2,10 @@
 // observation: Client component fetches from an internal API endpoint without sending auth credentials
 // impact: unauthenticated API access leaks internal data — the auth token is embedded in client bundle but never sent
 // improvement: use server component or pass token from server-side session
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 'use client'
 

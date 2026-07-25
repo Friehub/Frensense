@@ -2,6 +2,10 @@
 // observation: "Rate limit key is derived from a spoofable header (e.g., X-API-Key or X-Forwarded-For) that the client controls."
 // impact: "An attacker can set a spoofed value in the header to impersonate other users, bypass rate limits by cycling through header values, or cause rate limits to apply to the wrong target."
 // improvement: "Key rate limits on server-verified identifiers such as authenticated user ID, session token, or the actual connecting IP from the proxy."
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 import rateLimit from 'express-rate-limit';
 import express from 'express';

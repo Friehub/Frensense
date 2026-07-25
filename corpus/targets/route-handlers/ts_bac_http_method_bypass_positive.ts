@@ -2,6 +2,10 @@
 // observation: A mutation operation (create, update, delete) is accessible via GET or other read-only HTTP methods, bypassing CSRF protections and access controls designed for POST-only endpoints.
 // impact: An attacker can use a cross-site request forgery (CSRF) via an <img> tag or <link> tag to trigger state-changing operations because GET requests are automatically issued by browsers without CORS restrictions.
 // improvement: Ensure state-changing operations only respond to POST, PUT, PATCH, or DELETE methods. Use middleware to reject GET requests for mutation endpoints.
+// cwe: CWE-284
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 import express from 'express';
 

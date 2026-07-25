@@ -2,6 +2,10 @@
 // observation: The full XPath expression is taken directly from user input and evaluated against the XML document, allowing arbitrary XPath injection.
 // impact: An attacker can craft arbitrary XPath expressions to extract any data from the XML document, including out-of-band data exfiltration via XPath functions.
 // improvement: Never evaluate arbitrary XPath expressions from user input; use predefined queries with parameter binding instead.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import { DOMParser } from "xmldom";
 import { xpath } from "xpath";

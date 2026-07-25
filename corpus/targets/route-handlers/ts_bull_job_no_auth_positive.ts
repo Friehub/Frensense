@@ -2,6 +2,10 @@
 // observation: "Queue dashboard or job processing endpoints exposed without authentication middleware."
 // impact: "An attacker can access the admin queue dashboard, view job data including sensitive payloads, add/remove jobs, or manipulate queue state."
 // improvement: "Add authentication middleware to all queue dashboard routes and job processing endpoints."
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import Queue from 'bull';
 import Express from 'express';

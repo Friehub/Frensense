@@ -2,6 +2,10 @@
 // observation: An agent tool call is executed without checking whether the caller is authorized to use that tool.
 // impact: Any user who can reach the agent can invoke arbitrary tools, including admin-level actions like deleting records or sending emails.
 // improvement: Add authorization checks before every tool execution, verifying the caller's identity and permissions.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import OpenAI from 'openai';
 

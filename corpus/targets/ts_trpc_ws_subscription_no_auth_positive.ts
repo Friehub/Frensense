@@ -2,6 +2,10 @@
 // observation: A tRPC WebSocket subscription is defined without any authentication check on the subscription resolver.
 // impact: Unauthenticated clients can subscribe to real-time event streams, potentially eavesdropping on sensitive data.
 // improvement: Apply authentication middleware to the subscription, and verify authorization in the subscription resolver.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { z } from 'zod';
 import { publicProcedure, router } from './trpc';

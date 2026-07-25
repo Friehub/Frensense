@@ -2,6 +2,10 @@
 // observation: The rate limit can be bypassed by setting certain HTTP headers (X-Real-IP, CF-Connecting-IP) that override the actual source IP.
 // impact: An attacker can set arbitrary headers to impersonate different IP addresses, bypassing IP-based rate limiting entirely.
 // improvement: Use only the verified upstream IP from the proxy (e.g., CF-Connecting-IP on Cloudflare) and never trust client-provided headers.
+// cwe: CWE-770
+// cvss: 5.3
+// owasp: A04:2021
+// severity: Medium
 
 export async function handler(req: Request, env: Env) {
   // VULNERABLE: trusts client-provided IP headers

@@ -2,6 +2,10 @@
 // observation: Error property is destructured before rendering, crashing when code does not exist.
 // impact: Fallback crash — destructuring undefined causes TypeError.
 // improvement: Provide default value in destructuring pattern.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 'use client'
 import { ErrorBoundary } from 'react-error-boundary'
 function Fallback({ error }: { error: Error }) {

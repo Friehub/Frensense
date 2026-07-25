@@ -2,6 +2,10 @@
 // observation: The server uses findOne() to retrieve a document, modifies a field in JavaScript, then calls updateOne(). Between these two operations, another concurrent request can modify the same document, causing a lost update.
 // impact: Under concurrent requests, increments and other modifications can be lost or overwritten, leading to incorrect balances, stock levels, or counter values (lost update problem).
 // improvement: Use atomic update operators like $inc directly, or findOneAndUpdate to combine read and write in one operation.
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 const express = require('express');
 const mongodb = require('mongodb');

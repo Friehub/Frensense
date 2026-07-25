@@ -2,6 +2,10 @@
 // observation: The application attaches its own internal access token or credential to an HTTP request sent to a URL that may not be fully trusted or is user-controlled.
 // impact: If the URL points to an attacker-controlled server, the attacker will receive the internal token in the Authorization header, leading to credential theft and potential unauthorized access to your infrastructure.
 // improvement: Validate the destination URL against an allowlist of trusted internal domains before attaching internal credentials to the request.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 export async function proxySandboxRequest(url: string, token: string): Promise<Response> {
     // Bad: Attaches our own token to an arbitrary URL

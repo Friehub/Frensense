@@ -2,6 +2,10 @@
 // observation: The `onReset` callback of an error boundary exposes the previous error's message and stack trace to user-facing UI or logs it to the console
 // impact: sensitive internal error details (stack traces, SQL queries, file paths) are leaked to users or observable logs
 // improvement: sanitize error details in the onReset callback — log them for diagnostics but do not expose to user
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 'use client'
 

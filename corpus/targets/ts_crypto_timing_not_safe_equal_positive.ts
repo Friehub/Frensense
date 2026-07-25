@@ -2,6 +2,10 @@
 // observation: Secrets compared using === or == operator instead of a constant-time comparison function.
 // impact: Timing attacks can recover the secret byte-by-byte by measuring how early the comparison short-circuits. For a 32-byte HMAC, ~128k measurements can recover the full value.
 // improvement: Use crypto.timingSafeEqual() for comparing secrets, HMACs, digests, and tokens.
+// cwe: CWE-327
+// cvss: 7.5
+// owasp: A02:2021
+// severity: High
 
 import { createHash } from 'node:crypto';
 

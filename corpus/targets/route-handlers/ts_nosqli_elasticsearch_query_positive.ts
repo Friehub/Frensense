@@ -2,6 +2,10 @@
 // observation: The entire request body is passed directly as an Elasticsearch query body without any validation, allowing arbitrary query injection.
 // impact: An attacker can craft queries that bypass security filters, access restricted indices, trigger expensive aggregations (DoS), or extract data via search templates.
 // improvement: Validate and restrict the query structure against an allowlist of permitted fields and query types before sending to Elasticsearch.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { Client } from "@elastic/elasticsearch";
 

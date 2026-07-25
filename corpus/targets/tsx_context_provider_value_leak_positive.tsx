@@ -2,6 +2,10 @@
 // observation: Context provider value is a new object reference every render, causing all consumers to re-render even when data hasn't changed
 // impact: performance denial-of-service (perf DoS) — large component trees re-render on every keystroke or state change
 // improvement: memoize the context value with `useMemo` to provide a stable reference
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 

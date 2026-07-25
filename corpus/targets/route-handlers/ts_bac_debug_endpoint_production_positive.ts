@@ -2,6 +2,10 @@
 // observation: Debug, health, or diagnostic endpoints (e.g., /debug, /info, /env, /metrics, /graphql) are accessible in production without authentication.
 // impact: An attacker can extract sensitive information about the infrastructure, environment variables, database schema, and internal configuration from debug endpoints.
 // improvement: Disable debug endpoints in production, or protect them with strong authentication (admin-only, VPN access).
+// cwe: CWE-284
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 import express from 'express';
 

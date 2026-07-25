@@ -2,6 +2,10 @@
 // observation: User passwords are stored as plaintext in the database without any hashing or encryption.
 // impact: A database breach exposes all user passwords in cleartext, enabling account takeover on this service and any other service where the user reuses credentials.
 // improvement: Always hash passwords using a strong adaptive algorithm like bcrypt before storing.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 export async function signup(req: Request, db: DB): Promise<Response> {
   const { email, password } = await req.json();

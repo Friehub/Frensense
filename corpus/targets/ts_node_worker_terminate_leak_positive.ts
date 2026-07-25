@@ -2,6 +2,10 @@
 // observation: A Worker is created but never terminated on timeout or error, causing a resource leak that accumulates over time.
 // impact: Worker threads hold libuv handles and memory; failing to terminate them on timeout leads to resource exhaustion and eventual DoS.
 // improvement: Set a timeout and call worker.terminate() if the worker does not respond in time.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { Worker } from "node:worker_threads";
 

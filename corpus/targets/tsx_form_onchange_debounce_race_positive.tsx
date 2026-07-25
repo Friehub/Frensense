@@ -2,6 +2,10 @@
 // observation: debounced onChange handler uses a stale closure over the input value — the debounce fires with old data after rapid input changes
 // impact: the server receives stale or inconsistent data; in search or autocomplete, the wrong term may be sent, causing data leakage across users
 // improvement: use a ref to track the latest value or cancel the debounce on each keystroke
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 'use client'
 

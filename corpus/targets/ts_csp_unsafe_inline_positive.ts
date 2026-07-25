@@ -2,6 +2,10 @@
 // observation: The Content-Security-Policy header includes 'unsafe-inline' and 'unsafe-eval' in scriptSrc, allowing arbitrary inline script execution and dynamic code evaluation
 // impact: unsafe-inline makes XSS trivially exploitable because any injected script tag will execute; unsafe-eval enables eval() and new Function() for DOM-based XSS
 // improvement: Use nonces or hashes for legitimate inline scripts and remove unsafe-inline; omit unsafe-eval unless required for legacy compatibility
+// cwe: CWE-119
+// cvss: 9.8
+// owasp: 
+// severity: Critical
 
 import helmet from 'helmet';
 import express from 'express';

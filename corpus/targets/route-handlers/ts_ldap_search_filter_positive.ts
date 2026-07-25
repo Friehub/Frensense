@@ -2,6 +2,10 @@
 // observation: User input is concatenated directly into an LDAP search filter string, allowing LDAP injection via crafted filter values.
 // impact: An attacker can inject LDAP metacharacters to modify the filter logic, bypass authentication, enumerate directory entries, or access unauthorized data.
 // improvement: Escape LDAP special characters or use parameterized LDAP queries with a library that handles escaping.
+// cwe: CWE-90
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import ldap from "ldapjs";
 

@@ -2,6 +2,10 @@
 // observation: Chart data labels in Recharts render full document object including PII fields (email, ssn) directly in DOM.
 // impact: Sensitive user data is exposed in the DOM as chart labels, accessible to any script or browser extension inspecting the page.
 // improvement: Truncate or mask sensitive fields before rendering, or use aggregate summaries instead of raw data.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { PieChart, Pie, Cell, Tooltip } from "recharts";
 

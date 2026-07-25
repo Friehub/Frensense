@@ -2,6 +2,10 @@
 // observation: Server Component fetches data with auth token and passes full response to client component — sensitive fields included
 // impact: auth token usage is safe server-side but the RSC serialization leaks sensitive user fields (ssn, apiKey) to the client payload
 // improvement: strip sensitive fields before passing to client component or use a dedicated API route
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { cookies } from 'next/headers'
 import { ClientProfile } from './client-profile'

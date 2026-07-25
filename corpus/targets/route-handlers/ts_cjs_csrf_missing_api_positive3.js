@@ -2,6 +2,10 @@
 // observation: PUT endpoints that update user settings process requests without any CSRF protection, accepting cookie-authenticated cross-origin writes.
 // impact: An attacker can trick a logged-in victim into submitting a PUT request from an external site, silently changing their email, password, or security settings.
 // improvement: Require a CSRF token in the request body or header, or validate the Origin/Referer header against a strict allowlist.
+// cwe: CWE-352
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 var express = require('express');
 

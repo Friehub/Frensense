@@ -2,6 +2,10 @@
 // observation: shadcn carousel autoplay interval is set from user-controlled parameters without validation, allowing extremely fast intervals that cause CPU exhaustion
 // impact: denial-of-service (CPU exhaustion) — attacker sets interval to 0ms or 1ms, causing rapid re-renders that freeze the browser tab
 // improvement: enforce a minimum interval value (e.g., 2000ms) for autoplay
+// cwe: CWE-400
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 'use client'
 

@@ -2,6 +2,10 @@
 // observation: `notFound()` is thrown inside a layout that performs server-side rendering with detailed error serialization enabled, causing the raw component source code or stack trace to be included in the 404 response body.
 // impact: Attackers can probe non-existent routes and receive source code fragments or internal file paths, aiding reconnaissance and enabling further attacks (CVE-2025-55183 variant).
 // improvement: Use a custom error boundary that catches the error, logs details internally, and returns a generic 404 page without exposing internal information.
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 // CVE: CVE-2025-55183
 
 import { notFound } from 'next/navigation'

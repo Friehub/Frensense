@@ -2,6 +2,10 @@
 // observation: MFA/OTP codes are stored without an expiration timestamp, allowing them to be used indefinitely.
 // impact: A leaked or intercepted OTP code remains valid forever, enabling an attacker to authenticate at any future time without knowing the user's password.
 // improvement: Store an expiration timestamp with each OTP and reject codes past their validity window (typically 30-60 seconds for TOTP, 5-15 minutes for email OTP).
+// cwe: CWE-287
+// cvss: 8.8
+// owasp: A07:2021
+// severity: High
 
 import crypto from 'crypto';
 

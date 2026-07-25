@@ -2,6 +2,10 @@
 // observation: A Server Action mutates data without checking the Origin or Referer header, making it vulnerable to cross-site request forgery via external form submissions.
 // impact: An attacker on an external site can submit a form that triggers this server action, performing state-changing operations as the victim user.
 // improvement: Validate the Origin or Referer header against the application's origin at the top of every server action.
+// cwe: CWE-352
+// cvss: 8.8
+// owasp: A01:2021
+// severity: High
 
 'use server'
 

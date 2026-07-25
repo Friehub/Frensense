@@ -2,6 +2,10 @@
 // observation: The Express application has no custom 500 error handler. When an unhandled error occurs, Express's default HTML error page is shown, leaking the stack trace and internal paths.
 // impact: An attacker can trigger server errors to receive HTML error pages containing internal file paths, line numbers, and application structure, aiding in further attacks.
 // improvement: Add a custom error-handling middleware that returns a generic JSON or HTML error page.
+// cwe: CWE-209
+// cvss: 4.3
+// owasp: A05:2021
+// severity: Medium
 
 const express = require('express');
 

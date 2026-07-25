@@ -2,6 +2,10 @@
 // observation: createCipheriv called with user-supplied IV but IV length is never validated against cipher block size.
 // impact: IV shorter than block size causes an out-of-bounds buffer read in OpenSSL, potentially leaking key material or crashing the process.
 // improvement: Validate IV length matches the expected block size for the selected algorithm before passing to createCipheriv.
+// cwe: CWE-190
+// cvss: 7.5
+// owasp: 
+// severity: High
 
 import { createCipheriv, randomBytes } from 'node:crypto';
 

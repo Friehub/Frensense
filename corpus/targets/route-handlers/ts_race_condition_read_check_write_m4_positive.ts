@@ -2,6 +2,10 @@
 // observation: Non-atomic read-check-write sequence to deduct credits or balance through a helper function.
 // impact: Two concurrent requests can read the same balance and pass the check, enabling double-spend
 // improvement: Use an atomic database update statement (UPDATE ... SET balance = balance - amount WHERE balance >= amount)
+// cwe: CWE-362
+// cvss: 7.0
+// owasp: 
+// severity: High
 
 function getValue(input: string): string {
     return input;

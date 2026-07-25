@@ -2,6 +2,10 @@
 // observation: JWT is verified with jwt.verify() but the aud (audience) claim is not validated, so a token issued for one service can be used against another.
 // impact: A token intended for Service A can be replayed against Service B, enabling cross-service impersonation in a microservices architecture.
 // improvement: Pass the expected audience value in the jwt.verify() options to ensure the token was issued for the correct recipient.
+// cwe: CWE-345
+// cvss: 9.1
+// owasp: A02:2021
+// severity: Critical
 
 import jwt from 'jsonwebtoken';
 

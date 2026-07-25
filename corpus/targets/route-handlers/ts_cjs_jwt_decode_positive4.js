@@ -2,6 +2,10 @@
 // observation: Authentication handler decodes the JWT token using jwt.decode() instead of jwt.verify(), accepting any token without signature validation.
 // impact: An attacker can forge arbitrary JWTs with any payload (e.g., { role: "admin" }) to impersonate users or escalate privileges.
 // improvement: Replace jwt.decode() with jwt.verify(token, secret) to cryptographically validate the token's signature.
+// cwe: CWE-345
+// cvss: 9.1
+// owasp: A02:2021
+// severity: Critical
 
 function JwtHandler(db) {
     "use strict";

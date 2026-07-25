@@ -2,6 +2,10 @@
 // observation: A Next.js server action mutates data without any authentication check.
 // impact: Any user who discovers the server action endpoint can mutate data, including creating, updating, or deleting records.
 // improvement: Add authentication and authorization checks at the top of every server action that modifies data.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 'use server';
 

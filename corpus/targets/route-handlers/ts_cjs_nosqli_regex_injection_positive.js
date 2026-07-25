@@ -2,6 +2,10 @@
 // observation: The $regex operator is populated directly from user input without escaping special regex characters, allowing an attacker to control the regex pattern.
 // impact: An attacker can craft malicious regex patterns that cause ReDoS, bypass authentication by injecting .*, or extract data character by character through boolean-based blind injection (similar to SQL blind injection).
 // improvement: Escape special regex characters in user input before using $regex, or use $eq with exact matching instead.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 var express = require('express');
 

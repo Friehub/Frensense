@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed directly to the $regex operator in a MongoDB query, allowing ReDoS attacks and query manipulation.
 // impact: An attacker can inject a malicious regex pattern causing excessive CPU consumption (ReDoS) or craft patterns that match unintended documents.
 // improvement: Escape special regex characters in user input and limit regex complexity by rejecting patterns with nested quantifiers.
+// cwe: CWE-943
+// cvss: 8.8
+// owasp: A03:2021
+// severity: High
 
 import { MongoClient } from "mongodb";
 

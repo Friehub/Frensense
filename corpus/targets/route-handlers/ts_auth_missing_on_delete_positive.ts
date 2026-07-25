@@ -2,6 +2,10 @@
 // observation: GET and PUT endpoints are protected by authentication middleware, but the DELETE endpoint for the same resource is not.
 // impact: An unauthenticated attacker can delete resources even though read and update operations are protected, creating a gap in the authorization coverage.
 // improvement: Apply consistent authentication and authorization checks to all HTTP methods (GET, POST, PUT, PATCH, DELETE) for every resource.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 const app = express();
 

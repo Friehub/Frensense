@@ -2,6 +2,10 @@
 // observation: Lambda function logs environment variables containing secrets, exposing them in CloudWatch logs.
 // impact: API keys, database credentials, and other secrets become visible to anyone with CloudWatch log access.
 // improvement: Never log environment variables or sensitive configuration values directly.
+// cwe: CWE-526
+// cvss: 5.3
+// owasp: A02:2021
+// severity: Medium
 
 import { Handler } from 'aws-lambda';
 

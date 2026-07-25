@@ -2,6 +2,10 @@
 // observation: The authentication middleware is registered with app.use() AFTER the protected route handler is defined, so the route executes without authentication.
 // impact: Express middleware executes in registration order; routes defined before the auth middleware skip authentication entirely, allowing unauthenticated access to all preceding routes.
 // improvement: Register auth middleware BEFORE route definitions, or use route-level middleware instead of relying on app.use ordering.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 var express = require('express');
 

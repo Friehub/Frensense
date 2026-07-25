@@ -2,6 +2,10 @@
 // observation: A required environment variable is used at runtime without checking if it exists at startup, causing hard-to-debug errors.
 // impact: The application may fail unexpectedly in production with a cryptic error when a required env var is missing.
 // improvement: Validate all required environment variables at application startup and fail fast with a clear message.
+// cwe: CWE-526
+// cvss: 5.3
+// owasp: A02:2021
+// severity: Medium
 
 export function getConfig() {
   return {

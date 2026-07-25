@@ -2,6 +2,10 @@
 // observation: User-controlled input is passed to ejs.render() as a template string, allowing server-side template injection via EJS delimiters.
 // impact: An attacker can inject <% %> or <%= %> delimiters to execute arbitrary JavaScript on the server, leading to remote code execution.
 // improvement: Never pass user input directly as an EJS template; use EJS with static templates and pass user input only as data.
+// cwe: CWE-1336
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
 
 import ejs from "ejs";
 

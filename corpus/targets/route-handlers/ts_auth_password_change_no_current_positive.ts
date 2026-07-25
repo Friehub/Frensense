@@ -2,6 +2,10 @@
 // observation: Password change endpoint accepts a new password without requiring the current password for verification. An attacker with a stolen session can change the password instantly.
 // impact: Account takeover via session hijacking — no current password check means a 5-minute window of XSS or physical access yields permanent account control.
 // improvement: Always verify the current password before allowing a password change.
+// cwe: CWE-287
+// cvss: 9.8
+// owasp: A07:2021
+// severity: Critical
 
 import { Request, Response } from 'express';
 import { hash } from 'bcrypt';

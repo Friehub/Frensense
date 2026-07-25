@@ -2,6 +2,10 @@
 // observation: The JWT is decoded with jwt.decode() which does not validate any claims including exp, then manually used for access control.
 // impact: An expired token remains valid indefinitely. An attacker can use a stolen token even after it should have expired.
 // improvement: Use jwt.verify() which automatically validates exp, nbf, and iss claims. If manual validation is needed, check exp >= current timestamp.
+// cwe: CWE-345
+// cvss: 9.1
+// owasp: A02:2021
+// severity: Critical
 
 import jwt from 'jsonwebtoken';
 

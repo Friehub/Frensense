@@ -2,6 +2,10 @@
 // observation: calling `notFound()` inside a layout reveals the existence of internal route segments or resource IDs in the URL
 // impact: attackers can probe route existence by observing 404 vs 200 responses; internal routing structure is exposed
 // improvement: use a generic error boundary or redirect rather than notFound in layouts
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 import { notFound } from 'next/navigation'
 import { ReactNode } from 'react'

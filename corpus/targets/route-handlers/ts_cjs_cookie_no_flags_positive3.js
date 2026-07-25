@@ -2,6 +2,10 @@
 // observation: Session cookies are set with an empty options object, disabling all security flags by default and leaving the cookie unprotected.
 // impact: Session cookies without httpOnly can be stolen via XSS; without secure they leak over HTTP; without sameSite they are vulnerable to CSRF.
 // improvement: Always provide explicit httpOnly: true, secure: true, sameSite: 'strict' in cookie options.
+// cwe: CWE-614
+// cvss: 5.4
+// owasp: A02:2021
+// severity: Medium
 
 var express = require('express');
 var app = express();

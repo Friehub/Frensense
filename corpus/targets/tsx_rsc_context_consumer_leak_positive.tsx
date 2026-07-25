@@ -2,6 +2,10 @@
 // observation: Client component uses `useContext` to consume a context that was created and provided only on the server side
 // impact: the context value is `undefined` on the client, causing runtime errors or rendering empty/incorrect UI without warning
 // improvement: ensure context is also provided on the client, or pass data as props from server to client
+// cwe: CWE-200
+// cvss: 5.3
+// owasp: 
+// severity: Medium
 
 'use client'
 
