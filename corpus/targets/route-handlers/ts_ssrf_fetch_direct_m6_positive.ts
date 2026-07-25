@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into a URL string before fetch() without validation.
 // impact: An attacker can make the server send requests to arbitrary hosts by controlling the URL parameter.
 // improvement: Validate the full URL against an allowlist before fetching.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 async function fetchUserData(req: Request, res: Response) {
     const response = await fetch("https://" + req.query.url);

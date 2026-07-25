@@ -2,6 +2,11 @@
 // observation: User-controlled filename traverses multiple variable assignments before reaching fs.readFileSync without sanitization.
 // impact: An attacker can read arbitrary files by supplying path traversal sequences through multi-hop assignments.
 // improvement: Use path.basename() on the final value before constructing the file path.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import * as fs from "fs";
 import * as path from "path";

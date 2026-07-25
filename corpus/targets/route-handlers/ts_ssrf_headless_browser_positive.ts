@@ -2,6 +2,11 @@
 // observation: A headless browser (Puppeteer/Playwright) is used to navigate to a user-controlled URL, allowing SSRF and arbitrary page rendering from attacker-chosen hosts.
 // impact: The headless browser fetches internal pages, cloud metadata, or attacker-hosted content, potentially leaking data or executing JS from external sources.
 // improvement: Validate the URL against an allowlist before calling goto(), or proxy through a URL validation service.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 import puppeteer from "puppeteer";
 import express from "express";

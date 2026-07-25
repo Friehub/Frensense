@@ -2,6 +2,11 @@
 // observation: User-controlled data (recipient name, subject, or body) is embedded in an HTML email template without sanitization, enabling XSS in email clients that render HTML.
 // impact: A recipient's email client (e.g., Gmail, Outlook) may execute JavaScript embedded in the email, or the email content may be used to phish the recipient.
 // improvement: Sanitize all user data before inserting into email templates, or use a plain-text alternative.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import nodemailer from "nodemailer";
 

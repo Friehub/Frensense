@@ -2,6 +2,11 @@
 // observation: The application performs a DNS lookup for a user-provided hostname, then later resolves it again when making the HTTP request. An attacker can exploit this to bypass IP allowlist checks (DNS rebinding).
 // impact: The check passes against the first resolution (a safe IP), but the actual fetch resolves to a different IP (e.g., internal metadata IP), enabling SSRF.
 // improvement: Resolve the hostname once, validate the IP, and use the resolved IP directly for the request instead of the hostname.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 import express from "express";
 import dns from "dns/promises";

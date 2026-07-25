@@ -2,6 +2,11 @@
 // observation: An endpoint that assigns resources to users does not verify that the requesting user has the required role (e.g., manager, admin) to perform the assignment.
 // impact: Any authenticated user can assign resources (e.g., tasks, leads, tickets) to any other user, enabling unauthorized team management and data access.
 // improvement: Check that the requesting user has the required role (manager, admin) before allowing resource assignment.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function assignTask(req: Request, db: DB): Promise<Response> {
   const { taskId, assigneeId } = await req.json();

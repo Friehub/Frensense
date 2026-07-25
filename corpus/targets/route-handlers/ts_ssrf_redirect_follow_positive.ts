@@ -2,6 +2,11 @@
 // observation: After an initial HTTP request, the server follows a redirect to a location specified by the external server without validating the redirect target, allowing SSRF via redirection.
 // impact: An attacker hosts a server that redirects to http://169.254.169.254/ (cloud metadata) or internal IPs; the application follows the redirect and discloses internal data.
 // improvement: Disable redirect following, or validate the redirect target URL before following it.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 import express from "express";
 

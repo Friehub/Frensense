@@ -2,6 +2,11 @@
 // observation: A JSON API response contains user-controlled data that is later rendered as HTML in a client-side template, without sanitization at either the API or the client.
 // impact: Stored or reflected XSS via API responses — a server returns user input as JSON, and the client renders it via innerHTML.
 // improvement: Sanitize output at the rendering layer, or encode data in the API response.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

@@ -2,6 +2,11 @@
 // observation: A resource sharing endpoint allows a user to share any resource ID with another user without verifying that they own the resource.
 // impact: An attacker can make anyone's private resources publicly accessible or shared with attacker-controlled accounts, bypassing access controls.
 // improvement: Verify the current user owns the resource before allowing sharing operations.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function shareDocument(req: Request, db: DB): Promise<Response> {
   const { docId, shareWithEmail } = await req.json();

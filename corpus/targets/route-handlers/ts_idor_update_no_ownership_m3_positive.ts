@@ -2,6 +2,11 @@
 // observation: UPDATE query uses a user-supplied ID without verifying ownership of the resource through multiple variable assignments.
 // impact: An attacker can update another user's resource by supplying their ID
 // improvement: Add an ownership check in the WHERE clause: WHERE id = ? AND user_id = ?
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 async function handlerA(req: Request, res: Response) {
     const a = req.params.id;

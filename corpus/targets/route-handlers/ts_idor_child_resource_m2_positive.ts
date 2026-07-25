@@ -2,6 +2,11 @@
 // observation: Child resource ID is accepted from the client without verifying it belongs to the validated parent through an intermediate variable.
 // impact: Attacker supplies a child ID belonging to a different user's parent, enabling cross-account access
 // improvement: Verify the child resource's parent matches the validated parent in the same query
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 async function handlerA(req: Request, res: Response) {
     const val = req.params.childId;

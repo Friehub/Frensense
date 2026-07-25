@@ -2,6 +2,11 @@
 // observation: User input placed into an href attribute is HTML-encoded instead of URL-encoded, which fails to prevent JavaScript URI scheme injections like javascript:alert(1).
 // impact: An attacker can inject a javascript: URI into the link, achieving XSS when the victim clicks the link, since HTML encoding does not neutralize the scheme prefix.
 // improvement: Use URL encoding (encodeURI or encodeURIComponent) for values placed in href/src attributes, and validate the URL scheme against an allowlist.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 var express = require('express');
 var escapeHtml = require('escape-html');

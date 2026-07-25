@@ -2,6 +2,11 @@
 // observation: User-controlled input traverses multiple variable assignments before being interpolated into HTML response without escaping.
 // impact: An attacker can inject arbitrary HTML/JavaScript via multi-hop assignment, enabling XSS.
 // improvement: HTML-escape user input regardless of how many assignment hops occur.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

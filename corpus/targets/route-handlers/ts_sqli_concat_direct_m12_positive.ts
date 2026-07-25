@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into a SQL query without parameterization inside a try-catch block.
 // impact: An attacker can perform SQL injection, with errors silently caught.
 // improvement: Use parameterized queries
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 async function getUserById(req: Request, res: Response) {
     try {

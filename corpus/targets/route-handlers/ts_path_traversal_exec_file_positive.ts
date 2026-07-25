@@ -2,6 +2,11 @@
 // observation: A user-controlled filename is concatenated with a base path and passed to child_process.execFile, allowing execution of arbitrary binaries via path traversal.
 // impact: An attacker can execute arbitrary executables by providing a path like "../../usr/bin/wget" or "../../tmp/malicious.sh", bypassing intended restrictions.
 // improvement: Validate and sanitize the path before execution; restrict execution to a specific directory or use a command allowlist.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import express from "express";
 import { execFile } from "child_process";

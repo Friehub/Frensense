@@ -2,6 +2,11 @@
 // observation: Resource ID from URL parameter is used without ownership verification across an async/await boundary.
 // impact: An attacker can access other users' resources.
 // improvement: Always verify that the authenticated user owns the requested resource
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 async function getInvoiceId(req: any): Promise<string> { return req.params.id; }
 async function getOrderId2(req: any): Promise<string> { return req.params.orderId; }

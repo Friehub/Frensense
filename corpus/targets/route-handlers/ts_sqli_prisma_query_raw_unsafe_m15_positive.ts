@@ -2,6 +2,11 @@
 // observation: User-controlled input is interpolated into raw SQL via $queryRawUnsafe via a promise .then() chain.
 // impact: An attacker can perform SQL injection.
 // improvement: Use $queryRaw tagged template literals
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 function getUser(req: Request, res: Response) {
     Promise.resolve(req.query.id).then(userId => {

@@ -2,6 +2,11 @@
 // observation: The needle.get() request uses a URL concatenated from user input without any allowlist validation, enabling SSRF to internal services.
 // impact: An attacker can make the server send requests to internal network services (e.g., 169.254.169.254 for cloud metadata), potentially leaking IAM credentials or accessing internal APIs.
 // improvement: Validate the URL against a strict allowlist of permitted hostnames before making the request.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 const needle = require('needle');
 const express = require('express');

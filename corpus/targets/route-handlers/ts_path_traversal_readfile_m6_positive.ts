@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into a file path string before fs.readFileSync without sanitization.
 // impact: An attacker can read arbitrary files by injecting path traversal sequences through string concatenation.
 // improvement: Use path.basename() on user input and path.join() for safe path construction.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import * as fs from "fs";
 

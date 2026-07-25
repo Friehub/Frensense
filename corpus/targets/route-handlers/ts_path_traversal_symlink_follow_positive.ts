@@ -2,6 +2,11 @@
 // observation: The application checks if a path is within an allowed directory but does not verify that the final resolved path is not a symlink pointing outside the directory.
 // impact: An attacker can create a symlink inside the upload directory that points to /etc/passwd or another sensitive file, and the application follows the symlink.
 // improvement: Use fs.realpath or fs.lstat to detect and block symlinks, or resolve the real path before the prefix check.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import express from "express";
 import fs from "fs";

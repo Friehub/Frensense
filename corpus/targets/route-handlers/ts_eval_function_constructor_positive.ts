@@ -2,6 +2,11 @@
 // observation: User-controlled input is passed to the Function() constructor and invoked, allowing arbitrary code execution on the server.
 // impact: An attacker can inject arbitrary JavaScript code that executes with the server's privileges, leading to full application compromise.
 // improvement: Never use new Function() with user input; use a sandboxed evaluator or a safe expression parser.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 function calculate(req: Request, res: Response) {
     const expression = req.body.expression;

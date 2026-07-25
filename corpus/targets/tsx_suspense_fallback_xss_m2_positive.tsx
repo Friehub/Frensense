@@ -2,6 +2,11 @@
 // observation: User input is assigned to an intermediate variable before rendering in Suspense fallback.
 // impact: XSS before hydration via unsanitized user content in fallback.
 // improvement: Escape or sanitize before rendering in fallback.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 'use client'
 import { Suspense } from 'react'
 export default function SearchPage({ searchQuery }: { searchQuery: string }) {

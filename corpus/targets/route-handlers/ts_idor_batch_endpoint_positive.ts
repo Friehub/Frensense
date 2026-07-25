@@ -2,6 +2,11 @@
 // observation: A batch endpoint processes multiple resource IDs in a single request without verifying ownership for each ID.
 // impact: An attacker can include resource IDs belonging to other users in the batch request and learn or modify data they should not have access to, bypassing per-ID access controls.
 // improvement: Verify ownership for every resource ID in the batch before processing.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function batchGetOrders(req: Request, db: DB): Promise<Response> {
   const { ids } = await req.json();

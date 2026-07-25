@@ -2,6 +2,11 @@
 // observation: User-controlled input is interpolated into raw SQL via $queryRawUnsafe using Drizzle ORM instead of Prisma.
 // impact: An attacker can perform SQL injection.
 // improvement: Use $queryRaw tagged template literals
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";

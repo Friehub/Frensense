@@ -2,6 +2,11 @@
 // observation: The server builds an external API URL by directly concatenating user input using string addition, without validating the hostname portion.
 // impact: An attacker can inject arbitrary hostnames via the query parameter, redirecting the API call to internal services and bypassing network controls.
 // improvement: Parse the input as a path only and prepend a fixed base URL, or validate the full URL against an allowlist.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 const http = require('http');
 const express = require('express');

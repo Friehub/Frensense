@@ -2,6 +2,11 @@
 // observation: A resource ownership transfer operation accepts the target owner from the request body without verifying that the current user owns the resource.
 // impact: An attacker can transfer any resource to their own account, effectively stealing resources from other users.
 // improvement: Verify that the current user owns the resource before allowing transfer, and consider requiring confirmation for ownership changes.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function transferDocument(req: Request, db: DB): Promise<Response> {
   const { docId, newOwnerId } = await req.json();

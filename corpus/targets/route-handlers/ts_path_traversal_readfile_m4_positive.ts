@@ -2,6 +2,11 @@
 // observation: User-controlled filename is passed through a helper function that returns the path without sanitization before fs.readFileSync.
 // impact: An attacker can read arbitrary files by supplying path traversal sequences through an unsafe helper.
 // improvement: Apply path.basename() inside the helper to strip directory components.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import * as fs from "fs";
 import * as path from "path";

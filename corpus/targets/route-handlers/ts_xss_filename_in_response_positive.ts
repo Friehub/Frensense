@@ -2,6 +2,11 @@
 // observation: A file's original filename from user upload is reflected in the Content-Disposition header without encoding, allowing header injection or XSS if the browser interprets the filename as HTML.
 // impact: An attacker can inject CRLF characters in the filename to inject headers, or inject quotes to break the filename attribute and trigger XSS in download dialogs.
 // improvement: Sanitize or strip the filename before using it in Content-Disposition, or use a server-generated filename instead.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 import multer from "multer";

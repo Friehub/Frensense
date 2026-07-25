@@ -2,6 +2,11 @@
 // observation: User data displayed in an admin panel — name, email, activity logs — is rendered without HTML encoding, making admin users vulnerable to stored XSS.
 // impact: An attacker with a low-privilege account stores a payload in their profile or activity data, which executes when an admin views the management panel, leading to account takeover.
 // improvement: Encode all user-supplied data anywhere it appears in admin UIs, as admin sessions are high-value targets.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

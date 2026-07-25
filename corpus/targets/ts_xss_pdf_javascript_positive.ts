@@ -2,6 +2,11 @@
 // observation: A PDF is generated from user input and served inline, allowing injection of JavaScript actions via PDF form fields or annotations.
 // impact: An attacker can embed JavaScript in a PDF file that executes in the PDF viewer's JavaScript engine, typically within the origin's context.
 // improvement: Disable JavaScript in PDF generation, or sanitize user input before embedding in PDFs.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import pdfkit from "pdfkit";
 import express from "express";

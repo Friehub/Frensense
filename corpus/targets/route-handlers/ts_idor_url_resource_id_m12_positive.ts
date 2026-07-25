@@ -2,6 +2,11 @@
 // observation: Resource ID from URL parameter is used without ownership verification inside a try-catch block.
 // impact: An attacker can access other users' resources, with errors silently caught.
 // improvement: Verify authenticated user owns the resource
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function getInvoice(req: Request, db: DB): Promise<Response> {
   try {

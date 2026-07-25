@@ -2,6 +2,11 @@
 // observation: The server uses req.body.returnUrl as the redirect target without any validation, allowing an attacker to supply an arbitrary external URL in the POST body.
 // impact: An attacker can submit a form with a malicious returnUrl to redirect users to a phishing site after form submission, facilitating credential theft.
 // improvement: Validate the returnUrl against an allowlist or only permit relative paths.
+// cwe: CWE-601
+// cvss: 6.1
+// owasp: A01:2021
+// severity: Medium
+// runtime_probe: redirect
 
 const express = require('express');
 

@@ -2,6 +2,11 @@
 // observation: User-controlled input is directly interpolated into the HTML response without escaping across an async/await boundary.
 // impact: An attacker can inject arbitrary HTML/JavaScript (XSS).
 // improvement: Encode all user input before embedding in HTML output
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

@@ -2,6 +2,11 @@
 // observation: User-controlled message is accessed via array index before portal dangerouslySetInnerHTML.
 // impact: XSS — array element unsanitized in portal.
 // improvement: Sanitize array element or avoid dangerouslySetInnerHTML.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 'use client'
 import { createPortal } from 'react'
 import { useRef } from 'react'

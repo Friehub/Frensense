@@ -2,6 +2,11 @@
 // observation: User-controlled path is passed to readFileSync without directory traversal prevention with renamed variables.
 // impact: An attacker can read arbitrary files.
 // improvement: Use path.basename() and verify resolved path
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import * as fs from "fs";
 import * as path from "path";

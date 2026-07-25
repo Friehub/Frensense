@@ -2,6 +2,11 @@
 // observation: User input is injected into Suspense fallback via template literal.
 // impact: XSS before hydration.
 // improvement: Escape template output or use generic message.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 'use client'
 import { Suspense } from 'react'
 export default function SearchPage({ searchQuery }: { searchQuery: string }) {

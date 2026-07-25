@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into a SQL query without parameterization inside a conditional block on the tainted branch.
 // impact: An attacker can perform SQL injection.
 // improvement: Use parameterized queries
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 async function getUserById(req: Request, res: Response) {
     if (req.params.id) {

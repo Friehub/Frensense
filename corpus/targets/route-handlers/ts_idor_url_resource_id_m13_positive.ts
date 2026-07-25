@@ -2,6 +2,11 @@
 // observation: Resource ID from URL parameter is used without ownership verification using Hono framework instead of Express.
 // impact: An attacker can access other users' resources.
 // improvement: Verify authenticated user owns the resource
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 import { Hono } from "hono";
 const app = new Hono();

@@ -2,6 +2,11 @@
 // observation: "Multer disk storage uses the user-provided filename directly, allowing path traversal via '../' sequences in the filename."
 // impact: "An attacker can overwrite arbitrary files on the server by providing a filename like '../../../etc/config.json' in the upload form."
 // improvement: "Sanitize the filename or use a UUID-based name instead of trusting user input."
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import multer from 'multer';
 import express from 'express';

@@ -2,6 +2,11 @@
 // observation: req.body.field is rendered directly in HTML response without any encoding, sanitization, or Content-Type header enforcement.
 // impact: An attacker can submit HTML/JavaScript via form fields that gets executed in the browser of anyone viewing the response, enabling stored XSS attacks.
 // improvement: Always escape HTML characters in user input before embedding in responses, and set the Content-Type header appropriately.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 var express = require('express');
 

@@ -2,6 +2,11 @@
 // observation: An aggregate endpoint returns statistical data (totals, averages, counts) that is not scoped to the authenticated user.
 // impact: An attacker can infer sensitive information about other users by observing aggregate values that change based on specific user actions, violating data isolation.
 // improvement: Always scope aggregate queries to the authenticated user's tenant or ownership.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function getDashboardStats(req: Request, db: DB): Promise<Response> {
   const stats = {

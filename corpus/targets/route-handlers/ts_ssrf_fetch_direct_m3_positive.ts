@@ -2,6 +2,11 @@
 // observation: User-controlled URL traverses multiple variable assignments before reaching fetch() without validation.
 // impact: An attacker can make the server send requests to internal services through multi-hop assignment.
 // improvement: Validate the URL against an allowlist regardless of how many assignment hops occur.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 async function fetchUserData(req: Request, res: Response) {
     const a = req.query.url;

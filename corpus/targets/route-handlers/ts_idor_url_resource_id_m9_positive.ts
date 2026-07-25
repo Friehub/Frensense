@@ -2,6 +2,11 @@
 // observation: Resource ID from URL parameter is used in a database query without ownership verification through an object property.
 // impact: An attacker can access other users' resources by guessing or enumerating resource IDs.
 // improvement: Always verify that the authenticated user owns the requested resource before returning data
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function getInvoice(req: Request, db: DB): Promise<Response> {
   const params = { id: req.params.id };

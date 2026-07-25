@@ -2,6 +2,11 @@
 // observation: The userId is taken from req.body instead of the authenticated session, allowing an attacker to arbitrarily change which user's data is operated on by modifying the request body.
 // impact: An attacker can submit a crafted POST request with any userId value to modify other users' accounts, perform unauthorized transfers, or escalate privileges.
 // improvement: Derive the userId from the authenticated session (req.session.userId) and ignore user-supplied identifiers.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 const express = require('express');
 const mongodb = require('mongodb');

@@ -2,6 +2,11 @@
 // observation: User-controlled URL is passed to fetch() without validation across an async/await boundary.
 // impact: An attacker can make the server send requests to internal services.
 // improvement: Validate the URL against an allowlist of permitted hosts
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 async function getUrl(req: any): Promise<string> { return req.query.url; }
 async function getTarget(req: any): Promise<string> { return req.body.target; }

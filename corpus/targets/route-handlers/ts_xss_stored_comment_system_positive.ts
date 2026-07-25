@@ -2,6 +2,11 @@
 // observation: Comments, titles, and author names from users are rendered on a page without sanitization, enabling stored XSS across all visitors.
 // impact: An attacker posts a comment containing <script> tags that steal session cookies or perform actions on behalf of other users viewing the comment thread.
 // improvement: Sanitize all user-submitted content when rendering, or use HTML-encoding for comment body, title, and author fields.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

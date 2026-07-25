@@ -2,6 +2,11 @@
 // observation: User profile endpoint accepts a userId from the URL path and returns the profile without verifying the requesting user owns that profile.
 // impact: Any authenticated user can view another user's private profile data (email, phone, address) by simply changing the userId in the URL.
 // improvement: Compare req.session.userId with the requested userId, or remove the userId param entirely and derive it from the session.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 var express = require('express');
 var app = express();

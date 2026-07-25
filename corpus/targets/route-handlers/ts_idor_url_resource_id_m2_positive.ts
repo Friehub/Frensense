@@ -2,6 +2,11 @@
 // observation: Resource ID from URL parameter flows through an intermediate variable into a database query without ownership verification.
 // impact: An attacker can access other users' resources by guessing or enumerating sequential resource IDs.
 // improvement: Always verify that the authenticated user owns the requested resource before returning data.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function getInvoice(req: Request, db: DB): Promise<Response> {
   const invoiceId = req.params.id;

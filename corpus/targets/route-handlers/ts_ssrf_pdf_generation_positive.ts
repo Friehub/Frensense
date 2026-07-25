@@ -2,6 +2,11 @@
 // observation: A PDF generation library (wkhtmltopdf, puppeteer) is invoked with a user-controlled URL, allowing the PDF renderer to make HTTP requests to internal services.
 // impact: SSRF via PDF generator — the headless browser fetches internal pages and embeds them in the PDF, exposing internal dashboards, metadata, or admin panels.
 // improvement: Validate the URL against an allowlist before passing it to the PDF generator; or use a URL sanitizer that blocks private IPs.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 import puppeteer from "puppeteer";
 import express from "express";

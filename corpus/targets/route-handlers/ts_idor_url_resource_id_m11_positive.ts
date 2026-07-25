@@ -2,6 +2,11 @@
 // observation: Resource ID from URL parameter is used without ownership verification inside a conditional block on the tainted branch.
 // impact: An attacker can access other users' resources.
 // improvement: Verify authenticated user owns the resource
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function getInvoice(req: Request, db: DB): Promise<Response> {
   if (req.params.id) {

@@ -2,6 +2,11 @@
 // observation: User-controlled input from a query parameter is directly interpolated into the HTML response body without escaping or sanitization.
 // impact: An attacker can inject arbitrary HTML/JavaScript into the response, enabling Cross-Site Scripting (XSS).
 // improvement: Encode all user input before embedding it in HTML output, or use a template engine with auto-escaping.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 var express = require('express');
 var app = express();

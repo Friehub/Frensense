@@ -2,6 +2,11 @@
 // observation: User input flows through two assignments before rendering in Suspense fallback.
 // impact: XSS before hydration via multi-hop user content.
 // improvement: Sanitize or escape before fallback rendering.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 'use client'
 import { Suspense } from 'react'
 export default function SearchPage({ searchQuery }: { searchQuery: string }) {

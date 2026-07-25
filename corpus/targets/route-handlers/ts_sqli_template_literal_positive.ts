@@ -2,6 +2,11 @@
 // observation: User-controlled values are interpolated directly into SQL query strings via template literals.
 // impact: An attacker can craft input that breaks out of the string context and executes arbitrary SQL commands.
 // improvement: Use parameterized queries with positional or named placeholders instead of string interpolation.
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 async function getUserProfile(req: Request, res: Response) {
     const userId = req.params.id;

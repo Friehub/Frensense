@@ -2,6 +2,11 @@
 // observation: User-controlled input flows through multiple intermediate variable assignments before reaching a SQL query built via string concatenation.
 // impact: An attacker can perform SQL injection by supplying crafted input in the request body or parameters.
 // improvement: Use parameterized queries with placeholders instead of string concatenation.
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 async function getUserById(req: Request, res: Response) {
     const raw = req.params.id;

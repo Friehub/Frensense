@@ -2,6 +2,11 @@
 // observation: A user-provided filename from a file upload is used directly in the filesystem path without sanitization, allowing path traversal via the filename.
 // impact: An attacker can upload a file with a name like "../../etc/cron.d/malicious" to overwrite system files or inject scripts.
 // improvement: Sanitize the filename before saving; use path.basename to remove directory components.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import express from "express";
 import multer from "multer";

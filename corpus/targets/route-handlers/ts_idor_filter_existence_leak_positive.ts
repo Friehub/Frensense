@@ -2,6 +2,11 @@
 // observation: An endpoint that filters resources behaves differently when a non-owned resource exists vs when it doesn't (e.g., returns a different error or status code).
 // impact: An attacker can use the filter endpoint to check for the existence of specific resources owned by other users, enabling data enumeration.
 // improvement: Only return resources that the user owns. When no resources match the filter, return an empty result set rather than an error.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function searchInvoices(req: Request, db: DB): Promise<Response> {
   const { invoiceId } = req.query;

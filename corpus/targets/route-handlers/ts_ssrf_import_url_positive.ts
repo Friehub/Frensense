@@ -2,6 +2,11 @@
 // observation: The application uses dynamic import() with a user-supplied URL or module specifier, allowing the attacker to load arbitrary remote modules.
 // impact: SSRF via import() — the server fetches a remote module from an attacker-controlled URL, potentially executing malicious code if the module is evaluated.
 // improvement: Restrict import() to a pre-defined allowlist of modules, or validate that the specifier does not point to remote URLs.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 import express from "express";
 

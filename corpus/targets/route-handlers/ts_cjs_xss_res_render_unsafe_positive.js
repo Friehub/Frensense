@@ -2,6 +2,11 @@
 // observation: User input from query parameters or body is passed directly to res.render() as template data without escaping or sanitization.
 // impact: If the template engine renders data unescaped (e.g. using <%- %> in EJS), an attacker can inject arbitrary JavaScript into the page, leading to stored or reflected XSS.
 // improvement: Always escape user input before passing it to templates, or use template engines that auto-escape by default (e.g. EJS with <%= %>).
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 var express = require('express');
 

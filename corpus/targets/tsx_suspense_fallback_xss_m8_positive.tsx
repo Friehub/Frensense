@@ -2,6 +2,11 @@
 // observation: User input is accessed via array index before rendering in Suspense fallback.
 // impact: XSS before hydration — array element unsanitized.
 // improvement: Escape or sanitize before fallback rendering.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 'use client'
 import { Suspense } from 'react'
 export default function SearchPage({ searchQuery }: { searchQuery: string[] }) {

@@ -2,6 +2,11 @@
 // observation: The application terminates a path string at a null byte (%00) to bypass extension-based filters, allowing arbitrary file reads with a fake extension.
 // impact: An attacker can supply "file.txt%00.html" — the null byte truncates the string at the application level, bypassing the ".html" extension check.
 // improvement: Reject input containing null bytes; strip or validate before path operations.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import express from "express";
 import fs from "fs";

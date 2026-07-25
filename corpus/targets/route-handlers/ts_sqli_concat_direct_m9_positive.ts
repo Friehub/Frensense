@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into a SQL query without parameterization through an object property.
 // impact: An attacker can perform SQL injection by crafting input that breaks out of the string literal.
 // improvement: Use parameterized queries or an ORM with bound parameters instead of string concatenation
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 async function getUserById(req: Request, res: Response) {
     const cfg = { id: req.params.id };

@@ -2,6 +2,11 @@
 // observation: User-controlled URL is accessed through an array element and passed to fetch() without validation.
 // impact: An attacker can make the server send requests to internal services by controlling an array-indexed URL.
 // improvement: Validate the array element URL against an allowlist before fetching.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 async function fetchUserData(req: Request, res: Response) {
     const urls = [req.query.url];

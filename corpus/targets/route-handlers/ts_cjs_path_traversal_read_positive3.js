@@ -2,6 +2,11 @@
 // observation: User-controlled filename flows through an intermediate variable into fs.readFileSync without path sanitization.
 // impact: An attacker can read arbitrary files on the server by supplying path traversal sequences (e.g., ../../../etc/passwd).
 // improvement: Use path.basename() to strip directory components and verify the resolved path stays within the allowed directory.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 var fs = require('fs');
 var express = require('express');

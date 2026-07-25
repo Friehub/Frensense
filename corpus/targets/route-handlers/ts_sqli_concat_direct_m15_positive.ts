@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into a SQL query without parameterization via a promise .then() chain.
 // impact: An attacker can perform SQL injection.
 // improvement: Use parameterized queries
+// cwe: CWE-89
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: sqli
 
 function getUserById(req: Request, res: Response) {
     Promise.resolve(req.params.id).then(userId => {

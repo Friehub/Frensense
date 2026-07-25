@@ -2,6 +2,11 @@
 // observation: User-controlled input is passed directly to eval with renamed variables.
 // impact: An attacker can execute arbitrary JavaScript.
 // improvement: Avoid eval; use mathjs or JSON.parse
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 async function handlerA(req: Request, res: Response) {
     const userExpression = req.body.expression;

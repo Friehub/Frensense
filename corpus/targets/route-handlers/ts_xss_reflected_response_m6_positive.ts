@@ -2,6 +2,11 @@
 // observation: User-controlled input is concatenated into the HTML response string without escaping.
 // impact: An attacker can inject arbitrary HTML/JavaScript into the response via string concatenation, enabling XSS.
 // improvement: HTML-escape all user input before concatenation into response strings.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

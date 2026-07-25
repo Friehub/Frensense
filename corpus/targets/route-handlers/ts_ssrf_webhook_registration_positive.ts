@@ -2,6 +2,11 @@
 // observation: A user-provided webhook URL is stored in the database and later fetched by the server without validation or allowlisting, allowing the attacker to make arbitrary HTTP requests.
 // impact: SSRF to internal services, cloud metadata endpoints, or external systems. The attacker can pivot the request to target internal infrastructure that should not be accessible.
 // improvement: Validate the webhook URL against an allowlist of permitted hosts at registration time, and verify on use.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// severity: High
+// runtime_probe: ssrf
 
 import express from "express";
 

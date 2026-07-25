@@ -2,6 +2,11 @@
 // observation: DB query executes before ownership is verified, enabling user enumeration via 404 vs 403.
 // impact: Attacker probes valid IDs by observing whether response is 404 (not found) or 403 (found, not yours).
 // improvement: Move the ownership guard before the DB query: if (userId !== session.customerId) return error(403).
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 async function handleGetUser(request: Request, session: Session, env: Env) {
   const userId = request.url.split('/').pop() || session.customerId;

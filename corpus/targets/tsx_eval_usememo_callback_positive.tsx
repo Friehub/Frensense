@@ -2,6 +2,11 @@
 // observation: The eval function is called inside a useMemo or useCallback hook, executing arbitrary code derived from runtime values.
 // impact: An attacker who controls any input that reaches the evaluated expression can achieve arbitrary code execution in the client's browser.
 // improvement: Remove the eval call entirely. Use pure functions, lookup tables, or factory patterns instead of dynamic code evaluation.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { useMemo, useCallback } from 'react';
 

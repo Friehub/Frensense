@@ -2,6 +2,11 @@
 // observation: Resource ID is extracted via a helper function from the request and used in a query without ownership verification.
 // impact: An attacker can access other users' resources by controlling the URL parameter through an unsafe helper.
 // improvement: Verify ownership inside or after calling the helper function.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 function extractId(req: Request): string {
     return req.params.id;

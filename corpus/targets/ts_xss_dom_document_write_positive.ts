@@ -2,6 +2,11 @@
 // observation: User-controlled input from the query string is written directly to the page using document.write, which parses the string as HTML.
 // impact: An attacker can inject arbitrary HTML/script tags via a crafted URL. When the page loads, document.write replaces the page content with attacker-controlled HTML.
 // improvement: Avoid document.write entirely; use DOM manipulation methods like textContent or createElement.
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 export function renderAd() {
     const adContent = location.search.slice(1);

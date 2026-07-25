@@ -2,6 +2,11 @@
 // observation: The log file path is configurable by the user and is used directly in logging library configuration without path traversal validation, allowing arbitrary file write via log injection.
 // impact: An attacker can set the log path to "../../etc/cron.d/logrotate" or similar, causing the application to write logs to a system-controlled location.
 // improvement: Validate the log path against an allowlist of permitted directories, or restrict log configuration to admins only.
+// cwe: CWE-22
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: path_traversal
 
 import express from "express";
 import { createLogger, transports } from "winston";

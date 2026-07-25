@@ -2,6 +2,11 @@
 // observation: User-controlled input is passed to vm.runInNewContext() or vm.runInThisContext(), allowing sandbox escape and arbitrary code execution.
 // impact: An attacker can craft input that escapes the VM sandbox and gains access to the host system's globals, enabling RCE and full server compromise.
 // improvement: Avoid user code evaluation entirely, or use a properly sandboxed environment with minimal globals.
+// cwe: CWE-95
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import vm from "vm";
 

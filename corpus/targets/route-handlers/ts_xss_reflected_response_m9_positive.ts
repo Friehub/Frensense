@@ -2,6 +2,11 @@
 // observation: User-controlled input is directly interpolated into the HTML response body without escaping through an object property.
 // impact: An attacker can inject arbitrary HTML/JavaScript into the response, enabling Cross-Site Scripting (XSS).
 // improvement: Encode all user input before embedding it in HTML output, or use a template engine with auto-escaping
+// cwe: CWE-79
+// cvss: 6.1
+// owasp: A03:2021
+// severity: Medium
+// runtime_probe: xss
 
 import express from "express";
 

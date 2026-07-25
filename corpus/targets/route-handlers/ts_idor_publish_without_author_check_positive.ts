@@ -2,6 +2,11 @@
 // observation: A publish/unpublish endpoint for content (articles, posts, comments) accepts a content ID without verifying that the current user is the author.
 // impact: An attacker can publish or unpublish any user's content, causing reputational damage, content manipulation, or denial of service.
 // improvement: Verify that the current user is the author of the content before allowing publish/unpublish actions.
+// cwe: CWE-639
+// cvss: 7.5
+// owasp: A01:2021
+// severity: High
+// runtime_probe: idor
 
 export async function publishArticle(req: Request, db: DB): Promise<Response> {
   const { articleId } = req.body;
