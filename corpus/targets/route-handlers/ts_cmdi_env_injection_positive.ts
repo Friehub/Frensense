@@ -2,6 +2,11 @@
 // observation: User-controlled environment variables are passed to child_process spawn options, allowing injection of PATH, LD_PRELOAD, or other malicious environment variables.
 // impact: An attacker can manipulate the dynamic linker via LD_PRELOAD to load a malicious shared library, or override PATH to execute a different binary than intended.
 // improvement: Never pass user-controlled environment variables directly; use only a fixed set of allowed environment variables with validated values.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { spawn } from "child_process";
 

@@ -2,6 +2,11 @@
 // observation: User-controlled input is written to a file that is later executed as a shell script or configuration, creating an indirect command injection path.
 // impact: An attacker can inject shell commands into a file that gets executed, leading to arbitrary command execution when the script or config is processed.
 // improvement: Avoid writing user input to executable files; if necessary, sanitize the input strictly before writing and avoid executing user-written files.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { writeFileSync, chmodSync } from "fs";
 import { exec } from "child_process";

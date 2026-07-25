@@ -2,6 +2,11 @@
 // observation: spawn is called with shell:true and a user-controlled command string, allowing arbitrary shell command execution through metacharacters.
 // impact: An attacker can inject shell metacharacters (;, &&, |, $()) to execute arbitrary commands on the server, leading to full system compromise.
 // improvement: Set shell to false (or omit it) and pass the command and arguments separately; avoid shell:true with any user-controlled input.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { spawn } from "child_process";
 

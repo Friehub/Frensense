@@ -2,6 +2,11 @@
 // observation: User-controlled input is passed through a helper function before reaching exec() without sanitization in the helper.
 // impact: An attacker can execute arbitrary system commands by supplying crafted input through an unsafe helper function.
 // improvement: Validate input inside the helper or use execFile with arguments.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 function getCommand(req: any): string {
     return req.query.cmd;

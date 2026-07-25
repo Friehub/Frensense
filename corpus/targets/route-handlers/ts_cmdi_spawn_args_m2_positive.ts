@@ -2,6 +2,11 @@
 // observation: User-controlled input is passed as an argument to spawn, enabling argument injection through an intermediate variable.
 // impact: An attacker can inject flags that alter the spawned command's behavior
 // improvement: Validate user-supplied arguments against an allowlist or use only positional args
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 async function handlerA(req: Request, res: Response) {
     const val = req.body.file;

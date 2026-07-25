@@ -2,6 +2,11 @@
 // observation: User-controlled input is interpolated into a shell command string passed to exec/spawn with shell:true, allowing arbitrary command execution through metacharacters.
 // impact: An attacker can inject shell metacharacters (;, `, $(), ||) to execute arbitrary OS commands on the server, leading to full compromise.
 // improvement: Use spawn without shell:true and pass user input as separate arguments, or validate/escape the input against an allowlist.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { exec } from "child_process";
 

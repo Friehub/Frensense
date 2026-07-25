@@ -2,6 +2,11 @@
 // observation: User-controlled filenames and paths are interpolated into shell commands for unzip/tar, enabling command injection through crafted archive or path names.
 // impact: An attacker can inject shell metacharacters in filenames or paths to execute arbitrary commands, or use path traversal in archive contents (zip slip).
 // improvement: Use spawn with separate args and validate all user-supplied paths against an allowlist.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { exec } from "child_process";
 

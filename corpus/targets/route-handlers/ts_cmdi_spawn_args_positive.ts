@@ -2,6 +2,11 @@
 // observation: One or more elements of the args array passed to spawn() are derived from user input, enabling argument injection attacks.
 // impact: An attacker can inject flags like --exec, --output, or -o that alter the behavior of the spawned command, leading to arbitrary file read, write, or execution.
 // improvement: Validate user-supplied arguments against an allowlist or use positional arguments only with no flag-like prefixes.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { spawn } from "child_process";
 

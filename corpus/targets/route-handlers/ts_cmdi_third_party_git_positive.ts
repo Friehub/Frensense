@@ -2,6 +2,11 @@
 // observation: User-controlled URL is interpolated into a shell command passed to exec for git clone, allowing arbitrary command injection via the URL.
 // impact: An attacker can inject shell metacharacters in the URL to execute arbitrary commands, or use options like --config to modify git configuration.
 // improvement: Use spawn with separate args array and validate the URL against a strict allowlist pattern.
+// cwe: CWE-78
+// cvss: 9.8
+// owasp: A03:2021
+// severity: Critical
+// runtime_probe: cmdi
 
 import { exec } from "child_process";
 
