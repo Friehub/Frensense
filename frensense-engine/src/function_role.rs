@@ -108,46 +108,26 @@ pub fn classify_role(fp: &FunctionFingerprint) -> FunctionRole {
 
 /// Check if fingerprint matches an HTTP request/response handler.
 fn is_http_handler(fp: &FunctionFingerprint) -> bool {
-    let has_http_call = fp.raw_call_names.iter().any(|c| {
+    fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
         HTTP_METHODS.iter().any(|m| lower.ends_with(m))
-    });
-
-    let struct_count = fp.structural_markers.len();
-    let has_api = !fp.api_calls.is_empty();
-    let has_control_flow = !fp.control_flow_hashes.is_empty();
-    let type_count = fp.param_type_ngrams.len();
-
-    has_http_call || (struct_count >= 7 && has_api && type_count >= 2 && has_control_flow)
+    })
 }
 
 /// Check if fingerprint matches a shell executor.
 fn is_shell_executor(fp: &FunctionFingerprint) -> bool {
-    let has_shell_call = fp.raw_call_names.iter().any(|c| {
+    fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
         SHELL_API.iter().any(|api| lower.ends_with(api))
-    });
-
-    let has_api = !fp.api_calls.is_empty();
-    let has_control = !fp.control_flow_hashes.is_empty();
-    let signature_count = fp.signature_ngrams.len();
-    let type_count = fp.param_type_ngrams.len();
-
-    has_shell_call || (has_api && has_control && type_count <= 2 && signature_count <= 3)
+    })
 }
 
 /// Check if fingerprint matches a database query function.
 fn is_db_query(fp: &FunctionFingerprint) -> bool {
-    let has_db_call = fp.raw_call_names.iter().any(|c| {
+    fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
         DB_API.iter().any(|api| lower.ends_with(api))
-    });
-
-    let has_api = !fp.api_calls.is_empty();
-    let has_control = !fp.control_flow_hashes.is_empty();
-    let type_count = fp.param_type_ngrams.len();
-
-    has_db_call || (has_api && has_control && type_count >= 1)
+    })
 }
 
 /// Check if two roles are incompatible (cannot be the same function).
@@ -193,6 +173,7 @@ mod tests {
             skeleton: Vec::new(),
             skeleton_hashes: Vec::new(),
             control_flow_hashes: control_flow,
+            control_flow_sequence_hash: 0,
             api_calls,
             api_call_segments,
             property_accesses: Vec::new(),

@@ -62,6 +62,16 @@ impl SymbolRegistry {
     }
 
     #[cfg(feature = "full-analysis")]
+    pub fn merge(&mut self, mut other: SymbolRegistry) {
+        self.graph.merge(other.graph);
+        // The node indices in other.file_index are no longer valid because `merge` created new nodes.
+        // We actually don't strictly need file_index to be perfectly merged for cross_file taint resolution, 
+        // as it relies on SemanticGraph, but we should clear or rebuild it if needed.
+        // For now, rebuilding file_index is complex without returning the node_map from SemanticGraph::merge.
+        // But cross_file.rs relies on `all_symbols()` which uses the SemanticGraph directly.
+    }
+
+    #[cfg(feature = "full-analysis")]
     pub fn find(&self, name: &str) -> Vec<&Symbol> {
         self.graph
             .find_nodes(name)

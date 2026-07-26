@@ -436,6 +436,9 @@ impl PatternScorer {
             if dim.config_sim > worst_neg.config_sim {
                 worst_neg.config_sim = dim.config_sim;
             }
+            if dim.cf_order_sim > worst_neg.cf_order_sim {
+                worst_neg.cf_order_sim = dim.cf_order_sim;
+            }
         }
 
         // API intersection-size signal
@@ -459,7 +462,7 @@ impl PatternScorer {
             0.0
         };
 
-        let signal: [f64; 12] = [
+        let signal: [f64; 13] = [
             (best_dim.ngram_sim - worst_neg.ngram_sim).max(0.0),
             (best_dim.ast_sim - worst_neg.ast_sim).max(0.0),
             (best_dim.signature_sim - worst_neg.signature_sim).max(0.0),
@@ -468,10 +471,11 @@ impl PatternScorer {
             (best_dim.semantic_sim - worst_neg.semantic_sim).max(0.0),
             (best_dim.cf_sim - worst_neg.cf_sim).max(0.0),
             signal_api.max(0.0),
+            (best_dim.tainted_api_sim - worst_neg.tainted_api_sim).max(0.0),
             (best_dim.motif_sim - worst_neg.motif_sim).max(0.0),
             (best_dim.flow_sim - worst_neg.flow_sim).max(0.0),
-            (best_dim.tainted_api_sim - worst_neg.tainted_api_sim).max(0.0),
             (best_dim.config_sim - worst_neg.config_sim).max(0.0),
+            (best_dim.cf_order_sim - worst_neg.cf_order_sim).max(0.0),
         ];
 
         let max_signal = signal.iter().cloned().fold(0.0f64, f64::max);
@@ -726,6 +730,19 @@ impl PatternScorer {
             &candidate.config_literal_hashes,
             &target.config_literal_hashes,
         );
+        // Control flow ordering: exact match on the sequence hash.
+        // Returns 1.0 if both sequences match (or both are empty/zero),
+        // 0.0 if they differ. This penalizes check→delete vs delete→check.
+        let cf_order_sim = if candidate.control_flow_sequence_hash == 0
+            && target.control_flow_sequence_hash == 0
+        {
+            1.0 // Both empty — no ordering signal, treat as neutral
+        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash
+        {
+            1.0
+        } else {
+            0.0
+        };
 
         RawDimensions {
             ngram_sim,
@@ -740,6 +757,7 @@ impl PatternScorer {
             flow_sim,
             tainted_api_sim,
             config_sim,
+            cf_order_sim,
         }
     }
 }
@@ -777,6 +795,7 @@ pub(crate) struct RawDimensions {
     flow_sim: f64,
     tainted_api_sim: f64,
     config_sim: f64,
+    cf_order_sim: f64,
 }
 
 impl RawDimensions {

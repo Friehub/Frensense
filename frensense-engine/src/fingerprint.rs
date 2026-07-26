@@ -30,6 +30,12 @@ pub struct FunctionFingerprint {
     /// Control flow encoding: hashes of control flow paths through the function
     /// Captures if/else, match, loop, return patterns that fingerprint race conditions, TOCTOU, etc.
     pub control_flow_hashes: Vec<u64>,
+
+    /// Hash of the ordered control-flow event sequence (branch, return, call, ...).
+    /// Separate from control_flow_hashes (which uses Jaccard on a set) so the
+    /// scorer can apply an exact-match penalty when ordering differs.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub control_flow_sequence_hash: u64,
     /// API calls: hashes of the full callee expression used in the body.
     /// E.g., hash of `"child_process.exec"`.
     /// Used for AST-aware semantic matching and IDF weighting.
@@ -286,17 +292,23 @@ fn extract_control_flow(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut path = Vec::new();
     extract_cf_recursive(node, source, &mut path, &mut hashes);
 
-    // Also hash the complete ordered sequence for order-sensitive patterns
-    // (e.g. exec→return vs. return→exec must produce different hashes).
-    let mut seq_h = FxHasher::default();
-    "cf_sequence".hash(&mut seq_h);
-    let ordered = collect_cf_sequence(node, source);
-    ordered.hash(&mut seq_h);
-    hashes.insert(seq_h.finish());
-
     let mut vec: Vec<u64> = hashes.into_iter().collect();
     vec.sort_unstable();
     vec
+}
+
+/// Extract the ordered control-flow sequence as a single hash.
+/// Used by the scorer to penalize order mismatches (e.g. check→delete vs
+/// delete→check) that Jaccard on the full control_flow_hashes set dilutes.
+fn extract_cf_sequence_hash(node: Node<'_>, source: &str) -> u64 {
+    let ordered = collect_cf_sequence(node, source);
+    if ordered.is_empty() {
+        return 0;
+    }
+    let mut seq_h = FxHasher::default();
+    "cf_sequence".hash(&mut seq_h);
+    ordered.hash(&mut seq_h);
+    seq_h.finish()
 }
 
 /// Collect control-flow event names in document order (pre-order traversal).
@@ -851,6 +863,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
 
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
+            let cf_sequence_hash = extract_cf_sequence_hash(body, source_code);
             let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers = extract_semantic_markers(
@@ -928,6 +941,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 skeleton,
                 skeleton_hashes,
                 control_flow_hashes: control_flow,
+                control_flow_sequence_hash: cf_sequence_hash,
                 api_calls,
                 api_call_segments,
                 property_accesses,
@@ -1016,6 +1030,7 @@ pub fn extract_fingerprints(
 
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
+            let cf_sequence_hash = extract_cf_sequence_hash(body, source_code);
             let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers = extract_semantic_markers(
@@ -1092,6 +1107,7 @@ pub fn extract_fingerprints(
                 skeleton,
                 skeleton_hashes,
                 control_flow_hashes: control_flow,
+                control_flow_sequence_hash: cf_sequence_hash,
                 api_calls,
                 api_call_segments,
                 property_accesses,

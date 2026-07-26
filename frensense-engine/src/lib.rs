@@ -194,11 +194,53 @@ pub fn analyze_project(
         let file_id = FileId(u32::try_from(idx).expect("project file count exceeded u32::MAX"));
 
         let result = analyze_file(&source, language, path, file_id)?;
-        #[cfg(feature = "full-analysis")]
-        {
-            all_fingerprints.extend(result.functions.clone());
-        }
         results.insert(path_str, result);
+    }
+
+    #[cfg(feature = "full-analysis")]
+    {
+        // 1. Build a global semantic graph
+        let mut global_graph = crate::graph::SemanticGraph::new();
+        for res in results.values() {
+            global_graph.merge(res.graph.clone());
+        }
+
+        // 2. Build the cross-file taint resolver
+        let all_symbols = global_graph.all_symbols();
+        let mut resolver = crate::data_flow::cross_file::build_resolver(&all_symbols, &global_graph);
+
+        // 3. Register exposed taint sources (e.g. HTTP handlers)
+        for res in results.values() {
+            for func in &res.functions {
+                let role = crate::function_role::classify_role(func);
+                if role == crate::function_role::FunctionRole::HttpHandler {
+                    let key = format!("{}:{}", res.file_path, func.function_name);
+                    resolver.register_exposed_taint(&key, &res.file_path, crate::data_flow::TaintOrigin::UserInput);
+                }
+            }
+        }
+
+        // 4. Resolve taint for sinks (e.g. DbQuery, ShellExecutor) and update fingerprints
+        for res in results.values_mut() {
+            for func in &mut res.functions {
+                let role = crate::function_role::classify_role(func);
+                if matches!(
+                    role,
+                    crate::function_role::FunctionRole::DbQuery | crate::function_role::FunctionRole::ShellExecutor
+                ) {
+                    let taints = resolver.resolve_taint(&func.function_name, &res.file_path, 10);
+                    if !taints.is_empty() {
+                        // If cross-file taint reached this sink, hash the api call names to simulate the structural taint
+                        for api in &func.raw_call_names {
+                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                            std::hash::Hash::hash(api, &mut hasher);
+                            func.tainted_api_calls.push(std::hash::Hasher::finish(&hasher));
+                        }
+                    }
+                }
+            }
+            all_fingerprints.extend(res.functions.clone());
+        }
     }
 
     Ok(ProjectAnalysis {

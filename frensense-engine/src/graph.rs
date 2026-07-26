@@ -138,6 +138,38 @@ impl SemanticGraph {
             .map(SemanticNodeId)
     }
 
+    pub fn merge(&mut self, other: SemanticGraph) {
+        let mut node_map = HashMap::new();
+
+        // 1. Add all nodes from other graph and map their old indices to new indices
+        for idx in other.graph.node_indices() {
+            if let Some(weight) = other.graph.node_weight(idx) {
+                let new_idx = self.graph.add_node(weight.clone());
+                node_map.insert(idx, new_idx);
+                
+                // Update name_index
+                let name = match weight {
+                    SemanticNode::Declaration(s) => s.name.clone(),
+                    SemanticNode::Event(e) => e.label.clone(),
+                };
+                self.name_index.entry(name).or_default().push(new_idx);
+            }
+        }
+
+        // 2. Add all edges from other graph using the mapped indices
+        for edge in other.graph.edge_references() {
+            if let (Some(&new_source), Some(&new_target)) = (
+                node_map.get(&edge.source()),
+                node_map.get(&edge.target())
+            ) {
+                self.graph.add_edge(new_source, new_target, *edge.weight());
+            }
+        }
+
+        // 3. Extend taint flows
+        self.taint_flows.extend(other.taint_flows);
+    }
+
     pub fn neighbors_of(&self, id: SemanticNodeId, kind: EdgeKind) -> Vec<SemanticNodeId> {
         self.graph
             .edges(id.0)
