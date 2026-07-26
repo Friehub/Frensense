@@ -62,6 +62,7 @@ pub struct CliOptions {
     pub build_bundle_output: Option<PathBuf>,
     pub scan_mode: String,
     pub ngram_sim_threshold: Option<f64>,
+    pub emit_hypotheses: bool,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -119,6 +120,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         build_bundle_output: None,
         scan_mode: "fast".to_string(),
         ngram_sim_threshold: None,
+        emit_hypotheses: false,
     };
 
     let mut i = 1;
@@ -126,6 +128,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         match args[i].as_str() {
             "--json" => options.format = "json".to_string(),
             "--sarif" => options.format = "sarif".to_string(),
+            "--emit-hypotheses" => options.emit_hypotheses = true,
             "--strict" => options.is_strict = Flag::Yes,
             "--fix" => {
                 let scope = args.get(i + 1).map(std::string::String::as_str);

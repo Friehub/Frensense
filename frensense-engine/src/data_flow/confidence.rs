@@ -75,7 +75,8 @@ impl TaintConfidenceAdjuster {
 
             let closest_def = defs_before.iter().max_by_key(|d| d.start_byte);
 
-            let source_reaches = closest_def.is_some_and(|def| is_real_source(def, source, root, registry));
+            let source_reaches =
+                closest_def.is_some_and(|def| is_real_source(def, source, root, registry));
 
             if source_reaches {
                 return original_confidence;
@@ -146,8 +147,11 @@ fn is_real_source(
         end += 1;
     }
     let context = &source[start..end];
-    
-    if crate::corpus::loader::TAINT_SOURCE_PATTERNS.iter().any(|&p| context.contains(p)) {
+
+    if crate::corpus::loader::TAINT_SOURCE_PATTERNS
+        .iter()
+        .any(|&p| context.contains(p))
+    {
         return true;
     }
 
@@ -168,11 +172,18 @@ fn resolve_declared_type(
     let mut current = node;
     loop {
         match current.kind() {
-            "variable_declarator" | "required_parameter" | "optional_parameter" | "parameter" | "identifier" => {
+            "variable_declarator"
+            | "required_parameter"
+            | "optional_parameter"
+            | "parameter"
+            | "identifier" => {
                 let mut cursor = current.walk();
                 for child in current.children(&mut cursor) {
                     match child.kind() {
-                        "type_annotation" | "type_identifier" | "scoped_type_identifier" | "generic_type" => {
+                        "type_annotation"
+                        | "type_identifier"
+                        | "scoped_type_identifier"
+                        | "generic_type" => {
                             let ty = source[child.start_byte()..child.end_byte()].trim();
                             if !ty.is_empty() {
                                 let clean = ty.trim_start_matches(':').trim();
@@ -182,12 +193,22 @@ fn resolve_declared_type(
                         _ => {}
                     }
                 }
-                if matches!(current.kind(), "variable_declarator" | "required_parameter" | "optional_parameter" | "parameter") {
+                if matches!(
+                    current.kind(),
+                    "variable_declarator"
+                        | "required_parameter"
+                        | "optional_parameter"
+                        | "parameter"
+                ) {
                     break;
                 }
             }
             "assignment_expression" | "assignment" | "expression_statement" => break,
-            "function_definition" | "function_declaration" | "arrow_function" | "method_definition" | "function_item" => break,
+            "function_definition"
+            | "function_declaration"
+            | "arrow_function"
+            | "method_definition"
+            | "function_item" => break,
             _ => {}
         }
         if let Some(parent) = current.parent() {
@@ -280,8 +301,14 @@ fn test_constant() {
     #[test]
     fn test_unknown_language_returns_original() {
         let registry = CorpusSourceSinkRegistry::default();
-        let confidence =
-            TaintConfidenceAdjuster::adjust_confidence("", Path::new("test.abc"), 1, "", 0.90, &registry);
+        let confidence = TaintConfidenceAdjuster::adjust_confidence(
+            "",
+            Path::new("test.abc"),
+            1,
+            "",
+            0.90,
+            &registry,
+        );
         assert!(
             (confidence - 0.90).abs() < f32::EPSILON,
             "unknown language should return original"

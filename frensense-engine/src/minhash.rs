@@ -36,7 +36,7 @@ pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
 
 pub fn jaccard_similarity_sorted(a: &[u64], b: &[u64]) -> f64 {
     if a.is_empty() && b.is_empty() {
-        return 1.0;
+        return 0.0;
     }
     if a.is_empty() || b.is_empty() {
         return 0.0;
@@ -95,7 +95,7 @@ pub fn jaccard_similarity(a: &FxHashSet<u64>, b: &FxHashSet<u64>) -> f64 {
     let intersection = a.intersection(b).count();
     let union = a.union(b).count();
     if union == 0 {
-        return 1.0;
+        return 0.0;
     }
     intersection as f64 / union as f64
 }
@@ -149,7 +149,10 @@ impl LSHIndex {
                 val.hash(&mut hasher);
             }
             let bucket_key = hasher.finish();
-            self.bands[band].entry(bucket_key).or_default().push(item_id);
+            self.bands[band]
+                .entry(bucket_key)
+                .or_default()
+                .push(item_id);
         }
     }
 

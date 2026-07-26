@@ -31,9 +31,8 @@ fn process_snapshots<'a>(
 ) -> Result<ProcessSnapshotsResult<'a>> {
     let mut symbols = SymbolRegistry::new();
     let mut file_ids = Vec::with_capacity(snapshots.len());
-    let mut snapshot_map = rustc_hash::FxHashMap::with_capacity_and_hasher(
-        snapshots.len(), Default::default(),
-    );
+    let mut snapshot_map =
+        rustc_hash::FxHashMap::with_capacity_and_hasher(snapshots.len(), Default::default());
 
     for snap in snapshots {
         file_ids.push((snap.id, snap.path.clone()));
@@ -74,9 +73,8 @@ fn build_file_trees(
         Vec<crate::semantics::data_flow::normalization::SemanticOp>,
     ),
 > {
-    let mut file_trees = rustc_hash::FxHashMap::with_capacity_and_hasher(
-        snapshots.len(), Default::default(),
-    );
+    let mut file_trees =
+        rustc_hash::FxHashMap::with_capacity_and_hasher(snapshots.len(), Default::default());
     for snap in snapshots {
         file_trees.insert(
             snap.path.to_string_lossy().to_string(),
@@ -348,7 +346,10 @@ fn run_findings_modules(
             }
         }
 
-        tracing::trace!(exposed_count, "cross-file taint: registered exposed sources");
+        tracing::trace!(
+            exposed_count,
+            "cross-file taint: registered exposed sources"
+        );
     }
 
     let mut temporal_analyzer = frensense_engine::temporal::TemporalAnalyzer::new();
@@ -495,12 +496,15 @@ fn run_corpus_scan(
     let scoring_start_time = std::time::Instant::now();
 
     // Pre-group identical fingerprints to avoid redundant scoring.
-    let mut groups: rustc_hash::FxHashMap<u64, Vec<(
-        frensense_engine::fingerprint::FunctionFingerprint,
-        tree_sitter::Node<'_>,
-        &FileSnapshot,
-        frensense_engine::context::FileContext,
-    )>> = rustc_hash::FxHashMap::default();
+    let mut groups: rustc_hash::FxHashMap<
+        u64,
+        Vec<(
+            frensense_engine::fingerprint::FunctionFingerprint,
+            tree_sitter::Node<'_>,
+            &FileSnapshot,
+            frensense_engine::context::FileContext,
+        )>,
+    > = rustc_hash::FxHashMap::default();
     for item in all_fps {
         let hash = compute_fp_hash(&item.0);
         groups.entry(hash).or_default().push(item);
@@ -784,7 +788,11 @@ impl Engine {
     /// Returns an error if file reading, parsing, or auditing fails.
     pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
         let _config = self.initialize_auditor_and_config(root);
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
+        self.file_cache = cache::FileCache::load(
+            root,
+            self.language_filter.as_deref(),
+            self.corpus_bundle_hash().as_deref(),
+        );
 
         let snapshots = self.snapshot_files(root, files);
         let ProcessSnapshotsResult {
@@ -830,7 +838,11 @@ impl Engine {
         );
         self.apply_composition(&mut all_advisories);
 
-        self.file_cache.save(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
+        self.file_cache.save(
+            root,
+            self.language_filter.as_deref(),
+            self.corpus_bundle_hash().as_deref(),
+        );
         Ok(all_advisories)
     }
 
@@ -922,7 +934,11 @@ impl Engine {
                 format!("path does not exist: {}", root.display()),
             )));
         }
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
+        self.file_cache = cache::FileCache::load(
+            root,
+            self.language_filter.as_deref(),
+            self.corpus_bundle_hash().as_deref(),
+        );
         self.cache_root = Some(root.to_path_buf());
 
         let config = self.initialize_auditor_and_config(root);
@@ -989,7 +1005,11 @@ impl Engine {
             all_advisories.retain(|a| !baseline_set.contains(&a.fingerprint));
         }
 
-        self.file_cache.save(root, self.language_filter.as_deref(), self.corpus_bundle_hash().as_deref());
+        self.file_cache.save(
+            root,
+            self.language_filter.as_deref(),
+            self.corpus_bundle_hash().as_deref(),
+        );
         Ok((all_advisories, symbols))
     }
 

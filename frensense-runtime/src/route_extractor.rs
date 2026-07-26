@@ -101,8 +101,7 @@ fn extract_routes_recursive(
         if let Some(func) = node.child_by_field_name("function") {
             let callee = &source[func.start_byte()..func.end_byte()];
             if let Some((method, framework)) = detect_route_registration(callee) {
-                if let Some(binding) =
-                    extract_express_route(node, source, file, method, framework)
+                if let Some(binding) = extract_express_route(node, source, file, method, framework)
                 {
                     routes.push(binding);
                     return;
@@ -211,7 +210,9 @@ pub fn match_finding_to_route<'a>(
             file_match && fn_match
         })
         .or_else(|| {
-            routes.iter().find(|r| r.handler_file.ends_with(&advisory.file_path))
+            routes
+                .iter()
+                .find(|r| r.handler_file.ends_with(&advisory.file_path))
         })
 }
 

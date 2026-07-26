@@ -16,16 +16,20 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                     probe_id: "ssrf_callback".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "SSRF callback to canary server — inbound connection confirms fetch".to_string(),
+                description: "SSRF callback to canary server — inbound connection confirms fetch"
+                    .to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),
-                payload: "http://169.254.169.254/latest/meta-data/iam/security-credentials/".to_string(),
+                payload: "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+                    .to_string(),
                 oracle: OracleKind::CanaryInBody {
                     canary: "iam".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "AWS metadata endpoint — response body confirms internal network access".to_string(),
+                description:
+                    "AWS metadata endpoint — response body confirms internal network access"
+                        .to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),
@@ -34,7 +38,8 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                     probe_id: "ssrf_dns".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "SSRF via DNS lookup — canary DNS resolution confirms fetch attempt".to_string(),
+                description: "SSRF via DNS lookup — canary DNS resolution confirms fetch attempt"
+                    .to_string(),
             },
         ],
     }

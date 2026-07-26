@@ -4,21 +4,24 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use frensense_runtime::adapters::detector::detect_framework;
 use frensense_runtime::adapters::AuthConvention;
+use frensense_runtime::adapters::detector::detect_framework;
 use frensense_runtime::advisory::RuntimeAdvisory;
 use frensense_runtime::canary::CanaryServer;
 use frensense_runtime::config::{ProbeRisk, RuntimeConfig};
 use frensense_runtime::probes::category_from_rule_id;
-use frensense_runtime::route_extractor::{match_finding_to_route, RouteBinding};
+use frensense_runtime::route_extractor::{RouteBinding, match_finding_to_route};
 use frensense_runtime::scheduler::{
-    probe_concurrency_degradation, run_probe_campaign, strategy_for_rule_id,
-    ConcurrencyVerdict, ProbeStrategy,
+    ConcurrencyVerdict, ProbeStrategy, probe_concurrency_degradation, run_probe_campaign,
+    strategy_for_rule_id,
 };
 use frensense_runtime::session::SessionManager;
 
 #[derive(Parser, Debug)]
-#[clap(name = "frensense-runtime", about = "Corpus-driven runtime verification for Frensense static findings")]
+#[clap(
+    name = "frensense-runtime",
+    about = "Corpus-driven runtime verification for Frensense static findings"
+)]
 struct Cli {
     #[clap(long, short, help = "Path to frensense static report JSON")]
     report: PathBuf,
@@ -26,22 +29,38 @@ struct Cli {
     #[clap(long, short, help = "Target base URL (e.g. http://localhost:3000)")]
     target: String,
 
-    #[clap(long, help = "Canary server bind address (default: 0.0.0.0:9999)", default_value = "0.0.0.0:9999")]
+    #[clap(
+        long,
+        help = "Canary server bind address (default: 0.0.0.0:9999)",
+        default_value = "0.0.0.0:9999"
+    )]
     canary_host: String,
 
-    #[clap(long, help = "Maximum probe risk level (safe, low, medium, destructive)", default_value = "safe")]
+    #[clap(
+        long,
+        help = "Maximum probe risk level (safe, low, medium, destructive)",
+        default_value = "safe"
+    )]
     max_risk: ProbeRisk,
 
     #[clap(long, help = "Authorization header to include in requests")]
     auth_header: Option<String>,
 
-    #[clap(long, help = "Delay between probes in milliseconds", default_value = "500")]
+    #[clap(
+        long,
+        help = "Delay between probes in milliseconds",
+        default_value = "500"
+    )]
     inter_probe_delay: u64,
 
     #[clap(long, help = "Output path for runtime report JSON")]
     output: Option<String>,
 
-    #[clap(long, help = "Enable destructive probes (requires confirmation)", default_value_t = false)]
+    #[clap(
+        long,
+        help = "Enable destructive probes (requires confirmation)",
+        default_value_t = false
+    )]
     destructive: bool,
 
     #[clap(long, help = "Disable endpoint/probe limits", default_value_t = false)]
@@ -50,7 +69,10 @@ struct Cli {
     #[clap(long, help = "Project root directory for framework auto-detection")]
     project_root: Option<PathBuf>,
 
-    #[clap(long, help = "Login URL for session acquisition (e.g. http://localhost:3000/login)")]
+    #[clap(
+        long,
+        help = "Login URL for session acquisition (e.g. http://localhost:3000/login)"
+    )]
     login_url: Option<String>,
 
     #[clap(long, help = "Username for login")]
@@ -59,16 +81,32 @@ struct Cli {
     #[clap(long, help = "Password for login")]
     auth_password: Option<String>,
 
-    #[clap(long, help = "Login form username field name (default: userName)", default_value = "userName")]
+    #[clap(
+        long,
+        help = "Login form username field name (default: userName)",
+        default_value = "userName"
+    )]
     login_username_field: String,
 
-    #[clap(long, help = "Login form password field name (default: password)", default_value = "password")]
+    #[clap(
+        long,
+        help = "Login form password field name (default: password)",
+        default_value = "password"
+    )]
     login_password_field: String,
 
-    #[clap(long, help = "CSRF form field name (default: _csrf)", default_value = "_csrf")]
+    #[clap(
+        long,
+        help = "CSRF form field name (default: _csrf)",
+        default_value = "_csrf"
+    )]
     csrf_field: String,
 
-    #[clap(long, help = "Session cookie name (default: connect.sid)", default_value = "connect.sid")]
+    #[clap(
+        long,
+        help = "Session cookie name (default: connect.sid)",
+        default_value = "connect.sid"
+    )]
     session_cookie: String,
 }
 
@@ -83,8 +121,8 @@ async fn main() {
     let report_content = tokio::fs::read_to_string(&cli.report)
         .await
         .expect("Failed to read report file");
-    let findings: Vec<frensense::Advisory> = serde_json::from_str(&report_content)
-        .expect("Failed to parse report JSON");
+    let findings: Vec<frensense::Advisory> =
+        serde_json::from_str(&report_content).expect("Failed to parse report JSON");
 
     let canary_addr: SocketAddr = cli
         .canary_host
@@ -139,39 +177,42 @@ async fn main() {
     let mut runtime_advisories: Vec<RuntimeAdvisory> = Vec::new();
 
     for advisory in &findings {
-        let strategy = strategy_for_rule_id(
-            &advisory.rule_id,
-            &canary_server.bind_addr.to_string(),
-        );
+        let strategy =
+            strategy_for_rule_id(&advisory.rule_id, &canary_server.bind_addr.to_string());
 
         match strategy {
             ProbeStrategy::Http(template) => {
-                let adapter = cli.project_root.as_ref().map(|root| {
-                    detect_framework(root, &advisory.rule_id)
-                });
+                let adapter = cli
+                    .project_root
+                    .as_ref()
+                    .map(|root| detect_framework(root, &advisory.rule_id));
 
                 let routes: Vec<RouteBinding> = if let Some(ref adapter) = adapter {
-                    adapter.extract_routes(
-                        Path::new(&advisory.file_path),
-                        &advisory.original_content,
-                    )
+                    adapter
+                        .extract_routes(Path::new(&advisory.file_path), &advisory.original_content)
                 } else {
                     Vec::new()
                 };
 
                 let route = match_finding_to_route(advisory, &routes);
                 let route_binding = route.cloned().unwrap_or_else(|| {
-                    let fp = advisory.file_path.trim_end_matches(".ts").trim_end_matches(".js").trim_end_matches(".rs").trim_end_matches(".go");
+                    let fp = advisory
+                        .file_path
+                        .trim_end_matches(".ts")
+                        .trim_end_matches(".js")
+                        .trim_end_matches(".rs")
+                        .trim_end_matches(".go");
                     let guessed_path = if fp.contains('/') {
                         format!("/{}", fp)
                     } else {
                         format!("/{}", fp)
                     };
-                    let guessed_method = if advisory.rule_id.contains("xss") || advisory.rule_id.contains("sqli") {
-                        frensense_runtime::route_extractor::HttpMethod::Get
-                    } else {
-                        frensense_runtime::route_extractor::HttpMethod::Post
-                    };
+                    let guessed_method =
+                        if advisory.rule_id.contains("xss") || advisory.rule_id.contains("sqli") {
+                            frensense_runtime::route_extractor::HttpMethod::Get
+                        } else {
+                            frensense_runtime::route_extractor::HttpMethod::Post
+                        };
                     RouteBinding {
                         method: guessed_method,
                         path_pattern: guessed_path,
@@ -199,12 +240,14 @@ async fn main() {
                 }
                 // If still empty, leave synthetic fallback in scheduler
 
-                let auth_convention = adapter.as_ref()
+                let auth_convention = adapter
+                    .as_ref()
                     .map(|a| a.auth_convention())
                     .unwrap_or(AuthConvention::BearerToken);
-                let auth = cli.auth_header.as_ref().map(|token| {
-                    (&auth_convention, token.as_str())
-                });
+                let auth = cli
+                    .auth_header
+                    .as_ref()
+                    .map(|token| (&auth_convention, token.as_str()));
 
                 tracing::info!(
                     "Probing: {} — {}:{} ({})",
@@ -249,17 +292,28 @@ async fn main() {
 
                 let verdict = probe_concurrency_degradation(&client, &url, &prober).await;
                 match verdict {
-                    ConcurrencyVerdict::Confirmed { p50_ms, p99_ms, degradation_ratio } => {
+                    ConcurrencyVerdict::Confirmed {
+                        p50_ms,
+                        p99_ms,
+                        degradation_ratio,
+                    } => {
                         tracing::info!(
                             "[CONFIRMED] {} — p50={}ms p99={}ms ratio={:.1}x",
-                            advisory.rule_id, p50_ms, p99_ms, degradation_ratio
+                            advisory.rule_id,
+                            p50_ms,
+                            p99_ms,
+                            degradation_ratio
                         );
                         let adv = format!(
                             "[CONFIRMED] {} — {}:{}\n\
                              Concurrent stress confirmed degradation\n\
                              p50: {}ms, p99: {}ms, ratio: {:.1}x",
-                            advisory.rule_id, advisory.file_path, advisory.line,
-                            p50_ms, p99_ms, degradation_ratio,
+                            advisory.rule_id,
+                            advisory.file_path,
+                            advisory.line,
+                            p50_ms,
+                            p99_ms,
+                            degradation_ratio,
                         );
                         println!("{adv}");
                     }
@@ -292,10 +346,7 @@ async fn main() {
                     advisory.line,
                     reason
                 );
-                runtime_advisories.push(RuntimeAdvisory::inconclusive(
-                    advisory.clone(),
-                    reason,
-                ));
+                runtime_advisories.push(RuntimeAdvisory::inconclusive(advisory.clone(), reason));
             }
         }
 

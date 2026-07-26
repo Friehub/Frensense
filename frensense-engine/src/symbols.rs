@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::HashMap;
 use std::path::Path;
 
 use crate::FileId;
+#[cfg(feature = "full-analysis")]
 use crate::graph::{EdgeKind, SemanticGraph, SemanticNodeId};
 
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
@@ -37,8 +37,10 @@ pub struct Symbol {
 
 #[derive(Debug, Clone, Default)]
 pub struct SymbolRegistry {
+    #[cfg(feature = "full-analysis")]
     graph: SemanticGraph,
-    file_index: HashMap<String, Vec<SemanticNodeId>>,
+    #[cfg(feature = "full-analysis")]
+    file_index: std::collections::HashMap<String, Vec<SemanticNodeId>>,
 }
 
 impl SymbolRegistry {
@@ -46,10 +48,12 @@ impl SymbolRegistry {
         Self::default()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub const fn graph(&self) -> &SemanticGraph {
         &self.graph
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn insert(&mut self, symbol: Symbol) -> SemanticNodeId {
         let file_path = symbol.file_path.clone();
         let id = self.graph.add_symbol(symbol);
@@ -57,6 +61,7 @@ impl SymbolRegistry {
         id
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn find(&self, name: &str) -> Vec<&Symbol> {
         self.graph
             .find_nodes(name)
@@ -65,6 +70,7 @@ impl SymbolRegistry {
             .collect()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn find_at(&self, name: &str, file: &str, line: usize) -> Option<&Symbol> {
         self.file_index
             .get(file)?
@@ -80,6 +86,7 @@ impl SymbolRegistry {
             .min_by_key(|s| s.end_line - s.line)
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn find_function_at(&self, file: &str, line: usize) -> Option<SemanticNodeId> {
         self.file_index
             .get(file)?
@@ -97,19 +104,23 @@ impl SymbolRegistry {
             .copied()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn get_symbol(&self, id: SemanticNodeId) -> Option<&Symbol> {
         self.graph.get_symbol(id)
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn query_all(&self) -> Vec<&Symbol> {
         self.graph.all_symbols()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn clear(&mut self) {
         self.graph = SemanticGraph::default();
         self.file_index.clear();
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn add_call_edge(&mut self, file_path: &Path, src_name: &str, target_name: &str) {
         let file_str = file_path.display().to_string();
         let src_symbols = self.find(src_name);
@@ -139,6 +150,7 @@ impl SymbolRegistry {
         }
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn get_callees(&self, sym: &Symbol) -> Vec<&Symbol> {
         let Some(id) = self.graph.find_node(&sym.name, &sym.file_path, sym.line) else {
             return Vec::new();
@@ -150,6 +162,7 @@ impl SymbolRegistry {
             .collect()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn get_callers(&self, sym: &Symbol) -> Vec<&Symbol> {
         let Some(id) = self.graph.find_node(&sym.name, &sym.file_path, sym.line) else {
             return Vec::new();
@@ -161,10 +174,12 @@ impl SymbolRegistry {
             .collect()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn graph_mut(&mut self) -> &mut SemanticGraph {
         &mut self.graph
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn find_callers(&self, name: &str) -> Vec<&Symbol> {
         let nodes = self.graph.find_nodes(name);
         let mut callers = Vec::new();
@@ -213,6 +228,7 @@ impl SymbolRegistry {
                         column: node.start_position().column + 1,
                         end_line: node.end_position().row + 1,
                     };
+                    #[cfg(feature = "full-analysis")]
                     self.insert(symbol);
                 }
             }
@@ -240,6 +256,7 @@ impl SymbolRegistry {
                 if query.capture_names()[capture.index as usize] == "call" {
                     let node = capture.node;
                     let name = &source[node.start_byte()..node.end_byte()];
+                    #[cfg(feature = "full-analysis")]
                     self.add_call_edge(file_path, name, name);
                 }
             }

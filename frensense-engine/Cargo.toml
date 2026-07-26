@@ -33,6 +33,7 @@ rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 python = ["dep:tree-sitter-python"]
 serialize = ["dep:serde", "dep:serde_json", "dep:bincode", "dep:blake3"]
+full-analysis = []
 
 [dev-dependencies]
 tempfile = "3"

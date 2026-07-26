@@ -4,11 +4,13 @@ use crate::adapters::AuthConvention;
 use crate::advisory::{ConfirmationStatus, ProbeResult, RuntimeAdvisory};
 use crate::canary::CanaryServer;
 use crate::config::RuntimeConfig;
-use crate::oracle::{evaluate_oracle, Verdict};
-use crate::probes::{category_from_rule_id, template_for_category, Probe, ProbeRisk, ProbeTemplate};
+use crate::oracle::{Verdict, evaluate_oracle};
+use crate::probes::{
+    Probe, ProbeRisk, ProbeTemplate, category_from_rule_id, template_for_category,
+};
 use crate::route_extractor::{InjectionPoint, RouteBinding};
 use crate::session::Session;
-use crate::tracer::{execute_probe, ProbeTarget};
+use crate::tracer::{ProbeTarget, execute_probe};
 
 pub enum ProbeStrategy {
     Http(ProbeTemplate),
@@ -23,7 +25,11 @@ pub struct ConcurrentStressProber {
 }
 
 pub enum ConcurrencyVerdict {
-    Confirmed { p50_ms: u64, p99_ms: u64, degradation_ratio: f64 },
+    Confirmed {
+        p50_ms: u64,
+        p99_ms: u64,
+        degradation_ratio: f64,
+    },
     NotConfirmed,
     Error(String),
 }
@@ -50,11 +56,9 @@ pub fn strategy_for_rule_id(rule_id: &str, canary_host: &str) -> ProbeStrategy {
                 expect_degradation: true,
             })
         }
-        _ if rule_id.starts_with("tsx_use") => {
-            ProbeStrategy::CannotProbeAtRuntime {
-                reason: "React hook bugs require headless browser probing (planned)",
-            }
-        }
+        _ if rule_id.starts_with("tsx_use") => ProbeStrategy::CannotProbeAtRuntime {
+            reason: "React hook bugs require headless browser probing (planned)",
+        },
         _ => ProbeStrategy::CannotProbeAtRuntime {
             reason: "No HTTP surface; static analysis only",
         },
@@ -101,10 +105,7 @@ pub async fn run_probe_campaign(
     .await;
 
     if baseline.status_code == 0 {
-        return RuntimeAdvisory::inconclusive(
-            static_advisory.clone(),
-            "Endpoint unreachable",
-        );
+        return RuntimeAdvisory::inconclusive(static_advisory.clone(), "Endpoint unreachable");
     }
 
     let mut probe_results: Vec<ProbeResult> = Vec::new();
@@ -192,7 +193,11 @@ pub async fn probe_concurrency_degradation(
     latencies.sort_unstable();
     let p50 = latencies[latencies.len() / 2];
     let p99 = latencies[(latencies.len() as f64 * 0.99) as usize];
-    let ratio = if p50 > 0 { p99 as f64 / p50 as f64 } else { 1.0 };
+    let ratio = if p50 > 0 {
+        p99 as f64 / p50 as f64
+    } else {
+        1.0
+    };
 
     if ratio > 10.0 {
         ConcurrencyVerdict::Confirmed {
@@ -221,10 +226,9 @@ fn build_runtime_advisory(
         }
     });
 
-    let sanitization_detected =
-        results
-            .iter()
-            .any(|r| matches!(r.verdict, Verdict::SanitizationDetected));
+    let sanitization_detected = results
+        .iter()
+        .any(|r| matches!(r.verdict, Verdict::SanitizationDetected));
 
     let status = if let Some((confidence, evidence, probe)) = confirmed {
         ConfirmationStatus::Confirmed {

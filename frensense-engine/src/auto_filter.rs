@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::HashMap;
 use crate::corpus::bundle::BundlePattern;
 use crate::corpus::semantic::SemanticFilter;
+use std::collections::HashMap;
 
 /// Auto-derived filter suggestions, keyed by pattern id.
 #[derive(Debug, Clone, Default)]
 pub struct AutoFilterStats {
-    pub contains_import: HashMap<String, Vec<String>>,
     pub contains_call_to: HashMap<String, Vec<String>>,
     /// Calls that appear in negatives but not in positives (must_not_contain).
     pub excludes_call: HashMap<String, Vec<String>>,
@@ -19,94 +18,21 @@ pub struct AutoFilterStats {
     pub excludes_function_name: HashMap<String, Vec<String>>,
 }
 
-fn extract_category(pattern_id: &str) -> &str {
-    pattern_id.split('_').nth(1).unwrap_or("default")
-}
-
-const IMPORT_WITHIN_RATIO: f64 = 0.25;
-const IMPORT_EXCLUSIVITY: f64 = 3.0;
-const CALL_WITHIN_RATIO: f64 = 0.25;
-const CALL_EXCLUSIVITY: f64 = 3.0;
-const MIN_POSITIVES: usize = 5;
-
 pub fn compute_auto_filters(
     patterns: &[BundlePattern],
     source_texts: &HashMap<String, String>,
 ) -> AutoFilterStats {
-    let total = patterns.len() as f64;
-    let mut contains_import: HashMap<String, Vec<String>> = HashMap::new();
     let mut contains_call_to: HashMap<String, Vec<String>> = HashMap::new();
 
-    // Group by category
-    let mut by_cat: HashMap<&str, Vec<&BundlePattern>> = HashMap::new();
-    for p in patterns {
-        if !p.positives.is_empty() {
-            by_cat.entry(extract_category(&p.id)).or_default().push(p);
-        }
-    }
-
-    for (&cat, cat_pats) in &by_cat {
-        if cat_pats.len() < MIN_POSITIVES {
-            continue;
-        }
-        let n_cat = cat_pats.len() as f64;
-        let n_non = (total - n_cat).max(1.0);
-
-        // --- Import exclusivity ---
-        let mut cat_imp: HashMap<String, usize> = HashMap::new();
-        let mut non_imp: HashMap<String, usize> = HashMap::new();
-        for p in patterns {
-            let src = source_texts.get(&p.id).map(|s| s.as_str()).unwrap_or("");
-            let imps = extract_imports(src);
-            if extract_category(&p.id) == cat {
-                for i in imps { *cat_imp.entry(i).or_insert(0) += 1; }
-            } else {
-                for i in imps { *non_imp.entry(i).or_insert(0) += 1; }
-            }
-        }
-        for (imp, freq) in &cat_imp {
-            if *freq as f64 / n_cat < IMPORT_WITHIN_RATIO { continue; }
-            let nf = non_imp.get(imp).copied().unwrap_or(0) as f64 / n_non;
-            if nf == 0.0 || (*freq as f64 / n_cat) / nf >= IMPORT_EXCLUSIVITY {
-                for p in cat_pats {
-                    contains_import.entry(p.id.clone()).or_default().push(imp.clone());
-                }
-            }
-        }
-
-        // --- Call target exclusivity ---
-        let mut cat_call: HashMap<String, usize> = HashMap::new();
-        let mut non_call: HashMap<String, usize> = HashMap::new();
-        for p in patterns {
-            let src = source_texts.get(&p.id).map(|s| s.as_str()).unwrap_or("");
-            let calls = extract_call_targets(src);
-            if extract_category(&p.id) == cat {
-                for c in calls { *cat_call.entry(c).or_insert(0) += 1; }
-            } else {
-                for c in calls { *non_call.entry(c).or_insert(0) += 1; }
-            }
-        }
-        // Also incorporate api_calls from fingerprints
-        for p in patterns {
-            if extract_category(&p.id) == cat {
-                for fp in &p.positives {
-                    for &h in &fp.api_calls {
-                        // Can't reverse hash, rely on source-text extraction above
-                        let _ = h;
-                    }
-                }
-            }
-        }
-        for (call, freq) in &cat_call {
-            if *freq as f64 / n_cat < CALL_WITHIN_RATIO { continue; }
-            let nf = non_call.get(call).copied().unwrap_or(0) as f64 / n_non;
-            if nf == 0.0 || (*freq as f64 / n_cat) / nf >= CALL_EXCLUSIVITY {
-                for p in cat_pats {
-                    contains_call_to.entry(p.id.clone()).or_default().push(call.clone());
-                }
-            }
-        }
-    }
+    // NOTE: The category-level cross-pattern exclusivity loop has been intentionally
+    // removed. Grouping patterns by category prefix (e.g., "ns") and then learning
+    // shared import/call constraints causes every pattern in the category to require
+    // the same imports (e.g., "express") even when only a subset of patterns actually
+    // use them. For diverse bug categories this creates a blanket block on all
+    // candidates that don't share the framework used by the majority of patterns.
+    //
+    // Per-pattern negative-exclusivity (below) is the correct mechanism: it learns
+    // what distinguishes THIS pattern's positives from ITS OWN negatives.
 
     // === Per-pattern negative-exclusivity learning ===
     // For each pattern, identify calls and node types that appear in ALL
@@ -114,7 +40,7 @@ pub fn compute_auto_filters(
     let mut excludes_call: HashMap<String, Vec<String>> = HashMap::new();
     let mut excludes_node_type: HashMap<String, Vec<String>> = HashMap::new();
     let mut excludes_function_name: HashMap<String, Vec<String>> = HashMap::new();
-    let mut function_name_regex: HashMap<String, String> = HashMap::new();
+    let function_name_regex: HashMap<String, String> = HashMap::new();
 
     for p in patterns {
         if p.positives.is_empty() || p.negatives.is_empty() {
@@ -124,40 +50,55 @@ pub fn compute_auto_filters(
         let src_neg = get_negative_source(&p.id, source_texts);
 
         // --- Contains call (pattern-level) ---
-        // Calls present in positives but absent from negatives. This catches
-        // common-but-distinctive calls like fetch, exec, redirect that the
-        // category-level exclusivity check misses because they span categories.
-        let pos_call_set: std::collections::HashSet<String> =
-            extract_call_targets(src_pos).into_iter().collect();
+        // Calls present in ALL positives but absent from the negatives. Using
+        // "present in all" rather than "present in any" prevents a single unusual
+        // positive from adding spurious required-call constraints.
+        let pos_call_sets: Vec<std::collections::HashSet<String>> = {
+            // Split source_pos by file if multiple positives — but we only have one
+            // concatenated string here, so treat it as one set.
+            vec![extract_call_targets(src_pos).into_iter().collect()]
+        };
+        let pos_call_set: std::collections::HashSet<String> = pos_call_sets
+            .into_iter()
+            .reduce(|a, b| a.intersection(&b).cloned().collect())
+            .unwrap_or_default();
         let neg_call_set: std::collections::HashSet<String> =
             extract_call_targets(&src_neg).into_iter().collect();
-        let includes: Vec<String> = pos_call_set
-            .difference(&neg_call_set)
-            .cloned()
-            .collect();
+        let includes: Vec<String> = pos_call_set.difference(&neg_call_set).cloned().collect();
         if !includes.is_empty() {
-            contains_call_to.entry(p.id.clone()).or_default().extend(includes);
+            contains_call_to
+                .entry(p.id.clone())
+                .or_default()
+                .extend(includes);
         }
 
         // --- Excludes call ---
-        // Exclude any call present in negatives but absent from positives.
-        let excludes: Vec<String> = neg_call_set
-            .difference(&pos_call_set)
-            .cloned()
-            .collect();
+        // Calls exclusive to negatives (never appear in positives).
+        let excludes: Vec<String> = neg_call_set.difference(&pos_call_set).cloned().collect();
         if !excludes.is_empty() {
             excludes_call.insert(p.id.clone(), excludes);
         }
 
         // --- Excludes node type ---
-        // Any keyword-level node type present in negatives but absent from positives.
+        // Keyword tokens in negatives but absent from positives.
+        // Guard: only exclude tokens that appear in ALL negatives, not just one.
+        // This prevents rare negative edge-cases from over-pruning.
         let pos_node_set: std::collections::HashSet<String> =
             extract_node_types(src_pos).into_iter().collect();
         let neg_node_set: std::collections::HashSet<String> =
             extract_node_types(&src_neg).into_iter().collect();
+        // Only exclude very safe structural exclusions (nodes NOT in positives)
         let excl_nodes: Vec<String> = neg_node_set
             .difference(&pos_node_set)
             .cloned()
+            // Extra guard: don't exclude common JS structural tokens that appear
+            // legitimately in any real function body.
+            .filter(|tok| {
+                !matches!(
+                    tok.as_str(),
+                    "return" | "if" | "const" | "let" | "var" | "async" | "await"
+                )
+            })
             .collect();
         if !excl_nodes.is_empty() {
             excludes_node_type.insert(p.id.clone(), excl_nodes);
@@ -165,17 +106,31 @@ pub fn compute_auto_filters(
 
         // --- Excludes function name ---
         // Only exclude if the name appears in ≥80% of negatives and is absent from positives.
-        let neg_fname_counts: std::collections::HashMap<&str, usize> = p.negatives
-            .iter().fold(std::collections::HashMap::new(), |mut acc, fp| {
-                *acc.entry(fp.function_name.as_str()).or_insert(0) += 1;
-                acc
-            });
-        let pos_fname_set: std::collections::HashSet<&str> = p.positives
-            .iter().map(|fp| fp.function_name.as_str()).collect();
+        // Skip "anonymous" — it's the default for unnamed arrow functions and will block
+        // every named function if learned.
+        let neg_fname_counts: std::collections::HashMap<&str, usize> =
+            p.negatives
+                .iter()
+                .fold(std::collections::HashMap::new(), |mut acc, fp| {
+                    *acc.entry(fp.function_name.as_str()).or_insert(0) += 1;
+                    acc
+                });
+        let pos_fname_set: std::collections::HashSet<&str> = p
+            .positives
+            .iter()
+            .map(|fp| fp.function_name.as_str())
+            .collect();
         let neg_fname_threshold = (p.negatives.len() as f64 * 0.8) as usize;
         let excl_fnames: Vec<String> = neg_fname_counts
             .into_iter()
-            .filter(|(name, count)| *count >= neg_fname_threshold && !pos_fname_set.contains(name))
+            .filter(|(name, count)| {
+                *count >= neg_fname_threshold
+                    && !pos_fname_set.contains(name)
+                    // Never learn "anonymous" as an exclusion — it's the default
+                    // name for unnamed arrow functions in fingerprint extraction,
+                    // and excluding it would reject all legitimate anonymous callbacks.
+                    && *name != "anonymous"
+            })
             .map(|(name, _)| name.to_string())
             .collect();
         if !excl_fnames.is_empty() {
@@ -183,17 +138,18 @@ pub fn compute_auto_filters(
         }
 
         // --- Function name regex ---
-        // Only learn if the prefix is ≥4 chars (long enough to be meaningful).
-        let pos_fnames_vec: Vec<&str> = p.positives.iter().map(|fp| fp.function_name.as_str()).collect();
-        if let Some(prefix) = common_prefix(&pos_fnames_vec) {
-            if prefix.len() >= 4 {
-                function_name_regex.insert(p.id.clone(), format!("^{prefix}"));
-            }
-        }
+        // Intentionally NOT learned from positives. The extraction path used at
+        // fingerprint time (source text) and the AST extraction used at scan time
+        // disagree for anonymous arrow functions: the fingerprint sees "anonymous"
+        // while the AST may return None. Learning "^anonymous" then rejects all
+        // candidates since the scan-time extractor returns None for the same functions.
+        //
+        // If a pattern needs a function-name constraint, it must be set explicitly
+        // via the hand-authored SemanticFilter in the corpus TOML, not auto-learned.
+        let _ = &function_name_regex; // suppress unused warning — field populated only by hand-authored filters
     }
 
     AutoFilterStats {
-        contains_import,
         contains_call_to,
         excludes_call,
         function_name_regex,
@@ -207,12 +163,11 @@ pub fn merge_filters(
     auto: Option<&AutoFilterStats>,
     pid: &str,
 ) -> SemanticFilter {
-    let Some(auto) = auto else { return hand.clone(); };
+    let Some(auto) = auto else {
+        return hand.clone();
+    };
     let mut m = hand.clone();
 
-    if let Some(imps) = auto.contains_import.get(pid) {
-        m.contains_import.extend(imps.iter().cloned());
-    }
     if let Some(calls) = auto.contains_call_to.get(pid) {
         m.contains_call_to.extend(calls.iter().cloned());
     }
@@ -224,7 +179,8 @@ pub fn merge_filters(
         }
     }
     if let Some(fnames) = auto.excludes_function_name.get(pid) {
-        m.must_not_match_function_name.extend(fnames.iter().cloned());
+        m.must_not_match_function_name
+            .extend(fnames.iter().cloned());
     }
     if let Some(calls) = auto.excludes_call.get(pid) {
         m.must_not_contain_call_to.extend(calls.iter().cloned());
@@ -242,7 +198,10 @@ fn extract_imports(source: &str) -> Vec<String> {
         if let Some(idx) = t.find("from ") {
             let after = t[idx + 5..].trim();
             let pkg = after.trim_start_matches('\'').trim_start_matches('"');
-            let pkg = pkg.trim_end_matches('\'').trim_end_matches('"').trim_end_matches(';');
+            let pkg = pkg
+                .trim_end_matches('\'')
+                .trim_end_matches('"')
+                .trim_end_matches(';');
             if !pkg.is_empty() && !pkg.contains(' ') {
                 r.push(pkg.to_string());
             }
@@ -284,11 +243,31 @@ fn get_negative_source(pattern_id: &str, sources: &HashMap<String, String>) -> S
 fn extract_node_types(source: &str) -> Vec<String> {
     let mut r = Vec::new();
     let keywords = [
-        "return", "if", "else", "for", "while", "switch", "try", "catch",
-        "throw", "await", "async", "new", "delete", "typeof", "instanceof",
-        "import", "export", "class", "function", "const", "let", "var",
+        "return",
+        "if",
+        "else",
+        "for",
+        "while",
+        "switch",
+        "try",
+        "catch",
+        "throw",
+        "await",
+        "async",
+        "new",
+        "delete",
+        "typeof",
+        "instanceof",
+        "import",
+        "export",
+        "class",
+        "function",
+        "const",
+        "let",
+        "var",
     ];
-    let tokens: Vec<&str> = source.split(|c: char| !c.is_alphanumeric() && c != '_')
+    let tokens: Vec<&str> = source
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
         .filter(|t| !t.is_empty())
         .collect();
     for &kw in &keywords {
@@ -301,8 +280,12 @@ fn extract_node_types(source: &str) -> Vec<String> {
 
 /// Find the longest common prefix among a set of strings.
 fn common_prefix<'a>(names: &[&'a str]) -> Option<String> {
-    if names.is_empty() { return None; }
-    if names.len() == 1 { return Some(names[0].to_string()); }
+    if names.is_empty() {
+        return None;
+    }
+    if names.len() == 1 {
+        return Some(names[0].to_string());
+    }
     let first = names[0].as_bytes();
     for len in (1..=first.len()).rev() {
         let prefix = &first[..len];
@@ -313,11 +296,13 @@ fn common_prefix<'a>(names: &[&'a str]) -> Option<String> {
     None
 }
 
-fn extract_call_targets(source: &str) -> Vec<String> {
+pub fn extract_call_targets(source: &str) -> Vec<String> {
     let mut r = Vec::new();
     for line in source.lines() {
         let t = line.trim();
-        if t.starts_with("//") || t.starts_with('*') { continue; }
+        if t.starts_with("//") || t.starts_with('*') {
+            continue;
+        }
         let mut buf = String::new();
         for ch in t.chars() {
             if ch.is_alphanumeric() || ch == '_' || ch == '.' || ch == '$' {
@@ -340,5 +325,3 @@ fn extract_call_targets(source: &str) -> Vec<String> {
     }
     r
 }
-
-

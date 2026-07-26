@@ -8,8 +8,8 @@ pub mod sveltekit;
 
 use std::path::Path;
 
-use base64::Engine;
 use crate::route_extractor::{Framework, InjectionPoint, ParameterLocation, RouteBinding};
+use base64::Engine;
 
 pub trait FrameworkAdapter: Send + Sync {
     fn name(&self) -> &'static str;
@@ -37,10 +37,18 @@ pub enum AuthConvention {
 }
 
 impl AuthConvention {
-    pub fn apply_auth(&self, request: reqwest::RequestBuilder, token: &str) -> reqwest::RequestBuilder {
+    pub fn apply_auth(
+        &self,
+        request: reqwest::RequestBuilder,
+        token: &str,
+    ) -> reqwest::RequestBuilder {
         match self {
-            AuthConvention::BearerToken => request.header("Authorization", format!("Bearer {token}")),
-            AuthConvention::SessionCookie(name) => request.header("Cookie", format!("{name}={token}")),
+            AuthConvention::BearerToken => {
+                request.header("Authorization", format!("Bearer {token}"))
+            }
+            AuthConvention::SessionCookie(name) => {
+                request.header("Cookie", format!("{name}={token}"))
+            }
             AuthConvention::ApiKeyHeader(name) => request.header(name.as_str(), token),
             AuthConvention::BasicAuth => {
                 let encoded = base64::engine::general_purpose::STANDARD.encode(format!(":{token}"));
@@ -53,13 +61,27 @@ impl AuthConvention {
 
 pub struct UnknownAdapter;
 impl FrameworkAdapter for UnknownAdapter {
-    fn name(&self) -> &'static str { "Unknown" }
-    fn extensions(&self) -> &'static [&'static str] { &[] }
-    fn extract_routes(&self, _file_path: &Path, _source: &str) -> Vec<RouteBinding> { Vec::new() }
-    fn extract_injection_points(&self, _body: &str) -> Vec<InjectionPoint> { Vec::new() }
-    fn startup_command(&self, _root: &Path) -> Option<Vec<String>> { None }
-    fn auth_convention(&self) -> AuthConvention { AuthConvention::None }
-    fn framework_enum(&self) -> Framework { Framework::Unknown }
+    fn name(&self) -> &'static str {
+        "Unknown"
+    }
+    fn extensions(&self) -> &'static [&'static str] {
+        &[]
+    }
+    fn extract_routes(&self, _file_path: &Path, _source: &str) -> Vec<RouteBinding> {
+        Vec::new()
+    }
+    fn extract_injection_points(&self, _body: &str) -> Vec<InjectionPoint> {
+        Vec::new()
+    }
+    fn startup_command(&self, _root: &Path) -> Option<Vec<String>> {
+        None
+    }
+    fn auth_convention(&self) -> AuthConvention {
+        AuthConvention::None
+    }
+    fn framework_enum(&self) -> Framework {
+        Framework::Unknown
+    }
 }
 
 pub fn http_method_from_str(s: &str) -> crate::route_extractor::HttpMethod {
@@ -107,13 +129,19 @@ pub fn form_point() -> InjectionPoint {
     }
 }
 
-pub fn extract_by_patterns(body: &str, patterns: &[(&str, ParameterLocation)]) -> Vec<InjectionPoint> {
+pub fn extract_by_patterns(
+    body: &str,
+    patterns: &[(&str, ParameterLocation)],
+) -> Vec<InjectionPoint> {
     let mut points = Vec::new();
     for (pattern, location) in patterns {
         let re = regex::Regex::new(pattern).unwrap();
         for cap in re.captures_iter(body) {
             let name = cap[1].to_string();
-            if !points.iter().any(|p: &InjectionPoint| p.name == name && p.location == *location) {
+            if !points
+                .iter()
+                .any(|p: &InjectionPoint| p.name == name && p.location == *location)
+            {
                 points.push(InjectionPoint {
                     location: *location,
                     name,

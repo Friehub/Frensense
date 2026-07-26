@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::data_flow::TaintOrigin;
+#[cfg(feature = "full-analysis")]
 use crate::graph::{EdgeKind, SemanticGraph};
 use crate::symbols::Symbol;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -28,6 +29,7 @@ impl CrossFileTaintResolver {
         Self::default()
     }
 
+    #[cfg(feature = "full-analysis")]
     pub fn build_from_symbols(&mut self, all_symbols: &[&Symbol], graph: &SemanticGraph) {
         for sym in all_symbols {
             let sym_key = format!("{}:{}", sym.file_path, sym.name);
@@ -162,6 +164,7 @@ impl CrossFileTaintResolver {
     }
 }
 
+#[cfg(feature = "full-analysis")]
 pub fn build_resolver(all_symbols: &[&Symbol], graph: &SemanticGraph) -> CrossFileTaintResolver {
     let mut resolver = CrossFileTaintResolver::new();
     resolver.build_from_symbols(all_symbols, graph);
@@ -172,6 +175,7 @@ pub fn build_resolver(all_symbols: &[&Symbol], graph: &SemanticGraph) -> CrossFi
 mod tests {
     use super::*;
     use crate::FileId;
+    #[cfg(feature = "full-analysis")]
     use crate::graph::SemanticGraph;
     use crate::symbols::{Symbol, SymbolKind};
 
@@ -197,6 +201,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "full-analysis")]
     fn test_exposed_taint_direct() {
         let mut resolver = CrossFileTaintResolver::new();
         resolver.register_exposed_taint("source", "a.rs", TaintOrigin::UserInput);

@@ -2,7 +2,10 @@ use super::{OracleKind, Probe, ProbeRisk, ProbeTemplate};
 use uuid::Uuid;
 
 pub fn template() -> ProbeTemplate {
-    let canary = format!("FRENSENSE_{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+    let canary = format!(
+        "FRENSENSE_{}",
+        &Uuid::new_v4().to_string()[..8].to_uppercase()
+    );
     ProbeTemplate {
         category: "cmdi",
         baseline_payload: "hello",
@@ -10,7 +13,9 @@ pub fn template() -> ProbeTemplate {
             Probe {
                 id: Uuid::new_v4().to_string(),
                 payload: format!("echo {canary}"),
-                oracle: OracleKind::CanaryInBody { canary: canary.clone() },
+                oracle: OracleKind::CanaryInBody {
+                    canary: canary.clone(),
+                },
                 risk: ProbeRisk::Safe,
                 description: "Command substitution canary — output appears in response".to_string(),
             },
@@ -31,7 +36,9 @@ pub fn template() -> ProbeTemplate {
             Probe {
                 id: Uuid::new_v4().to_string(),
                 payload: format!("& echo {canary}"),
-                oracle: OracleKind::CanaryInBody { canary: canary.clone() },
+                oracle: OracleKind::CanaryInBody {
+                    canary: canary.clone(),
+                },
                 risk: ProbeRisk::Safe,
                 description: "Windows CMD canary — output appears in response".to_string(),
             },

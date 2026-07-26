@@ -19,11 +19,14 @@ pub fn extract_skeleton(root: Node, _source: &str) -> Vec<String> {
 /// produce identical skeleton sequences (for↔while, if↔switch, etc.).
 fn normalize_kind(kind: &str) -> &str {
     match kind {
-        "while_statement" | "for_statement" | "for_in_statement"
-        | "loop_expression" | "while_expression" | "for_expression" => "loop_node",
-        "if_statement" | "if_expression"
-        | "switch_statement" | "switch_expression"
-        | "match_expression" | "match_statement"
+        "while_statement" | "for_statement" | "for_in_statement" | "loop_expression"
+        | "while_expression" | "for_expression" => "loop_node",
+        "if_statement"
+        | "if_expression"
+        | "switch_statement"
+        | "switch_expression"
+        | "match_expression"
+        | "match_statement"
         | "conditional_expression" => "branch_node",
         "catch_clause" | "catch_block" | "try_expression" | "try_statement" => "catch_node",
         other => other,

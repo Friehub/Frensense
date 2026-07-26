@@ -37,7 +37,7 @@ name = "corpus-quality"
 path = "src/bin/corpus-quality.rs"
 
 [dependencies]
-frensense-engine = { path = "frensense-engine", version = "0.5.0" }
+frensense-engine = { path = "frensense-engine", version = "0.5.0", features = ["full-analysis"] }
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }

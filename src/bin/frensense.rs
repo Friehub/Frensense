@@ -7,6 +7,7 @@ use frensense::cli::{
 };
 use frensense::parser::ParserRegistry;
 use frensense::{Engine, Result};
+use serde_json;
 use std::env;
 use std::path::PathBuf;
 
@@ -285,7 +286,10 @@ fn main() -> Result<()> {
             options.min_confidence,
         ) {
             Ok(count) if count > 0 => {
-                eprintln!("Mined {count} negative candidates in {}", mine_dir.display());
+                eprintln!(
+                    "Mined {count} negative candidates in {}",
+                    mine_dir.display()
+                );
             }
             Ok(_) => {}
             Err(e) => eprintln!("Error mining negatives: {e}"),
@@ -293,6 +297,17 @@ fn main() -> Result<()> {
     }
 
     print_results(&filtered_advisories, &options.format, &input_path)?;
+
+    if options.emit_hypotheses {
+        let hypotheses_path = input_path.join("hypotheses.json");
+        let json = serde_json::to_string_pretty(&filtered_advisories).map_err(|e| {
+            frensense::FrensenseError::Config(format!("JSON serialization error: {e}"))
+        })?;
+        std::fs::write(&hypotheses_path, &json).map_err(|e| {
+            frensense::FrensenseError::Config(format!("Failed to write hypotheses: {e}"))
+        })?;
+        eprintln!("Wrote hypotheses to {}", hypotheses_path.display());
+    }
 
     if let Some(path) = &options.emit_baseline_path {
         save_baseline(&filtered_advisories, path)?;

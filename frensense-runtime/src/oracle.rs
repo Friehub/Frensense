@@ -28,8 +28,9 @@ pub fn evaluate_oracle(
 ) -> Verdict {
     match oracle {
         OracleKind::TimingDelta { threshold_ms } => {
-            let delta =
-                probe_trace.duration_ms.saturating_sub(baseline_trace.duration_ms);
+            let delta = probe_trace
+                .duration_ms
+                .saturating_sub(baseline_trace.duration_ms);
             if delta >= *threshold_ms {
                 Verdict::Confirmed {
                     confidence: 0.82,
@@ -53,9 +54,7 @@ pub fn evaluate_oracle(
                     confidence: 0.97,
                     evidence: OracleEvidence {
                         oracle_kind: "canary_in_body".to_string(),
-                        detail: format!(
-                            "Canary string '{canary}' found in response body"
-                        ),
+                        detail: format!("Canary string '{canary}' found in response body"),
                         raw_value: canary.clone(),
                     },
                 }
@@ -82,8 +81,7 @@ pub fn evaluate_oracle(
         }
 
         OracleKind::ErrorPattern { patterns } => {
-            let body =
-                String::from_utf8_lossy(&probe_trace.response_body).to_lowercase();
+            let body = String::from_utf8_lossy(&probe_trace.response_body).to_lowercase();
             for pat in patterns {
                 if body.contains(pat.to_lowercase().as_str()) {
                     return Verdict::Confirmed {
@@ -106,9 +104,7 @@ pub fn evaluate_oracle(
                         confidence: 0.95,
                         evidence: OracleEvidence {
                             oracle_kind: "redirect_to_canary".to_string(),
-                            detail: format!(
-                                "Location header redirects to canary host: {loc}"
-                            ),
+                            detail: format!("Location header redirects to canary host: {loc}"),
                             raw_value: loc.clone(),
                         },
                     };

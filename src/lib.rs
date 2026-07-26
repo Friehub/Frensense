@@ -31,8 +31,8 @@ pub use crate::engine::auditor::{FrensenseAuditor, ScanResult};
 
 use crate::semantics::SymbolRegistry;
 
-pub use frensense_engine::{FileId, ScopeId};
 use frensense_engine::pattern::evidence::MatchEvidence;
+pub use frensense_engine::{FileId, ScopeId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
@@ -160,7 +160,7 @@ pub struct Advisory {
 #[inline]
 #[must_use]
 pub fn to_u32(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
+    u32::try_from(n).expect("file index exceeds u32::MAX")
 }
 
 impl Advisory {

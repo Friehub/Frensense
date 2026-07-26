@@ -12,7 +12,9 @@ pub struct RuntimeConfig {
     pub no_limit: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum ProbeRisk {
     Safe,
     Low,
@@ -28,7 +30,9 @@ impl std::str::FromStr for ProbeRisk {
             "low" => Ok(Self::Low),
             "medium" => Ok(Self::Medium),
             "destructive" => Ok(Self::Destructive),
-            _ => Err(format!("Unknown risk level: {s}. Use: safe, low, medium, destructive")),
+            _ => Err(format!(
+                "Unknown risk level: {s}. Use: safe, low, medium, destructive"
+            )),
         }
     }
 }

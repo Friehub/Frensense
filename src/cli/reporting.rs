@@ -20,10 +20,16 @@ pub fn format_evidence(ev: &MatchEvidence) -> String {
         lines.push("    v user-input -> sink taint path".to_string());
     }
     if ev.control_flow_sim > 0.5 {
-        lines.push(format!("    v control flow ({:.0}% match)", ev.control_flow_sim * 100.0));
+        lines.push(format!(
+            "    v control flow ({:.0}% match)",
+            ev.control_flow_sim * 100.0
+        ));
     }
     if ev.ast_sim > 0.7 {
-        lines.push(format!("    v AST structure ({:.0}% match)", ev.ast_sim * 100.0));
+        lines.push(format!(
+            "    v AST structure ({:.0}% match)",
+            ev.ast_sim * 100.0
+        ));
     }
 
     if !ev.missing_calls.is_empty() || ev.negative_sim > 0.4 {
@@ -217,7 +223,11 @@ pub fn deduplicate_advisories(advisories: &mut Vec<Advisory>) {
     let mut keep = vec![true; advisories.len()];
 
     for (i, adv) in advisories.iter().enumerate() {
-        let fn_name = adv.enclosing_symbol.as_deref().unwrap_or("<unknown>").to_string();
+        let fn_name = adv
+            .enclosing_symbol
+            .as_deref()
+            .unwrap_or("<unknown>")
+            .to_string();
         let key = (
             adv.file_path.clone(),
             fn_name,

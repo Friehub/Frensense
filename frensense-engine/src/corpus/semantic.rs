@@ -101,20 +101,17 @@ impl SemanticFilter {
         // Check contains_import — scan file source for import statements (case-insensitive)
         if !self.contains_import.is_empty() {
             let source_lower = source.to_lowercase();
-            let has_import = self
-                .contains_import
-                .iter()
-                .any(|pkg| {
-                    let pkg_lower = pkg.to_lowercase();
-                    let from_pattern  = format!("from '{pkg_lower}'");
-                    let from_pattern2 = format!("from \"{pkg_lower}\"");
-                    let req_pattern   = format!("require('{pkg_lower}')");
-                    let req_pattern2  = format!("require(\"{pkg_lower}\")");
-                    source_lower.contains(&from_pattern)
-                        || source_lower.contains(&from_pattern2)
-                        || source_lower.contains(&req_pattern)
-                        || source_lower.contains(&req_pattern2)
-                });
+            let has_import = self.contains_import.iter().any(|pkg| {
+                let pkg_lower = pkg.to_lowercase();
+                let from_pattern = format!("from '{pkg_lower}'");
+                let from_pattern2 = format!("from \"{pkg_lower}\"");
+                let req_pattern = format!("require('{pkg_lower}')");
+                let req_pattern2 = format!("require(\"{pkg_lower}\")");
+                source_lower.contains(&from_pattern)
+                    || source_lower.contains(&from_pattern2)
+                    || source_lower.contains(&req_pattern)
+                    || source_lower.contains(&req_pattern2)
+            });
             if !has_import {
                 return false;
             }
@@ -123,20 +120,17 @@ impl SemanticFilter {
         // Check must_not_contain_import — reject if file imports any of these packages (case-insensitive)
         if !self.must_not_contain_import.is_empty() {
             let source_lower = source.to_lowercase();
-            let has_forbidden_import = self
-                .must_not_contain_import
-                .iter()
-                .any(|pkg| {
-                    let pkg_lower = pkg.to_lowercase();
-                    let from_pattern  = format!("from '{pkg_lower}'");
-                    let from_pattern2 = format!("from \"{pkg_lower}\"");
-                    let req_pattern   = format!("require('{pkg_lower}')");
-                    let req_pattern2  = format!("require(\"{pkg_lower}\")");
-                    source_lower.contains(&from_pattern)
-                        || source_lower.contains(&from_pattern2)
-                        || source_lower.contains(&req_pattern)
-                        || source_lower.contains(&req_pattern2)
-                });
+            let has_forbidden_import = self.must_not_contain_import.iter().any(|pkg| {
+                let pkg_lower = pkg.to_lowercase();
+                let from_pattern = format!("from '{pkg_lower}'");
+                let from_pattern2 = format!("from \"{pkg_lower}\"");
+                let req_pattern = format!("require('{pkg_lower}')");
+                let req_pattern2 = format!("require(\"{pkg_lower}\")");
+                source_lower.contains(&from_pattern)
+                    || source_lower.contains(&from_pattern2)
+                    || source_lower.contains(&req_pattern)
+                    || source_lower.contains(&req_pattern2)
+            });
             if has_forbidden_import {
                 return false;
             }
@@ -166,32 +160,29 @@ impl SemanticFilter {
             }
         }
 
-        // Collect all call targets in the function
-        let calls = collect_call_targets(func_node, source);
-
-        // Check contains_call_to (case-insensitive)
+        // Check contains_call_to — uses the same text-based extractor as the
+        // auto-filter (extract_call_targets) which skips comments and non-call
+        // text. This keeps the filter consistent with what the auto-filter learned.
         if !self.contains_call_to.is_empty() {
-            let has_match = self
-                .contains_call_to
-                .iter()
-                .any(|target| {
-                    let target_lower = target.to_lowercase();
-                    calls.iter().any(|call| call.to_lowercase().contains(&target_lower))
-                });
+            let calls = crate::auto_filter::extract_call_targets(source);
+            let has_match = self.contains_call_to.iter().any(|target| {
+                calls
+                    .iter()
+                    .any(|call| call.to_lowercase().contains(&target.to_lowercase()))
+            });
             if !has_match {
                 return false;
             }
         }
 
-        // Check must_not_contain_call_to (case-insensitive)
+        // Check must_not_contain_call_to (same text-based extractor)
         if !self.must_not_contain_call_to.is_empty() {
-            let has_forbidden = self
-                .must_not_contain_call_to
-                .iter()
-                .any(|target| {
-                    let target_lower = target.to_lowercase();
-                    calls.iter().any(|call| call.to_lowercase().contains(&target_lower))
-                });
+            let calls = crate::auto_filter::extract_call_targets(source);
+            let has_forbidden = self.must_not_contain_call_to.iter().any(|target| {
+                calls
+                    .iter()
+                    .any(|call| call.to_lowercase().contains(&target.to_lowercase()))
+            });
             if has_forbidden {
                 return false;
             }
@@ -221,20 +212,19 @@ impl SemanticFilter {
             }
         }
 
+        // required_taint_flows is a precision hint: if we have flow data and
+        // a required flow is absent, reject. If flow data was not extracted
+        // (func_node not available in this scan path), pass through — let the
+        // scorer decide. Rejecting here would silently produce false negatives.
         if !self.required_taint_flows.is_empty() {
             if let Some(flows) = extracted_flows {
                 for req_flow in &self.required_taint_flows {
                     if !flows.contains(req_flow) {
-                        eprintln!(
-                            "DEBUG: semantic rejected, missing taint flow {:?}",
-                            req_flow
-                        );
                         return false;
                     }
                 }
-            } else {
-                return false;
             }
+            // flows == None: no AST node provided — pass through.
         }
 
         true
@@ -563,10 +553,6 @@ pub fn learn_constraints(
         })
         .cloned()
         .collect();
-
-    if !c.required_taint_flows.is_empty() {
-        eprintln!("[DEBUG] Learned data flows: {:?}", c.required_taint_flows);
-    }
 
     c
 }

@@ -19,21 +19,25 @@
 pub mod ast_distance;
 pub mod auto_filter;
 pub mod cfg;
-pub mod function_role;
 pub mod context;
 pub mod corpus;
 pub mod data_flow;
 pub mod deps;
 pub mod fingerprint;
+pub mod function_role;
+#[cfg(feature = "full-analysis")]
 pub mod graph;
 pub mod lang;
 pub mod minhash;
 pub mod parser;
 pub mod pattern;
 pub mod per_pattern_calibration;
+#[cfg(feature = "full-analysis")]
 pub mod profile;
+#[cfg(feature = "full-analysis")]
 pub mod semantic_patterns;
 pub mod symbols;
+#[cfg(feature = "full-analysis")]
 pub mod temporal;
 
 use std::collections::HashMap;
@@ -57,7 +61,9 @@ pub struct AnalysisResult {
     pub source: String,
     pub functions: Vec<fingerprint::FunctionFingerprint>,
     pub symbols: symbols::SymbolRegistry,
+    #[cfg(feature = "full-analysis")]
     pub graph: graph::SemanticGraph,
+    #[cfg(feature = "full-analysis")]
     pub temporal_events: Vec<graph::TemporalEvent>,
 }
 
@@ -65,6 +71,7 @@ pub struct AnalysisResult {
 #[derive(Debug, Clone)]
 pub struct ProjectAnalysis {
     pub files: HashMap<String, AnalysisResult>,
+    #[cfg(feature = "full-analysis")]
     pub profile: Option<profile::ProjectProfile>,
 }
 
@@ -141,8 +148,10 @@ pub fn analyze_file(
         symbols.extract_edges_from_tree(&tree, source, file_path, call_query);
     }
 
+    #[cfg(feature = "full-analysis")]
     let graph = symbols.graph().clone();
 
+    #[cfg(feature = "full-analysis")]
     let temporal_events = graph::extract_temporal_events(root, source, file_path, None);
 
     Ok(AnalysisResult {
@@ -151,7 +160,9 @@ pub fn analyze_file(
         source: source.to_string(),
         functions,
         symbols,
+        #[cfg(feature = "full-analysis")]
         graph,
+        #[cfg(feature = "full-analysis")]
         temporal_events,
     })
 }
@@ -165,6 +176,7 @@ pub fn analyze_project(
     files: impl IntoIterator<Item = (String, String)>,
 ) -> Result<ProjectAnalysis> {
     let mut results = HashMap::new();
+    #[cfg(feature = "full-analysis")]
     let mut all_fingerprints = Vec::new();
 
     for (idx, (path_str, source)) in files.into_iter().enumerate() {
@@ -176,20 +188,26 @@ pub fn analyze_project(
             continue;
         }
 
-        let file_id = FileId(u32::try_from(idx).unwrap_or(u32::MAX));
+        // FileId is a u32. Wrapping to u32::MAX silently corrupts symbol graph
+        // edges since MAX is indistinguishable from a real ID. In practice
+        // idx never exceeds u32::MAX (4 billion files) so this is a hard invariant.
+        let file_id = FileId(u32::try_from(idx).expect("project file count exceeded u32::MAX"));
+
         let result = analyze_file(&source, language, path, file_id)?;
-        all_fingerprints.extend(result.functions.clone());
+        #[cfg(feature = "full-analysis")]
+        {
+            all_fingerprints.extend(result.functions.clone());
+        }
         results.insert(path_str, result);
     }
 
-    let profile = if all_fingerprints.is_empty() {
-        None
-    } else {
-        Some(profile::ProjectProfile::learn(&all_fingerprints))
-    };
-
     Ok(ProjectAnalysis {
         files: results,
-        profile,
+        #[cfg(feature = "full-analysis")]
+        profile: if all_fingerprints.is_empty() {
+            None
+        } else {
+            Some(profile::ProjectProfile::learn(&all_fingerprints))
+        },
     })
 }

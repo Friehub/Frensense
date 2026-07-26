@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 use crate::adapters::AuthConvention;
 use crate::canary::CanaryServer;
 use crate::probes::{OracleKind, Probe};
+use crate::route_extractor::HttpMethod;
 use crate::route_extractor::{InjectionPoint, ParameterLocation, RouteBinding};
-use crate::route_extractor::{HttpMethod};
 use crate::session::Session;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -162,28 +162,45 @@ fn build_request(
     let request = match &point.location {
         ParameterLocation::Body => {
             let body = serde_json::json!({ &point.name: payload });
-            client.request(method, &format!("{}{}", base_url, target.route.path_pattern)).json(&body)
+            client
+                .request(
+                    method,
+                    &format!("{}{}", base_url, target.route.path_pattern),
+                )
+                .json(&body)
         }
-        ParameterLocation::Query => {
-            client.request(method, &format!("{}{}", base_url, target.route.path_pattern))
-                .query(&[(&point.name, payload)])
-        }
+        ParameterLocation::Query => client
+            .request(
+                method,
+                &format!("{}{}", base_url, target.route.path_pattern),
+            )
+            .query(&[(&point.name, payload)]),
         ParameterLocation::PathParam => {
-                    let url = format!("{}{}", base_url, target.route.path_pattern)
-                .replace(&format!(":{}", point.name), &urlencoding::encode(payload).into_owned());
+            let url = format!("{}{}", base_url, target.route.path_pattern).replace(
+                &format!(":{}", point.name),
+                &urlencoding::encode(payload).into_owned(),
+            );
             client.request(method, &url)
         }
-        ParameterLocation::Header => {
-            client.request(method, &format!("{}{}", base_url, target.route.path_pattern))
-                .header(&point.name, payload)
-        }
-        ParameterLocation::Cookie => {
-            client.request(method, &format!("{}{}", base_url, target.route.path_pattern))
-                .header("Cookie", format!("{}={}", point.name, payload))
-        }
+        ParameterLocation::Header => client
+            .request(
+                method,
+                &format!("{}{}", base_url, target.route.path_pattern),
+            )
+            .header(&point.name, payload),
+        ParameterLocation::Cookie => client
+            .request(
+                method,
+                &format!("{}{}", base_url, target.route.path_pattern),
+            )
+            .header("Cookie", format!("{}={}", point.name, payload)),
         ParameterLocation::FormData => {
             let params = [(&point.name, payload)];
-            client.request(method, &format!("{}{}", base_url, target.route.path_pattern))
+            client
+                .request(
+                    method,
+                    &format!("{}{}", base_url, target.route.path_pattern),
+                )
                 .form(&params)
         }
     };
@@ -200,5 +217,3 @@ fn build_request(
         request
     }
 }
-
-

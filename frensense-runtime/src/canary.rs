@@ -42,11 +42,7 @@ impl CanaryServer {
     }
 
     pub fn check_received(&self, probe_id: &str) -> bool {
-        self.inner
-            .lock()
-            .unwrap()
-            .received
-            .contains_key(probe_id)
+        self.inner.lock().unwrap().received.contains_key(probe_id)
     }
 
     pub async fn start(&self) {

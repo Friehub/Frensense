@@ -18,7 +18,7 @@ fn main() {
     let corpus_dir = Path::new(&manifest_dir).join("corpus").join("targets");
 
     eprintln!("Loading corpus from {}...", corpus_dir.display());
-    let patterns = load_corpus(&corpus_dir).expect("Failed to load corpus");
+    let (patterns, _warnings) = load_corpus(&corpus_dir).expect("Failed to load corpus");
 
     // Compute IDF weights from all positive fingerprints
     let all_positives: Vec<_> = patterns
@@ -42,19 +42,23 @@ fn main() {
             apply_idf_weights(fp, &idf_weights);
         }
 
-        let default_w = &[0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
+        let default_w = &[
+            0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05,
+        ];
 
         // Score positive examples against their own pattern (should be high = TP)
         for pos in &pos_fps {
-            let score =
-                PatternScorer::score_against_corpus(pos, &pos_fps, &neg_fps, None, None, 0.05, default_w);
+            let score = PatternScorer::score_against_corpus(
+                pos, &pos_fps, &neg_fps, None, None, 0.05, default_w,
+            );
             scores.push((score, true));
         }
 
         // Score negative examples against positive pattern (should be low = FP)
         for neg in &neg_fps {
-            let score =
-                PatternScorer::score_against_corpus(neg, &pos_fps, &neg_fps, None, None, 0.05, default_w);
+            let score = PatternScorer::score_against_corpus(
+                neg, &pos_fps, &neg_fps, None, None, 0.05, default_w,
+            );
             scores.push((score, false));
         }
     }

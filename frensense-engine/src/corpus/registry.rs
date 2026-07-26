@@ -69,7 +69,7 @@ impl PatternRegistry {
     }
 
     pub fn load_corpus(&mut self, corpus_dir: &Path) -> Result<usize, String> {
-        let patterns = load_corpus(corpus_dir)?;
+        let patterns = load_corpus(corpus_dir)?.0;
         let count = patterns.len();
         self.source_sink = build_registry_from_dir(corpus_dir);
         self.patterns = patterns;
@@ -82,7 +82,7 @@ impl PatternRegistry {
         let mut all_patterns = Vec::new();
         for dir in dirs {
             match load_corpus(dir) {
-                Ok(patterns) => all_patterns.extend(patterns),
+                Ok((patterns, _warnings)) => all_patterns.extend(patterns),
                 Err(e) => eprintln!("Corpus warning: skipping {}: {e}", dir.display()),
             }
         }
@@ -113,8 +113,10 @@ impl PatternRegistry {
             return;
         }
         // Convert patterns to BundlePattern format for the auto-filter function
-        let bundle_patterns: Vec<crate::corpus::bundle::BundlePattern> = self.patterns.iter().map(|p| {
-            crate::corpus::bundle::BundlePattern {
+        let bundle_patterns: Vec<crate::corpus::bundle::BundlePattern> = self
+            .patterns
+            .iter()
+            .map(|p| crate::corpus::bundle::BundlePattern {
                 id: p.id.clone(),
                 positives: p.positives.clone(),
                 negatives: p.negatives.clone(),
@@ -128,8 +130,8 @@ impl PatternRegistry {
                 owasp: p.owasp.clone(),
                 severity: p.severity.clone(),
                 runtime_probe: p.runtime_probe.clone(),
-            }
-        }).collect();
+            })
+            .collect();
         let stats = crate::auto_filter::compute_auto_filters(&bundle_patterns, &source_texts);
         self.auto_filter_stats = Some(stats);
     }
@@ -166,48 +168,44 @@ impl PatternRegistry {
 
         // Use pre-computed API IDF from bundle when available (avoids recomputation)
         if !loaded.api_idf_weights.is_empty() {
-            self.api_idf_weights = loaded
-                .api_idf_weights
-                .into_iter()
-                .collect();
+            self.api_idf_weights = loaded.api_idf_weights.into_iter().collect();
         }
 
         // Restore per-category feature weights from bundle
         if !loaded.category_weights.is_empty() {
-            self.category_weights = loaded
-                .category_weights
-                .into_iter()
-                .collect();
+            self.category_weights = loaded.category_weights.into_iter().collect();
         }
 
         // Restore auto-derived filter suggestions from bundle
+        // Bundle format: (pid, imports, calls, excl_calls, fn_re, excl_nodes, excl_fnames)
         if !loaded.auto_filter_stats.is_empty() {
-            let mut contains_import = std::collections::HashMap::new();
             let mut contains_call_to = std::collections::HashMap::new();
             let mut excludes_call = std::collections::HashMap::new();
-            let mut function_name_regex = std::collections::HashMap::new();
             let mut excludes_node_type = std::collections::HashMap::new();
             let mut excludes_function_name = std::collections::HashMap::new();
             for entry in loaded.auto_filter_stats {
                 let pid = entry.0;
-                let imports = entry.1;
                 let calls = entry.2;
                 let excl_calls = entry.3;
-                let fn_re = entry.4;
                 let excl_nodes = entry.5;
                 let excl_fnames = entry.6;
-                if !imports.is_empty() { contains_import.insert(pid.clone(), imports); }
-                if !calls.is_empty() { contains_call_to.insert(pid.clone(), calls); }
-                if !excl_calls.is_empty() { excludes_call.insert(pid.clone(), excl_calls); }
-                if !fn_re.is_empty() { function_name_regex.insert(pid.clone(), fn_re); }
-                if !excl_nodes.is_empty() { excludes_node_type.insert(pid.clone(), excl_nodes); }
-                if !excl_fnames.is_empty() { excludes_function_name.insert(pid.clone(), excl_fnames); }
+                if !calls.is_empty() {
+                    contains_call_to.insert(pid.clone(), calls);
+                }
+                if !excl_calls.is_empty() {
+                    excludes_call.insert(pid.clone(), excl_calls);
+                }
+                if !excl_nodes.is_empty() {
+                    excludes_node_type.insert(pid.clone(), excl_nodes);
+                }
+                if !excl_fnames.is_empty() {
+                    excludes_function_name.insert(pid.clone(), excl_fnames);
+                }
             }
             self.auto_filter_stats = Some(crate::auto_filter::AutoFilterStats {
-                contains_import,
                 contains_call_to,
                 excludes_call,
-                function_name_regex,
+                function_name_regex: std::collections::HashMap::new(),
                 excludes_node_type,
                 excludes_function_name,
             });
@@ -269,12 +267,16 @@ impl PatternRegistry {
             .collect();
     }
 
-    /// Learn per-category feature weights from corpus positive/negative pairs.
+    /// Learn per-category feature weights and per-pattern calibration from corpus positive/negative pairs.
     fn compute_category_weights(&mut self) {
         // Only compute if not already loaded from bundle
         if self.category_weights.is_empty() {
             self.category_weights =
                 crate::pattern::weight_learner::learn_category_weights(&self.patterns);
+        }
+        if self.pattern_calibration.is_empty() {
+            self.pattern_calibration =
+                crate::per_pattern_calibration::train_per_pattern_calibration(&self.patterns);
         }
     }
 
@@ -320,16 +322,20 @@ impl PatternRegistry {
         let mut api_index = LSHIndex::new(num_bands, rows_per_band);
 
         for (i, pattern) in self.patterns.iter().enumerate() {
-            if let Some(first_pos) = pattern.positives.first() {
+            // Issue 6 fix: index ALL positives, not just the first.
+            // Multi-function corpus patterns have a module-scope fingerprint AND
+            // a callback fingerprint. Only indexing first() means the callback is
+            // invisible to LSH queries, so pattern never matches the candidate callback.
+            for fp in &pattern.positives {
                 // Structural signature
-                let sig_s = minhash_signature(&first_pos.structural_markers, num_hashes);
+                let sig_s = minhash_signature(&fp.structural_markers, num_hashes);
                 struct_index.insert(&sig_s, i as u64);
 
-                // API-call signature (use api_calls, fall back to empty vec if none)
-                let sig_a = if !first_pos.api_calls.is_empty() {
-                    minhash_signature(&first_pos.api_calls, num_hashes)
+                // API-call signature
+                let sig_a = if !fp.api_calls.is_empty() {
+                    minhash_signature(&fp.api_calls, num_hashes)
                 } else {
-                    minhash_signature(&first_pos.structural_markers, num_hashes)
+                    minhash_signature(&fp.structural_markers, num_hashes)
                 };
                 api_index.insert(&sig_a, i as u64);
             }
@@ -346,24 +352,32 @@ impl PatternRegistry {
         actual_context: Option<&crate::context::FileContext>,
     ) -> Vec<PatternMatch> {
         // Query both LSH tables (structural + API-call)
-        let struct_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) = self.lsh_index
-        {
-            let sig = minhash_signature(&fp.structural_markers, 128);
-            lsh.query(&sig).iter().map(|&id| id as usize).filter(|&id| id < self.patterns.len()).collect()
-        } else {
-            (0..self.patterns.len()).collect()
-        };
-        let api_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) = self.lsh_index_api
-        {
-            let sig = if !fp.api_calls.is_empty() {
-                minhash_signature(&fp.api_calls, 128)
+        let struct_candidates: std::collections::HashSet<usize> =
+            if let Some(ref lsh) = self.lsh_index {
+                let sig = minhash_signature(&fp.structural_markers, 128);
+                lsh.query(&sig)
+                    .iter()
+                    .map(|&id| id as usize)
+                    .filter(|&id| id < self.patterns.len())
+                    .collect()
             } else {
-                minhash_signature(&fp.structural_markers, 128)
+                (0..self.patterns.len()).collect()
             };
-            lsh.query(&sig).iter().map(|&id| id as usize).filter(|&id| id < self.patterns.len()).collect()
-        } else {
-            struct_candidates.clone()
-        };
+        let api_candidates: std::collections::HashSet<usize> =
+            if let Some(ref lsh) = self.lsh_index_api {
+                let sig = if !fp.api_calls.is_empty() {
+                    minhash_signature(&fp.api_calls, 128)
+                } else {
+                    minhash_signature(&fp.structural_markers, 128)
+                };
+                lsh.query(&sig)
+                    .iter()
+                    .map(|&id| id as usize)
+                    .filter(|&id| id < self.patterns.len())
+                    .collect()
+            } else {
+                struct_candidates.clone()
+            };
 
         // Merge: a candidate passes if it's in EITHER table (preserve recall).
         // Track which table(s) it passed through for penalty application.
@@ -395,11 +409,15 @@ impl PatternRegistry {
             // Merge hand-authored semantic filter with auto-derived suggestions
             let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
                 (Some(hand), Some(auto)) => Some(crate::auto_filter::merge_filters(
-                    hand, Some(auto), &pattern.id,
+                    hand,
+                    Some(auto),
+                    &pattern.id,
                 )),
                 (Some(hand), None) => Some(hand.clone()),
                 (None, Some(auto)) => Some(crate::auto_filter::merge_filters(
-                    &Default::default(), Some(auto), &pattern.id,
+                    &Default::default(),
+                    Some(auto),
+                    &pattern.id,
                 )),
                 (None, None) => None,
             };
@@ -440,7 +458,7 @@ impl PatternRegistry {
                 }
             }
 
-            // Structural overlap gate + API-call gate
+            // Structural overlap gate: uses first positive's structure (representative)
             if let Some(first_pos) = pattern.positives.first() {
                 let struct_sim = crate::minhash::overlap_coefficient_sorted(
                     &weighted_fp.structural_markers,
@@ -449,31 +467,54 @@ impl PatternRegistry {
                 if struct_sim < self.struct_overlap_threshold {
                     continue;
                 }
+            }
 
-                let gate_pos = pattern.positives.iter().find(|p| !p.api_calls.is_empty());
-                if let Some(gate_pos) = gate_pos {
-                    let api_overlap = !weighted_fp.api_calls.is_empty()
-                        && gate_pos.api_calls.iter().any(|h| weighted_fp.api_calls.contains(h));
-                    let motif_overlap = !weighted_fp.motif_hashes.is_empty()
-                        && !gate_pos.motif_hashes.is_empty()
-                        && gate_pos.motif_hashes.iter().any(|h| weighted_fp.motif_hashes.contains(h));
-                    if !api_overlap && !motif_overlap {
-                        if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                            let top_calls: Vec<u64> = {
-                                let mut scored: Vec<(u64, f32)> = gate_pos
-                                    .api_calls
-                                    .iter()
-                                    .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
-                                    .collect();
-                                scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                                scored.into_iter().take(3).map(|(h, _)| h).collect()
-                            };
-                            if top_calls.iter().all(|h| !weighted_fp.api_calls.contains(h)) {
-                                continue;
-                            }
-                        } else {
+            // Issue 7 fix: API-call gate uses the positive with MAXIMUM overlap against
+            // the candidate, not the first positive with any calls.
+            // For multi-function patterns the first positive is often the module-scope
+            // wrapper (require, MongoClient.connect) while the actual vulnerability is
+            // in the callback (eval, app.use). Using find() picks the wrong positive,
+            // causing the gate to reject valid callback candidates.
+            let gate_pos = pattern
+                .positives
+                .iter()
+                .filter(|p| !p.api_calls.is_empty())
+                .max_by_key(|p| {
+                    p.api_calls
+                        .iter()
+                        .filter(|h| weighted_fp.api_calls.contains(h))
+                        .count()
+                });
+            if let Some(gate_pos) = gate_pos {
+                let api_overlap = !weighted_fp.api_calls.is_empty()
+                    && gate_pos
+                        .api_calls
+                        .iter()
+                        .any(|h| weighted_fp.api_calls.contains(h));
+                let motif_overlap = !weighted_fp.motif_hashes.is_empty()
+                    && !gate_pos.motif_hashes.is_empty()
+                    && gate_pos
+                        .motif_hashes
+                        .iter()
+                        .any(|h| weighted_fp.motif_hashes.contains(h));
+                if !api_overlap && !motif_overlap {
+                    if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
+                        let top_calls: Vec<u64> = {
+                            let mut scored: Vec<(u64, f32)> = gate_pos
+                                .api_calls
+                                .iter()
+                                .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
+                                .collect();
+                            scored.sort_by(|a, b| {
+                                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            scored.into_iter().take(3).map(|(h, _)| h).collect()
+                        };
+                        if top_calls.iter().all(|h| !weighted_fp.api_calls.contains(h)) {
                             continue;
                         }
+                    } else {
+                        continue;
                     }
                 }
             }
@@ -493,7 +534,18 @@ impl PatternRegistry {
                 &mut dim_cache,
             );
 
-            let best_score = if !hit_both { best_score * 0.85 } else { best_score };
+            let best_score = if !hit_both {
+                best_score * 0.85
+            } else {
+                best_score
+            };
+
+            // Apply per-pattern calibration (Platt scaling sigmoid) trained at
+            // bundle-build time. Falls back to raw score when no params exist.
+            let best_score = crate::per_pattern_calibration::calibrate(
+                best_score,
+                self.pattern_calibration.get(&pattern.id),
+            );
 
             let threshold = self.threshold_for_pattern(&pattern.id);
             if best_score >= threshold {
@@ -529,7 +581,9 @@ fn collect_source_texts(
     dir: &std::path::Path,
     out: &mut std::collections::HashMap<String, String>,
 ) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return; };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {

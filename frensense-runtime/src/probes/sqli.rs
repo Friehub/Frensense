@@ -2,7 +2,10 @@ use super::{OracleKind, Probe, ProbeRisk, ProbeTemplate};
 use uuid::Uuid;
 
 pub fn template() -> ProbeTemplate {
-    let _canary = format!("FRENSENSE_{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+    let _canary = format!(
+        "FRENSENSE_{}",
+        &Uuid::new_v4().to_string()[..8].to_uppercase()
+    );
     ProbeTemplate {
         category: "sqli",
         baseline_payload: "test",
@@ -26,7 +29,8 @@ pub fn template() -> ProbeTemplate {
                     ],
                 },
                 risk: ProbeRisk::Safe,
-                description: "SQL single-quote — triggers syntax error on unparameterized query".to_string(),
+                description: "SQL single-quote — triggers syntax error on unparameterized query"
+                    .to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),
@@ -35,7 +39,8 @@ pub fn template() -> ProbeTemplate {
                     min_divergence_score: 0.3,
                 },
                 risk: ProbeRisk::Safe,
-                description: "Boolean injection — changes result set (compare to baseline)".to_string(),
+                description: "Boolean injection — changes result set (compare to baseline)"
+                    .to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),

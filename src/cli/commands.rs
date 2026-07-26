@@ -37,6 +37,9 @@ pub fn print_help() {
     println!("  --sarif             Output findings in SARIF format");
     println!("  --strict            Exit with code 1 if any findings match filter");
     println!("  --emit-baseline <file>   Save current findings as a baseline");
+    println!(
+        "  --emit-hypotheses        Write findings as hypotheses.json in the target directory"
+    );
     println!("  --compare-baseline <file>  Compare findings against a baseline");
     println!("  --fix [scope]      Apply automated fixes (scope: all, style, security)");
     println!(
@@ -117,7 +120,7 @@ pub fn handle_list_patterns(corpus_dir: Option<&str>) -> Result<()> {
         println!("Then add positive/negative example pairs.");
         return Ok(());
     }
-    match load_corpus(path) {
+    match load_corpus(path).map(|(p, _)| p) {
         Ok(patterns) => {
             println!("Loaded {} corpus patterns from {dir}:", patterns.len());
             for p in &patterns {

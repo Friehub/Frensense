@@ -27,10 +27,22 @@ fn main() {
         // Normalize: strip _positive2, _positive3, _negative2, _negative3, _negative4, _m1_async, etc.
         // down to the base pattern name.
         let mut normalized = name.to_string();
-        for suffix in &["_positive9", "_positive8", "_positive7", "_positive6",
-                        "_positive5", "_positive4", "_positive3", "_positive2",
-                        "_negative5", "_negative4", "_negative3", "_negative2",
-                        "_positive", "_negative"] {
+        for suffix in &[
+            "_positive9",
+            "_positive8",
+            "_positive7",
+            "_positive6",
+            "_positive5",
+            "_positive4",
+            "_positive3",
+            "_positive2",
+            "_negative5",
+            "_negative4",
+            "_negative3",
+            "_negative2",
+            "_positive",
+            "_negative",
+        ] {
             if let Some(stripped) = normalized.strip_suffix(suffix) {
                 normalized = stripped.to_string();
                 break;
@@ -42,21 +54,29 @@ fn main() {
     }
 
     for (pattern, files) in &by_pattern {
-        let pos: Vec<&PathBuf> = files.iter().filter(|p| {
-            let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            name.contains("_positive")
-        }).collect();
-        let mut negs: Vec<&PathBuf> = files.iter().filter(|p| {
-            let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            name.contains("_negative")
-        }).collect();
+        let pos: Vec<&PathBuf> = files
+            .iter()
+            .filter(|p| {
+                let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                name.contains("_positive")
+            })
+            .collect();
+        let mut negs: Vec<&PathBuf> = files
+            .iter()
+            .filter(|p| {
+                let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                name.contains("_negative")
+            })
+            .collect();
         // Sort negatives so _negative.ts comes first
         negs.sort_by_key(|p| {
             let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             if name.ends_with("_negative") { 0 } else { 1 }
         });
 
-        let Some(pos_path) = pos.first() else { continue; };
+        let Some(pos_path) = pos.first() else {
+            continue;
+        };
         let src = match std::fs::read_to_string(pos_path) {
             Ok(s) => s,
             Err(_) => continue,
@@ -88,8 +108,7 @@ fn main() {
         }
 
         // +15 Has 2+ functions
-        let fn_count = src.matches("function ").count()
-            + src.matches("=>").count() / 2;
+        let fn_count = src.matches("function ").count() + src.matches("=>").count() / 2;
         if fn_count >= 2 {
             score += 15;
         } else {
@@ -134,10 +153,12 @@ fn main() {
         // +10 Negative uses same sink call safely
         if let Some(neg_path) = negs.first() {
             if let Ok(neg_src) = std::fs::read_to_string(neg_path) {
-                let pos_imports: Vec<&str> = src.lines()
+                let pos_imports: Vec<&str> = src
+                    .lines()
                     .filter(|l| l.trim().starts_with("import ") || l.trim().starts_with("const "))
                     .collect();
-                let neg_imports: Vec<&str> = neg_src.lines()
+                let neg_imports: Vec<&str> = neg_src
+                    .lines()
                     .filter(|l| l.trim().starts_with("import ") || l.trim().starts_with("const "))
                     .collect();
                 if !pos_imports.is_empty() && !neg_imports.is_empty() {
@@ -250,11 +271,16 @@ fn main() {
         let cat = pattern.split('_').nth(1).unwrap_or("");
         let t = classify_tier(cat, pattern);
         by_tier[t] += 1;
-        if *score < 50 { below50_by_tier[t] += 1; }
+        if *score < 50 {
+            below50_by_tier[t] += 1;
+        }
     }
     eprintln!();
     for t in 1..=5 {
-        eprintln!("  Tier {t}: {} patterns ({} below 50)", by_tier[t], below50_by_tier[t]);
+        eprintln!(
+            "  Tier {t}: {} patterns ({} below 50)",
+            by_tier[t], below50_by_tier[t]
+        );
     }
 
     // Sort by score ascending
@@ -281,24 +307,84 @@ fn collect_files(dir: &std::path::Path) -> Vec<PathBuf> {
 
 /// Classify a pattern into a tier (1-5) based on its category prefix.
 fn classify_tier(cat: &str, pattern: &str) -> usize {
-    let tier1 = ["cmdi", "sqli", "ssrf", "xss", "path", "open", "eval", "ldap", "xpath", "ssti", "nosqli", "xxe", "prototype", "deserialization"];
-    let tier2 = ["jwt", "auth", "idor", "bac", "rbac", "cors", "csrf", "session", "oauth", "oidc", "cookie", "mfa", "ratelimit"];
-    let tier3 = ["race", "toctou", "integer", "deadlock", "payment", "ownership"];
-    let tier4 = ["crypto", "hardcoded", "regex", "env", "debug", "rand", "weak", "error"];
+    let tier1 = [
+        "cmdi",
+        "sqli",
+        "ssrf",
+        "xss",
+        "path",
+        "open",
+        "eval",
+        "ldap",
+        "xpath",
+        "ssti",
+        "nosqli",
+        "xxe",
+        "prototype",
+        "deserialization",
+    ];
+    let tier2 = [
+        "jwt",
+        "auth",
+        "idor",
+        "bac",
+        "rbac",
+        "cors",
+        "csrf",
+        "session",
+        "oauth",
+        "oidc",
+        "cookie",
+        "mfa",
+        "ratelimit",
+    ];
+    let tier3 = [
+        "race",
+        "toctou",
+        "integer",
+        "deadlock",
+        "payment",
+        "ownership",
+    ];
+    let tier4 = [
+        "crypto",
+        "hardcoded",
+        "regex",
+        "env",
+        "debug",
+        "rand",
+        "weak",
+        "error",
+    ];
     // Tier 5: anything React/LLM/Rust-specific not in tiers 1-4
-    if pattern.contains("tsx_") || pattern.contains("llm_") || pattern.contains("rust_async") || pattern.contains("rust_transmute") || pattern.contains("edition2024") {
+    if pattern.contains("tsx_")
+        || pattern.contains("llm_")
+        || pattern.contains("rust_async")
+        || pattern.contains("rust_transmute")
+        || pattern.contains("edition2024")
+    {
         return 5;
     }
-    if tier1.contains(&cat) { return 1; }
-    if tier2.contains(&cat) { return 2; }
-    if tier3.contains(&cat) { return 3; }
-    if tier4.contains(&cat) { return 4; }
+    if tier1.contains(&cat) {
+        return 1;
+    }
+    if tier2.contains(&cat) {
+        return 2;
+    }
+    if tier3.contains(&cat) {
+        return 3;
+    }
+    if tier4.contains(&cat) {
+        return 4;
+    }
     // Default: Tier 5 (framework-specific / unclassified)
     5
 }
 
 fn collect_recursive(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return; };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {

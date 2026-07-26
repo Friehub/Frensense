@@ -78,9 +78,7 @@ fn collect_tainted_recursive(
     let kind = node.kind();
 
     // Variable declaration with initializer: `let cmd = req.body.cmd`
-    if kind == "variable_declarator"
-        || kind == "assignment_expression"
-    {
+    if kind == "variable_declarator" || kind == "assignment_expression" {
         if let (Some(name_node), Some(value_node)) = (
             node.child_by_field_name("name")
                 .or_else(|| node.child_by_field_name("left")),

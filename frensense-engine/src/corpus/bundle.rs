@@ -129,7 +129,15 @@ struct BundlePayload {
     category_weights: Vec<(String, [f64; 11])>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     #[serde(default)]
-    auto_filter_stats: Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)>,
+    auto_filter_stats: Vec<(
+        String,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+        String,
+        Vec<String>,
+        Vec<String>,
+    )>,
     /// Per-pattern sigmoid calibration params (A, B).
     #[serde(default)]
     pattern_calibration: Vec<(String, f32, f32)>,
@@ -141,7 +149,15 @@ pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
     pub category_weights: Vec<(String, [f64; 11])>,
-    pub auto_filter_stats: Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)>,
+    pub auto_filter_stats: Vec<(
+        String,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+        String,
+        Vec<String>,
+        Vec<String>,
+    )>,
     pub pattern_calibration: Vec<(String, f32, f32)>,
 }
 
@@ -182,7 +198,7 @@ impl Manifest {
 
 /// Build a bundle from a corpus directory.
 pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
-    let patterns = load_corpus(corpus_dir)?;
+    let patterns = load_corpus(corpus_dir)?.0;
 
     let bundle_patterns: Vec<BundlePattern> = patterns
         .into_iter()
@@ -203,7 +219,7 @@ pub fn build_bundle(corpus_dir: &Path) -> Result<Vec<u8>, String> {
         })
         .collect();
 
-    build_bundle_from_patterns(&bundle_patterns)
+    build_bundle_from_patterns(&bundle_patterns, Some(corpus_dir))
 }
 
 /// Compute API-call IDF weights from a slice of bundle patterns.
@@ -234,7 +250,10 @@ fn compute_bundle_api_idf(patterns: &[BundlePattern]) -> Vec<(u64, f32)> {
 }
 
 /// Build a bundle from pre-built `BundlePatterns`.
-pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>, String> {
+pub fn build_bundle_from_patterns(
+    patterns: &[BundlePattern],
+    corpus_dir_override: Option<&Path>,
+) -> Result<Vec<u8>, String> {
     // Pre-compute API IDF at build time so loaders can skip recomputation (~100 ms saving)
     let api_idf_weights = compute_bundle_api_idf(patterns);
 
@@ -264,9 +283,15 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
 
     // Compute auto-derived semantic filter suggestions
     // We need source text for each pattern to extract imports and call targets
-    let corpus_dir = std::env::current_dir()
-        .map(|d| d.join("corpus").join("targets"))
-        .unwrap_or_default();
+    // Use the explicit corpus_dir if provided (from build_bundle), otherwise fall back
+    // to current_dir + corpus/targets (for incremental build path).
+    let corpus_dir = corpus_dir_override
+        .map(|d| d.to_path_buf())
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .map(|d| d.join("corpus").join("targets"))
+                .unwrap_or_default()
+        });
     // Recursively find a corpus file by its pattern ID and variant.
     fn find_corpus_file(id: &str, variant: &str, dir: &Path) -> Option<String> {
         for ext in &["ts", "tsx", "js", "jsx", "rs"] {
@@ -280,7 +305,9 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
     }
 
     fn find_file_recursive(dir: &Path, target: &str) -> Option<String> {
-        let Ok(entries) = std::fs::read_dir(dir) else { return None; };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return None;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -312,18 +339,50 @@ pub fn build_bundle_from_patterns(patterns: &[BundlePattern]) -> Result<Vec<u8>,
     let auto_stats = crate::auto_filter::compute_auto_filters(patterns, &pattern_source_texts);
     // Serialize auto-derived filter stats.  Each entry is:
     // (pid, imports, calls, excludes_call, function_name_regex, excludes_nodes, excludes_fnames)
-    let auto_filter_stats: Vec<(String, Vec<String>, Vec<String>, Vec<String>, String, Vec<String>, Vec<String>)> = {
+    let auto_filter_stats: Vec<(
+        String,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+        String,
+        Vec<String>,
+        Vec<String>,
+    )> = {
         let mut v = Vec::new();
-        let all_pids: std::collections::HashSet<&str> = patterns.iter().map(|p| p.id.as_str()).collect();
+        let all_pids: std::collections::HashSet<&str> =
+            patterns.iter().map(|p| p.id.as_str()).collect();
         for pid in &all_pids {
-            let imports = auto_stats.contains_import.get(*pid).cloned().unwrap_or_default();
-            let calls = auto_stats.contains_call_to.get(*pid).cloned().unwrap_or_default();
-            let excl_calls = auto_stats.excludes_call.get(*pid).cloned().unwrap_or_default();
-            let fn_re = auto_stats.function_name_regex.get(*pid).cloned().unwrap_or_default();
-            let excl_nodes = auto_stats.excludes_node_type.get(*pid).cloned().unwrap_or_default();
-            let excl_fnames = auto_stats.excludes_function_name.get(*pid).cloned().unwrap_or_default();
-            if !imports.is_empty() || !calls.is_empty() || !excl_calls.is_empty() || !fn_re.is_empty() {
-                v.push((pid.to_string(), imports, calls, excl_calls, fn_re, excl_nodes, excl_fnames));
+            let calls = auto_stats
+                .contains_call_to
+                .get(*pid)
+                .cloned()
+                .unwrap_or_default();
+            let excl_calls = auto_stats
+                .excludes_call
+                .get(*pid)
+                .cloned()
+                .unwrap_or_default();
+            let fn_re = String::new();
+            let excl_nodes = auto_stats
+                .excludes_node_type
+                .get(*pid)
+                .cloned()
+                .unwrap_or_default();
+            let excl_fnames = auto_stats
+                .excludes_function_name
+                .get(*pid)
+                .cloned()
+                .unwrap_or_default();
+            if !calls.is_empty() || !excl_calls.is_empty() {
+                v.push((
+                    pid.to_string(),
+                    Vec::new(),
+                    calls,
+                    excl_calls,
+                    fn_re,
+                    excl_nodes,
+                    excl_fnames,
+                ));
             }
         }
         v
@@ -367,7 +426,7 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     let manifest_path = corpus_dir.join(".bundle_manifest.toml");
     let mut manifest = Manifest::load(&manifest_path);
 
-    let patterns = load_corpus(corpus_dir)?;
+    let patterns = load_corpus(corpus_dir)?.0;
 
     let bundle_patterns: Vec<BundlePattern> = patterns
         .into_iter()
@@ -481,8 +540,13 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     // Deserialize bundle payload with fallback for format mismatches.
     let (patterns, api_idf_weights, category_weights, auto_filter_stats, pattern_calibration) =
         match bincode::deserialize::<BundlePayload>(data) {
-            Ok(payload) => (payload.patterns, payload.api_idf_weights,
-                payload.category_weights, payload.auto_filter_stats, payload.pattern_calibration),
+            Ok(payload) => (
+                payload.patterns,
+                payload.api_idf_weights,
+                payload.category_weights,
+                payload.auto_filter_stats,
+                payload.pattern_calibration,
+            ),
             Err(_) => match bincode::deserialize::<Vec<BundlePattern>>(data) {
                 Ok(patterns) => (patterns, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
                 Err(_) => (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()),

@@ -6,11 +6,11 @@ use std::hash::{Hash, Hasher};
 use crate::corpus::motifs::MOTIFS;
 use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
-use crate::pattern::evidence::MatchEvidence;
-use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
+use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::matcher::MatchResult;
+use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
@@ -163,14 +163,18 @@ impl PatternScorer {
                 if !has_overlap {
                     let motif_overlap = !candidate.motif_hashes.is_empty()
                         && !positive.motif_hashes.is_empty()
-                        && positive.motif_hashes.iter().any(|h| candidate.motif_hashes.contains(h));
+                        && positive
+                            .motif_hashes
+                            .iter()
+                            .any(|h| candidate.motif_hashes.contains(h));
                     if !motif_overlap {
                         continue;
                     }
                 }
             }
 
-            let sim_pos = Self::compute_similarity(candidate, positive, true, ngram_sim_threshold, weights);
+            let sim_pos =
+                Self::compute_similarity(candidate, positive, true, ngram_sim_threshold, weights);
             let semantic_multiplier = if positive.semantic_markers.is_empty() {
                 1.0
             } else if minhash::jaccard_similarity_sorted(
@@ -199,7 +203,8 @@ impl PatternScorer {
         // 2. Find the highest negative similarity (the worst penalty)
         let mut max_neg_sim = 0.0f64;
         for negative in negatives {
-            let sim_neg = Self::compute_similarity(candidate, negative, false, ngram_sim_threshold, weights);
+            let sim_neg =
+                Self::compute_similarity(candidate, negative, false, ngram_sim_threshold, weights);
             if sim_neg > max_neg_sim {
                 max_neg_sim = sim_neg;
             }
@@ -257,9 +262,13 @@ impl PatternScorer {
         weights: &[f64; 11],
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
-            candidate, positives, negatives,
-            expected_context, actual_context,
-            _ngram_sim_threshold, weights,
+            candidate,
+            positives,
+            negatives,
+            expected_context,
+            actual_context,
+            _ngram_sim_threshold,
+            weights,
             None,
         )
     }
@@ -278,9 +287,13 @@ impl PatternScorer {
         dim_cache: &mut DimCache,
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
-            candidate, positives, negatives,
-            expected_context, actual_context,
-            _ngram_sim_threshold, weights,
+            candidate,
+            positives,
+            negatives,
+            expected_context,
+            actual_context,
+            _ngram_sim_threshold,
+            weights,
             Some(dim_cache),
         )
     }
@@ -299,7 +312,9 @@ impl PatternScorer {
         let mut raw_dim = |target: &FunctionFingerprint, is_negative: bool| -> RawDimensions {
             if let Some(ref mut cache) = dim_cache {
                 let key = fingerprint_id(target);
-                *cache.entry(key).or_insert_with(|| Self::raw_dimensions(candidate, target, is_negative))
+                *cache
+                    .entry(key)
+                    .or_insert_with(|| Self::raw_dimensions(candidate, target, is_negative))
             } else {
                 Self::raw_dimensions(candidate, target, is_negative)
             }
@@ -307,31 +322,42 @@ impl PatternScorer {
 
         let mut evidence = MatchEvidence::default();
         let mut best_pos_score = 0.0f64;
+        let mut best_dim = RawDimensions::default();
 
         for (i, positive) in positives.iter().enumerate() {
             if !positive.api_calls.is_empty() && !candidate.api_calls.is_empty() {
-                let has_overlap = positive.api_calls.iter()
+                let has_overlap = positive
+                    .api_calls
+                    .iter()
                     .any(|h| candidate.api_calls.contains(h));
-                if !has_overlap { continue; }
+                if !has_overlap {
+                    continue;
+                }
             }
 
             let dim = raw_dim(positive, false);
-            let sem_mult = if positive.semantic_markers.is_empty() { 1.0 }
-                else if dim.semantic_sim == 0.0 { 0.30 }
-                else { 2.0 };
+            let sem_mult = if positive.semantic_markers.is_empty() {
+                1.0
+            } else if dim.semantic_sim == 0.0 {
+                0.30
+            } else {
+                2.0
+            };
             let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
             let pos_score = dim.weighted_score(weights) * f64::from(transfer) * sem_mult;
 
             if pos_score > best_pos_score {
                 best_pos_score = pos_score;
+                best_dim = dim;
                 evidence.ngram_sim = dim.ngram_sim;
                 evidence.ast_sim = dim.ast_sim;
                 evidence.signature_sim = dim.signature_sim;
                 evidence.control_flow_sim = dim.cf_sim;
                 evidence.api_sim = dim.api_sim;
                 evidence.motif_sim = dim.motif_sim;
-                evidence.flow_sim = if dim.flow_sim > 0.0 || (!candidate.data_flow_path_hashes.is_empty()
-                    && !positive.data_flow_path_hashes.is_empty())
+                evidence.flow_sim = if dim.flow_sim > 0.0
+                    || (!candidate.data_flow_path_hashes.is_empty()
+                        && !positive.data_flow_path_hashes.is_empty())
                 {
                     Some(dim.flow_sim)
                 } else {
@@ -367,22 +393,104 @@ impl PatternScorer {
             }
         }
 
-        // Negative similarity
-        let mut max_neg_sim = 0.0f64;
+        // Per-dimension signal: for API calls, use intersection-size difference
+        // (how many MORE calls does the candidate share with the positive than
+        // with the negative?), normalized by the positive intersection count.
+        // For other dimensions, use Jaccard-based difference (pos_sim - neg_sim).
+        let mut worst_neg = RawDimensions::default();
         for negative in negatives {
             let dim = raw_dim(negative, true);
-            let neg_score = dim.weighted_score(weights);
-            if neg_score > max_neg_sim {
-                max_neg_sim = neg_score;
+            if dim.ngram_sim > worst_neg.ngram_sim {
+                worst_neg.ngram_sim = dim.ngram_sim;
+            }
+            if dim.ast_sim > worst_neg.ast_sim {
+                worst_neg.ast_sim = dim.ast_sim;
+            }
+            if dim.signature_sim > worst_neg.signature_sim {
+                worst_neg.signature_sim = dim.signature_sim;
+            }
+            if dim.param_type_sim > worst_neg.param_type_sim {
+                worst_neg.param_type_sim = dim.param_type_sim;
+            }
+            if dim.type_usage_sim > worst_neg.type_usage_sim {
+                worst_neg.type_usage_sim = dim.type_usage_sim;
+            }
+            if dim.semantic_sim > worst_neg.semantic_sim {
+                worst_neg.semantic_sim = dim.semantic_sim;
+            }
+            if dim.cf_sim > worst_neg.cf_sim {
+                worst_neg.cf_sim = dim.cf_sim;
+            }
+            if dim.api_sim > worst_neg.api_sim {
+                worst_neg.api_sim = dim.api_sim;
+            }
+            if dim.motif_sim > worst_neg.motif_sim {
+                worst_neg.motif_sim = dim.motif_sim;
+            }
+            if dim.flow_sim > worst_neg.flow_sim {
+                worst_neg.flow_sim = dim.flow_sim;
+            }
+            if dim.tainted_api_sim > worst_neg.tainted_api_sim {
+                worst_neg.tainted_api_sim = dim.tainted_api_sim;
+            }
+            if dim.config_sim > worst_neg.config_sim {
+                worst_neg.config_sim = dim.config_sim;
             }
         }
-        evidence.negative_sim = max_neg_sim;
 
-        let neg_penalty = if max_neg_sim >= best_pos_score {
-            (1.0 - max_neg_sim).max(0.1)
-        } else {
-            1.0 - (max_neg_sim * 0.3)
+        // API intersection-size signal
+        let intersect_count = |a: &[u64], b: &[u64]| -> usize {
+            if a.is_empty() || b.is_empty() {
+                return 0;
+            }
+            let set_b: std::collections::HashSet<u64> = b.iter().copied().collect();
+            a.iter().filter(|h| set_b.contains(h)).count()
         };
+        let best_pos = &positives[evidence.best_positive_index];
+        let first_neg = negatives
+            .first()
+            .map(|n| n.api_calls.as_slice())
+            .unwrap_or(&[]);
+        let pi = intersect_count(&candidate.api_calls, &best_pos.api_calls);
+        let ni = intersect_count(&candidate.api_calls, first_neg);
+        let signal_api = if pi > 0 {
+            (pi as f64 - ni as f64) / pi as f64
+        } else {
+            0.0
+        };
+
+        let signal: [f64; 12] = [
+            (best_dim.ngram_sim - worst_neg.ngram_sim).max(0.0),
+            (best_dim.ast_sim - worst_neg.ast_sim).max(0.0),
+            (best_dim.signature_sim - worst_neg.signature_sim).max(0.0),
+            (best_dim.param_type_sim - worst_neg.param_type_sim).max(0.0),
+            (best_dim.type_usage_sim - worst_neg.type_usage_sim).max(0.0),
+            (best_dim.semantic_sim - worst_neg.semantic_sim).max(0.0),
+            (best_dim.cf_sim - worst_neg.cf_sim).max(0.0),
+            signal_api.max(0.0),
+            (best_dim.motif_sim - worst_neg.motif_sim).max(0.0),
+            (best_dim.flow_sim - worst_neg.flow_sim).max(0.0),
+            (best_dim.tainted_api_sim - worst_neg.tainted_api_sim).max(0.0),
+            (best_dim.config_sim - worst_neg.config_sim).max(0.0),
+        ];
+
+        let max_signal = signal.iter().cloned().fold(0.0f64, f64::max);
+        evidence.negative_sim = max_signal;
+
+        // Noise gate: a single weak dimensional coincidence (e.g. api_sim=0.45)
+        // should not trigger a match. Require either:
+        //   • one strong dimension (> 0.4), OR
+        //   • ≥2 dimensions with moderate signal (> 0.15)
+        let strong_count = signal.iter().filter(|&&s| s > 0.15).count();
+        let gate = max_signal > 0.4 || strong_count >= 2;
+
+        // Use the weighted sum as the final score — this is the same type of
+        // score that the Platt scaling calibration was trained on (weighted
+        // sums in the 0.3–0.6 range). Using max_signal or a blended score
+        // would shift the distribution, making the sigmoid extrapolate
+        // incorrectly (squashing everything to ~1.0).
+        let weighted_score = best_dim.weighted_score(weights);
+        let final_score = if gate { weighted_score } else { 0.0 };
 
         let context_multiplier = match (expected_context, actual_context) {
             (Some(exp), Some(act)) => {
@@ -409,8 +517,7 @@ impl PatternScorer {
             _ => 1.0,
         };
 
-        let final_score = best_pos_score * neg_penalty * context_multiplier;
-        (final_score, evidence)
+        (final_score * context_multiplier, evidence)
     }
 
     fn compute_similarity(
@@ -449,7 +556,10 @@ impl PatternScorer {
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
-        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &target.data_flow_path_hashes);
+        let flow_sim = jaccard(
+            &candidate.data_flow_path_hashes,
+            &target.data_flow_path_hashes,
+        );
         let tainted_api_sim = if target.tainted_api_calls.is_empty() {
             1.0
         } else {
@@ -519,9 +629,7 @@ impl PatternScorer {
             }
         }
 
-        let dim = best_dim.unwrap_or_else(|| {
-            Self::raw_dimensions(candidate, &positives[0], false)
-        });
+        let dim = best_dim.unwrap_or_else(|| Self::raw_dimensions(candidate, &positives[0], false));
 
         // Compute negative similarity
         let mut max_neg_sim = 0.0f64;
@@ -533,7 +641,10 @@ impl PatternScorer {
             }
         }
 
-        let flow_sim_val = jaccard(&candidate.data_flow_path_hashes, &positives[best_positive_index].data_flow_path_hashes);
+        let flow_sim_val = jaccard(
+            &candidate.data_flow_path_hashes,
+            &positives[best_positive_index].data_flow_path_hashes,
+        );
 
         MatchEvidence {
             ngram_sim: dim.ngram_sim,
@@ -542,14 +653,20 @@ impl PatternScorer {
             control_flow_sim: dim.cf_sim,
             api_sim: dim.api_sim,
             motif_sim: dim.motif_sim,
-            flow_sim: if flow_sim_val > 0.0 { Some(flow_sim_val) } else { None },
+            flow_sim: if flow_sim_val > 0.0 {
+                Some(flow_sim_val)
+            } else {
+                None
+            },
             semantic_sim: dim.semantic_sim,
             negative_sim: max_neg_sim,
             matched_calls: Vec::new(),
             missing_calls: Vec::new(),
             matched_motifs: Vec::new(),
             has_taint_path: !candidate.data_flow_path_hashes.is_empty()
-                && positives.iter().any(|p| !p.data_flow_path_hashes.is_empty()),
+                && positives
+                    .iter()
+                    .any(|p| !p.data_flow_path_hashes.is_empty()),
             best_positive_index,
         }
     }
@@ -567,7 +684,10 @@ impl PatternScorer {
         {
             jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
         } else {
-            weighted_jaccard(&candidate.weighted_ngram_hashes, &target.weighted_ngram_hashes)
+            weighted_jaccard(
+                &candidate.weighted_ngram_hashes,
+                &target.weighted_ngram_hashes,
+            )
         };
 
         let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
@@ -587,17 +707,25 @@ impl PatternScorer {
         };
 
         let signature_sim = jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams);
-        let param_type_sim = jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
+        let param_type_sim =
+            jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
         let type_usage_sim = type_usage_overlap(candidate, target);
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
-        let flow_sim = jaccard(&candidate.data_flow_path_hashes, &target.data_flow_path_hashes);
+        let flow_sim = jaccard(
+            &candidate.data_flow_path_hashes,
+            &target.data_flow_path_hashes,
+        );
         let tainted_api_sim = if target.tainted_api_calls.is_empty() {
-            1.0
+            0.0 // No tainted calls → no overlap → 0 similarity, not 1.0
         } else {
             jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
+        let config_sim = jaccard(
+            &candidate.config_literal_hashes,
+            &target.config_literal_hashes,
+        );
 
         RawDimensions {
             ngram_sim,
@@ -611,6 +739,7 @@ impl PatternScorer {
             motif_sim,
             flow_sim,
             tainted_api_sim,
+            config_sim,
         }
     }
 }
@@ -618,13 +747,14 @@ impl PatternScorer {
 /// A lightweight identity-hash for a fingerprint, used as a cache key.
 /// Computed from a few identifying fields — collisions are astronomically unlikely.
 pub fn fingerprint_id(fp: &FunctionFingerprint) -> u64 {
-    let structural_hash = fp.structural_markers.first().copied().unwrap_or(0);
-    let api_hash = fp.api_calls.first().copied().unwrap_or(0);
-    let ngram_len = fp.ngram_hashes.len() as u64;
-    structural_hash.wrapping_mul(3)
-        ^ api_hash.wrapping_mul(7)
-        ^ ngram_len.wrapping_mul(11)
-        ^ (fp.skeleton_hashes.len() as u64).wrapping_mul(13)
+    use std::hash::{Hash, Hasher};
+    let mut hasher = rustc_hash::FxHasher::default();
+    fp.file_path.hash(&mut hasher);
+    fp.function_name.hash(&mut hasher);
+    fp.line.hash(&mut hasher);
+    fp.structural_markers.len().hash(&mut hasher);
+    fp.api_calls.len().hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Global cache for `raw_dimensions` results across all patterns in a scan.
@@ -633,7 +763,7 @@ pub fn fingerprint_id(fp: &FunctionFingerprint) -> u64 {
 pub type DimCache = rustc_hash::FxHashMap<u64, RawDimensions>;
 
 /// Intermediate raw-dimension values used internally by evidence computation.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct RawDimensions {
     ngram_sim: f64,
     ast_sim: f64,
@@ -646,6 +776,7 @@ pub(crate) struct RawDimensions {
     motif_sim: f64,
     flow_sim: f64,
     tainted_api_sim: f64,
+    config_sim: f64,
 }
 
 impl RawDimensions {
@@ -734,8 +865,11 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
-        let default_w = &[0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
-        let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
+        let default_w = &[
+            0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05,
+        ];
+        let score =
+            PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(
             score > 0.5,
             "candidate identical to positive should score high, got {score}"
@@ -747,8 +881,11 @@ mod tests {
         let pos = make_fingerprint("fn get_password() { read_file() }", "a.rs", "rs");
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
-        let default_w = &[0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05];
-        let score = PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
+        let default_w = &[
+            0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05,
+        ];
+        let score =
+            PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
         assert!(score < 0.6, "candidate closer to negative should score low");
     }
 }

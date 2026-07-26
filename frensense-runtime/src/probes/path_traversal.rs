@@ -2,7 +2,10 @@ use super::{OracleKind, Probe, ProbeRisk, ProbeTemplate};
 use uuid::Uuid;
 
 pub fn template() -> ProbeTemplate {
-    let _canary = format!("FRENSENSE_{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+    let _canary = format!(
+        "FRENSENSE_{}",
+        &Uuid::new_v4().to_string()[..8].to_uppercase()
+    );
     ProbeTemplate {
         category: "path_traversal",
         baseline_payload: "profile.txt",
@@ -14,7 +17,8 @@ pub fn template() -> ProbeTemplate {
                     canary: "root:x:0:0".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "Path traversal to /etc/passwd — root line confirms file read".to_string(),
+                description: "Path traversal to /etc/passwd — root line confirms file read"
+                    .to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),

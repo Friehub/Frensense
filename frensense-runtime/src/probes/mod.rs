@@ -19,14 +19,31 @@ pub struct Probe {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum OracleKind {
-    TimingDelta { threshold_ms: u64 },
-    CanaryInBody { canary: String },
-    CanaryCallback { probe_id: String },
-    ErrorPattern { patterns: Vec<String> },
-    RedirectToCanary { canary_host: String },
-    DifferentialResponse { min_divergence_score: f64 },
-    StatusCodeChange { expected_original: u16, trigger_different: bool },
-    BodySizeDelta { min_delta_bytes: usize },
+    TimingDelta {
+        threshold_ms: u64,
+    },
+    CanaryInBody {
+        canary: String,
+    },
+    CanaryCallback {
+        probe_id: String,
+    },
+    ErrorPattern {
+        patterns: Vec<String>,
+    },
+    RedirectToCanary {
+        canary_host: String,
+    },
+    DifferentialResponse {
+        min_divergence_score: f64,
+    },
+    StatusCodeChange {
+        expected_original: u16,
+        trigger_different: bool,
+    },
+    BodySizeDelta {
+        min_delta_bytes: usize,
+    },
 }
 
 pub struct ProbeTemplate {

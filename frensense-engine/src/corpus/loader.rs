@@ -24,7 +24,21 @@ pub struct CorpusPattern {
     pub runtime_probe: Option<String>,
 }
 
-pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
+/// A non-fatal diagnostic produced during corpus loading.
+/// Callers must surface these to the user — silent coverage gaps are a production risk.
+#[derive(Debug, Clone)]
+pub struct LoadWarning {
+    pub pattern_id: String,
+    pub message: String,
+}
+
+impl std::fmt::Display for LoadWarning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "corpus[{}]: {}", self.pattern_id, self.message)
+    }
+}
+
+pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWarning>), String> {
     type PatternEntry = (
         Vec<FunctionFingerprint>,
         Vec<FunctionFingerprint>,
@@ -35,9 +49,13 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
     let mut pairs: HashMap<String, PatternEntry> = HashMap::new();
 
     if !corpus_dir.exists() {
-        return Err(format!("corpus directory does not exist: {}", corpus_dir.display()));
+        return Err(format!(
+            "corpus directory does not exist: {}",
+            corpus_dir.display()
+        ));
     }
     let entries = collect_corpus_files(corpus_dir);
+    let mut warnings: Vec<LoadWarning> = Vec::new();
     for path in entries {
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
@@ -55,10 +73,8 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         let lang_name = crate::parser::ext_to_language(ext);
         if lang_name == "unknown" {
-            eprintln!(
-                "corpus: skipping unsupported extension '{ext}' in '{}'",
-                path.display()
-            );
+            // Unsupported extension: not a coverage gap (just an unrelated file type),
+            // so skip silently rather than emitting a spurious warning.
             continue;
         }
 
@@ -108,11 +124,19 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             continue;
         }
         if pos.is_empty() {
-            eprintln!("Corpus warning: pattern '{name}' has negative but no positive example");
+            warnings.push(LoadWarning {
+                pattern_id: name.clone(),
+                message:
+                    "has negative examples but no positive example — pattern skipped, coverage gap"
+                        .to_string(),
+            });
             continue;
         }
         if neg.is_empty() {
-            eprintln!("Corpus warning: pattern '{name}' has positive but no negative example");
+            warnings.push(LoadWarning {
+                pattern_id: name.clone(),
+                message: "has positive example but no negative example — pattern skipped, cannot learn boundary".to_string(),
+            });
             continue;
         }
 
@@ -173,11 +197,19 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
             cvss: comment_advisory.cvss.or(toml_advisory.cvss),
             owasp: comment_advisory.owasp.or(toml_advisory.owasp),
             severity: comment_advisory.severity.or(toml_advisory.severity),
-            runtime_probe: comment_advisory.runtime_probe.or(toml_advisory.runtime_probe),
+            runtime_probe: comment_advisory
+                .runtime_probe
+                .or(toml_advisory.runtime_probe),
         });
     }
 
-    Ok(patterns)
+    Ok((patterns, warnings))
+}
+
+/// Convenience wrapper: load corpus patterns, discarding non-fatal warnings.
+/// Use `load_corpus` directly when you need to surface diagnostics to the user.
+pub fn load_corpus_patterns(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, String> {
+    load_corpus(corpus_dir).map(|(patterns, _warnings)| patterns)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -370,8 +402,14 @@ fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> Adviso
         cwe: doc.get("cwe").and_then(|v| v.as_str()).map(String::from),
         cvss: doc.get("cvss").and_then(|v| v.as_float().map(|f| f as f32)),
         owasp: doc.get("owasp").and_then(|v| v.as_str()).map(String::from),
-        severity: doc.get("severity").and_then(|v| v.as_str()).map(String::from),
-        runtime_probe: doc.get("runtime_probe").and_then(|v| v.as_str()).map(String::from),
+        severity: doc
+            .get("severity")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        runtime_probe: doc
+            .get("runtime_probe")
+            .and_then(|v| v.as_str())
+            .map(String::from),
     }
 }
 
@@ -397,7 +435,9 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
 /// Recursively collect all corpus files from a directory tree.
 fn collect_corpus_files(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut result = Vec::new();
-    let Ok(entries) = fs::read_dir(dir) else { return result; };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return result;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -464,7 +504,7 @@ mod tests {
     #[test]
     fn test_empty_directory_returns_empty() {
         let dir = tempfile::tempdir().unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(patterns.is_empty());
     }
 
@@ -479,7 +519,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("test_positive.ts"), "").unwrap();
         std::fs::write(dir.path().join("test_negative.ts"), "").unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(patterns.is_empty(), "Empty files should be skipped");
     }
 
@@ -493,7 +533,7 @@ mod tests {
         )
         .unwrap();
         std::fs::write(dir.path().join("test_negative.ts"), "type Foo = string;").unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(
             patterns.is_empty(),
             "Files without functions should be skipped"
@@ -505,7 +545,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("bad_positive.ts"), "fn {{{ broken").unwrap();
         std::fs::write(dir.path().join("bad_negative.ts"), "fn {{{ broken").unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(
             patterns.is_empty(),
             "Files with bad syntax should be skipped"
@@ -517,7 +557,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("test_positive.xyz"), "def foo(): pass").unwrap();
         std::fs::write(dir.path().join("test_negative.xyz"), "def bar(): pass").unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(
             patterns.is_empty(),
             "Unsupported extensions should be skipped"
@@ -532,7 +572,7 @@ mod tests {
             "function foo() { return 1; }",
         )
         .unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(
             patterns.is_empty(),
             "Positive-only should not produce a pattern"
@@ -547,7 +587,7 @@ mod tests {
             "function bar() { return 2; }",
         )
         .unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(
             patterns.is_empty(),
             "Negative-only should not produce a pattern"
@@ -560,7 +600,7 @@ mod tests {
         // Files without _positive/_negative in name should be ignored
         std::fs::write(dir.path().join("readme.md"), "hello").unwrap();
         std::fs::write(dir.path().join("config.json"), "{}").unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert!(patterns.is_empty());
     }
 
@@ -663,7 +703,7 @@ fn validate(input: &str) -> bool {
             "fn foo() -> i32 { 2 }",
         )
         .unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert_eq!(patterns.len(), 1);
         assert_eq!(patterns[0].id, "rust_foo");
         assert!(!patterns[0].positives.is_empty());
@@ -683,7 +723,7 @@ fn validate(input: &str) -> bool {
             "fn a() -> Result<(), String> { Ok(()) }\nfn b() -> Result<(), String> { Ok(()) }\n",
         )
         .unwrap();
-        let patterns = load_corpus(dir.path()).unwrap();
+        let patterns = load_corpus(dir.path()).unwrap().0;
         assert_eq!(patterns.len(), 1);
         assert_eq!(
             patterns[0].positives.len(),

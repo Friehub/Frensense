@@ -136,7 +136,16 @@ pub(crate) fn collect_files_impl(engine: &mut Engine, root: &Path) -> Vec<FileSn
             let unchanged = file_cache.is_unchanged(&p, &content);
             if unchanged {
                 if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
-                    return Ok((id, p, content, tree, Vec::new(), Vec::new(), Vec::new(), true));
+                    return Ok((
+                        id,
+                        p,
+                        content,
+                        tree,
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                        true,
+                    ));
                 }
                 return Err((p, false));
             }

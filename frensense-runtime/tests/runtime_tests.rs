@@ -4,12 +4,12 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use frensense_runtime::canary::CanaryServer;
-use frensense_runtime::oracle::{evaluate_oracle, Verdict};
+use frensense_runtime::oracle::{Verdict, evaluate_oracle};
 use frensense_runtime::probes::{OracleKind, Probe, ProbeRisk};
 use frensense_runtime::route_extractor::{
     Framework, HttpMethod, InjectionPoint, ParameterLocation, RouteBinding,
 };
-use frensense_runtime::tracer::{execute_probe, BehavioralTrace, ProbeTarget};
+use frensense_runtime::tracer::{BehavioralTrace, ProbeTarget, execute_probe};
 
 fn free_port() -> u16 {
     let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
@@ -41,7 +41,9 @@ async fn run_mock_server(port: u16) {
 
                 let response = if request.contains("GET /echo-query") {
                     // Parse query params from the request line
-                    let params = if let Some(qs) = request.lines().next()
+                    let params = if let Some(qs) = request
+                        .lines()
+                        .next()
                         .and_then(|l| l.split('?').nth(1))
                         .and_then(|s| s.split(' ').next())
                     {
@@ -95,18 +97,13 @@ async fn run_mock_server(port: u16) {
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(200);
                     let reason = if code == 200 { "OK" } else { "Error" };
-                    format!(
-                        "HTTP/1.1 {} {}\r\nContent-Length: 0\r\n\r\n",
-                        code, reason
-                    )
+                    format!("HTTP/1.1 {} {}\r\nContent-Length: 0\r\n\r\n", code, reason)
                 } else if request.contains("GET /redirect") {
                     format!(
                         "HTTP/1.1 302 Found\r\nLocation: http://canary-target/probe\r\nContent-Length: 0\r\n\r\n"
                     )
                 } else {
-                    format!(
-                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
-                    )
+                    format!("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
                 };
 
                 let _ = stream.write_all(response.as_bytes()).await;
@@ -174,7 +171,10 @@ async fn test_canary_in_body_oracle() {
 
     assert_eq!(trace.status_code, 200);
     let body_str = String::from_utf8_lossy(&trace.response_body);
-    assert!(body_str.contains(canary), "Response body should contain canary");
+    assert!(
+        body_str.contains(canary),
+        "Response body should contain canary"
+    );
 }
 
 #[tokio::test]
@@ -247,9 +247,7 @@ async fn test_timing_delta_oracle() {
     .await;
 
     let verdict = evaluate_oracle(
-        &OracleKind::TimingDelta {
-            threshold_ms: 1500,
-        },
+        &OracleKind::TimingDelta { threshold_ms: 1500 },
         &probe_trace,
         &baseline_trace,
     );
@@ -461,9 +459,7 @@ async fn test_canary_server_tcp_callback() {
     // Simulate an inbound TCP connection with the probe ID in the payload
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     let addr: SocketAddr = ([127, 0, 0, 1], canary_port).into();
-    let mut stream = tokio::net::TcpStream::connect(addr)
-        .await
-        .unwrap();
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
     let payload = format!("GET /frensense-probe?pid={probe_id} HTTP/1.1\r\nHost: test\r\n\r\n");
     let _ = stream.write_all(payload.as_bytes()).await;
 

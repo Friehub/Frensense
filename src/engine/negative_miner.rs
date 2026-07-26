@@ -53,10 +53,7 @@ fn extract_function_snippet(file_path: &Path, line: u32) -> String {
 /// Creates `mined_negatives/{pattern_id}/{timestamp}_{line}.{ext}` containing
 /// the original source snippet around the finding. The file extension matches
 /// the scanned source file.
-fn write_mined_negative(
-    advisory: &Advisory,
-    output_dir: &Path,
-) -> Result<PathBuf, String> {
+fn write_mined_negative(advisory: &Advisory, output_dir: &Path) -> Result<PathBuf, String> {
     let pattern_dir = output_dir.join(sanitize_filename(&advisory.rule_id));
     fs::create_dir_all(&pattern_dir).map_err(|e| e.to_string())?;
 
@@ -71,14 +68,26 @@ fn write_mined_negative(
         .unwrap_or_default()
         .as_secs();
 
-    let filename = format!("{}_{}_{}.{}", timestamp, advisory.line, sanitize_filename(&advisory.rule_id), ext);
+    let filename = format!(
+        "{}_{}_{}.{}",
+        timestamp,
+        advisory.line,
+        sanitize_filename(&advisory.rule_id),
+        ext
+    );
     let out_path = pattern_dir.join(&filename);
 
     let snippet = extract_function_snippet(source_path, advisory.line);
 
     let mut content = String::new();
-    content.push_str(&format!("// Mined negative candidate for {}\n", advisory.rule_id));
-    content.push_str(&format!("// Source: {}:{}\n", advisory.file_path, advisory.line));
+    content.push_str(&format!(
+        "// Mined negative candidate for {}\n",
+        advisory.rule_id
+    ));
+    content.push_str(&format!(
+        "// Source: {}:{}\n",
+        advisory.file_path, advisory.line
+    ));
     content.push_str(&format!("// Confidence: {:.3}\n", advisory.confidence));
     content.push_str("// Review and promote to corpus/targets/ as _negative{N}.{ext}\n");
     content.push_str("// === Source snippet ===\n");
@@ -92,7 +101,13 @@ fn write_mined_negative(
 /// Sanitize a string for use as a filename.
 fn sanitize_filename(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

@@ -69,6 +69,9 @@ pub struct FunctionFingerprint {
     /// Separated from `api_calls` so scoring can distinguish tainted from untainted sinks.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub tainted_api_calls: Vec<u64>,
+
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub config_literal_hashes: Vec<u64>,
 }
 
 /// M1: Compute IDF weights for n-grams from a set of fingerprints.
@@ -294,9 +297,12 @@ fn collect_cf_sequence(node: Node<'_>, source: &str) -> Vec<String> {
 fn collect_cf_seq_recursive(node: Node<'_>, source: &str, events: &mut Vec<String>) {
     let kind = node.kind();
     let event = match kind {
-        "if_expression" | "if_statement"
-        | "match_expression" | "match_statement"
-        | "switch_statement" | "switch_expression"
+        "if_expression"
+        | "if_statement"
+        | "match_expression"
+        | "match_statement"
+        | "switch_statement"
+        | "switch_expression"
         | "conditional_expression" => Some("branch"),
         "loop_expression" | "while_expression" | "for_expression" => Some("loop"),
         "return_expression" | "return_statement" => Some("return"),
@@ -329,9 +335,12 @@ fn extract_cf_recursive(
 
     // Record control flow nodes (normalized to canonical forms)
     match kind {
-        "if_expression" | "if_statement"
-        | "match_expression" | "match_statement"
-        | "switch_statement" | "switch_expression"
+        "if_expression"
+        | "if_statement"
+        | "match_expression"
+        | "match_statement"
+        | "switch_statement"
+        | "switch_expression"
         | "conditional_expression" => {
             path.push("branch".to_string());
         }
@@ -374,13 +383,23 @@ fn extract_cf_recursive(
 
     // Pop path when leaving control flow nodes
     match kind {
-        "if_expression" | "if_statement"
-        | "match_expression" | "match_statement"
-        | "switch_statement" | "switch_expression"
+        "if_expression"
+        | "if_statement"
+        | "match_expression"
+        | "match_statement"
+        | "switch_statement"
+        | "switch_expression"
         | "conditional_expression"
-        | "loop_expression" | "while_expression" | "for_expression" | "return_expression"
-        | "return_statement" | "break_expression" | "try_expression" | "try_statement"
-        | "catch_clause" | "catch_block" => {
+        | "loop_expression"
+        | "while_expression"
+        | "for_expression"
+        | "return_expression"
+        | "return_statement"
+        | "break_expression"
+        | "try_expression"
+        | "try_statement"
+        | "catch_clause"
+        | "catch_block" => {
             path.pop();
         }
         _ => {}
@@ -574,7 +593,9 @@ fn collect_raw_calls_recursive(node: Node<'_>, source: &str, names: &mut Vec<Str
     if cursor.goto_first_child() {
         loop {
             collect_raw_calls_recursive(cursor.node(), source, names);
-            if !cursor.goto_next_sibling() { break; }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
         }
     }
 }
@@ -820,8 +841,13 @@ pub fn extract_fingerprints_with_nodes<'a>(
             let control_flow = extract_control_flow(body, source_code);
             let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
-            let semantic_markers =
-                extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
+            let semantic_markers = extract_semantic_markers(
+                body,
+                source_code,
+                &api_calls,
+                &api_call_segments,
+                &property_accesses,
+            );
 
             // Extract tainted API calls: calls where an argument references a parameter
             let param_names: Vec<String> = node
@@ -832,16 +858,21 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     if c.goto_first_child() {
                         loop {
                             let child = c.node();
-                            if let Some(name) = child.child_by_field_name("pattern")
+                            if let Some(name) = child
+                                .child_by_field_name("pattern")
                                 .or_else(|| child.child_by_field_name("name"))
                             {
                                 let text = &source_code[name.start_byte()..name.end_byte()];
                                 // Extract identifier from destructuring and object patterns
-                                if child.kind() == "identifier" || child.kind() == "required_parameter" {
+                                if child.kind() == "identifier"
+                                    || child.kind() == "required_parameter"
+                                {
                                     names.push(text.to_string());
                                 }
                             }
-                            if !c.goto_next_sibling() { break; }
+                            if !c.goto_next_sibling() {
+                                break;
+                            }
                         }
                     }
                     names
@@ -849,7 +880,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 .unwrap_or_default();
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
             let raw_call_names = collect_raw_call_names(body, source_code);
-            let motif_hashes = extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
+            let motif_hashes =
+                extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
             let data_flow_path_hashes =
                 crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
 
@@ -883,17 +915,18 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 semantic_markers,
                 skeleton,
                 skeleton_hashes,
-                 control_flow_hashes: control_flow,
-                  api_calls,
-                  api_call_segments,
-                  property_accesses,
-                  motif_hashes,
-                  data_flow_path_hashes,
-                  raw_call_names,
-                   tainted_api_calls,
-               };
+                control_flow_hashes: control_flow,
+                api_calls,
+                api_call_segments,
+                property_accesses,
+                motif_hashes,
+                data_flow_path_hashes,
+                raw_call_names,
+                tainted_api_calls,
+                config_literal_hashes: Vec::new(),
+            };
 
-              fingerprints.push((fp, node));
+            fingerprints.push((fp, node));
         }
 
         if cursor.goto_first_child() {
@@ -973,8 +1006,13 @@ pub fn extract_fingerprints(
             let control_flow = extract_control_flow(body, source_code);
             let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
             let property_accesses = extract_property_accesses(body, source_code);
-            let semantic_markers =
-                extract_semantic_markers(body, source_code, &api_calls, &api_call_segments, &property_accesses);
+            let semantic_markers = extract_semantic_markers(
+                body,
+                source_code,
+                &api_calls,
+                &api_call_segments,
+                &property_accesses,
+            );
 
             // Extract tainted API calls
             let param_names: Vec<String> = node
@@ -985,15 +1023,20 @@ pub fn extract_fingerprints(
                     if c.goto_first_child() {
                         loop {
                             let child = c.node();
-                            if let Some(name) = child.child_by_field_name("pattern")
+                            if let Some(name) = child
+                                .child_by_field_name("pattern")
                                 .or_else(|| child.child_by_field_name("name"))
                             {
                                 let text = &source_code[name.start_byte()..name.end_byte()];
-                                if child.kind() == "identifier" || child.kind() == "required_parameter" {
+                                if child.kind() == "identifier"
+                                    || child.kind() == "required_parameter"
+                                {
                                     names.push(text.to_string());
                                 }
                             }
-                            if !c.goto_next_sibling() { break; }
+                            if !c.goto_next_sibling() {
+                                break;
+                            }
                         }
                     }
                     names
@@ -1001,7 +1044,8 @@ pub fn extract_fingerprints(
                 .unwrap_or_default();
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
             let raw_call_names = collect_raw_call_names(body, source_code);
-            let motif_hashes = extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
+            let motif_hashes =
+                extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
             let data_flow_path_hashes =
                 crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
 
@@ -1043,6 +1087,7 @@ pub fn extract_fingerprints(
                 data_flow_path_hashes,
                 raw_call_names,
                 tainted_api_calls,
+                config_literal_hashes: Vec::new(),
             });
         }
 

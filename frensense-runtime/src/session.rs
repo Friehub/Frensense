@@ -146,10 +146,12 @@ impl SessionManager {
             csrf_token,
         })
     }
-
 }
 
-pub fn apply_session_to_request(session: &Session, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+pub fn apply_session_to_request(
+    session: &Session,
+    request: reqwest::RequestBuilder,
+) -> reqwest::RequestBuilder {
     let cookie_str = session
         .cookies
         .iter()
@@ -168,7 +170,10 @@ pub fn apply_session_to_request(session: &Session, request: reqwest::RequestBuil
 
 fn extract_csrf_from_html(html: &str, field_name: &str) -> Option<String> {
     // Pattern 1: <input type="hidden" name="_csrf" value="TOKEN">
-    let pattern = format!(r#"name=["']{}["'][^>]*value=["']([^"']+)["']"#, regex::escape(field_name));
+    let pattern = format!(
+        r#"name=["']{}["'][^>]*value=["']([^"']+)["']"#,
+        regex::escape(field_name)
+    );
     if let Ok(re) = regex::Regex::new(&pattern) {
         if let Some(cap) = re.captures(html) {
             return Some(cap[1].to_string());
@@ -176,7 +181,10 @@ fn extract_csrf_from_html(html: &str, field_name: &str) -> Option<String> {
     }
 
     // Pattern 2: <meta name="_csrf" content="TOKEN">
-    let pattern2 = format!(r#"<meta[^>]*name=["']{}["'][^>]*content=["']([^"']+)["']"#, regex::escape(field_name));
+    let pattern2 = format!(
+        r#"<meta[^>]*name=["']{}["'][^>]*content=["']([^"']+)["']"#,
+        regex::escape(field_name)
+    );
     if let Ok(re) = regex::Regex::new(&pattern2) {
         if let Some(cap) = re.captures(html) {
             return Some(cap[1].to_string());
