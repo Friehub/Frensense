@@ -51,7 +51,7 @@ pub fn abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
             "call_expression" => AbstractKind::Call,
             "await_expression" => AbstractKind::Await,
             "return_statement" => AbstractKind::Return,
-            "variable_declarator" | "lexical_declaration" => AbstractKind::Assign,
+            "variable_declaration" | "variable_declarator" | "lexical_declaration" => AbstractKind::Assign,
             "assignment_expression" => AbstractKind::Assign,
             "if_statement" | "ternary_expression" => AbstractKind::Conditional,
             "for_statement" | "for_in_statement" | "while_statement" | "do_statement" => {
@@ -74,7 +74,7 @@ pub fn abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
             }
             "formal_parameters" => AbstractKind::Parameters,
             "arguments" => AbstractKind::Arguments,
-            "type_annotation" | "type_arguments" => AbstractKind::TypeAnnotation,
+            "type_annotation" | "type_arguments" => AbstractKind::Other,
             "new_expression" => AbstractKind::Call,
             _ => AbstractKind::Other,
         },

@@ -6,6 +6,7 @@ use std::path::Path;
 use tree_sitter::Node;
 
 use crate::lang::{Language, mapper::abstract_kind};
+use crate::lang::kinds::AbstractKind;
 
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
@@ -193,23 +194,34 @@ fn split_name_segments(name: &str) -> Vec<String> {
 fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language) -> Vec<u64> {
     let mut markers = FxHashSet::default();
     let mut cursor = node.walk();
-    let mut hasher = FxHasher::default();
-    abstract_kind(node.kind(), language).hash(&mut hasher);
-    markers.insert(hasher.finish());
+    
+    let kind = abstract_kind(node.kind(), language);
+    if kind != AbstractKind::Other {
+        let mut hasher = FxHasher::default();
+        kind.hash(&mut hasher);
+        markers.insert(hasher.finish());
+    }
+
     loop {
         if cursor.goto_first_child() {
             let n = cursor.node();
-            let mut h = FxHasher::default();
-            abstract_kind(n.kind(), language).hash(&mut h);
-            markers.insert(h.finish());
+            let kind = abstract_kind(n.kind(), language);
+            if kind != AbstractKind::Other {
+                let mut h = FxHasher::default();
+                kind.hash(&mut h);
+                markers.insert(h.finish());
+            }
             continue;
         }
         loop {
             if cursor.goto_next_sibling() {
                 let n = cursor.node();
-                let mut h = FxHasher::default();
-                abstract_kind(n.kind(), language).hash(&mut h);
-                markers.insert(h.finish());
+                let kind = abstract_kind(n.kind(), language);
+                if kind != AbstractKind::Other {
+                    let mut h = FxHasher::default();
+                    kind.hash(&mut h);
+                    markers.insert(h.finish());
+                }
                 break;
             }
             if !cursor.goto_parent() {

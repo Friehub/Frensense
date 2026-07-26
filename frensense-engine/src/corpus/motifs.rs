@@ -67,7 +67,7 @@ pub static MOTIFS: &[Motif] = &[
         ],
     },
     Motif {
-        name: "SqlSink",
+        name: "DbQuerySink",
         members: &[
             "query",
             "execute",
@@ -79,6 +79,13 @@ pub static MOTIFS: &[Motif] = &[
             "prepare",
             "db.run",
             "knex.raw",
+            "find",
+            "findOne",
+            "update",
+            "updateOne",
+            "aggregate",
+            "insert",
+            "insertOne",
         ],
     },
     Motif {
@@ -158,6 +165,36 @@ pub static MOTIFS: &[Motif] = &[
     Motif {
         name: "CryptoWeakSink",
         members: &["md5", "sha1", "Md5", "Sha1", "createHash"],
+    },
+    Motif {
+        name: "PasswordHashing",
+        members: &[
+            "bcrypt.hash",
+            "bcrypt.hashSync",
+            "bcrypt.compare",
+            "bcrypt.compareSync",
+            "argon2",
+            "pbkdf2",
+            "scrypt",
+            "bcrypt.genSalt",
+            "bcrypt.genSaltSync",
+        ],
+    },
+    Motif {
+        name: "SecurityMiddleware",
+        members: &["helmet", "csurf", "csrf", "rateLimit"],
+    },
+    Motif {
+        name: "SessionManagement",
+        members: &["session", "express-session", "cookie-session", "cookie"],
+    },
+    Motif {
+        name: "MarkupParser",
+        members: &["marked", "showdown", "markdown-it", "DOMPurify.sanitize"],
+    },
+    Motif {
+        name: "TemplateEngineConfig",
+        members: &["swig.setDefaults", "swig.init", "nunjucks.configure", "handlebars.registerHelper", "setDefaults", "configure"],
     },
 ];
 

@@ -239,6 +239,60 @@ fn get_negative_source(pattern_id: &str, sources: &HashMap<String, String>) -> S
     combined
 }
 
+/// Strip block comments, line comments, and string literals from source text.
+fn strip_comments_and_strings(source: &str) -> String {
+    let mut clean_source = String::with_capacity(source.len());
+    let mut chars = source.chars().peekable();
+    let mut in_block = false;
+    let mut in_line = false;
+    let mut in_str = false;
+    let mut str_char = '\0';
+
+    while let Some(c) = chars.next() {
+        if in_block {
+            if c == '*' && chars.peek() == Some(&'/') {
+                chars.next();
+                in_block = false;
+            }
+            continue;
+        }
+        if in_line {
+            if c == '\n' {
+                in_line = false;
+                clean_source.push(c);
+            }
+            continue;
+        }
+        if in_str {
+            if c == '\\' {
+                chars.next(); // skip escaped char
+            } else if c == str_char {
+                in_str = false;
+            }
+            continue;
+        }
+
+        if c == '/' {
+            if chars.peek() == Some(&'*') {
+                chars.next();
+                in_block = true;
+                continue;
+            } else if chars.peek() == Some(&'/') {
+                chars.next();
+                in_line = true;
+                continue;
+            }
+        } else if c == '"' || c == '\'' || c == '`' {
+            in_str = true;
+            str_char = c;
+            continue;
+        }
+        
+        clean_source.push(c);
+    }
+    clean_source
+}
+
 /// Extract AST node type names from source text (crude heuristic: match keywords).
 fn extract_node_types(source: &str) -> Vec<String> {
     let mut r = Vec::new();
@@ -266,7 +320,8 @@ fn extract_node_types(source: &str) -> Vec<String> {
         "let",
         "var",
     ];
-    let tokens: Vec<&str> = source
+    let clean_source = strip_comments_and_strings(source);
+    let tokens: Vec<&str> = clean_source
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .filter(|t| !t.is_empty())
         .collect();
@@ -297,20 +352,15 @@ fn common_prefix<'a>(names: &[&'a str]) -> Option<String> {
 }
 
 pub fn extract_call_targets(source: &str) -> Vec<String> {
+    let clean_source = strip_comments_and_strings(source);
+
     let mut r = Vec::new();
-    for line in source.lines() {
-        let t = line.trim();
-        if t.starts_with("//") || t.starts_with('*') {
-            continue;
-        }
+    for line in clean_source.lines() {
         let mut buf = String::new();
-        for ch in t.chars() {
+        for ch in line.chars() {
             if ch.is_alphanumeric() || ch == '_' || ch == '.' || ch == '$' {
                 buf.push(ch);
             } else if ch == '(' && !buf.is_empty() {
-                // Emit both the full qualified name AND the short name.
-                // E.g. "res.redirect" → emits "res.redirect" AND "redirect".
-                // This lets the auto-filter learn both levels of specificity.
                 r.push(buf.clone());
                 if let Some(short) = buf.rsplit('.').next() {
                     if short.len() < buf.len() {
