@@ -155,6 +155,7 @@ mod tests {
         structural: Vec<u64>,
         sig: Vec<u64>,
         param_types: Vec<u64>,
+        raw_call_names: Vec<String>,
     ) -> FunctionFingerprint {
         FunctionFingerprint {
             file_path: String::new(),
@@ -179,7 +180,7 @@ mod tests {
             property_accesses: Vec::new(),
             motif_hashes: Vec::new(),
             data_flow_path_hashes: Vec::new(),
-            raw_call_names: Vec::new(),
+            raw_call_names,
             tainted_api_calls: Vec::new(),
             config_literal_hashes: Vec::new(),
         }
@@ -187,37 +188,38 @@ mod tests {
 
     #[test]
     fn test_http_handler_classification() {
-        // HttpHandler: lots of structural markers + API calls + control flow
+        // HttpHandler: has res.send in raw_call_names → matches HTTP_METHODS
         let fp = make_fp(
-            vec![1, 2, 3],                    // api_calls
-            vec![4, 5],                       // segments
-            vec![10, 11],                     // control_flow
-            vec![20, 21, 22, 23, 24, 25, 26], // structural (7+)
-            vec![30, 31],                     // sig
-            vec![40, 41],                     // param_types
+            vec![1, 2, 3],                 // api_calls
+            vec![4, 5],                    // segments
+            vec![10, 11],                  // control_flow
+            vec![20, 21, 22, 23, 24, 25],  // structural
+            vec![30, 31],                  // sig
+            vec![40, 41],                  // param_types
+            vec!["res.send".to_string()],  // raw_call_names
         );
         assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
     }
 
     #[test]
     fn test_shell_executor_classification() {
-        // ShellExecutor: few API calls, few param types, some control flow
-        // Must NOT match HttpHandler (needs >= 3 api_calls and >= 2 types)
+        // ShellExecutor: has exec in raw_call_names → matches SHELL_API
         let fp = make_fp(
-            vec![1, 2], // only 2 api_calls
+            vec![1, 2], // api_calls
             vec![],
-            vec![10],                     // some control flow
-            vec![20, 21, 22, 23, 24, 25], // 6 structural
+            vec![10],                     // control_flow
+            vec![20, 21, 22, 23, 24, 25], // structural
             vec![30],
-            vec![40], // only 1 param type
+            vec![40],
+            vec!["exec".to_string()],     // raw_call_names
         );
         assert_eq!(classify_role(&fp), FunctionRole::ShellExecutor);
     }
 
     #[test]
     fn test_data_transformer_classification() {
-        // DataTransformer: no API calls, no control flow
-        let fp = make_fp(vec![], vec![], vec![], vec![20, 21, 22], vec![30], vec![]);
+        // DataTransformer: no API calls, no control flow, no raw_call_names
+        let fp = make_fp(vec![], vec![], vec![], vec![20, 21, 22], vec![30], vec![], vec![]);
         assert_eq!(classify_role(&fp), FunctionRole::DataTransformer);
     }
 
