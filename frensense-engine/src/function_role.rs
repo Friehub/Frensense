@@ -23,65 +23,43 @@ pub enum FunctionRole {
     Unknown,
 }
 
-/// Known Express/HTTP response method names (last-segment form).
+/// Known Express/HTTP response method names (last-segment form) across languages.
 const HTTP_METHODS: &[&str] = &[
-    "json",
-    "send",
-    "redirect",
-    "status",
-    "render",
-    "end",
-    "write",
-    "setHeader",
-    "cookie",
-    "clearCookie",
-    "type",
-    "format",
-    "attachment",
+    // JS/TS
+    "json", "send", "redirect", "status", "render", "end", "write", "setheader", "cookie", "clearcookie", "type", "format", "attachment",
+    // Go
+    "writeheader", "setcookie", "writestring", "servehttp",
+    // Rust
+    "ok", "created", "internal_server_error", "into_response", "content_type", "body", "finish",
+    // Java/C#
+    "badrequest", "notfound", "addcookie", "setstatus", "view"
 ];
 
 /// Known HTTP request property names (used as function calls or access patterns).
 const HTTP_REQUEST: &[&str] = &["req", "res", "next", "request", "response"];
 
-/// Known database query API names.
+/// Known database query API names across languages.
 const DB_API: &[&str] = &[
-    "query",
-    "execute",
-    "prepare",
-    "raw",
-    "find",
-    "findOne",
-    "findMany",
-    "insert",
-    "update",
-    "delete",
-    "create",
-    "save",
-    "select",
-    "from",
-    "where",
-    "join",
-    "aggregate",
-    "count",
-    "transaction",
-    "commit",
-    "rollback",
-    "upsert",
+    // Generic / JS
+    "query", "execute", "prepare", "raw", "find", "findone", "findmany", "insert", "update", "delete", "create", "save", "select", "from", "where", "join", "aggregate", "count", "transaction", "commit", "rollback", "upsert",
+    // Go
+    "queryrow", "exec", "begin", "first", "updates",
+    // Rust
+    "fetch_one", "fetch_optional", "fetch_all", "load", "get_result", "insert_into",
+    // Java/C#
+    "persist", "merge", "remove", "savechanges", "add"
 ];
 
-/// Known shell execution API names.
+/// Known shell execution API names across languages.
 const SHELL_API: &[&str] = &[
-    "exec",
-    "spawn",
-    "execFile",
-    "execSync",
-    "spawnSync",
-    "system",
-    "popen",
-    "run",
-    "cmd",
-    "sh",
-    "bash",
+    // Generic / JS
+    "exec", "spawn", "execfile", "execsync", "spawnsync", "system", "popen", "run", "cmd", "sh", "bash",
+    // Go
+    "command", "output", "combinedoutput", "start",
+    // Rust
+    "command::new", "status",
+    // Java/C#
+    "getruntime().exec", "processbuilder", "process.start"
 ];
 
 /// Classify a function's role from its fingerprint.
@@ -93,17 +71,8 @@ const SHELL_API: &[&str] = &[
 /// The checks are ordered by priority — HttpHandler is checked first
 /// because its signal (res.json/send/redirect) is the strongest.
 pub fn classify_role(fp: &FunctionFingerprint) -> FunctionRole {
-    // Build a set of all call names (full + segments) for fast lookup
-    let _all_calls: Vec<&str> = fp
-        .api_call_segments
-        .iter()
-        .filter_map(|_h| {
-            // We can't reverse hashes to strings, so we rely on the ORIGINAL
-            // api_calls (full names) and check for known substrings via segment hashes.
-            // Since we can't reverse, we use the signature for structure instead.
-            None::<&str>
-        })
-        .collect();
+    // Use raw_call_names to directly inspect what APIs are being called.
+    let _all_calls = &fp.raw_call_names;
 
     // --- HttpHandler detection ---
     // Looks for `res.xxx` call patterns via structural markers + control flow.
@@ -139,48 +108,46 @@ pub fn classify_role(fp: &FunctionFingerprint) -> FunctionRole {
 
 /// Check if fingerprint matches an HTTP request/response handler.
 fn is_http_handler(fp: &FunctionFingerprint) -> bool {
-    // HTTP handlers tend to have many API calls (res.json, res.status, next(), etc.)
-    // and moderate control flow (if/else for error handling).
-    // The structural marker count is typically 8-15.
+    let has_http_call = fp.raw_call_names.iter().any(|c| {
+        let lower = c.to_lowercase();
+        HTTP_METHODS.iter().any(|m| lower.ends_with(m))
+    });
+
     let struct_count = fp.structural_markers.len();
     let has_api = !fp.api_calls.is_empty();
     let has_control_flow = !fp.control_flow_hashes.is_empty();
     let type_count = fp.param_type_ngrams.len();
 
-    // HTTP handlers have: many structural markers, many API calls,
-    // multiple param types (req, res, next), and control flow.
-    struct_count >= 7 && has_api && type_count >= 2 && has_control_flow
+    has_http_call || (struct_count >= 7 && has_api && type_count >= 2 && has_control_flow)
 }
 
 /// Check if fingerprint matches a shell executor.
 fn is_shell_executor(fp: &FunctionFingerprint) -> bool {
-    // Shell executors typically call exec/spawn/execFile.
-    // We can't check call names directly, but we can check:
-    // - Has api_calls (unlike DataTransformer)
-    // - Low param_type_ngrams (unlike HttpHandler with typed params)
-    // - High control_flow (unlike simple DataTransformer)
+    let has_shell_call = fp.raw_call_names.iter().any(|c| {
+        let lower = c.to_lowercase();
+        SHELL_API.iter().any(|api| lower.ends_with(api))
+    });
 
     let has_api = !fp.api_calls.is_empty();
     let has_control = !fp.control_flow_hashes.is_empty();
     let signature_count = fp.signature_ngrams.len();
     let type_count = fp.param_type_ngrams.len();
 
-    // Shell executors often have few parameter types (just string/cmd param)
-    // and moderate control flow
-    has_api && has_control && type_count <= 2 && signature_count <= 3
+    has_shell_call || (has_api && has_control && type_count <= 2 && signature_count <= 3)
 }
 
 /// Check if fingerprint matches a database query function.
 fn is_db_query(fp: &FunctionFingerprint) -> bool {
-    // Database queries typically call query/execute/find/etc.
-    // They often have SQL-like string ngrams in their body.
+    let has_db_call = fp.raw_call_names.iter().any(|c| {
+        let lower = c.to_lowercase();
+        DB_API.iter().any(|api| lower.ends_with(api))
+    });
+
     let has_api = !fp.api_calls.is_empty();
     let has_control = !fp.control_flow_hashes.is_empty();
     let type_count = fp.param_type_ngrams.len();
 
-    // DB queries often have typed params (connection objects, query strings)
-    // and moderate control flow
-    has_api && has_control && type_count >= 1
+    has_db_call || (has_api && has_control && type_count >= 1)
 }
 
 /// Check if two roles are incompatible (cannot be the same function).

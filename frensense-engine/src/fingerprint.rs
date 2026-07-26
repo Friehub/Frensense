@@ -59,9 +59,9 @@ pub struct FunctionFingerprint {
     pub data_flow_path_hashes: Vec<u64>,
 
     /// Raw call target name strings (e.g. "exec", "child_process.exec", "Command::new").
-    /// Populated during fingerprint extraction for use in evidence reporting.
-    /// Not serialized in the corpus bundle (only used for scan-time reporting).
-    #[cfg_attr(feature = "serialize", serde(skip))]
+    /// Populated during fingerprint extraction for use in evidence reporting
+    /// AND in function_role.rs for domain-specific role classification.
+    #[cfg_attr(feature = "serialize", serde(default))]
     pub raw_call_names: Vec<String>,
 
     /// Hashes of API calls where at least one argument is (or contains) a function parameter.

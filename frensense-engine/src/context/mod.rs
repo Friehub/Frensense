@@ -2,6 +2,47 @@
 
 use std::path::Path;
 
+const TEST_PATH_KEYWORDS: &[&str] = &["test", "spec", "cypress", "__tests__", "tests/"];
+const TEST_ENV_KEYWORDS: &[&str] = &[
+    // JS/TS
+    "describe(", " it(", "\nit(", "test(",
+    // Rust
+    "#[test]", "#[tokio::test]", "cfg(test)",
+    // Go
+    "func test", "testing.t",
+    // Java / C#
+    "@test", "[test]", "[fact]", "assert",
+    // C / C++ (GTest)
+    "test(", "test_f(", "expect_eq(", "assert_eq("
+];
+const MOCK_PATH_KEYWORDS: &[&str] = &["mock", "stub"];
+const CONFIG_PATH_KEYWORDS: &[&str] = &["config", "settings"];
+
+const ROUTE_PATH_KEYWORDS: &[&str] = &["route", "controller", "handler", "endpoint", "api/"];
+const ROUTE_ENV_KEYWORDS: &[&str] = &[
+    // JS/TS (Express/Fastify)
+    "(req, res)", "(req, res,", "(req, res ", "req: request", "request, response",
+    "app.get(", "app.post(", "app.put(", "app.delete(", "app.patch(",
+    "router.get(", "router.post(", "router.put(", "router.delete(", "router.patch(",
+    "res.send", "res.json", "res.redirect", "res.render", "res.status",
+    "c.req", "router.",
+    // Go (net/http, Gin, Echo)
+    "http.responsewriter", "*http.request", "http.handlefunc", "gin.context", "echo.context", "c.json",
+    // Rust (Actix, Rocket, Axum)
+    "#[get(", "#[post(", "actix_web", "rocket::", "axum::", "httpresponse", "impl responder",
+    // Java (Spring)
+    "@getmapping", "@postmapping", "@requestmapping", "httpservletrequest", "responseentity",
+    // C# (ASP.NET)
+    "[httpget]", "[httppost]", "[route(", "controllerbase", "iactionresult"
+];
+
+const UTILITY_PATH_KEYWORDS: &[&str] = &["lib", "util", "helper"];
+
+const SENSITIVITY_HIGH_KEYWORDS: &[&str] = &["password", "secret", "jwt", "token", "creditcard", "apikey"];
+const SENSITIVITY_MEDIUM_KEYWORDS: &[&str] = &["email", "user", "profile"];
+const SENSITIVITY_LOW_KEYWORDS: &[&str] = &["version", "metric", "telemetry"];
+
+
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Environment {
@@ -40,66 +81,28 @@ impl FileContext {
         let mut env = Environment::Unknown;
         let c = content.to_lowercase();
 
-        if path_str.contains("test")
-            || path_str.contains("spec")
-            || path_str.contains("cypress")
-            || path_str.contains("__tests__")
-            || c.contains("describe(")
-            || c.contains(" it(")
-            || c.contains("\nit(")
+        if TEST_PATH_KEYWORDS.iter().any(|k| path_str.contains(k))
+            || TEST_ENV_KEYWORDS.iter().any(|k| c.contains(k))
         {
             env = Environment::Test;
-        } else if path_str.contains("mock") || path_str.contains("stub") {
+        } else if MOCK_PATH_KEYWORDS.iter().any(|k| path_str.contains(k)) {
             env = Environment::Mock;
-        } else if path_str.contains("config") || path_str.contains("settings") {
+        } else if CONFIG_PATH_KEYWORDS.iter().any(|k| path_str.contains(k)) {
             env = Environment::Config;
-        } else if path_str.contains("route")
-            || path_str.contains("controller")
-            || path_str.contains("handler")
-            || path_str.contains("endpoint")
-            || path_str.contains("api/")
-            || c.contains("(req, res)")
-            || c.contains("(req, res,")
-            || c.contains("(req, res ")
-            || c.contains("req: request")
-            || c.contains("request, response")
-            || c.contains("app.get(")
-            || c.contains("app.post(")
-            || c.contains("app.put(")
-            || c.contains("app.delete(")
-            || c.contains("app.patch(")
-            || c.contains("router.get(")
-            || c.contains("router.post(")
-            || c.contains("router.put(")
-            || c.contains("router.delete(")
-            || c.contains("router.patch(")
-            || c.contains("res.send")
-            || c.contains("res.json")
-            || c.contains("res.redirect")
-            || c.contains("res.render")
-            || c.contains("res.status")
-            || c.contains("c.req")
-            || c.contains("router.")
+        } else if ROUTE_PATH_KEYWORDS.iter().any(|k| path_str.contains(k))
+            || ROUTE_ENV_KEYWORDS.iter().any(|k| c.contains(k))
         {
             env = Environment::RouteHandler;
-        } else if path_str.contains("lib")
-            || path_str.contains("util")
-            || path_str.contains("helper")
-        {
+        } else if UTILITY_PATH_KEYWORDS.iter().any(|k| path_str.contains(k)) {
             env = Environment::Utility;
         }
 
         let mut sensitivity = DataSensitivity::Unknown;
-        if c.contains("password")
-            || c.contains("secret")
-            || c.contains("jwt")
-            || c.contains("token")
-            || c.contains("creditcard")
-        {
+        if SENSITIVITY_HIGH_KEYWORDS.iter().any(|k| c.contains(k)) {
             sensitivity = DataSensitivity::High;
-        } else if c.contains("email") || c.contains("user") || c.contains("profile") {
+        } else if SENSITIVITY_MEDIUM_KEYWORDS.iter().any(|k| c.contains(k)) {
             sensitivity = DataSensitivity::Medium;
-        } else if c.contains("version") || c.contains("metric") || c.contains("telemetry") {
+        } else if SENSITIVITY_LOW_KEYWORDS.iter().any(|k| c.contains(k)) {
             sensitivity = DataSensitivity::Low;
         }
 
@@ -109,6 +112,15 @@ impl FileContext {
         }
         if c.contains("react") || c.contains("jsx") {
             frameworks.push("React".to_string());
+        }
+        if c.contains("gin") || c.contains("echo") {
+            frameworks.push("GoWeb".to_string());
+        }
+        if c.contains("actix") || c.contains("rocket") || c.contains("axum") {
+            frameworks.push("RustWeb".to_string());
+        }
+        if c.contains("spring") || c.contains("controller") {
+            frameworks.push("Spring".to_string());
         }
 
         Self {
