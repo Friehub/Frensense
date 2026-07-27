@@ -129,6 +129,7 @@ fn run_findings_modules(
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     all_advisories: &mut Vec<Advisory>,
     use_data_flow: bool,
+    cross_file_taint: &mut frensense_engine::data_flow::cross_file::CrossFileTaintResolver,
 ) {
     use crate::engine::findings::{FindingContext, registered_modules};
 
@@ -139,9 +140,6 @@ fn run_findings_modules(
 
     // Instantiate dormant modules
     let alias_tracker = frensense_engine::data_flow::AliasTracker::new();
-    let all_symbols = symbols.query_all();
-    let mut cross_file_taint =
-        frensense_engine::data_flow::cross_file::build_resolver(&all_symbols, symbols.graph());
     let mut exposed_count = 0;
 
     // Seed the cross-file taint resolver with user input sources
@@ -391,6 +389,7 @@ fn run_corpus_scan(
     >,
     all_advisories: &mut Vec<Advisory>,
     npm_deps: &std::collections::HashSet<String>,
+    cross_file_taint: &mut frensense_engine::data_flow::cross_file::CrossFileTaintResolver,
 ) -> frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry {
     // Load suppressions from .frensense-suppress.yml
     let suppressions = load_suppressions(root);
@@ -578,6 +577,35 @@ fn run_corpus_scan(
                         taint_detail = verification.detail;
                         confidence = (confidence * 1.2).min(0.95);
                     }
+
+                    // Cross-file taint boost: if intra-procedural didn't verify,
+                    // check if a cross-file path exists from an exposed source
+                    // (e.g. route handler) to this sink function.
+                    if !taint_verified {
+                        let fn_role = frensense_engine::function_role::classify_role(&fp_i);
+                        if matches!(
+                            fn_role,
+                            frensense_engine::function_role::FunctionRole::DbQuery
+                                | frensense_engine::function_role::FunctionRole::ShellExecutor
+                        ) {
+                            let taints = cross_file_taint.resolve_taint(
+                                &fp_i.function_name,
+                                &snap_i.path.to_string_lossy(),
+                                10,
+                            );
+                            if !taints.is_empty() {
+                                taint_verified = true;
+                                taint_detail = format!(
+                                    "cross-file: {}:{} → {}:{} (depth={})",
+                                    taints[0].source_file, taints[0].source_symbol,
+                                    taints[0].sink_file, taints[0].sink_symbol,
+                                    taints[0].path_length,
+                                );
+                                confidence = (confidence * 1.15).min(0.95);
+                            }
+                        }
+                    }
+                }
 
 
                 }
@@ -817,6 +845,9 @@ impl Engine {
         let npm_deps = dep_resolver.npm_deps().clone();
 
         Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
+        let all_symbols = symbols.query_all();
+        let mut cross_file_taint =
+            frensense_engine::data_flow::cross_file::build_resolver(&all_symbols, symbols.graph());
         let source_sink = run_corpus_scan(
             self,
             root,
@@ -826,6 +857,7 @@ impl Engine {
             &file_trees,
             &mut all_advisories,
             &npm_deps,
+            &mut cross_file_taint,
         );
         run_findings_modules(
             root,
@@ -834,9 +866,10 @@ impl Engine {
             &file_trees,
             &self.extra_taint_rule_dirs,
             &mut dep_resolver,
-            &source_sink,
+             &source_sink,
             &mut all_advisories,
             self.use_data_flow,
+            &mut cross_file_taint,
         );
         self.apply_composition(&mut all_advisories);
 
@@ -968,6 +1001,11 @@ impl Engine {
         dep_resolver.load_project(root);
         let npm_deps = dep_resolver.npm_deps().clone();
 
+        // Build cross-file taint resolver (shared between corpus scan and findings)
+        let all_symbols = symbols.query_all();
+        let mut cross_file_taint =
+            frensense_engine::data_flow::cross_file::build_resolver(&all_symbols, symbols.graph());
+
         let source_sink = run_corpus_scan(
             self,
             root,
@@ -977,6 +1015,7 @@ impl Engine {
             &file_trees,
             &mut all_advisories,
             &npm_deps,
+            &mut cross_file_taint,
         );
         Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
         run_findings_modules(
@@ -989,6 +1028,7 @@ impl Engine {
             &source_sink,
             &mut all_advisories,
             self.use_data_flow,
+            &mut cross_file_taint,
         );
 
         // Apply severity overrides and composition to all findings
