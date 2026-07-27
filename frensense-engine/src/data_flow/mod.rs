@@ -24,6 +24,48 @@ pub use sanitizer::{SanitizerRegistry, SinkContext};
 
 use std::collections::HashMap;
 
+/// Shared parameter-name-to-taint-origin classifier used by both the CLI runner
+/// and the semantic analysis pipeline. Consolidated here to eliminate the
+/// duplicate (and slightly divergent) copies that previously lived in
+/// `runner.rs` and `semantics/data_flow/cross_file.rs`.
+pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
+    let lower = name.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "req" | "request" | "event" | "ctx" | "context" | "payload"
+            | "input" | "body" | "query" | "params" | "searchparams"
+            | "args" | "data" | "cmd" | "url" | "path" | "file"
+            | "name"
+    ) {
+        return Some(TaintOrigin::UserInput);
+    }
+    if matches!(
+        lower.as_str(),
+        "env" | "config" | "settings" | "conf" | "options" | "opts" | "cfg"
+    ) {
+        return Some(TaintOrigin::Environment);
+    }
+    if matches!(
+        lower.as_str(),
+        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
+    ) {
+        return Some(TaintOrigin::Database);
+    }
+    if matches!(
+        lower.as_str(),
+        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
+    ) {
+        return Some(TaintOrigin::Network);
+    }
+    if matches!(
+        lower.as_str(),
+        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
+    ) {
+        return Some(TaintOrigin::FileSystem);
+    }
+    None
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TaintOrigin {
     UserInput,

@@ -216,7 +216,7 @@ fn run_findings_modules(
                             let origin = if source_sink.is_source_type(clean_type) {
                                 Some(frensense_engine::data_flow::TaintOrigin::UserInput)
                             } else {
-                                classify_runner_param_origin(&param_name)
+                                frensense_engine::data_flow::classify_param_origin(&param_name)
                             };
                             if let Some(o) = origin {
                                 detected_origin = Some(o);
@@ -578,6 +578,8 @@ fn run_corpus_scan(
                         taint_detail = verification.detail;
                         confidence = (confidence * 1.2).min(0.95);
                     }
+
+
                 }
 
                 let mut impact = impact;
@@ -1396,55 +1398,4 @@ fn is_test_file(path: &Path) -> bool {
     false
 }
 
-/// Classify a bare parameter name into a `TaintOrigin` for untyped languages.
-///
-/// Mirrors `cross_file::classify_param_origin`; kept separate to avoid a
-/// cross-module dependency. Both tables must stay in sync.
-fn classify_runner_param_origin(name: &str) -> Option<frensense_engine::data_flow::TaintOrigin> {
-    use frensense_engine::data_flow::TaintOrigin;
-    let lower = name.to_lowercase();
-    if matches!(
-        lower.as_str(),
-        "req"
-            | "request"
-            | "event"
-            | "ctx"
-            | "context"
-            | "payload"
-            | "input"
-            | "body"
-            | "query"
-            | "params"
-            | "args"
-            | "data"
-            | "cmd"
-            | "url"
-            | "path"
-            | "file"
-            | "name"
-    ) {
-        return Some(TaintOrigin::UserInput);
-    }
-    if lower == "env" {
-        return Some(TaintOrigin::Environment);
-    }
-    if matches!(
-        lower.as_str(),
-        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
-    ) {
-        return Some(TaintOrigin::Database);
-    }
-    if matches!(
-        lower.as_str(),
-        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
-    ) {
-        return Some(TaintOrigin::Network);
-    }
-    if matches!(
-        lower.as_str(),
-        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
-    ) {
-        return Some(TaintOrigin::FileSystem);
-    }
-    None
-}
+

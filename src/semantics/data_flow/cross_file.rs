@@ -593,59 +593,11 @@ impl<'a> CrossFileVerifier<'a> {
 
 /// Classify a parameter name into a `TaintOrigin` based on naming conventions.
 ///
-/// Used for untyped languages (JavaScript, Python, etc.) where type annotations
-/// are absent. Returns `None` if the name does not match any known source pattern.
+/// Delegates to the shared implementation in `frensense_engine::data_flow` to
+/// eliminate the duplication that previously existed between this file and
+/// `runner.rs`. Both callers now use the same canonical list.
 fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
-    let lower = name.to_lowercase();
-    // User-controlled HTTP input
-    if matches!(
-        lower.as_str(),
-        "req"
-            | "request"
-            | "event"
-            | "ctx"
-            | "context"
-            | "payload"
-            | "input"
-            | "body"
-            | "query"
-            | "params"
-            | "args"
-            | "data"
-            | "cmd"
-            | "url"
-            | "path"
-            | "file"
-            | "name"
-    ) {
-        return Some(TaintOrigin::UserInput);
-    }
-    // Environment / configuration
-    if lower == "env" {
-        return Some(TaintOrigin::Environment);
-    }
-    // Database records
-    if matches!(
-        lower.as_str(),
-        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
-    ) {
-        return Some(TaintOrigin::Database);
-    }
-    // Network sources
-    if matches!(
-        lower.as_str(),
-        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
-    ) {
-        return Some(TaintOrigin::Network);
-    }
-    // File-system sources
-    if matches!(
-        lower.as_str(),
-        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
-    ) {
-        return Some(TaintOrigin::FileSystem);
-    }
-    None
+    frensense_engine::data_flow::classify_param_origin(name)
 }
 
 #[cfg(test)]

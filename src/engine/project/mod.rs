@@ -198,6 +198,7 @@ impl Engine {
     pub fn calibration(&self) -> Option<&crate::engine::confidence_calibration::CalibrationParams> {
         self.calibration.as_ref()
     }
+
 }
 
 impl Default for Engine {
