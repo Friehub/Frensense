@@ -5,8 +5,11 @@ use super::{FileSnapshot, cache, config};
 use crate::engine::auditor::AuditOptions;
 use crate::engine::suppression::SuppressConfig;
 
+use crate::semantics::data_flow::normalization::SemanticExtractor;
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
+use frensense_engine::data_flow::alias::AliasTracker;
+use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegistry};
 use frensense_engine::pattern::evidence::MatchEvidence;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -211,10 +214,22 @@ fn run_findings_modules(
                             }
                             let clean_type = param_type.trim_start_matches(':').trim();
 
+                            let param_env = frensense_engine::context::FileContext::extract(
+                                &snap.path,
+                                &snap.content,
+                            )
+                            .environment;
+
                             let origin = if source_sink.is_source_type(clean_type) {
                                 Some(frensense_engine::data_flow::TaintOrigin::UserInput)
                             } else {
-                                frensense_engine::data_flow::classify_param_origin(&param_name)
+                                Some(
+                                    frensense_engine::data_flow::classify_param_name_in_context(
+                                        &param_name,
+                                        Some(&param_env),
+                                    ),
+                                )
+                                .and_then(|o| o)
                             };
                             if let Some(o) = origin {
                                 detected_origin = Some(o);
@@ -348,6 +363,11 @@ fn run_findings_modules(
             exposed_count,
             "cross-file taint: registered exposed sources"
         );
+
+        // Propagate taint forward through the call graph so intermediate
+        // non-HttpHandler functions called by seeded sources are also
+        // treated as taint sources for multi-hop chain detection.
+        cross_file_taint.propagate_taint();
     }
 
     let mut temporal_analyzer = frensense_engine::temporal::TemporalAnalyzer::new();
@@ -391,6 +411,8 @@ fn run_corpus_scan(
     npm_deps: &std::collections::HashSet<String>,
     cross_file_taint: &mut frensense_engine::data_flow::cross_file::CrossFileTaintResolver,
 ) -> frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry {
+    let alias_tracker = std::sync::Mutex::new(AliasTracker::new());
+
     // Load suppressions from .frensense-suppress.yml
     let suppressions = load_suppressions(root);
 
@@ -557,17 +579,21 @@ fn run_corpus_scan(
                 let mut source_name = None;
                 let mut sink_name = None;
                 if use_data_flow {
-                    let verification = verify_taint_flow(
-                        func_node_i.clone(),
-                        &snap_i.content,
-                        &snap_i.tree,
-                        &snap_i.path,
-                        symbols,
-                        data_flow,
-                        file_trees,
-                        registry.source_sink_registry(),
-                        npm_deps,
-                    );
+                    let verification = {
+                        let mut guard = alias_tracker.lock().unwrap();
+                        verify_taint_flow(
+                            func_node_i.clone(),
+                            &snap_i.content,
+                            &snap_i.tree,
+                            &snap_i.path,
+                            symbols,
+                            data_flow,
+                            file_trees,
+                            registry.source_sink_registry(),
+                            npm_deps,
+                            &mut *guard,
+                        )
+                    };
 
                     source_name = verification.source_name;
                     sink_name = verification.sink_name;
@@ -605,9 +631,52 @@ fn run_corpus_scan(
                             }
                         }
                     }
-                }
 
-
+                    // CFG+def-use taint confidence adjustment: if taint verification DID NOT
+                    // find a flow, the adjuster's CFG-based analysis may still find one.
+                    // If it also finds nothing, confidence is reduced.
+                    if !taint_verified {
+                        if let Some(ref ev) = m.matched_evidence {
+                            if !ev.matched_calls.is_empty() {
+                                let fn_byte = {
+                                    let mut line = 1u32;
+                                    let mut byte = 0usize;
+                                    let target = fp_i.line as u32;
+                                    for (i, &b) in snap_i.content.as_bytes().iter().enumerate() {
+                                        if line >= target { byte = i; break; }
+                                        if b == b'\n' { line += 1; }
+                                    }
+                                    byte
+                                };
+                                for call in &ev.matched_calls {
+                                    let pattern = format!("{}(", call);
+                                    if let Some(pos) = snap_i.content[fn_byte..].find(&pattern) {
+                                        let start = fn_byte + pos;
+                                        let mut depth = 1u32;
+                                        let mut end = start + pattern.len();
+                                        for (j, &b) in snap_i.content.as_bytes()[end..].iter().enumerate() {
+                                            if b == b'(' { depth += 1; }
+                                            else if b == b')' { depth -= 1; }
+                                            if depth == 0 { end += j + 1; break; }
+                                        }
+                                        let sink_content = &snap_i.content[start..end];
+                                        let adj = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
+                                            &snap_i.content,
+                                            &snap_i.path,
+                                            fp_i.line as u32,
+                                            sink_content,
+                                            confidence as f32,
+                                            registry.source_sink_registry(),
+                                        );
+                                        if (adj as f64) < confidence {
+                                            confidence = adj as f64;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 let mut impact = impact;
@@ -727,6 +796,210 @@ struct TaintVerification {
     sink_name: Option<String>,
 }
 
+/// Pre-compute `FunctionTaintSummary` for every function in a file and cache
+/// them in the `DataFlowEngine`. This enables `is_node_tainted` to resolve
+/// same-file callees and check whether they propagate taint to their return,
+/// rather than relying solely on the "any arg is tainted" heuristic.
+fn precompute_taint_summaries_for_file(
+    tree: &tree_sitter::Tree,
+    source: &str,
+    ext: &str,
+    file_path: &str,
+    data_flow: &mut frensense_engine::data_flow::DataFlowEngine,
+) {
+    use std::collections::HashMap;
+    use tree_sitter::Node;
+    fn node_uses_tainted_var(node: Node, source: &str, registry: &TaintRegistry) -> bool {
+        match node.kind() {
+            "identifier" => {
+                let name = &source[node.start_byte()..node.end_byte()];
+                registry.is_tainted(name)
+            }
+            "member_expression" | "field_expression" => {
+                if let Some(object) =
+                    node.child_by_field_name("object").or_else(|| node.child(0))
+                {
+                    node_uses_tainted_var(object, source, registry)
+                } else {
+                    false
+                }
+            }
+            "call_expression" => {
+                if let Some(args_list) = node.child_by_field_name("arguments") {
+                    let mut c = args_list.walk();
+                    for arg in args_list.children(&mut c) {
+                        if !matches!(arg.kind(), "(" | ")" | ",")
+                            && node_uses_tainted_var(arg, source, registry)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            "template_string" | "template_literal" => {
+                let mut c = node.walk();
+                if c.goto_first_child() {
+                    loop {
+                        let child = c.node();
+                        if matches!(child.kind(), "template_substitution" | "interpolation")
+                            && node_uses_tainted_var(child, source, registry)
+                        {
+                            return true;
+                        }
+                        if !c.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
+            _ => {
+                let mut c = node.walk();
+                if c.goto_first_child() {
+                    loop {
+                        if node_uses_tainted_var(c.node(), source, registry) {
+                            return true;
+                        }
+                        if !c.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
+        }
+    }
+    let root = tree.root_node();
+    let function_kinds: &[&str] = &[
+        "function_declaration",
+        "method_definition",
+        "arrow_function",
+        "function_item",
+        "function_definition",
+    ];
+    let mut cursor = root.walk();
+    loop {
+        let node = cursor.node();
+        if function_kinds.contains(&node.kind()) {
+            let fn_name = node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                .map_or("", |s| s);
+            if !fn_name.is_empty() {
+                let mut registry = TaintRegistry::default();
+                let mut param_names: Vec<String> = Vec::new();
+                if let Some(params_node) = node
+                    .child_by_field_name("parameters")
+                    .or_else(|| node.child_by_field_name("formal_parameters"))
+                {
+                    let mut pc = params_node.walk();
+                    for param in params_node.children(&mut pc) {
+                        if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
+                            continue;
+                        }
+                        let mut pname = String::new();
+                        if let Some(pat) = param.child_by_field_name("pattern") {
+                            pname =
+                                source[pat.start_byte()..pat.end_byte()].to_string();
+                        } else if param.kind() == "identifier" {
+                            pname = source[param.start_byte()..param.end_byte()]
+                                .to_string();
+                        }
+                        if !pname.is_empty() {
+                            param_names.push(pname.clone());
+                            // Seed every param as UserInput — we want to answer
+                            // "does this function propagate taint if any param is tainted?"
+                            registry.taint(&pname, TaintOrigin::UserInput);
+                        }
+                    }
+                }
+                let mut propagates_return = false;
+                let mut return_origins = Vec::new();
+                if let Some(body) = node.child_by_field_name("body") {
+                    let mut bc = body.walk();
+                    if bc.goto_first_child() {
+                        loop {
+                            let child = bc.node();
+                            if child.kind() == "return_statement" {
+                                let ret_val = child
+                                    .child_by_field_name("value")
+                                    .or_else(|| {
+                                        let mut rc = child.walk();
+                                        if rc.goto_first_child() {
+                                            let first = rc.node();
+                                            if first.kind() == "return"
+                                                && rc.goto_next_sibling()
+                                            {
+                                                return Some(rc.node());
+                                            }
+                                        }
+                                        None
+                                    })
+                                    .or_else(|| child.child(1));
+                                if let Some(rv) = ret_val {
+                                    if node_uses_tainted_var(rv, source, &registry) {
+                                        propagates_return = true;
+                                        return_origins.push(TaintOrigin::UserInput);
+                                    }
+                                }
+                            }
+                            if matches!(
+                                child.kind(),
+                                "variable_declarator" | "lexical_declaration"
+                            ) {
+                                if let Some(name_node) = child
+                                    .child_by_field_name("name")
+                                    .or_else(|| child.child_by_field_name("pattern"))
+                                    && let Some(value_node) =
+                                        child.child_by_field_name("value")
+                                {
+                                    if node_uses_tainted_var(
+                                        value_node, source, &registry,
+                                    ) {
+                                        let mut nc = name_node.walk();
+                                        for n_child in name_node.children(&mut nc) {
+                                            if n_child.kind() == "identifier" {
+                                                let n = source[n_child.start_byte()
+                                                    ..n_child.end_byte()]
+                                                    .to_string();
+                                                registry.taint(&n, TaintOrigin::UserInput);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !bc.goto_next_sibling() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                data_flow.cache_summary(
+                    file_path,
+                    fn_name,
+                    FunctionTaintSummary {
+                        propagates_return,
+                        tainted_params: HashMap::new(),
+                        return_origins,
+                    },
+                );
+            }
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return;
+            }
+        }
+    }
+}
+
 /// Verify that taint actually flows from source to sink in a function.
 ///
 /// This uses the `CrossFileVerifier` to check if user-controlled data
@@ -752,6 +1025,7 @@ fn verify_taint_flow(
     >,
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     deps: &std::collections::HashSet<String>,
+    alias_tracker: &mut AliasTracker,
 ) -> TaintVerification {
     use crate::semantics::data_flow::cross_file::CrossFileVerifier;
 
@@ -759,6 +1033,9 @@ fn verify_taint_flow(
     let ext = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
     let mut cfg = frensense_engine::cfg::build_cfg(tree.root_node(), source, ext);
     frensense_engine::cfg::compute_dominators(&mut cfg);
+
+    let file_env = frensense_engine::context::FileContext::extract(file_path, source)
+        .environment;
 
     let mut verifier = CrossFileVerifier::new(
         source,
@@ -770,8 +1047,15 @@ fn verify_taint_flow(
         source_sink,
         deps,
     )
-    .with_cfg(cfg);
+    .with_cfg(cfg)
+    .with_file_env(file_env);
     verifier.seed_taint(fn_node);
+
+    // Record aliases from semantic ops so taint propagates through renames
+    if let Some((_, _, ops)) = file_trees.get(&file_path_str) {
+        SemanticExtractor::record_aliases(ops, source, verifier.registry(), alias_tracker);
+    }
+
     let result = verifier.verify_flow(fn_node);
 
     if result.verified {
@@ -836,7 +1120,23 @@ impl Engine {
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
         // Create DataFlowEngine for cross-file taint verification
-        let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+        let mut data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+
+        // Pre-compute function taint summaries for same-file callee resolution
+        for snap in &snapshots {
+            if is_test_file(&snap.path) {
+                continue;
+            }
+            let ext = snap.path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            let fp = snap.path.to_string_lossy();
+            precompute_taint_summaries_for_file(
+                &snap.tree,
+                &snap.content,
+                ext,
+                &fp,
+                &mut data_flow,
+            );
+        }
 
         // Shared dependency resolver — created once, used by both stages
         let mut dep_resolver =
@@ -993,7 +1293,23 @@ impl Engine {
 
         self.load_calibration();
         // Create DataFlowEngine for cross-file taint verification
-        let data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+        let mut data_flow = frensense_engine::data_flow::DataFlowEngine::new();
+
+        // Pre-compute function taint summaries for same-file callee resolution
+        for snap in &snapshots {
+            if is_test_file(&snap.path) {
+                continue;
+            }
+            let ext = snap.path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            let fp = snap.path.to_string_lossy();
+            precompute_taint_summaries_for_file(
+                &snap.tree,
+                &snap.content,
+                ext,
+                &fp,
+                &mut data_flow,
+            );
+        }
 
         // Shared dependency resolver — created once, used by both stages
         let mut dep_resolver =

@@ -727,6 +727,38 @@ impl<'a> InterproceduralVerifier<'a> {
                 }
                 false
             }
+            // Bracket notation (JS/TS subscript_expression, Rust index_expression, Python subscript)
+            "subscript_expression" | "index_expression" | "subscript" => {
+                let object = node
+                    .child_by_field_name("object")
+                    .or_else(|| node.child_by_field_name("value"))
+                    .or_else(|| node.child(0));
+                if let Some(obj) = object {
+                    return self.is_node_tainted(obj);
+                }
+                false
+            }
+            // Binary expressions (concat/arithmetic): tainted if either side is tainted
+            "binary_expression" => {
+                if let Some(left) = node.child_by_field_name("left") {
+                    if self.is_node_tainted(left) {
+                        return true;
+                    }
+                }
+                if let Some(right) = node.child_by_field_name("right") {
+                    if self.is_node_tainted(right) {
+                        return true;
+                    }
+                }
+                false
+            }
+            // Parenthesized expressions: recurse on inner
+            "parenthesized_expression" => {
+                if let Some(inner) = node.child(0) {
+                    return self.is_node_tainted(inner);
+                }
+                false
+            }
             _ => false,
         }
     }

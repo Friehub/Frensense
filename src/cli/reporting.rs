@@ -218,7 +218,9 @@ fn rule_category(rule_id: &str) -> &str {
 pub fn deduplicate_advisories(advisories: &mut Vec<Advisory>) {
     // Group by (file_path, function_name, category), keep highest confidence per group.
     // This collapses 50+ pattern matches on the same function into ~1 per vulnerability category.
-    let mut best: std::collections::HashMap<(String, String, String), usize> =
+    // When the enclosing symbol is unknown, include the rule_id and line to avoid collapsing
+    // independent findings from different detection modules.
+    let mut best: std::collections::HashMap<(String, String, String, String, u32), usize> =
         std::collections::HashMap::new();
     let mut keep = vec![true; advisories.len()];
 
@@ -228,10 +230,20 @@ pub fn deduplicate_advisories(advisories: &mut Vec<Advisory>) {
             .as_deref()
             .unwrap_or("<unknown>")
             .to_string();
+        let category = rule_category(&adv.rule_id).to_string();
+        let group_id = if fn_name == "<unknown>" || category == "default" {
+            // For unknown enclosing symbols or non-CORPUS findings, include rule_id
+            // to prevent collapsing independent findings from different modules.
+            format!("{}:{}", category, adv.rule_id)
+        } else {
+            category
+        };
         let key = (
             adv.file_path.clone(),
             fn_name,
-            rule_category(&adv.rule_id).to_string(),
+            group_id,
+            adv.rule_id.clone(),
+            adv.line,
         );
         match best.get(&key) {
             Some(&prev_idx) if advisories[prev_idx].confidence >= adv.confidence => {

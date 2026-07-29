@@ -109,6 +109,13 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
     let mut parent_stack: Vec<usize> = Vec::new();
     let mut current_block = entry;
 
+    // Stack for tracking try/catch/finally structure.
+    // Each entry: (try_body_entry, catch_block_id, finally_block_id, try_merge_id)
+    let mut try_stack: Vec<(usize, usize, usize, usize)> = Vec::new();
+    // Tracks which parent_block each try was entered under, so we can pop try_stack
+    // when the cursor returns to that block after walking try children.
+    let mut try_parent_stack: Vec<usize> = Vec::new();
+
     loop {
         let node = cursor.node();
         let kind = node.kind();
@@ -188,6 +195,104 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                 parent_stack.push(current_block);
                 current_block = loop_body;
             }
+            "try_statement" => {
+                let try_entry = blocks.len();
+                let catch_b = blocks.len() + 1;
+                let finally_b = blocks.len() + 2;
+                let try_merge = blocks.len() + 3;
+                blocks.push(BasicBlock {
+                    id: try_entry,
+                    start_byte: node.start_byte(),
+                    end_byte: node.end_byte(),
+                    kind: "try_entry".to_string(),
+                    nodes: vec![node],
+                    dominators: HashSet::new(),
+                    successors: Vec::new(),
+                    predecessors: vec![current_block],
+                });
+                blocks[current_block]
+                    .successors
+                    .push((try_entry, CFEdgeKind::Unconditional));
+                blocks.push(BasicBlock {
+                    id: catch_b,
+                    start_byte: node.end_byte(),
+                    end_byte: node.end_byte(),
+                    kind: "catch".to_string(),
+                    nodes: Vec::new(),
+                    dominators: HashSet::new(),
+                    successors: vec![(try_merge, CFEdgeKind::Unconditional)],
+                    predecessors: Vec::new(),
+                });
+                blocks.push(BasicBlock {
+                    id: finally_b,
+                    start_byte: node.end_byte(),
+                    end_byte: node.end_byte(),
+                    kind: "finally".to_string(),
+                    nodes: Vec::new(),
+                    dominators: HashSet::new(),
+                    successors: vec![(try_merge, CFEdgeKind::Unconditional)],
+                    predecessors: Vec::new(),
+                });
+                blocks.push(BasicBlock {
+                    id: try_merge,
+                    start_byte: node.end_byte(),
+                    end_byte: node.end_byte(),
+                    kind: "try_merge".to_string(),
+                    nodes: Vec::new(),
+                    dominators: HashSet::new(),
+                    successors: Vec::new(),
+                    predecessors: Vec::new(),
+                });
+                parent_stack.push(current_block);
+                try_parent_stack.push(current_block);
+                try_stack.push((try_entry, catch_b, finally_b, try_merge));
+                current_block = try_entry;
+            }
+            "catch_clause" => {
+                if let Some(&(try_entry, catch_b, finally_b, _try_merge)) = try_stack.last() {
+                    // Exception edge from try body entry to catch block
+                    blocks[try_entry]
+                        .successors
+                        .push((catch_b, CFEdgeKind::Exception));
+                    blocks[catch_b].predecessors.push(try_entry);
+                    // Add an exception edge from the current block (end of try body)
+                    // to catch so any basic block in the try body can throw
+                    if current_block != try_entry {
+                        blocks[current_block]
+                            .successors
+                            .push((catch_b, CFEdgeKind::Exception));
+                        blocks[catch_b].predecessors.push(current_block);
+                    }
+                    // If there's a finally, also connect catch body exit to finally
+                    let catch_body_end = blocks.len();
+                    blocks.push(BasicBlock {
+                        id: catch_body_end,
+                        start_byte: node.end_byte(),
+                        end_byte: node.end_byte(),
+                        kind: "catch_exit".to_string(),
+                        nodes: Vec::new(),
+                        dominators: HashSet::new(),
+                        successors: vec![(finally_b, CFEdgeKind::Unconditional)],
+                        predecessors: vec![catch_b],
+                    });
+                    blocks[catch_b].successors.push((catch_body_end, CFEdgeKind::Unconditional));
+                    parent_stack.push(current_block);
+                    current_block = catch_b;
+                }
+            }
+            "finally_clause" => {
+                if let Some(&(try_entry, _catch_b, finally_b, _try_merge)) = try_stack.last() {
+                    // Connect current block (end of try body or catch body) to finally
+                    if current_block != try_entry {
+                        blocks[current_block]
+                            .successors
+                            .push((finally_b, CFEdgeKind::Unconditional));
+                        blocks[finally_b].predecessors.push(current_block);
+                    }
+                    parent_stack.push(current_block);
+                    current_block = finally_b;
+                }
+            }
             "labeled_statement" => {
                 if let Some(label) = node.child_by_field_name("label") {
                     let label_text = source[label.start_byte()..label.end_byte()].to_string();
@@ -230,6 +335,10 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
             }
             if let Some(parent_id) = parent_stack.pop() {
                 current_block = parent_id;
+                if try_parent_stack.last() == Some(&parent_id) {
+                    try_parent_stack.pop();
+                    try_stack.pop();
+                }
             }
         }
     }

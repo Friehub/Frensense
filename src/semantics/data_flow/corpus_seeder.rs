@@ -12,6 +12,20 @@ use crate::semantics::data_flow::TaintOrigin;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 use tree_sitter::Node;
 
+/// Walk a member-expression chain to find the base (leftmost) identifier.
+fn base_identifier_of(node: Node, source: &str) -> Option<String> {
+    match node.kind() {
+        "identifier" => Some(source[node.start_byte()..node.end_byte()].to_string()),
+        "member_expression" | "field_expression" => {
+            let object = node
+                .child_by_field_name("object")
+                .or_else(|| node.child(0))?;
+            base_identifier_of(object, source)
+        }
+        _ => None,
+    }
+}
+
 /// Seed taint for a function based on corpus pattern matching.
 ///
 /// Uses the corpus-learned source type registry: taints parameters whose
@@ -50,6 +64,10 @@ pub fn seed_from_corpus_match(
         let clean_type = param_type.trim_start_matches(':').trim();
         let origin = if source_sink.is_source_type(clean_type) {
             Some(TaintOrigin::UserInput)
+        } else if let Some(decorator_origin) =
+            frensense_engine::decorator::classify_param_decorator(param, source)
+        {
+            Some(decorator_origin)
         } else {
             classify_param_origin(&param_name)
         };
@@ -131,6 +149,16 @@ pub fn seed_from_ast_body(node: Node, source: &str, registry: &mut TaintRegistry
                         ) {
                             let full_name = &source[node.start_byte()..node.end_byte()];
                             registry.taint(full_name, TaintOrigin::UserInput);
+                        }
+                    }
+
+                    // Taint the base identifier so follow_taint's recursive member_expression
+                    // walk (is_node_tainted → member → … → identifier) finds it at module level
+                    if let Some(base) = base_identifier_of(node, source) {
+                        if !registry.is_tainted(&base) {
+                            if let Some(origin) = classify_param_origin(&base) {
+                                registry.taint(&base, origin);
+                            }
                         }
                     }
                 }
@@ -215,12 +243,10 @@ fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
             | "params"
             | "searchparams"
             | "args"
-            | "data"
             | "cmd"
             | "url"
             | "path"
             | "file"
-            | "name"
     ) {
         return Some(TaintOrigin::UserInput);
     }

@@ -76,6 +76,18 @@ pub fn collect_signals(advisory: &Advisory, all_advisories: &[Advisory]) -> Laye
         // Check which layers fired
         if adv.rule_id.starts_with("CORPUS_") {
             signals.corpus_match = true;
+            // A corpus finding with taint verification is equivalent to taint_flow
+            if adv.tags.iter().any(|t| t == "taint-verified") {
+                signals.taint_flow = true;
+            }
+            // Also accept has_taint_path from match_evidence as structural taint signal
+            if !signals.taint_flow {
+                if let Some(ref ev) = adv.match_evidence {
+                    if ev.has_taint_path {
+                        signals.taint_flow = true;
+                    }
+                }
+            }
         }
         if adv.rule_id.starts_with("TAINT_") || adv.rule_id == "CROSS_FILE_TAINT" {
             signals.taint_flow = true;

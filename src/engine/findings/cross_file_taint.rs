@@ -33,6 +33,7 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
             let severity = match category {
                 frensense_engine::corpus::source_sink::SinkCategory::CodeExecution
                 | frensense_engine::corpus::source_sink::SinkCategory::SqlInjection
+                | frensense_engine::corpus::source_sink::SinkCategory::NoSqlInjection
                 | frensense_engine::corpus::source_sink::SinkCategory::CommandInjection => {
                     Severity::Critical
                 }

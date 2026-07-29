@@ -747,6 +747,8 @@ pub const TAINT_SOURCE_PATTERNS: &[&str] = &[
     "req.params",
     "req.headers",
     "req.cookies",
+    "req.file",
+    "req.files",
     "ctx.request",
     "ctx.query",
     "ctx.params",
@@ -755,8 +757,24 @@ pub const TAINT_SOURCE_PATTERNS: &[&str] = &[
     "request.body",
     "request.query",
     "process.argv",
+    "process.env",
     "c.req",
 ];
+
+/// Classify a taint source pattern by its likely origin.
+/// Used during taint seeding to capture the correct TaintOrigin
+/// so the SinkCategory × TaintOrigin relevance multiplier can downweight
+/// mismatches (e.g. FileSystem data reaching an SQL sink).
+#[must_use]
+pub fn taint_source_origin(pattern: &str) -> crate::data_flow::TaintOrigin {
+    if pattern.contains("process.env") {
+        crate::data_flow::TaintOrigin::Environment
+    } else if pattern.contains("req.file") || pattern.contains("req.files") {
+        crate::data_flow::TaintOrigin::FileSystem
+    } else {
+        crate::data_flow::TaintOrigin::UserInput
+    }
+}
 
 /// Collected features from a function node for constraint learning.
 #[derive(Debug, Clone, Default)]

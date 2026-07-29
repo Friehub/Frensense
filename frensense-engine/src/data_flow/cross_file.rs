@@ -6,6 +6,10 @@ use crate::graph::{EdgeKind, SemanticGraph};
 use crate::symbols::Symbol;
 use std::collections::{HashMap, HashSet, VecDeque};
 
+/// Maximum propagation depth through the call graph for transitive taint.
+/// A depth of 5 covers typical layered architectures (handler → service → service → repository → DB).
+const PROPAGATE_MAX_DEPTH: usize = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrossFileTaint {
     pub source_file: String,
@@ -69,6 +73,52 @@ impl CrossFileTaintResolver {
     ) {
         self.exposed_taint
             .insert((symbol_key.to_string(), file_path.to_string()), origin);
+    }
+
+    /// Propagate taint forward through the call graph.
+    ///
+    /// If `handleOrder` is a taint source and calls `processOrder`, then
+    /// `processOrder` transitively returns/contains tainted data and should
+    /// also be registered as a source.  Without this, multi-hop chains
+    /// (HttpHandler → DataTransformer → DbQuery) fail to resolve.
+    ///
+    /// BFS forward from each registered source up to `PROPAGATE_MAX_DEPTH`.
+    /// Call this once after all initial `register_exposed_taint` calls.
+    pub fn propagate_taint(&mut self) {
+        let seeds: Vec<(String, TaintOrigin)> = self
+            .exposed_taint
+            .iter()
+            .map(|((sym, file), origin)| (format!("{file}:{sym}"), origin.clone()))
+            .collect();
+
+        for (seed_key, origin) in &seeds {
+            let mut visited = HashSet::new();
+            let mut queue = VecDeque::new();
+            queue.push_back((seed_key.clone(), 0));
+            visited.insert(seed_key.clone());
+
+            while let Some((current, depth)) = queue.pop_front() {
+                if depth >= PROPAGATE_MAX_DEPTH {
+                    continue;
+                }
+
+                if let Some(callees) = self.call_graph.get(&current) {
+                    for callee in callees {
+                        if visited.insert(callee.clone()) {
+                            // Register the intermediate function as a taint source
+                            if let Some(idx) = callee.find(':') {
+                                let file = &callee[..idx];
+                                let symbol = &callee[idx + 1..];
+                                self.exposed_taint
+                                    .entry((symbol.to_string(), file.to_string()))
+                                    .or_insert_with(|| origin.clone());
+                            }
+                            queue.push_back((callee.clone(), depth + 1));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn resolve_taint(
@@ -191,6 +241,99 @@ mod tests {
             column: 1,
             end_line: 1,
         }
+    }
+
+    #[test]
+    fn test_propagate_taint_chain() {
+        let mut resolver = CrossFileTaintResolver::new();
+        // Build a call graph: source → intermediate → sink
+        resolver.call_graph.insert(
+            "a.rs:source".to_string(),
+            vec!["a.rs:intermediate".to_string()],
+        );
+        resolver.call_graph.insert(
+            "a.rs:intermediate".to_string(),
+            vec!["a.rs:sink".to_string()],
+        );
+        resolver.reverse_call_graph.insert(
+            "a.rs:intermediate".to_string(),
+            vec!["a.rs:source".to_string()],
+        );
+        resolver.reverse_call_graph.insert(
+            "a.rs:sink".to_string(),
+            vec!["a.rs:intermediate".to_string()],
+        );
+
+        // Seed only the source
+        resolver.register_exposed_taint("source", "a.rs", TaintOrigin::UserInput);
+
+        // With max_depth=1, backward BFS from sink reaches intermediate but not source
+        // → no path found without propagation
+        let before = resolver.resolve_taint("sink", "a.rs", 1);
+        assert!(before.is_empty(), "with depth=1, multi-hop chain should fail without propagation");
+
+        // After propagation: intermediate is transitively seeded
+        resolver.propagate_taint();
+        assert!(
+            resolver.exposed_taint.contains_key(&("intermediate".to_string(), "a.rs".to_string())),
+            "propagate_taint should register intermediate as a taint source"
+        );
+
+        // Now with depth=1, backward BFS finds intermediate as a source
+        let after = resolver.resolve_taint("sink", "a.rs", 1);
+        assert!(!after.is_empty(), "propagate_taint should enable depth-limited resolution");
+        assert_eq!(after.len(), 1, "should find exactly one taint path");
+    }
+
+    #[test]
+    fn test_propagate_taint_does_not_exceed_depth() {
+        let mut resolver = CrossFileTaintResolver::new();
+        // Chain longer than PROPAGATE_MAX_DEPTH
+        resolver.call_graph.insert(
+            "a.rs:f0".to_string(),
+            vec!["a.rs:f1".to_string()],
+        );
+        resolver.call_graph.insert(
+            "a.rs:f1".to_string(),
+            vec!["a.rs:f2".to_string()],
+        );
+        resolver.call_graph.insert(
+            "a.rs:f2".to_string(),
+            vec!["a.rs:f3".to_string()],
+        );
+        resolver.call_graph.insert(
+            "a.rs:f3".to_string(),
+            vec!["a.rs:f4".to_string()],
+        );
+        resolver.call_graph.insert(
+            "a.rs:f4".to_string(),
+            vec!["a.rs:f5".to_string()],
+        );
+        resolver.call_graph.insert(
+            "a.rs:f5".to_string(),
+            vec!["a.rs:f6".to_string()],
+        );
+        for i in 1..=6 {
+            resolver.reverse_call_graph.insert(
+                format!("a.rs:f{i}"),
+                vec![format!("a.rs:f{}", i - 1)],
+            );
+        }
+
+        resolver.register_exposed_taint("f0", "a.rs", TaintOrigin::UserInput);
+        resolver.propagate_taint();
+
+        // f1-f5 should be seeded, f6 should not (depth 6 > PROPAGATE_MAX_DEPTH=5)
+        for i in 1..=5 {
+            assert!(
+                resolver.exposed_taint.contains_key(&(format!("f{i}"), "a.rs".to_string())),
+                "f{i} should be seeded within propagation depth"
+            );
+        }
+        assert!(
+            !resolver.exposed_taint.contains_key(&("f6".to_string(), "a.rs".to_string())),
+            "f6 beyond PROPAGATE_MAX_DEPTH should not be seeded"
+        );
     }
 
     #[test]

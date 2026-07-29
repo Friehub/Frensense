@@ -28,14 +28,18 @@ use std::collections::HashMap;
 /// and the semantic analysis pipeline. Consolidated here to eliminate the
 /// duplicate (and slightly divergent) copies that previously lived in
 /// `runner.rs` and `semantics/data_flow/cross_file.rs`.
+///
+/// `"name"` and `"data"` are intentionally excluded from the broad `UserInput`
+/// list — they are extremely common in non-HTTP contexts (crypto functions,
+/// display formatters, etc.). Use `classify_param_name_in_context` instead
+/// when a `FileContext` (specifically `Environment`) is available.
 pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
     let lower = name.to_lowercase();
     if matches!(
         lower.as_str(),
         "req" | "request" | "event" | "ctx" | "context" | "payload"
             | "input" | "body" | "query" | "params" | "searchparams"
-            | "args" | "data" | "cmd" | "url" | "path" | "file"
-            | "name"
+            | "args" | "cmd" | "url" | "path" | "file"
     ) {
         return Some(TaintOrigin::UserInput);
     }
@@ -62,6 +66,28 @@ pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
         "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
     ) {
         return Some(TaintOrigin::FileSystem);
+    }
+    None
+}
+
+/// Context-aware version of `classify_param_origin`.
+///
+/// The names `"name"` and `"data"` are only treated as `UserInput` when
+/// the enclosing file is a `RouteHandler`. In all other environments they
+/// fall through to `None` (no taint), avoiding phantom origins in crypto,
+/// formatters, and other non-HTTP code.
+pub fn classify_param_name_in_context(
+    name: &str,
+    env: Option<&crate::context::Environment>,
+) -> Option<TaintOrigin> {
+    if let Some(origin) = classify_param_origin(name) {
+        return Some(origin);
+    }
+    let lower = name.to_lowercase();
+    if matches!(lower.as_str(), "name" | "data") {
+        if env == Some(&crate::context::Environment::RouteHandler) {
+            return Some(TaintOrigin::UserInput);
+        }
     }
     None
 }

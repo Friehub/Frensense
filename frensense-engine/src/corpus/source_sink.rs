@@ -5,6 +5,7 @@
 //! Extracts source types and sink function names from positive corpus files
 //! at load time. Replaces hardcoded framework type arrays and sink lists.
 
+use crate::data_flow::TaintOrigin;
 use rustc_hash::FxHashMap;
 use std::path::Path;
 use tree_sitter::Node;
@@ -121,6 +122,67 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     "D1Database.prepare",
     "DurableObjectStub.fetch",
     "Queue.send",
+    // SSTI — Template engine renders
+    "ejs.render",
+    "ejs.renderFile",
+    "pug.compile",
+    "pug.render",
+    "handlebars.compile",
+    "handlebars.render",
+    "nunjucks.render",
+    "nunjucks.renderString",
+    "nunjucks.renderFile",
+    "marko.render",
+    "eta.render",
+    "swig.render",
+    "liquid.render",
+    "mustache.render",
+    "jade.render",
+    "react-dom/server.renderToString",
+    "vue-server-renderer.renderToString",
+    "render_template",
+    "render_template_string",
+    // Insecure Deserialization
+    "yaml.load",
+    "js-yaml.load",
+    "pickle.loads",
+    "bincode::deserialize",
+    "msgpack.decode",
+    "msgpack.unpack",
+    "php.unserialize",
+    "ObjectInputStream.readObject",
+    "BinaryFormatter.Deserialize",
+    // Prototype Pollution
+    "Object.assign",
+    "_.merge",
+    "lodash.merge",
+    "_.defaultsDeep",
+    "_.set",
+    "$.extend",
+    "jQuery.extend",
+    "angular.merge",
+    "setPrototypeOf",
+    // XXE — XML parsers
+    "DOMParser",
+    "libxml2",
+    "SAXParser",
+    "XMLReader",
+    "DocumentBuilder",
+    "DocumentBuilderFactory",
+    "XmlDocument",
+    "XDocument",
+    "XmlTextReader",
+    "simplexml_load_string",
+    "DOMDocument",
+    // JWT
+    "jwt.verify",
+    "jwt.decode",
+    "jwt.sign",
+    "jsonwebtoken.verify",
+    "jsonwebtoken.decode",
+    "jsonwebtoken.sign",
+    "JWT.verify",
+    "JWT.decode",
 ];
 
 pub fn get_sink_tier(sink: &str) -> SinkTier {
@@ -136,6 +198,7 @@ pub fn get_sink_tier(sink: &str) -> SinkTier {
 pub enum SinkCategory {
     CodeExecution,
     SqlInjection,
+    NoSqlInjection,
     CommandInjection,
     PathTraversal,
     Ssrf,
@@ -174,6 +237,67 @@ impl SinkCategory {
         } else {
             Self::Unknown
         }
+    }
+}
+
+/// Relevance multiplier: how likely a given TaintOrigin is to be a true positive
+/// for a given SinkCategory. 1.0 = fully relevant, 0.0 = irrelevant.
+/// This prevents false positives where e.g. FileSystem-origin data reaching an
+/// SQL sink gets scored the same as UserInput-origin data.
+#[must_use]
+pub fn sink_taint_relevance(category: SinkCategory, origin: &TaintOrigin) -> f64 {
+    match origin {
+        TaintOrigin::UserInput => 1.0,
+        TaintOrigin::Environment => match category {
+            SinkCategory::CredentialLeak | SinkCategory::LogLeak => 0.9,
+            _ => 0.5,
+        },
+        TaintOrigin::Database => match category {
+            SinkCategory::SqlInjection | SinkCategory::NoSqlInjection => 0.7,
+            SinkCategory::CodeExecution | SinkCategory::CommandInjection => 0.3,
+            _ => 0.4,
+        },
+        TaintOrigin::Network => match category {
+            SinkCategory::Ssrf | SinkCategory::OpenRedirect => 0.9,
+            SinkCategory::CodeExecution | SinkCategory::CommandInjection => 0.6,
+            _ => 0.5,
+        },
+        TaintOrigin::FileSystem => match category {
+            SinkCategory::PathTraversal | SinkCategory::StorageWrite => 0.9,
+            SinkCategory::LogLeak => 0.6,
+            SinkCategory::SqlInjection | SinkCategory::CodeExecution => 0.2,
+            _ => 0.3,
+        },
+        TaintOrigin::Custom(_) => 1.0,
+    }
+}
+
+/// Infer the likely SinkCategory from a pattern ID string.
+/// Pattern IDs follow `{lang}_{category}_{name}` convention — the name segment
+/// often contains keywords like "sql", "cmd", "xss", etc.
+#[must_use]
+pub fn infer_sink_category(pattern_id: &str) -> Option<SinkCategory> {
+    let lower = pattern_id.to_lowercase();
+    if lower.contains("sql") || lower.contains("nosql") || lower.contains("sqli") {
+        Some(SinkCategory::SqlInjection)
+    } else if lower.contains("cmd") || lower.contains("command") || lower.contains("cmdi") {
+        Some(SinkCategory::CommandInjection)
+    } else if lower.contains("xss") || lower.contains("html_injection") {
+        Some(SinkCategory::Xss)
+    } else if lower.contains("ssrf") || lower.contains("server_side_request") {
+        Some(SinkCategory::Ssrf)
+    } else if lower.contains("path_traversal") || lower.contains("read_file") || lower.contains("write_file") {
+        Some(SinkCategory::PathTraversal)
+    } else if lower.contains("open_redirect") || lower.contains("redirect") {
+        Some(SinkCategory::OpenRedirect)
+    } else if lower.contains("eval") || lower.contains("code_exec") || lower.contains("rce") {
+        Some(SinkCategory::CodeExecution)
+    } else if lower.contains("credential") || lower.contains("secret") || lower.contains("password") || lower.contains("token") {
+        Some(SinkCategory::CredentialLeak)
+    } else if lower.contains("log") {
+        Some(SinkCategory::LogLeak)
+    } else {
+        None
     }
 }
 

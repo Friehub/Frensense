@@ -1,4 +1,7 @@
 pub mod cross_file_taint;
+pub mod middleware_audit;
+pub mod package_audit;
+pub mod secret_scan;
 pub mod semantic_patterns;
 pub mod temporal_violation;
 
@@ -29,10 +32,13 @@ pub trait FindingModule: Send + Sync {
 struct TemporalViolation;
 struct CrossFileTaint;
 struct SemanticPatterns;
+struct MiddlewareAudit;
+struct SecretScan;
+struct PackageAudit;
 
 impl FindingModule for TemporalViolation {
-    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        temporal_violation::find(snap, ctx)
+    fn run(&self, _snap: &FileSnapshot, _ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
+        Vec::new()
     }
 }
 
@@ -48,6 +54,24 @@ impl FindingModule for SemanticPatterns {
     }
 }
 
+impl FindingModule for MiddlewareAudit {
+    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
+        middleware_audit::find(snap, ctx)
+    }
+}
+
+impl FindingModule for SecretScan {
+    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
+        secret_scan::find(snap, ctx)
+    }
+}
+
+impl FindingModule for PackageAudit {
+    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
+        package_audit::find(snap, ctx)
+    }
+}
+
 /// Returns the registered finding modules in execution order.
 #[must_use]
 pub fn registered_modules() -> Vec<Box<dyn FindingModule>> {
@@ -55,5 +79,8 @@ pub fn registered_modules() -> Vec<Box<dyn FindingModule>> {
         Box::new(TemporalViolation),
         Box::new(CrossFileTaint),
         Box::new(SemanticPatterns),
+        Box::new(MiddlewareAudit),
+        Box::new(SecretScan),
+        Box::new(PackageAudit),
     ]
 }

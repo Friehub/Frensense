@@ -8,6 +8,8 @@ use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_wei
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::PatternScorer;
+use crate::data_flow::taint_metrics::TaintMetrics;
+use crate::data_flow::{TaintOrigin, TaintRegistry};
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
@@ -41,7 +43,7 @@ pub struct PatternRegistry {
     idf_weights: FxHashMap<u64, f32>,
     api_idf_weights: FxHashMap<u64, f32>,
     /// Per-category learned feature weights (trained at build time or loaded from bundle).
-    pub category_weights: std::collections::HashMap<String, [f64; 11]>,
+    pub category_weights: std::collections::HashMap<String, [f64; 13]>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
     /// Per-pattern sigmoid calibration (A, B) parameters, keyed by pattern id.
@@ -402,6 +404,54 @@ impl PatternRegistry {
         let mut extracted_flows: Option<std::collections::HashSet<(String, String)>> = None;
 
         let mut dim_cache = rustc_hash::FxHashMap::default();
+
+        // Pre-compute TaintMetrics once per function (not per candidate).
+        // Seeds a TaintRegistry by scanning the function body for identifiers
+        // that match TAINT_SOURCE_PATTERNS (e.g. req.body, req.query).
+        // Tracks the taint origins found so SinkCategory relevance can downweight
+        // mismatches (e.g. FileSystem data reaching an SQL sink).
+        let taint_metrics: Option<(TaintMetrics, TaintOrigin)> = func_node.and_then(|fn_node| {
+            let src = source?;
+            let mut reg = TaintRegistry::default();
+            let mut seen_origins: Vec<TaintOrigin> = Vec::new();
+            let mut cursor = fn_node.walk();
+            loop {
+                let n = cursor.node();
+                if n.kind() == "member_expression" || n.kind() == "subscript_expression" {
+                    let text = &src[n.start_byte()..n.end_byte()];
+                    for &pattern in crate::corpus::loader::TAINT_SOURCE_PATTERNS {
+                        if text.contains(pattern) {
+                            let origin = crate::corpus::loader::taint_source_origin(pattern);
+                            seen_origins.push(origin.clone());
+                            if let Some(child) = n.child_by_field_name("property")
+                                .or_else(|| n.child(n.child_count().saturating_sub(1)))
+                            {
+                                let name = &src[child.start_byte()..child.end_byte()];
+                                reg.taint(name, origin);
+                            }
+                            break;
+                        }
+                    }
+                }
+                if cursor.goto_first_child() {
+                    continue;
+                }
+                loop {
+                    if cursor.goto_next_sibling() {
+                        break;
+                    }
+                    if !cursor.goto_parent() {
+                        // Choose the most specific origin: prefer non-UserInput if any
+                        let dominant = seen_origins.into_iter().find(|o| !matches!(o, TaintOrigin::UserInput));
+                        return Some((
+                            TaintMetrics::compute(&reg, fn_node, src, &weighted_fp.function_name),
+                            dominant.unwrap_or(TaintOrigin::UserInput),
+                        ));
+                    }
+                }
+            }
+        });
+
         let mut matches = Vec::new();
         for &(idx, hit_both) in &all_candidates {
             let pattern = &self.patterns[idx];
@@ -547,8 +597,32 @@ impl PatternRegistry {
                 self.pattern_calibration.get(&pattern.id),
             );
 
+            // TaintMetrics-based confidence adjustment:
+            //   - is_hollow_validator (validation-name but no branching on taint) → 0.5x
+            //   - taint_branch_ratio > 0.5 (heavy validation on tainted data)       → 0.8x
+            //   - SinkCategory × TaintOrigin relevance mismatch                     → 0.3-0.9x
+            //   - otherwise → keep score unchanged
+            let best_score = if let Some((ref tm, ref origin)) = taint_metrics {
+                let mut multiplier: f64 = 1.0;
+                if tm.is_hollow_validator() {
+                    multiplier = 0.5;
+                } else if tm.taint_branch_ratio > 0.5 {
+                    multiplier = 0.8;
+                }
+                // Apply SinkCategory × TaintOrigin relevance multiplier
+                if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
+                    let relevance: f64 = crate::corpus::source_sink::sink_taint_relevance(cat, origin);
+                    multiplier = multiplier.min(relevance);
+                }
+                best_score * multiplier
+            } else {
+                best_score
+            };
+
             let threshold = self.threshold_for_pattern(&pattern.id);
-            if best_score >= threshold {
+            let has_taint = evidence.has_taint_path;
+            let effective_threshold = if has_taint { threshold.min(0.15) } else { threshold };
+            if best_score >= effective_threshold {
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),
                     score: best_score,

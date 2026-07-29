@@ -5,7 +5,7 @@ use frensense::engine::project::Engine;
 use frensense::semantics::SymbolRegistry;
 use frensense::semantics::data_flow::TaintOrigin;
 use frensense::{FileId, FrensenseContext, TaintCache};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 
 #[test]
@@ -62,7 +62,7 @@ fn test_taint_through_destructuring() {
         graph: registry.graph(),
         semantic_ops: &ops,
         taint_cache: &taint_cache,
-        file_trees: &HashMap::new(),
+        file_trees: &FxHashMap::default(),
         file_context: frensense_engine::context::FileContext::extract(path, content),
         taint_confidence_interprocedural: 0.80,
         taint_confidence_intraprocedural: 0.90,

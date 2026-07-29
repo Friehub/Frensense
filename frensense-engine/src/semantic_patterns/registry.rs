@@ -89,7 +89,11 @@ impl PatternRunner {
     }
 
     pub fn with_defaults() -> Self {
-        let registry = PatternRegistry::new();
+        let mut registry = PatternRegistry::new();
+        registry.register(Box::new(super::auth_guard_dominator::MissingAuthGuard));
+        registry.register(Box::new(super::csrf_missing_token::CsrfMissingToken));
+        registry.register(Box::new(super::hardcoded_credentials::HardcodedCredentials));
+        registry.register(Box::new(super::idor_missing_ownership::IdorMissingOwnershipCheck));
         Self { registry }
     }
 

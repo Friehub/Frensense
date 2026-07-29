@@ -145,7 +145,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
-        weights: &[f64; 11],
+        weights: &[f64; 13],
     ) -> f64 {
         let mut best_pos_score = 0.0f64;
 
@@ -259,7 +259,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 11],
+        weights: &[f64; 13],
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
             candidate,
@@ -283,7 +283,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 11],
+        weights: &[f64; 13],
         dim_cache: &mut DimCache,
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
@@ -305,7 +305,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 11],
+        weights: &[f64; 13],
         mut dim_cache: Option<&mut DimCache>,
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
@@ -529,7 +529,7 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_positive: bool,
         ngram_sim_threshold: f64,
-        weights: &[f64; 11],
+        weights: &[f64; 13],
     ) -> f64 {
         let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
@@ -570,6 +570,21 @@ impl PatternScorer {
             jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
 
+        let config_sim = jaccard(
+            &candidate.config_literal_hashes,
+            &target.config_literal_hashes,
+        );
+
+        let cf_order_sim = if candidate.control_flow_sequence_hash == 0
+            && target.control_flow_sequence_hash == 0
+        {
+            1.0
+        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
+            1.0
+        } else {
+            0.0
+        };
+
         ngram_sim * weights[0]
             + ast_sim * weights[1]
             + jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams) * weights[2]
@@ -581,6 +596,8 @@ impl PatternScorer {
             + tainted_api_sim * weights[8]
             + motif_sim * weights[9]
             + flow_sim * weights[10]
+            + config_sim * weights[11]
+            + cf_order_sim * weights[12]
     }
 
     pub fn similarity_to_positive(
@@ -603,7 +620,7 @@ impl PatternScorer {
         candidate: &FunctionFingerprint,
         positives: &[FunctionFingerprint],
         negatives: &[FunctionFingerprint],
-        weights: &[f64; 11],
+        weights: &[f64; 13],
     ) -> MatchEvidence {
         let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
 
@@ -799,7 +816,7 @@ pub(crate) struct RawDimensions {
 }
 
 impl RawDimensions {
-    fn weighted_score(&self, w: &[f64; 11]) -> f64 {
+    fn weighted_score(&self, w: &[f64; 13]) -> f64 {
         self.ngram_sim * w[0]
             + self.ast_sim * w[1]
             + self.signature_sim * w[2]
@@ -811,6 +828,8 @@ impl RawDimensions {
             + self.tainted_api_sim * w[8]
             + self.motif_sim * w[9]
             + self.flow_sim * w[10]
+            + self.config_sim * w[11]
+            + self.cf_order_sim * w[12]
     }
 }
 
@@ -885,7 +904,7 @@ mod tests {
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
         let default_w = &[
-            0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05,
+            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02,
         ];
         let score =
             PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
@@ -901,7 +920,7 @@ mod tests {
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
         let default_w = &[
-            0.10, 0.22, 0.08, 0.04, 0.03, 0.13, 0.08, 0.06, 0.15, 0.06, 0.05,
+            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02,
         ];
         let score =
             PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);

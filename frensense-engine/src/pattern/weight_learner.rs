@@ -17,12 +17,13 @@ use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
 use crate::pattern::scorer::type_usage_overlap;
 
-pub type FeatureVec = [f64; 11];
+pub type FeatureVec = [f64; 13];
 
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
 // Index mapping: 0=ngram, 1=ast, 2=signature, 3=param_type, 4=type_usage,
-//                5=semantic, 6=cf, 7=api, 8=tainted_api, 9=motif, 10=flow
+//                5=semantic, 6=cf, 7=api, 8=tainted_api, 9=motif, 10=flow,
+//                11=config, 12=cf_order
 //
 // flow_sim (0.10) makes data-flow path similarity the primary generalization
 // signal — API-invariant (exec vs spawn vs Command::new all produce the
@@ -30,7 +31,7 @@ pub type FeatureVec = [f64; 11];
 // M1-M15 mutation variants.
 // See docs/SCORING_DIMENSIONS.md for analysis.
 pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [
-    0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10,
+    0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02,
 ];
 
 /// Minimum number of positive + negative pairs required to train a per-category
@@ -96,6 +97,21 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         &target.data_flow_path_hashes,
     );
 
+    let config_sim = jaccard(
+        &candidate.config_literal_hashes,
+        &target.config_literal_hashes,
+    );
+
+    let cf_order_sim = if candidate.control_flow_sequence_hash == 0
+        && target.control_flow_sequence_hash == 0
+    {
+        1.0
+    } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
+        1.0
+    } else {
+        0.0
+    };
+
     [
         ngram_sim,
         ast_sim,
@@ -108,6 +124,8 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         tainted_api_sim,
         motif_sim,
         flow_sim,
+        config_sim,
+        cf_order_sim,
     ]
 }
 
@@ -124,7 +142,7 @@ fn predict(features: &FeatureVec, weights: &FeatureVec) -> f64 {
 /// Train weights for a single category using gradient descent.
 /// Positive and negative pairs are separately weighted to handle class imbalance.
 fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureVec {
-    let mut w = [0.5f64; 11];
+    let mut w = [0.5f64; 13];
 
     let n_pos = positives.len();
     let n_neg = negatives.len();
@@ -139,12 +157,12 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
     let neg_weight = if n_neg > 0 { 0.5 / n_neg as f64 } else { 0.0 };
 
     for _ in 0..ITERATIONS {
-        let mut grad = [0.0f64; 11];
+        let mut grad = [0.0f64; 13];
         for features in positives {
             let pred = predict(features, &w);
             let error = pred - 1.0;
             let wgt = pos_weight;
-            for i in 0..11 {
+            for i in 0..13 {
                 grad[i] += wgt * error * features[i];
             }
         }
@@ -152,11 +170,11 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
             let pred = predict(features, &w);
             let error = pred - 0.0;
             let wgt = neg_weight;
-            for i in 0..11 {
+            for i in 0..13 {
                 grad[i] += wgt * error * features[i];
             }
         }
-        for i in 0..11 {
+        for i in 0..13 {
             w[i] -= LEARNING_RATE * grad[i];
             w[i] = w[i].clamp(0.0, 1.0);
         }
@@ -170,7 +188,7 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
         }
     } else {
         for wi in &mut w {
-            *wi = 1.0 / 11.0;
+            *wi = 1.0 / 13.0;
         }
     }
     w

@@ -107,6 +107,15 @@ impl TemporalAnalyzer {
         self.rules.push(rule);
     }
 
+    fn register_label(&mut self, call_pattern: &str, event_name: &str) {
+        if !self.labels.iter().any(|l| l.event_name == event_name) {
+            self.labels.push(TemporalEventLabel {
+                call_pattern: call_pattern.to_string(),
+                event_name: event_name.to_string(),
+            });
+        }
+    }
+
     pub fn add_default_rules(&mut self) {
         self.rules.push(TemporalRule {
             name: "lock_unlock".to_string(),
@@ -117,6 +126,8 @@ impl TemporalAnalyzer {
                 severity: Severity::Error,
             }],
         });
+        self.register_label(".lock(", "lock");
+        self.register_label(".unlock(", "unlock");
 
         self.rules.push(TemporalRule {
             name: "acquire_release".to_string(),
@@ -127,6 +138,8 @@ impl TemporalAnalyzer {
                 severity: Severity::Error,
             }],
         });
+        self.register_label(".acquire(", "acquire");
+        self.register_label(".release(", "release");
 
         self.rules.push(TemporalRule {
             name: "open_close".to_string(),
@@ -137,6 +150,8 @@ impl TemporalAnalyzer {
                 severity: Severity::Warning,
             }],
         });
+        self.register_label(".open(", "open");
+        self.register_label(".close(", "close");
 
         self.rules.push(TemporalRule {
             name: "connect_disconnect".to_string(),
@@ -147,6 +162,8 @@ impl TemporalAnalyzer {
                 severity: Severity::Warning,
             }],
         });
+        self.register_label(".connect(", "connect");
+        self.register_label(".disconnect(", "disconnect");
 
         self.rules.push(TemporalRule {
             name: "RUST_LOCK_SLEEP".to_string(),
@@ -157,6 +174,49 @@ impl TemporalAnalyzer {
                 severity: Severity::Error,
             }],
         });
+        self.register_label("sleep(", "sleep");
+
+        // JS/TS specific: stream/resource opened with .createReadStream() / .createWriteStream()
+        // must have a corresponding .close() or .destroy()
+        self.rules.push(TemporalRule {
+            name: "stream_open_close".to_string(),
+            constraints: vec![TemporalConstraint {
+                before: "open_stream".to_string(),
+                after: "close".to_string(),
+                description: "Every createReadStream/createWriteStream must be followed by close() or destroy()".to_string(),
+                severity: Severity::Warning,
+            }],
+        });
+        self.register_label("createReadStream(", "open_stream");
+        self.register_label("createWriteStream(", "open_stream");
+        self.register_label(".destroy(", "close");
+
+        // JS/TS specific: database/connection must be ended or closed
+        self.rules.push(TemporalRule {
+            name: "db_connect_end".to_string(),
+            constraints: vec![TemporalConstraint {
+                before: "db_connect".to_string(),
+                after: "db_end".to_string(),
+                description: "Every database connect() or createConnection must be followed by end() or close()".to_string(),
+                severity: Severity::Warning,
+            }],
+        });
+        self.register_label(".createConnection(", "db_connect");
+        self.register_label(".createPool(", "db_connect");
+        self.register_label(".end(", "db_end");
+
+        // JS/TS specific: HTTP server must close
+        self.rules.push(TemporalRule {
+            name: "http_server_close".to_string(),
+            constraints: vec![TemporalConstraint {
+                before: "http_create".to_string(),
+                after: "server_close".to_string(),
+                description: "Every createServer must be followed by server.close()".to_string(),
+                severity: Severity::Warning,
+            }],
+        });
+        self.register_label("createServer(", "http_create");
+        self.register_label(".close(", "server_close");
     }
 
     /// Add rules from TOML configuration.

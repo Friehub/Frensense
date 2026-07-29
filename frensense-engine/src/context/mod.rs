@@ -11,7 +11,7 @@ const TEST_ENV_KEYWORDS: &[&str] = &[
     // Go
     "func test", "testing.t",
     // Java / C#
-    "@test", "[test]", "[fact]", "assert",
+    "@test", "[test]", "[fact]",
     // C / C++ (GTest)
     "test(", "test_f(", "expect_eq(", "assert_eq("
 ];

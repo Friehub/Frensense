@@ -70,6 +70,12 @@ pub struct FunctionFingerprint {
     #[cfg_attr(feature = "serialize", serde(default))]
     pub raw_call_names: Vec<String>,
 
+    /// Parameter names extracted from the function signature.
+    /// Used by the role classifier to distinguish HttpHandler (has `req`/`request`)
+    /// from utility helpers that merely call response methods.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub param_names: Vec<String>,
+
     /// Hashes of API calls where at least one argument is (or contains) a function parameter.
     /// E.g., `exec(cmd)` where `cmd` is a param → hash of `"exec"` is included.
     /// `exec("ls")` where `"ls"` is a constant → NOT included.
@@ -79,6 +85,23 @@ pub struct FunctionFingerprint {
 
     #[cfg_attr(feature = "serialize", serde(default))]
     pub config_literal_hashes: Vec<u64>,
+
+    /// Whether this function/method has a routing decorator (e.g. `@Get`, `@Post`).
+    /// Populated during fingerprint extraction for NestJS/routing-controllers/tsoa detection.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub has_http_decorator: bool,
+
+    /// Whether this function is referenced as a handler in a route registration
+    /// (e.g. `app.get('/path', fn)`) or is an inline arrow function passed directly
+    /// to a router method. Signals the function is an HttpHandler.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub is_registered_handler: bool,
+
+    /// Export handler kind detected from file-level export patterns
+    /// (Next.js App Router, SvelteKit, Cloudflare Workers, AWS Lambda, etc.).
+    /// None means either not an export or not a recognized framework export.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub export_handler_kind: Option<crate::export_matcher::ExportHandlerKind>,
 }
 
 /// M1: Compute IDF weights for n-grams from a set of fingerprints.
@@ -834,13 +857,9 @@ pub fn extract_fingerprints_with_nodes<'a>(
             if let Some(name_node) = node.child_by_field_name("name") {
                 function_name =
                     source_code[name_node.start_byte()..name_node.end_byte()].to_string();
-            } else if kind == "arrow_function"
-                && let Some(parent) = node.parent()
-                && parent.kind() == "variable_declarator"
-                && let Some(name_node) = parent.child_by_field_name("name")
+            } else if let Some(inferred) = crate::route_registry::infer_function_name(node, source_code)
             {
-                function_name =
-                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
+                function_name = inferred;
             }
 
             let body_code = &source_code[body.start_byte()..body.end_byte()];
@@ -917,6 +936,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 std::hash::Hash::hash(s, &mut hasher);
                 skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
             }
+            let has_http_decorator = crate::decorator::has_routing_decorator(node, source_code).is_some();
+            let is_registered_handler = crate::route_registry::is_function_registered_in_file(node, source_code, "")
+                || crate::route_registry::is_inline_registered_handler(node, source_code);
+
             let fp = FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
                 function_name,
@@ -931,7 +954,11 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 ),
                 name_segments,
                 structural_markers: collect_structural_markers(body, source_code, lang),
-                type_usages: collect_type_usages(body, source_code),
+                type_usages: {
+                    let mut tu = collect_type_usages(body, source_code);
+                    tu.extend(crate::decorator::collect_param_decorator_types(node, source_code));
+                    tu
+                },
                 comment_density: if total_bytes > 0 {
                     comment_bytes as f64 / total_bytes as f64
                 } else {
@@ -948,8 +975,14 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 motif_hashes,
                 data_flow_path_hashes,
                 raw_call_names,
+                param_names,
                 tainted_api_calls,
                 config_literal_hashes: Vec::new(),
+                has_http_decorator,
+                is_registered_handler,
+                export_handler_kind: crate::export_matcher::classify_exported_handler(
+                    node, source_code, &path.to_string_lossy(),
+                ),
             };
 
             fingerprints.push((fp, node));
@@ -1001,13 +1034,9 @@ pub fn extract_fingerprints(
             if let Some(name_node) = node.child_by_field_name("name") {
                 function_name =
                     source_code[name_node.start_byte()..name_node.end_byte()].to_string();
-            } else if kind == "arrow_function"
-                && let Some(parent) = node.parent()
-                && parent.kind() == "variable_declarator"
-                && let Some(name_node) = parent.child_by_field_name("name")
+            } else if let Some(inferred) = crate::route_registry::infer_function_name(node, source_code)
             {
-                function_name =
-                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
+                function_name = inferred;
             }
 
             let body_code = &source_code[body.start_byte()..body.end_byte()];
@@ -1083,6 +1112,10 @@ pub fn extract_fingerprints(
                 std::hash::Hash::hash(s, &mut hasher);
                 skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
             }
+            let has_http_decorator = crate::decorator::has_routing_decorator(node, source_code).is_some();
+            let is_registered_handler = crate::route_registry::is_function_registered_in_file(node, source_code, "")
+                || crate::route_registry::is_inline_registered_handler(node, source_code);
+
             fingerprints.push(FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
                 function_name,
@@ -1097,7 +1130,11 @@ pub fn extract_fingerprints(
                 ),
                 name_segments,
                 structural_markers: collect_structural_markers(body, source_code, lang),
-                type_usages: collect_type_usages(body, source_code),
+                type_usages: {
+                    let mut tu = collect_type_usages(body, source_code);
+                    tu.extend(crate::decorator::collect_param_decorator_types(node, source_code));
+                    tu
+                },
                 comment_density: if total_bytes > 0 {
                     comment_bytes as f64 / total_bytes as f64
                 } else {
@@ -1114,8 +1151,14 @@ pub fn extract_fingerprints(
                 motif_hashes,
                 data_flow_path_hashes,
                 raw_call_names,
+                param_names,
                 tainted_api_calls,
                 config_literal_hashes: Vec::new(),
+                has_http_decorator,
+                is_registered_handler,
+                export_handler_kind: crate::export_matcher::classify_exported_handler(
+                    node, source_code, &path.to_string_lossy(),
+                ),
             });
         }
 

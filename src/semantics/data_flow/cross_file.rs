@@ -13,6 +13,7 @@ use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::symbols::SymbolRegistry;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 use frensense_engine::data_flow::DataFlowEngine;
+use frensense_engine::data_flow::resolver::{resolve_fn_definition, SymbolEntry};
 
 /// Result of cross-file taint verification.
 #[derive(Debug, Clone)]
@@ -57,12 +58,13 @@ fn extract_binding_names<'a>(node: Node<'a>, source: &'a str) -> Vec<String> {
 /// reaches dangerous sinks.
 pub struct CrossFileVerifier<'a> {
     source: &'a str,
-    _tree: &'a tree_sitter::Tree,
-    _file_path: String,
+    tree: &'a tree_sitter::Tree,
+    file_path: String,
+    file_env: Option<frensense_engine::context::Environment>,
     registry: TaintRegistry,
     _symbols: &'a SymbolRegistry,
-    _data_flow: &'a DataFlowEngine,
-    _file_trees: &'a rustc_hash::FxHashMap<
+    data_flow: &'a DataFlowEngine,
+    file_trees: &'a rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -102,12 +104,13 @@ impl<'a> CrossFileVerifier<'a> {
     ) -> Self {
         Self {
             source,
-            _tree: tree,
-            _file_path: file_path.to_string(),
+            tree,
+            file_path: file_path.to_string(),
+            file_env: None,
             registry: TaintRegistry::default(),
             _symbols: symbols,
-            _data_flow: data_flow,
-            _file_trees: file_trees,
+            data_flow,
+            file_trees,
             _visited: HashSet::new(),
             max_depth: 5,
             source_sink,
@@ -120,9 +123,21 @@ impl<'a> CrossFileVerifier<'a> {
         }
     }
 
+    /// Expose the taint registry so callers can read taint state without borrowing self mutably.
+    #[must_use]
+    pub fn registry(&self) -> &TaintRegistry {
+        &self.registry
+    }
+
     #[must_use]
     pub fn with_cfg(mut self, cfg: frensense_engine::cfg::ControlFlowGraph<'a>) -> Self {
         self.cfg = Some(cfg);
+        self
+    }
+
+    #[must_use]
+    pub fn with_file_env(mut self, env: frensense_engine::context::Environment) -> Self {
+        self.file_env = Some(env);
         self
     }
 
@@ -171,7 +186,10 @@ impl<'a> CrossFileVerifier<'a> {
                 let origin = if self.source_sink.is_source_type(clean_type) {
                     Some(TaintOrigin::UserInput)
                 } else {
-                    classify_param_origin(&param_name)
+                    frensense_engine::data_flow::classify_param_name_in_context(
+                        &param_name,
+                        self.file_env.as_ref(),
+                    )
                 };
 
                 if let Some(origin) = origin {
@@ -542,6 +560,11 @@ impl<'a> CrossFileVerifier<'a> {
                         }
                     }
 
+                    // Check if a same-file callee's FunctionTaintSummary marks return as tainted
+                    if self.callee_returns_tainted(short_name) {
+                        return true;
+                    }
+
                     // Return-value taint propagation from known source methods
                     if is_member {
                         if let Some(object) = c.child_by_field_name("object") {
@@ -568,8 +591,107 @@ impl<'a> CrossFileVerifier<'a> {
                 }
                 false
             }
+            // Template literals with tainted expressions
+            "template_string" | "template_literal" => {
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        if child.kind() == "template_substitution"
+                            && let Some(expr) = child.child(1)
+                        {
+                            if self.is_node_tainted(expr) {
+                                return true;
+                            }
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
+            // Bracket notation (JS/TS subscript_expression, Rust index_expression, Python subscript)
+            "subscript_expression" | "index_expression" | "subscript" => {
+                let object = node
+                    .child_by_field_name("object")
+                    .or_else(|| node.child_by_field_name("value"))
+                    .or_else(|| node.child(0));
+                if let Some(obj) = object {
+                    return self.is_node_tainted(obj);
+                }
+                false
+            }
+            // Binary expressions (concat/arithmetic): tainted if either side is tainted
+            "binary_expression" => {
+                if let Some(left) = node.child_by_field_name("left") {
+                    if self.is_node_tainted(left) {
+                        return true;
+                    }
+                }
+                if let Some(right) = node.child_by_field_name("right") {
+                    if self.is_node_tainted(right) {
+                        return true;
+                    }
+                }
+                false
+            }
+            // Parenthesized expressions: recurse on inner
+            "parenthesized_expression" => {
+                if let Some(inner) = node.child(0) {
+                    return self.is_node_tainted(inner);
+                }
+                false
+            }
             _ => false,
         }
+    }
+
+    /// Try to resolve a same-file callee by name and check whether its
+    /// pre-computed `FunctionTaintSummary` marks the return as tainted.
+    fn callee_returns_tainted(&self, fn_name: &str) -> bool {
+        let caller_file = &self.file_path;
+
+        let engine_file_trees: HashMap<String, (&str, &tree_sitter::Tree)> = self
+            .file_trees
+            .iter()
+            .map(|(k, (t, s, _))| (k.clone(), (s.as_str(), t)))
+            .collect();
+
+        let all_sym_entries: Vec<SymbolEntry> = self
+            ._symbols
+            .query_all()
+            .into_iter()
+            .map(|s| SymbolEntry {
+                name: s.name.clone(),
+                file_path: s.file_path.clone(),
+                start_byte: s.start_byte,
+                end_byte: s.end_byte,
+                line: s.line,
+                end_line: s.end_line,
+                file_id: s.file_id.0,
+            })
+            .collect();
+
+        let resolved = resolve_fn_definition(
+            fn_name,
+            caller_file,
+            self.tree.root_node().start_position().row + 1,
+            &self.registry,
+            self.tree.root_node(),
+            self.source,
+            &all_sym_entries,
+            &engine_file_trees,
+        );
+
+        if let Some(rf) = resolved {
+            if rf.file_path == *caller_file {
+                if let Some(summary) = self.data_flow.get_summary(caller_file, fn_name) {
+                    return summary.propagates_return;
+                }
+            }
+        }
+        false
     }
 
     /// Check if a node is an environment variable source.
