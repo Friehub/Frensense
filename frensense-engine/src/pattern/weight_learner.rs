@@ -17,7 +17,7 @@ use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
 use crate::pattern::scorer::type_usage_overlap;
 
-pub type FeatureVec = [f64; 13];
+pub type FeatureVec = [f64; 15];
 
 /// Hardcoded fallback weights used when there are fewer than `MIN_TRAINING_PAIRS`
 /// examples for a category.
@@ -31,7 +31,7 @@ pub type FeatureVec = [f64; 13];
 // M1-M15 mutation variants.
 // See docs/SCORING_DIMENSIONS.md for analysis.
 pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [
-    0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02,
+    0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,
 ];
 
 /// Minimum number of positive + negative pairs required to train a per-category
@@ -89,7 +89,16 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
     let type_sim = jaccard(&candidate.param_type_ngrams, &target.param_type_ngrams);
     let type_usage_sim = type_usage_overlap(candidate, target);
     let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
-    let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+    // API sim: max of full-name and segment Jaccard (mirrors scorer)
+    let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
+    let api_sim_seg = if !candidate.api_call_segments.is_empty()
+        && !target.api_call_segments.is_empty()
+    {
+        jaccard(&candidate.api_call_segments, &target.api_call_segments)
+    } else {
+        0.0
+    };
+    let api_sim = api_sim_full.max(api_sim_seg);
     let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
     let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
     let flow_sim = jaccard(
@@ -112,6 +121,21 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         0.0
     };
 
+    let arg_type_sim = if !candidate.argument_call_types.is_empty()
+        && !target.argument_call_types.is_empty()
+    {
+        jaccard(&candidate.argument_call_types, &target.argument_call_types)
+    } else {
+        0.0
+    };
+    let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
+        && !target.literal_pattern_hashes.is_empty()
+    {
+        jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+    } else {
+        0.0
+    };
+
     [
         ngram_sim,
         ast_sim,
@@ -126,6 +150,8 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         flow_sim,
         config_sim,
         cf_order_sim,
+        arg_type_sim,
+        literal_concat_sim,
     ]
 }
 
@@ -142,7 +168,7 @@ fn predict(features: &FeatureVec, weights: &FeatureVec) -> f64 {
 /// Train weights for a single category using gradient descent.
 /// Positive and negative pairs are separately weighted to handle class imbalance.
 fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureVec {
-    let mut w = [0.5f64; 13];
+    let mut w = [0.5f64; 15];
 
     let n_pos = positives.len();
     let n_neg = negatives.len();
@@ -157,12 +183,12 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
     let neg_weight = if n_neg > 0 { 0.5 / n_neg as f64 } else { 0.0 };
 
     for _ in 0..ITERATIONS {
-        let mut grad = [0.0f64; 13];
+        let mut grad = [0.0f64; 15];
         for features in positives {
             let pred = predict(features, &w);
             let error = pred - 1.0;
             let wgt = pos_weight;
-            for i in 0..13 {
+            for i in 0..15 {
                 grad[i] += wgt * error * features[i];
             }
         }
@@ -170,11 +196,11 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
             let pred = predict(features, &w);
             let error = pred - 0.0;
             let wgt = neg_weight;
-            for i in 0..13 {
+            for i in 0..15 {
                 grad[i] += wgt * error * features[i];
             }
         }
-        for i in 0..13 {
+        for i in 0..15 {
             w[i] -= LEARNING_RATE * grad[i];
             w[i] = w[i].clamp(0.0, 1.0);
         }
@@ -188,7 +214,7 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
         }
     } else {
         for wi in &mut w {
-            *wi = 1.0 / 13.0;
+            *wi = 1.0 / 15.0;
         }
     }
     w
@@ -272,5 +298,8 @@ pub fn category_weights<'a>(
     learned: &'a HashMap<String, FeatureVec>,
 ) -> &'a FeatureVec {
     let cat = extract_category(pattern_id);
-    learned.get(cat).unwrap_or(&DEFAULT_WEIGHTS)
+    learned
+        .get(cat)
+        .or_else(|| learned.get("_global"))
+        .unwrap_or(&DEFAULT_WEIGHTS)
 }

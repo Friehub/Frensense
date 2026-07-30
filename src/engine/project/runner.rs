@@ -11,6 +11,8 @@ use crate::{Advisory, FileId, Result};
 use frensense_engine::data_flow::alias::AliasTracker;
 use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegistry};
 use frensense_engine::pattern::evidence::MatchEvidence;
+use rustc_hash::FxHasher;
+use std::hash::Hasher;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -466,6 +468,11 @@ fn run_corpus_scan(
         }
     }
 
+    // Override per-category weights for security categories where API call overlap
+    // is the strongest signal but trained weights under-emphasize it.
+    registry.set_category_weights("sqli", [0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04, 0.04]);
+    registry.set_category_weights("nosqli", [0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04, 0.04]);
+
     if !corpus_loaded {
         return frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry::default();
     }
@@ -538,7 +545,35 @@ fn run_corpus_scan(
 
         // Score once — all group members share the same fingerprint hash
         let (ref fp, func_node, ref snap, ref actual_context) = group[0];
-        let matches = registry.scan_function(fp, Some(func_node.clone()), Some(&snap.content), Some(actual_context));
+
+        // Merge learned semantic markers into the fingerprint.
+        // These are API-call-to-category mappings discovered from the corpus,
+        // supplementing the hardcoded categories in extract_semantic_markers.
+        let scan_fp = if !registry.learned_semantic_markers.is_empty() {
+            let mut merged = fp.clone();
+            let mut extra = rustc_hash::FxHashSet::default();
+            let existing: rustc_hash::FxHashSet<u64> = merged.semantic_markers.iter().copied().collect();
+            for call in &merged.raw_call_names {
+                let seg = call.rsplit(|c: char| c == '.' || c == ':')
+                    .next()
+                    .unwrap_or(call);
+                if let Some(category) = registry.learned_semantic_markers.get(seg) {
+                    let mut h = rustc_hash::FxHasher::default();
+                    std::hash::Hash::hash(category, &mut h);
+                    extra.insert(h.finish());
+                }
+            }
+            for h in &extra {
+                if !existing.contains(h) {
+                    merged.semantic_markers.push(*h);
+                }
+            }
+            merged.semantic_markers.sort_unstable();
+            merged
+        } else {
+            fp.clone()
+        };
+        let matches = registry.scan_function(&scan_fp, Some(func_node.clone()), Some(&snap.content), Some(actual_context));
 
         let elapsed = start_time.elapsed().as_millis();
         if elapsed > 500 {
@@ -723,6 +758,15 @@ fn run_corpus_scan(
                 advisory.cwe = m.cwe.clone();
                 advisory.cvss = m.cvss;
                 advisory.owasp = m.owasp.clone();
+
+                // Skip frontend code for SQLi/NoSQLi patterns — Angular RxJS and frontend
+                // code cannot execute SQL, so matches are always false positives.
+                let path_str = snap_i.path.to_string_lossy();
+                let is_injection_pattern = advisory.rule_id.contains("SQLI") || advisory.rule_id.contains("NOSQLI");
+                let is_frontend = path_str.contains("/frontend/");
+                if is_injection_pattern && is_frontend {
+                    continue;
+                }
 
                 if !is_corpus_suppressed(&suppressions, &advisory.rule_id, &snap_i.path) {
                     local_advisories.push(advisory);

@@ -43,11 +43,15 @@ pub struct PatternRegistry {
     idf_weights: FxHashMap<u64, f32>,
     api_idf_weights: FxHashMap<u64, f32>,
     /// Per-category learned feature weights (trained at build time or loaded from bundle).
-    pub category_weights: std::collections::HashMap<String, [f64; 13]>,
+    pub category_weights: std::collections::HashMap<String, [f64; 15]>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
     /// Per-pattern sigmoid calibration (A, B) parameters, keyed by pattern id.
     pub pattern_calibration: std::collections::HashMap<String, (f32, f32)>,
+    /// Learned semantic markers: maps API call name → semantic category.
+    /// Built by discovering which API calls appear in which pattern categories
+    /// across the corpus. Merged with hardcoded markers during scanning.
+    pub learned_semantic_markers: std::collections::HashMap<String, String>,
     source_sink: CorpusSourceSinkRegistry,
 }
 
@@ -66,6 +70,7 @@ impl PatternRegistry {
             category_weights: std::collections::HashMap::new(),
             auto_filter_stats: None,
             pattern_calibration: std::collections::HashMap::new(),
+            learned_semantic_markers: std::collections::HashMap::new(),
             source_sink: CorpusSourceSinkRegistry::default(),
         }
     }
@@ -282,12 +287,21 @@ impl PatternRegistry {
         }
     }
 
-    /// Run both IDF passes and learn category weights.
+    /// Learn semantic markers from corpus patterns.
+    fn compute_learned_semantic_markers(&mut self) {
+        if self.learned_semantic_markers.is_empty() {
+            self.learned_semantic_markers =
+                learn_semantic_markers(&self.patterns);
+        }
+    }
+
+    /// Run both IDF passes, learn category weights, and learn semantic markers.
     /// Called after `load_corpus` / `load_corpus_dirs`.
     fn compute_and_apply_idf(&mut self) {
         self.apply_ngram_idf();
         self.compute_api_idf();
         self.compute_category_weights();
+        self.compute_learned_semantic_markers();
     }
 
     pub fn pattern_count(&self) -> usize {
@@ -296,6 +310,12 @@ impl PatternRegistry {
 
     pub fn set_threshold_override(&mut self, category: String, threshold: f64) {
         self.threshold_overrides.insert(category, threshold);
+    }
+
+    /// Override per-category feature weights. Used to calibrate detection for
+    /// specific vulnerability classes without retraining the full corpus.
+    pub fn set_category_weights(&mut self, category: &str, weights: [f64; 15]) {
+        self.category_weights.insert(category.to_string(), weights);
     }
 
     fn threshold_for_pattern(&self, pattern_id: &str) -> f64 {
@@ -333,8 +353,12 @@ impl PatternRegistry {
                 let sig_s = minhash_signature(&fp.structural_markers, num_hashes);
                 struct_index.insert(&sig_s, i as u64);
 
-                // API-call signature
-                let sig_a = if !fp.api_calls.is_empty() {
+                // API-call signature: use segments-only for recall on chained calls
+                // where full call text differs (e.g. .then chain includes different query args).
+                // Segments capture just the method name (query, then, catch, json, ...).
+                let sig_a = if !fp.api_call_segments.is_empty() {
+                    minhash_signature(&fp.api_call_segments, num_hashes)
+                } else if !fp.api_calls.is_empty() {
                     minhash_signature(&fp.api_calls, num_hashes)
                 } else {
                     minhash_signature(&fp.structural_markers, num_hashes)
@@ -367,7 +391,9 @@ impl PatternRegistry {
             };
         let api_candidates: std::collections::HashSet<usize> =
             if let Some(ref lsh) = self.lsh_index_api {
-                let sig = if !fp.api_calls.is_empty() {
+                let sig = if !fp.api_call_segments.is_empty() {
+                    minhash_signature(&fp.api_call_segments, 128)
+                } else if !fp.api_calls.is_empty() {
                     minhash_signature(&fp.api_calls, 128)
                 } else {
                     minhash_signature(&fp.structural_markers, 128)
@@ -508,12 +534,19 @@ impl PatternRegistry {
                 }
             }
 
-            // Structural overlap gate: uses first positive's structure (representative)
-            if let Some(first_pos) = pattern.positives.first() {
-                let struct_sim = crate::minhash::overlap_coefficient_sorted(
-                    &weighted_fp.structural_markers,
-                    &first_pos.structural_markers,
-                );
+            // Structural overlap gate: uses the positive with MAX overlap against candidate.
+            // Multi-function patterns (e.g. higher-order wrappers) have different structures
+            // per function — first() picks the outer wrapper which lacks markers from the
+            // inner callback. Using max-overlap ensures the inner (vulnerable) function is used.
+            if !pattern.positives.is_empty() {
+                let struct_sim = pattern
+                    .positives
+                    .iter()
+                    .map(|p| crate::minhash::overlap_coefficient_sorted(
+                        &weighted_fp.structural_markers,
+                        &p.structural_markers,
+                    ))
+                    .fold(0.0f64, f64::max);
                 if struct_sim < self.struct_overlap_threshold {
                     continue;
                 }
@@ -648,6 +681,52 @@ impl PatternRegistry {
         });
         matches
     }
+}
+
+/// Learn semantic category markers from corpus patterns.
+///
+/// Walks all positive fingerprints' raw call names and groups them by
+/// pattern category (second segment of pattern ID: "sec", "csa", etc.).
+/// Any API call name appearing in ≥2 distinct patterns of the same category
+/// is promoted to a learned semantic marker that maps `api_name → category`.
+///
+/// During scanning, these are merged into fingerprint semantic_markers so
+/// that matching code produces the same semantic-sim signal as the hardcoded
+/// markers would.
+pub fn learn_semantic_markers(patterns: &[CorpusPattern]) -> std::collections::HashMap<String, String> {
+    use std::collections::HashMap;
+    // API call name → set of (category, pattern_count)
+    let mut api_to_cats: HashMap<String, HashMap<String, usize>> = HashMap::new();
+
+    for pattern in patterns {
+        let cat = pattern.id.split('_').nth(1).unwrap_or("unknown").to_string();
+        for fp in &pattern.positives {
+            for call in &fp.raw_call_names {
+                // Use the last segment (method name) for generalization
+                let seg = call.rsplit(|c: char| c == '.' || c == ':')
+                    .next()
+                    .unwrap_or(call)
+                    .to_string();
+                let entry = api_to_cats.entry(seg).or_default();
+                *entry.entry(cat.clone()).or_insert(0) += 1;
+            }
+        }
+    }
+
+    let mut result = HashMap::new();
+    for (api_name, category_counts) in &api_to_cats {
+        // Skip very common method names that would be noise
+        const NOISE_NAMES: &[&str] = &["then", "catch", "json", "next", "toString", "map", "filter", "forEach", "find", "sort", "join", "split", "trim", "log", "error", "send", "status"];
+        if NOISE_NAMES.contains(&api_name.as_str()) {
+            continue;
+        }
+        for (cat, count) in category_counts {
+            if *count >= 2 {
+                result.insert(api_name.clone(), cat.clone());
+            }
+        }
+    }
+    result
 }
 
 /// Recursively collect source texts from a corpus directory for auto-filter computation.

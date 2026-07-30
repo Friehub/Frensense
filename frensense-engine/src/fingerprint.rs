@@ -86,6 +86,24 @@ pub struct FunctionFingerprint {
     #[cfg_attr(feature = "serialize", serde(default))]
     pub config_literal_hashes: Vec<u64>,
 
+    /// Argument call types: hashes of (function_segment, arg_position, arg_ast_kind)
+    /// for each call expression argument. Captures whether calls receive
+    /// string literals, template strings, binary expressions, objects, etc.
+    /// Enables distinguishing `query(concat_string, object)` from
+    /// `query(literal_string, object_with_replacements)`.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub argument_call_types: Vec<u64>,
+
+    /// String literal patterns: hashes of content patterns found in string/template
+    /// literal arguments to calls. Includes markers for:
+    ///   - SQL keywords in strings (SELECT, FROM, WHERE, etc.)
+    ///   - Binary expression concatenation (`"SELECT " + userId`)
+    ///   - Template interpolation (`\`SELECT * FROM ${id}\``)
+    ///   - Placeholder patterns (`:param` in parameterized queries)
+    /// Enables distinguishing vulnerable SQL concatenation from safe parameterized queries.
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub literal_pattern_hashes: Vec<u64>,
+
     /// Whether this function/method has a routing decorator (e.g. `@Get`, `@Post`).
     /// Populated during fingerprint extraction for NestJS/routing-controllers/tsoa detection.
     #[cfg_attr(feature = "serialize", serde(default))]
@@ -517,6 +535,198 @@ fn extract_calls_recursive(
     }
 }
 
+/// Extract argument call types: hashes of (function_segment, arg_position, arg_kind)
+/// for each call expression. Captures whether calls receive string literals,
+/// binary expressions (concat), template strings, objects, identifiers, etc.
+/// Enables distinguishing `query(concat_string, obj)` from `query(literal, obj)`.
+fn extract_argument_call_types(node: Node<'_>, source: &str) -> Vec<u64> {
+    let mut arg_types = rustc_hash::FxHashSet::default();
+    extract_arg_types_recursive(node, source, &mut arg_types);
+    let mut vec: Vec<u64> = arg_types.into_iter().collect();
+    vec.sort_unstable();
+    vec
+}
+
+fn extract_arg_types_recursive(
+    node: Node<'_>,
+    source: &str,
+    arg_types: &mut rustc_hash::FxHashSet<u64>,
+) {
+    if node.kind() == "call_expression" {
+        let func_segment = node
+            .child_by_field_name("function")
+            .map(|f| {
+                let name = &source[f.start_byte()..f.end_byte()];
+                name.rsplit(|c: char| c == '.' || c == ':').next().unwrap_or(name).to_string()
+            })
+            .unwrap_or_default();
+
+        if let Some(args_node) = node.child_by_field_name("arguments") {
+            let mut pos = 0usize;
+            let mut cursor = args_node.walk();
+            if cursor.goto_first_child() {
+                loop {
+                    let arg = cursor.node();
+                    let kind = arg.kind();
+                    // Skip punctuation/delimiters (commas, parens)
+                    if kind != "," && kind != "(" && kind != ")" && kind != ";" {
+                        let mut h = rustc_hash::FxHasher::default();
+                        func_segment.hash(&mut h);
+                        pos.hash(&mut h);
+                        kind.hash(&mut h);
+                        arg_types.insert(h.finish());
+
+                        // If the arg itself is a call expression, also hash the result type
+                        if kind == "call_expression" {
+                            let mut h2 = rustc_hash::FxHasher::default();
+                            func_segment.hash(&mut h2);
+                            pos.hash(&mut h2);
+                            "call_result".hash(&mut h2);
+                            arg_types.insert(h2.finish());
+                        }
+
+                        pos += 1;
+                    }
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            extract_arg_types_recursive(cursor.node(), source, arg_types);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+/// Extract string literal patterns from call arguments.
+/// Detects:
+///   - binary_expression (string concatenation: "SELECT " + userId)
+///   - template_string with interpolation (`SELECT * FROM ${id}`)
+///   - string literal containing SQL keywords (SELECT, FROM, WHERE, etc.)
+///   - string literal containing parameterized placeholders (:param, ?)
+/// Hashes as (function_segment, pattern_type) for each call.
+fn extract_literal_patterns(node: Node<'_>, source: &str) -> Vec<u64> {
+    let mut patterns = rustc_hash::FxHashSet::default();
+    extract_literal_patterns_recursive(node, source, &mut patterns);
+    let mut vec: Vec<u64> = patterns.into_iter().collect();
+    vec.sort_unstable();
+    vec
+}
+
+fn extract_literal_patterns_recursive(
+    node: Node<'_>,
+    source: &str,
+    patterns: &mut rustc_hash::FxHashSet<u64>,
+) {
+    if node.kind() == "call_expression" {
+        let func_segment = node
+            .child_by_field_name("function")
+            .map(|f| {
+                let name = &source[f.start_byte()..f.end_byte()];
+                name.rsplit(|c: char| c == '.' || c == ':').next().unwrap_or(name).to_string()
+            })
+            .unwrap_or_default();
+
+        if let Some(args_node) = node.child_by_field_name("arguments") {
+            let mut pos = 0usize;
+            let mut cursor = args_node.walk();
+            if cursor.goto_first_child() {
+                loop {
+                    let arg = cursor.node();
+                    let kind = arg.kind();
+                    if kind != "," && kind != "(" && kind != ")" && kind != ";" {
+                        let arg_text = &source[arg.start_byte()..arg.end_byte()];
+
+                        let pattern_type = match kind {
+                            "binary_expression" if arg_text.contains('+') => {
+                                // String concatenation: "SELECT " + userId
+                                if arg_text.to_uppercase().contains("SELECT")
+                                    || arg_text.to_uppercase().contains("FROM")
+                                    || arg_text.to_uppercase().contains("WHERE")
+                                    || arg_text.to_uppercase().contains("INSERT")
+                                    || arg_text.to_uppercase().contains("UPDATE")
+                                    || arg_text.to_uppercase().contains("DELETE")
+                                {
+                                    "sql_concat"
+                                } else {
+                                    "string_concat"
+                                }
+                            }
+                            "template_string" => {
+                                let interp = arg_text.contains("${");
+                                let has_sql = arg_text.to_uppercase().contains("SELECT")
+                                    || arg_text.to_uppercase().contains("FROM")
+                                    || arg_text.to_uppercase().contains("WHERE");
+                                if interp && has_sql {
+                                    "sql_template_interp"
+                                } else if interp {
+                                    "template_interp"
+                                } else if has_sql {
+                                    "sql_template_literal"
+                                } else {
+                                    "template_literal"
+                                }
+                            }
+                            _ => {
+                                // For string literals and other types, check content
+                                let upper = arg_text.to_uppercase();
+                                let has_sql = upper.contains("SELECT")
+                                    || upper.contains("FROM")
+                                    || upper.contains("WHERE")
+                                    || upper.contains("INSERT")
+                                    || upper.contains("DELETE");
+                                let has_params = arg_text.contains(':') && (arg_text.contains(":param") || arg_text.contains(":value") || arg_text.contains(":id"));
+                                let has_qmark = arg_text.contains('?');
+                                let is_parametrized = has_params || has_qmark;
+
+                                if is_parametrized && has_sql {
+                                    "sql_parametrized_literal"
+                                } else if has_sql {
+                                    "sql_literal"
+                                } else if is_parametrized {
+                                    "parametrized_literal"
+                                } else {
+                                    // Not a notable pattern — skip
+                                    pos += 1;
+                                    if !cursor.goto_next_sibling() { break; }
+                                    continue;
+                                }
+                            }
+                        };
+
+                        let mut h = rustc_hash::FxHasher::default();
+                        func_segment.hash(&mut h);
+                        pattern_type.hash(&mut h);
+                        pos.hash(&mut h);
+                        patterns.insert(h.finish());
+
+                        pos += 1;
+                    }
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            extract_literal_patterns_recursive(cursor.node(), source, patterns);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
 /// Extract tainted API calls — calls where at least one argument is a function parameter.
 /// This distinguishes `exec(cmd)` from `exec("ls")` at the fingerprint level.
 /// Pure AST traversal, no data flow graph needed.
@@ -928,6 +1138,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
             let data_flow_path_hashes =
                 crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
+            let argument_call_types = extract_argument_call_types(body, source_code);
+            let literal_pattern_hashes = extract_literal_patterns(body, source_code);
 
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
@@ -978,6 +1190,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 param_names,
                 tainted_api_calls,
                 config_literal_hashes: Vec::new(),
+                argument_call_types,
+                literal_pattern_hashes,
                 has_http_decorator,
                 is_registered_handler,
                 export_handler_kind: crate::export_matcher::classify_exported_handler(
@@ -1104,6 +1318,8 @@ pub fn extract_fingerprints(
                 extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
             let data_flow_path_hashes =
                 crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
+            let argument_call_types = extract_argument_call_types(body, source_code);
+            let literal_pattern_hashes = extract_literal_patterns(body, source_code);
 
             let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
             let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
@@ -1154,6 +1370,8 @@ pub fn extract_fingerprints(
                 param_names,
                 tainted_api_calls,
                 config_literal_hashes: Vec::new(),
+                argument_call_types,
+                literal_pattern_hashes,
                 has_http_decorator,
                 is_registered_handler,
                 export_handler_kind: crate::export_matcher::classify_exported_handler(

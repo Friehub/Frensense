@@ -145,7 +145,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
-        weights: &[f64; 13],
+        weights: &[f64; 15],
     ) -> f64 {
         let mut best_pos_score = 0.0f64;
 
@@ -259,7 +259,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 13],
+        weights: &[f64; 15],
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
             candidate,
@@ -283,7 +283,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 13],
+        weights: &[f64; 15],
         dim_cache: &mut DimCache,
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
@@ -305,7 +305,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 13],
+        weights: &[f64; 15],
         mut dim_cache: Option<&mut DimCache>,
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
@@ -439,6 +439,12 @@ impl PatternScorer {
             if dim.cf_order_sim > worst_neg.cf_order_sim {
                 worst_neg.cf_order_sim = dim.cf_order_sim;
             }
+            if dim.arg_type_sim > worst_neg.arg_type_sim {
+                worst_neg.arg_type_sim = dim.arg_type_sim;
+            }
+            if dim.literal_concat_sim > worst_neg.literal_concat_sim {
+                worst_neg.literal_concat_sim = dim.literal_concat_sim;
+            }
         }
 
         // API intersection-size signal
@@ -462,7 +468,7 @@ impl PatternScorer {
             0.0
         };
 
-        let signal: [f64; 13] = [
+        let signal: [f64; 15] = [
             (best_dim.ngram_sim - worst_neg.ngram_sim).max(0.0),
             (best_dim.ast_sim - worst_neg.ast_sim).max(0.0),
             (best_dim.signature_sim - worst_neg.signature_sim).max(0.0),
@@ -476,6 +482,8 @@ impl PatternScorer {
             (best_dim.flow_sim - worst_neg.flow_sim).max(0.0),
             (best_dim.config_sim - worst_neg.config_sim).max(0.0),
             (best_dim.cf_order_sim - worst_neg.cf_order_sim).max(0.0),
+            (best_dim.arg_type_sim - worst_neg.arg_type_sim).max(0.0),
+            (best_dim.literal_concat_sim - worst_neg.literal_concat_sim).max(0.0),
         ];
 
         let max_signal = signal.iter().cloned().fold(0.0f64, f64::max);
@@ -529,7 +537,7 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_positive: bool,
         ngram_sim_threshold: f64,
-        weights: &[f64; 13],
+        weights: &[f64; 15],
     ) -> f64 {
         let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
         let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
@@ -558,7 +566,16 @@ impl PatternScorer {
         };
 
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
-        let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+        // API sim: max of full-name and segment Jaccard for cross-variant matching
+        let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
+        let api_sim_seg = if !candidate.api_call_segments.is_empty()
+            && !target.api_call_segments.is_empty()
+        {
+            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+        } else {
+            0.0
+        };
+        let api_sim = api_sim_full.max(api_sim_seg);
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
         let flow_sim = jaccard(
             &candidate.data_flow_path_hashes,
@@ -585,6 +602,21 @@ impl PatternScorer {
             0.0
         };
 
+        let arg_type_sim = if !candidate.argument_call_types.is_empty()
+            && !target.argument_call_types.is_empty()
+        {
+            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+        } else {
+            0.0
+        };
+        let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
+            && !target.literal_pattern_hashes.is_empty()
+        {
+            jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+        } else {
+            0.0
+        };
+
         ngram_sim * weights[0]
             + ast_sim * weights[1]
             + jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams) * weights[2]
@@ -598,6 +630,8 @@ impl PatternScorer {
             + flow_sim * weights[10]
             + config_sim * weights[11]
             + cf_order_sim * weights[12]
+            + arg_type_sim * weights[13]
+            + literal_concat_sim * weights[14]
     }
 
     pub fn similarity_to_positive(
@@ -620,7 +654,7 @@ impl PatternScorer {
         candidate: &FunctionFingerprint,
         positives: &[FunctionFingerprint],
         negatives: &[FunctionFingerprint],
-        weights: &[f64; 13],
+        weights: &[f64; 15],
     ) -> MatchEvidence {
         let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
 
@@ -732,7 +766,18 @@ impl PatternScorer {
             jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
         let type_usage_sim = type_usage_overlap(candidate, target);
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
-        let api_sim = jaccard(&candidate.api_calls, &target.api_calls);
+        // Fix: api_sim uses max of full-name Jaccard and segment Jaccard.
+        // Full names are too specific (models.sequelize.query ≠ sequelize.query),
+        // segments capture the method name (query) for cross-variant matching.
+        let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
+        let api_sim_seg = if !candidate.api_call_segments.is_empty()
+            && !target.api_call_segments.is_empty()
+        {
+            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+        } else {
+            0.0
+        };
+        let api_sim = api_sim_full.max(api_sim_seg);
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
         let flow_sim = jaccard(
             &candidate.data_flow_path_hashes,
@@ -761,6 +806,22 @@ impl PatternScorer {
             0.0
         };
 
+        // New dimensions: argument call types and string literal patterns
+        let arg_type_sim = if !candidate.argument_call_types.is_empty()
+            && !target.argument_call_types.is_empty()
+        {
+            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+        } else {
+            0.0
+        };
+        let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
+            && !target.literal_pattern_hashes.is_empty()
+        {
+            jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+        } else {
+            0.0
+        };
+
         RawDimensions {
             ngram_sim,
             ast_sim,
@@ -775,6 +836,8 @@ impl PatternScorer {
             tainted_api_sim,
             config_sim,
             cf_order_sim,
+            arg_type_sim,
+            literal_concat_sim,
         }
     }
 }
@@ -813,10 +876,12 @@ pub(crate) struct RawDimensions {
     tainted_api_sim: f64,
     config_sim: f64,
     cf_order_sim: f64,
+    arg_type_sim: f64,
+    literal_concat_sim: f64,
 }
 
 impl RawDimensions {
-    fn weighted_score(&self, w: &[f64; 13]) -> f64 {
+    fn weighted_score(&self, w: &[f64; 15]) -> f64 {
         self.ngram_sim * w[0]
             + self.ast_sim * w[1]
             + self.signature_sim * w[2]
@@ -830,6 +895,8 @@ impl RawDimensions {
             + self.flow_sim * w[10]
             + self.config_sim * w[11]
             + self.cf_order_sim * w[12]
+            + self.arg_type_sim * w[13]
+            + self.literal_concat_sim * w[14]
     }
 }
 
@@ -904,7 +971,7 @@ mod tests {
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
         let default_w = &[
-            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02,
+            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,
         ];
         let score =
             PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
@@ -920,7 +987,7 @@ mod tests {
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
         let default_w = &[
-            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02,
+            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,
         ];
         let score =
             PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
