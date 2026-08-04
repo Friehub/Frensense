@@ -57,9 +57,16 @@ fn dir_prefix(path: &str) -> String {
     p.parent()
         .and_then(|parent| parent.to_str())
         .map(|s| {
-            let parts: Vec<&str> = s.split('/').collect();
-            if parts.len() > 1 {
-                parts[..2].join("/")
+            // Group at the module level, not the top-level namespace. Using the
+            // first two segments (the old behavior) collapsed `src/modules/auth/`
+            // and `src/modules/billing/` into the same bucket, defeating
+            // per-directory profile surprise detection. Instead take the
+            // deepest 2-3 segments of the parent directory, or the whole parent
+            // when it is shallow (i.e. whichever is shorter).
+            let parts: Vec<&str> = s.split('/').filter(|p| !p.is_empty()).collect();
+            let take = parts.len().min(3);
+            if take > 0 {
+                parts[parts.len() - take..].join("/")
             } else {
                 s.to_string()
             }

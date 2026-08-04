@@ -170,9 +170,13 @@ fn is_http_handler(fp: &FunctionFingerprint, import_map: Option<&ImportMap>) -> 
         signals += 1;
     }
 
-    // Decorator signal: NestJS/routing-controllers/tsoa/type-graphql methods
+    // Decorator signal: NestJS/routing-controllers/tsoa/type-graphql methods.
+    // Unambiguous on its own - a @Controller/@Get/@Post method is an HTTP
+    // handler even with no req param / res.send() / app.get() (NestJS
+    // resolves the request internally). Worth two signals so a bare
+    // decorated method still clears the threshold.
     if fp.has_http_decorator {
-        signals += 1;
+        signals += 2;
     }
 
     // Route registration signal: `app.get('/path', fn)` or inline arrow
@@ -180,9 +184,11 @@ fn is_http_handler(fp: &FunctionFingerprint, import_map: Option<&ImportMap>) -> 
         signals += 1;
     }
 
-    // File export signal: Next.js App Router, SvelteKit, Cloudflare Workers, AWS Lambda
+    // File export signal: Next.js App Router, SvelteKit, Cloudflare Workers,
+    // AWS Lambda. Unambiguous - an exported named handler function is by
+    // definition an HTTP entry point worth two signals.
     if fp.export_handler_kind.is_some() {
-        signals += 1;
+        signals += 2;
     }
 
     signals >= 2
@@ -312,6 +318,43 @@ mod tests {
             vec!["res.send".to_string(), "app.get".to_string()],
             vec![],
         );
+        assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
+    }
+
+    #[test]
+    fn test_decorator_only_handler_is_http_handler() {
+        // NestJS-style: `@Get('/users') async getUsers() { return this.svc.findAll(); }`
+        // has ONLY the HTTP decorator signal — no req/res params, no res.send(),
+        // no app.get() route registration. The decorator must count as two
+        // signals so it still clears the >= 2 threshold.
+        let mut fp = make_fp(
+            vec![],
+            vec![],
+            vec![10],
+            vec![20, 21, 22, 23, 24, 25],
+            vec![30],
+            vec![],
+            vec![],
+            vec![],
+        );
+        fp.has_http_decorator = true;
+        assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
+    }
+
+    #[test]
+    fn test_exported_handler_only_is_http_handler() {
+        // Next.js/SvelteKit/CF Worker style: just an exported named handler.
+        let mut fp = make_fp(
+            vec![],
+            vec![],
+            vec![10],
+            vec![20, 21, 22, 23, 24, 25],
+            vec![30],
+            vec![],
+            vec![],
+            vec![],
+        );
+        fp.export_handler_kind = Some(crate::export_matcher::ExportHandlerKind::LambdaHandler);
         assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
     }
 

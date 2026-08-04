@@ -212,19 +212,20 @@ impl SemanticFilter {
             }
         }
 
-        // required_taint_flows is a precision hint: if we have flow data and
-        // a required flow is absent, reject. If flow data was not extracted
-        // (func_node not available in this scan path), pass through — let the
-        // scorer decide. Rejecting here would silently produce false negatives.
+        // required_taint_flows is a precision constraint: every required flow
+        // MUST be present, otherwise reject. func_node and source are always
+        // available in this function, so we extract flows on demand rather than
+        // silently passing through when the caller did not provide them.
         if !self.required_taint_flows.is_empty() {
-            if let Some(flows) = extracted_flows {
-                for req_flow in &self.required_taint_flows {
-                    if !flows.contains(req_flow) {
-                        return false;
-                    }
+            let flows = match extracted_flows {
+                Some(flows) => flows,
+                None => &crate::corpus::data_flow_extractor::extract_data_flows(func_node, source),
+            };
+            for req_flow in &self.required_taint_flows {
+                if !flows.contains(req_flow) {
+                    return false;
                 }
             }
-            // flows == None: no AST node provided — pass through.
         }
 
         true
@@ -557,18 +558,15 @@ pub fn learn_constraints(
     c
 }
 
-/// Simple regex match (supports ^ and $ anchors).
+/// Match `text` against `pattern` using the `regex` crate.
+///
+/// Patterns support full regex syntax (`.` `*` `[]` `^` `$` alternation, etc.).
+/// An invalid pattern is treated as a non-match rather than panicking, so a
+/// typo like `^sanitiseHtml$` yields a clean miss instead of a substring hit.
 fn regex_match(text: &str, pattern: &str) -> bool {
-    if let Some(pat) = pattern.strip_prefix('^') {
-        if let Some(pat) = pat.strip_suffix('$') {
-            text == pat
-        } else {
-            text.starts_with(pat)
-        }
-    } else if let Some(pat) = pattern.strip_suffix('$') {
-        text.ends_with(pat)
-    } else {
-        text.contains(pattern)
+    match regex::Regex::new(pattern) {
+        Ok(re) => re.is_match(text),
+        Err(_) => false,
     }
 }
 

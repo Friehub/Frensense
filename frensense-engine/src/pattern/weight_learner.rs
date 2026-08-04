@@ -99,7 +99,13 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         0.0
     };
     let api_sim = api_sim_full.max(api_sim_seg);
-    let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
+    let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
+        && target.tainted_api_calls.is_empty()
+    {
+        1.0 // Both have no tainted calls — they agree; neutral match.
+    } else {
+        jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+    };
     let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
     let flow_sim = jaccard(
         &candidate.data_flow_path_hashes,

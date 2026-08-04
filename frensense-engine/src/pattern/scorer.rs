@@ -12,6 +12,83 @@ use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::matcher::MatchResult;
 use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Scoring constants
+//
+// These thresholds and factors are shared across every scoring path in this
+// module. They are named and documented here deliberately: a single wrong value
+// silently shifts behaviour across the whole pipeline (retrieval, gating, noise
+// filtering, confidence composition) and is hard to reproduce. Tune with care
+// and keep the doc comments in sync with the effective behaviour.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Neutral default for similarity when both sides are empty — no signal at all,
+/// so neither agreement nor disagreement. Used by `weighted_jaccard` and
+/// `type_usage_overlap`.
+const EMPTY_SIMILARITY_DEFAULT: f64 = 0.5;
+
+/// Cross-lingual transfer penalty (M8). When a pattern's language genuinely
+/// differs from the candidate's (and they are not JS/TS siblings, which share an
+/// AST), the match is scaled by this factor — 0.20 → an 80% reduction — because
+/// cross-language shape matches are far more likely to be coincidental.
+const CROSS_LINGUAL_PENALTY: f32 = 0.20;
+
+/// Penalty for a positive whose semantic markers are non-empty but share zero
+/// overlap with the candidate. 0.30 → a 70% reduction: a structural match with
+/// no shared semantic signal is weak evidence.
+const SEMANTIC_ZERO_PENALTY: f64 = 0.30;
+
+/// Boost applied when a positive's non-empty semantic markers overlap the
+/// candidate's. 2.0 → the positive score doubles, since shared semantic markers
+/// strongly corroborate a real match.
+const SEMANTIC_MATCH_BOOST: f64 = 2.0;
+
+/// Noise gate — moderate dimension threshold. A per-dimension signal above this
+/// counts toward the multi-dimension branch of the gate (see
+/// `NOISE_GATE_MIN_MODERATE_DIMS`).
+const NOISE_GATE_MODERATE_SIGNAL: f64 = 0.15;
+
+/// Noise gate — strong dimension threshold. A single dimension above this
+/// passes the gate on its own, even if no other dimension is significant.
+const NOISE_GATE_STRONG_SIGNAL: f64 = 0.4;
+
+/// Noise gate — minimum number of dimensions with *moderate* signal required to
+/// pass the gate when no single dimension is strong.
+const NOISE_GATE_MIN_MODERATE_DIMS: usize = 2;
+
+/// Early-exit floor in `score_against_corpus`: if the best positive score is
+/// below this, no penalty or boost can reach any plausible final threshold, so
+/// scoring stops early.
+const MIN_BEST_POSITIVE_SCORE: f64 = 0.1;
+
+/// Floor for the negative-similarity penalty term. Prevents an overwhelmingly
+/// similar negative from driving the final score below this value.
+const NEG_PENALTY_FLOOR: f64 = 0.1;
+
+/// Weight of the worst negative similarity inside the penalty term.
+const NEG_PENALTY_WEIGHT: f64 = 0.3;
+
+/// Minimum ngram similarity before the O(n²) AST tree-edit distance is worth
+/// computing; below this the cheaper structural-marker Jaccard is used instead.
+const AST_NGRAM_MIN_THRESHOLD: f64 = 0.12;
+
+// `compute_final` blend weights (rule-based scorer path):
+/// Weight of the base match score in the final blended score.
+const BASE_SCORE_WEIGHT: f64 = 0.4;
+/// Weight of the structural (canonical-form) score in the final blend.
+const STRUCTURAL_SCORE_WEIGHT: f64 = 0.3;
+/// Weight of the profile boost in the final blend.
+const PROFILE_BOOST_WEIGHT: f64 = 0.3;
+/// Default profile boost used when the pattern's kind has no learned profile value.
+const DEFAULT_PROFILE_BOOST: f64 = 0.5;
+/// Kind-diversity count at which the structural score saturates toward 1.0.
+const KIND_DIVERSITY_SATURATION: f64 = 10.0;
+
+/// Per-factor penalty for a context mismatch between the expected and actual
+/// context (sensitivity downgrade or environment mismatch). Applied
+/// multiplicatively for each mismatched attribute.
+const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
+
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
 
@@ -21,7 +98,7 @@ pub fn weighted_jaccard(
     b: &rustc_hash::FxHashMap<u64, f32>,
 ) -> f64 {
     if a.is_empty() && b.is_empty() {
-        return 0.5;
+        return EMPTY_SIMILARITY_DEFAULT;
     }
     let mut intersection = 0.0f64;
     let mut union = 0.0f64;
@@ -53,7 +130,7 @@ fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
     if js_like(pattern_lang) && js_like(candidate_lang) {
         return 1.0;
     }
-    0.20 // 80% penalty for genuinely different languages (e.g. Rust ↔ TypeScript)
+    CROSS_LINGUAL_PENALTY // 80% penalty for genuinely different languages (e.g. Rust ↔ TypeScript)
 }
 
 #[derive(Debug, Clone)]
@@ -125,7 +202,7 @@ impl PatternScorer {
         let structural_score = {
             let cf = CanonicalForm::from_node(pattern);
             let kind_diversity = cf.kind_sequence.len() as f64;
-            (kind_diversity / (kind_diversity + 10.0)).min(1.0)
+            (kind_diversity / (kind_diversity + KIND_DIVERSITY_SATURATION)).min(1.0)
         };
 
         let profile_boost = profiles
@@ -133,9 +210,11 @@ impl PatternScorer {
                 let key = &pattern.kind;
                 p.get(key).copied()
             })
-            .unwrap_or(0.5);
+            .unwrap_or(DEFAULT_PROFILE_BOOST);
 
-        base_score * 0.4 + structural_score * 0.3 + profile_boost * 0.3
+        base_score * BASE_SCORE_WEIGHT
+            + structural_score * STRUCTURAL_SCORE_WEIGHT
+            + profile_boost * PROFILE_BOOST_WEIGHT
     }
 
     pub fn score_against_corpus(
@@ -182,9 +261,9 @@ impl PatternScorer {
                 &positive.semantic_markers,
             ) == 0.0
             {
-                0.30
+                SEMANTIC_ZERO_PENALTY
             } else {
-                2.0
+                SEMANTIC_MATCH_BOOST
             };
             let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
 
@@ -195,8 +274,8 @@ impl PatternScorer {
         }
 
         // Fast path: if the best positive score is already too low to meet any reasonable threshold, return early
-        // We know the minimum threshold is 0.5 usually, but even if it's 0.2, if best_pos_score < 0.1, we skip
-        if best_pos_score < 0.1 {
+        // We know the minimum threshold is 0.5 usually, but even if it's 0.2, if best_pos_score < MIN_BEST_POSITIVE_SCORE, we skip
+        if best_pos_score < MIN_BEST_POSITIVE_SCORE {
             return best_pos_score;
         }
 
@@ -217,19 +296,19 @@ impl PatternScorer {
                 if exp.sensitivity == crate::context::DataSensitivity::High
                     && act.sensitivity != crate::context::DataSensitivity::High
                 {
-                    penalty *= 0.5;
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
                 }
                 if exp.environment == crate::context::Environment::RouteHandler
                     && (act.environment == crate::context::Environment::Test
                         || act.environment == crate::context::Environment::Utility)
                 {
-                    penalty *= 0.5;
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
                 }
                 if act.environment == crate::context::Environment::RouteHandler
                     && exp.environment != crate::context::Environment::RouteHandler
                     && exp.environment != crate::context::Environment::Unknown
                 {
-                    penalty *= 0.5;
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
                 }
                 penalty
             }
@@ -237,9 +316,9 @@ impl PatternScorer {
         };
 
         let neg_penalty = if max_neg_sim >= best_pos_score {
-            (1.0 - max_neg_sim).max(0.1)
+            (1.0 - max_neg_sim).max(NEG_PENALTY_FLOOR)
         } else {
-            1.0 - (max_neg_sim * 0.3)
+            1.0 - (max_neg_sim * NEG_PENALTY_WEIGHT)
         };
 
         best_pos_score * neg_penalty * context_multiplier
@@ -339,9 +418,9 @@ impl PatternScorer {
             let sem_mult = if positive.semantic_markers.is_empty() {
                 1.0
             } else if dim.semantic_sim == 0.0 {
-                0.30
+                SEMANTIC_ZERO_PENALTY
             } else {
-                2.0
+                SEMANTIC_MATCH_BOOST
             };
             let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
             let pos_score = dim.weighted_score(weights) * f64::from(transfer) * sem_mult;
@@ -491,10 +570,15 @@ impl PatternScorer {
 
         // Noise gate: a single weak dimensional coincidence (e.g. api_sim=0.45)
         // should not trigger a match. Require either:
-        //   • one strong dimension (> 0.4), OR
-        //   • ≥2 dimensions with moderate signal (> 0.15)
-        let strong_count = signal.iter().filter(|&&s| s > 0.15).count();
-        let gate = max_signal > 0.4 || strong_count >= 2;
+        //   • one strong dimension (> NOISE_GATE_STRONG_SIGNAL), OR
+        //   • ≥NOISE_GATE_MIN_MODERATE_DIMS dimensions with moderate signal
+        //     (> NOISE_GATE_MODERATE_SIGNAL)
+        let strong_count = signal
+            .iter()
+            .filter(|&&s| s > NOISE_GATE_MODERATE_SIGNAL)
+            .count();
+        let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
+            || strong_count >= NOISE_GATE_MIN_MODERATE_DIMS;
 
         // Use the weighted sum as the final score — this is the same type of
         // score that the Platt scaling calibration was trained on (weighted
@@ -510,19 +594,19 @@ impl PatternScorer {
                 if exp.sensitivity == crate::context::DataSensitivity::High
                     && act.sensitivity != crate::context::DataSensitivity::High
                 {
-                    penalty *= 0.5;
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
                 }
                 if exp.environment == crate::context::Environment::RouteHandler
                     && (act.environment == crate::context::Environment::Test
                         || act.environment == crate::context::Environment::Utility)
                 {
-                    penalty *= 0.5;
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
                 }
                 if act.environment == crate::context::Environment::RouteHandler
                     && exp.environment != crate::context::Environment::RouteHandler
                     && exp.environment != crate::context::Environment::Unknown
                 {
-                    penalty *= 0.5;
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
                 }
                 penalty
             }
@@ -581,8 +665,10 @@ impl PatternScorer {
             &candidate.data_flow_path_hashes,
             &target.data_flow_path_hashes,
         );
-        let tainted_api_sim = if target.tainted_api_calls.is_empty() {
-            1.0
+let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
+            && target.tainted_api_calls.is_empty()
+        {
+            1.0 // Both have no tainted calls — they agree; treat as neutral match.
         } else {
             jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
@@ -591,7 +677,6 @@ impl PatternScorer {
             &candidate.config_literal_hashes,
             &target.config_literal_hashes,
         );
-
         let cf_order_sim = if candidate.control_flow_sequence_hash == 0
             && target.control_flow_sequence_hash == 0
         {
@@ -668,9 +753,9 @@ impl PatternScorer {
             let semantic_multiplier = if positive.semantic_markers.is_empty() {
                 1.0
             } else if jaccard(&candidate.semantic_markers, &positive.semantic_markers) == 0.0 {
-                0.30
+                SEMANTIC_ZERO_PENALTY
             } else {
-                2.0
+                SEMANTIC_MATCH_BOOST
             };
             let transfer = crate::pattern::scorer::cross_lingual_penalty(
                 &positive.language,
@@ -751,7 +836,7 @@ impl PatternScorer {
         // a perfect AST match to meaningfully move the weighted score.
         let ast_sim = if !candidate.skeleton_hashes.is_empty()
             && !target.skeleton_hashes.is_empty()
-            && ngram_sim > 0.12
+            && ngram_sim > AST_NGRAM_MIN_THRESHOLD
         {
             1.0 - crate::ast_distance::tree_edit_distance(
                 &candidate.skeleton_hashes,
@@ -783,8 +868,10 @@ impl PatternScorer {
             &candidate.data_flow_path_hashes,
             &target.data_flow_path_hashes,
         );
-        let tainted_api_sim = if target.tainted_api_calls.is_empty() {
-            0.0 // No tainted calls → no overlap → 0 similarity, not 1.0
+        let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
+            && target.tainted_api_calls.is_empty()
+        {
+            1.0 // Both have no tainted calls — they agree; neutral match.
         } else {
             jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
@@ -902,7 +989,7 @@ impl RawDimensions {
 
 pub(crate) fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
     if a.type_usages.is_empty() && b.type_usages.is_empty() {
-        return 0.5;
+        return EMPTY_SIMILARITY_DEFAULT;
     }
     let set_a: rustc_hash::FxHashSet<_> = a.type_usages.iter().collect();
     let set_b: rustc_hash::FxHashSet<_> = b.type_usages.iter().collect();

@@ -86,14 +86,13 @@ fn collect_tainted_recursive(
                 .or_else(|| node.child_by_field_name("right")),
         ) {
             let var_name = &source[name_node.start_byte()..name_node.end_byte()];
-            let rhs_text = &source[value_node.start_byte()..value_node.end_byte()];
 
-            // Check if RHS contains a known source member
-            for (member, &motif) in lookup {
-                if motif == "UserInputSource" && rhs_text.contains(member.as_str()) {
-                    tainted.insert(var_name.to_string(), motif);
-                    break;
-                }
+            // Only treat the RHS as a source when a member actually appears as a
+            // reference node (identifier / member-expression / scoped identifier),
+            // never as a substring inside a string literal. `let msg = "log
+            // req.body ..."` must NOT mark `msg` tainted.
+            if rhs_references_source(value_node, source, lookup) {
+                tainted.insert(var_name.to_string(), "UserInputSource");
             }
         }
     }
@@ -107,6 +106,114 @@ fn collect_tainted_recursive(
             }
         }
     }
+}
+
+/// Returns true if the RHS subtree contains a node whose full text is a known
+/// UserInputSource member, walking only reference nodes and never descending
+/// into string literal content.
+fn rhs_references_source(
+    node: Node<'_>,
+    source: &str,
+    lookup: &FxHashMap<String, &'static str>,
+) -> bool {
+    let kind = node.kind();
+
+    // Never treat literal text (string contents, comments, numbers) as a source
+    // reference. Template substitution expressions `${x}` are handled because we
+    // only skip the *fragment* nodes, not the substitution.
+    if matches!(
+        kind,
+        "string"
+            | "string_literal"
+            | "string_content"
+            | "string_fragment"
+            | "raw_string_literal"
+            | "raw_string"
+            | "quoted_string"
+            | "char_literal"
+            | "comment"
+            | "number"
+            | "integer"
+            | "float"
+            | "boolean"
+    ) {
+        return false;
+    }
+
+    // Reference nodes: an identifier or a member/scoped expression whose exact
+    // source text matches a registered UserInputSource member.
+    if matches!(
+        kind,
+        "identifier"
+            | "member_expression"
+            | "scoped_identifier"
+            | "subscript_expression"
+            | "field_identifier"
+            | "property_identifier"
+    ) {
+        let text = &source[node.start_byte()..node.end_byte()];
+        if let Some(&motif) = lookup.get(text) {
+            if motif == "UserInputSource" {
+                return true;
+            }
+        }
+    }
+
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            if rhs_references_source(cursor.node(), source, lookup) {
+                return true;
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    false
+}
+
+/// Returns true if any argument subtree references `name` as an identifier
+/// (or member-object) node, ignoring string literal content.
+fn args_reference_var(node: Node<'_>, source: &str, name: &str) -> bool {
+    let kind = node.kind();
+
+    // Never treat literal text as a reference.
+    if matches!(
+        kind,
+        "string"
+            | "string_literal"
+            | "string_content"
+            | "string_fragment"
+            | "raw_string_literal"
+            | "raw_string"
+            | "quoted_string"
+            | "char_literal"
+            | "comment"
+            | "number"
+            | "integer"
+            | "float"
+            | "boolean"
+    ) {
+        return false;
+    }
+
+    if kind == "identifier" {
+        return &source[node.start_byte()..node.end_byte()] == name;
+    }
+
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            if args_reference_var(cursor.node(), source, name) {
+                return true;
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    false
 }
 
 /// Walk calls in the body. For each call, check if any argument uses a
@@ -130,11 +237,12 @@ fn find_sink_paths(
             });
 
             if let Some(sink_motif) = sink_motif {
-                // Check arguments for tainted variables
+                // Check arguments for tainted variables by AST reference, not
+                // substring. A sink called with a string literal that merely
+                // happens to contain a variable name must not mint a path hash.
                 if let Some(args) = node.child_by_field_name("arguments") {
-                    let args_text = &source[args.start_byte()..args.end_byte()];
                     for (var, &source_motif) in tainted {
-                        if args_text.contains(var.as_str()) {
+                        if args_reference_var(args, source, var) {
                             // Emit path: source_motif → sink_motif
                             let path = FlowPath {
                                 labels: vec![source_motif, "taint_flow", sink_motif],
@@ -155,5 +263,98 @@ fn find_sink_paths(
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_ts(code: &str) -> tree_sitter::Tree {
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
+            .unwrap();
+        parser.parse(code, None).unwrap()
+    }
+
+    fn tainted_vars(code: &str) -> FxHashMap<String, &'static str> {
+        let tree = parse_ts(code);
+        let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
+        collect_tainted_vars(tree.root_node(), code, lookup)
+    }
+
+    #[test]
+    fn source_member_in_string_literal_is_not_tainted() {
+        let code = r#"
+function logRequest() {
+    let logMsg = "Processing req.body data for audit";
+    console.log(logMsg);
+}
+"#;
+        let tainted = tainted_vars(code);
+        assert!(
+            tainted.is_empty(),
+            "string literals must not taint variables, got {tainted:?}"
+        );
+    }
+
+    #[test]
+    fn genuine_member_reference_is_tainted() {
+        let code = r#"
+function handler() {
+    let cmd = req.body.command;
+    console.log(cmd);
+}
+"#;
+        let tainted = tainted_vars(code);
+        assert_eq!(tainted.get("cmd"), Some(&"UserInputSource"));
+    }
+
+    #[test]
+    fn plain_member_access_on_source_is_tainted() {
+        let code = r#"
+function handler() {
+    let q = req.query;
+    use(q);
+}
+"#;
+        let tainted = tainted_vars(code);
+        assert_eq!(tainted.get("q"), Some(&"UserInputSource"));
+    }
+
+    #[test]
+    fn sink_call_with_var_name_in_string_literal_gets_no_flow_path() {
+        let code = "function handler() { let cmd = req.body.command; exec(\"cmd was executed\"); }";
+        let tree = parse_ts(code);
+        let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
+        let tainted = collect_tainted_vars(tree.root_node(), code, lookup);
+        assert_eq!(tainted.get("cmd"), Some(&"UserInputSource"));
+        let mut hashes = FxHashSet::default();
+        find_sink_paths(tree.root_node(), code, &tainted, lookup, &mut hashes);
+        assert!(hashes.is_empty(), "string-literal arg must not produce a flow path, got {hashes:?}");
+    }
+
+    #[test]
+    fn sink_call_with_real_var_reference_emits_flow_path() {
+        let code = "function handler() { let cmd = req.body.command; exec(cmd); }";
+        let tree = parse_ts(code);
+        let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
+        let tainted = collect_tainted_vars(tree.root_node(), code, lookup);
+        let mut hashes = FxHashSet::default();
+        find_sink_paths(tree.root_node(), code, &tainted, lookup, &mut hashes);
+        assert_eq!(hashes.len(), 1, "genuine flow should emit one path, got {hashes:?}");
+    }
+
+    #[test]
+    fn template_substitution_reference_is_tainted() {
+        let code = r#"
+function handler() {
+    let msg = `value: ${req.body.field}`;
+    send(msg);
+}
+"#;
+        let tainted = tainted_vars(code);
+        assert_eq!(tainted.get("msg"), Some(&"UserInputSource"));
     }
 }

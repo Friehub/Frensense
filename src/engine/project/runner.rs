@@ -758,6 +758,8 @@ fn run_corpus_scan(
                 advisory.cwe = m.cwe.clone();
                 advisory.cvss = m.cvss;
                 advisory.owasp = m.owasp.clone();
+                advisory.taint_branch_ratio = m.taint_branch_ratio;
+                advisory.has_validation_name = Some(m.has_validation_name);
 
                 // Skip frontend code for SQLi/NoSQLi patterns — Angular RxJS and frontend
                 // code cannot execute SQL, so matches are always false positives.
@@ -1294,11 +1296,16 @@ impl Engine {
     /// May panic if internal assertions fail.
     /// Uses `LayerSignals` to check if layers are causally related, not just co-located.
     fn apply_composition(&self, advisories: &mut [Advisory]) {
-        crate::engine::composition::apply_composition(
-            advisories,
-            self.confidence_boost_rate,
-            self.confidence_boost_max,
-        );
+        use crate::engine::composition::CompositionConfig;
+
+        let config = CompositionConfig {
+            boost_rate: self.confidence_boost_rate,
+            boost_max: self.confidence_boost_max,
+            taint_unconfirmed_penalty: self.taint_unconfirmed_penalty,
+            high_branch_ratio_threshold: self.high_branch_ratio_threshold,
+            high_branch_ratio_suppression_factor: self.high_branch_ratio_suppression_factor,
+        };
+        crate::engine::composition::apply_composition(advisories, &config);
     }
 
     /// Runs a detailed audit, returning both advisories and the assembled symbol registry.

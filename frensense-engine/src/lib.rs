@@ -40,6 +40,11 @@ pub mod profile;
 pub mod route_registry;
 #[cfg(feature = "full-analysis")]
 pub mod semantic_patterns;
+pub mod semantic;
+#[cfg(feature = "oxc")]
+pub mod oxc_provider;
+#[cfg(feature = "rust-hir")]
+pub mod rust_hir_provider;
 pub mod symbols;
 #[cfg(feature = "full-analysis")]
 pub mod temporal;

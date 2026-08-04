@@ -29,6 +29,11 @@ pub struct PatternMatch {
     pub owasp: Option<String>,
     pub severity: Option<String>,
     pub runtime_probe: Option<String>,
+    /// Taint branch ratio from `TaintMetrics` — fraction of tainted accesses
+    /// that are branched on. Propagated to the composition layer.
+    pub taint_branch_ratio: Option<f64>,
+    /// Whether the function name suggests a validator/sanitizer.
+    pub has_validation_name: bool,
 }
 
 #[derive(Default)]
@@ -670,6 +675,14 @@ impl PatternRegistry {
                     owasp: pattern.owasp.clone(),
                     severity: pattern.severity.clone(),
                     runtime_probe: pattern.runtime_probe.clone(),
+                    taint_branch_ratio: match &taint_metrics {
+                    Some((tm, _)) if tm.tainted_uses > 0 => Some(tm.taint_branch_ratio as f64),
+                    _ => None,
+                },
+                has_validation_name: taint_metrics
+                    .as_ref()
+                    .map(|(tm, _)| tm.has_validation_name)
+                    .unwrap_or(false),
                 });
             }
         }

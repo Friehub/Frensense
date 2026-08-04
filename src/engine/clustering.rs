@@ -86,12 +86,35 @@ pub fn cluster_functions(
     let n = fingerprints.len();
     let mut uf = UnionFind::new(n);
 
-    // Union functions that are similar enough
+    // Build a MinHash signature once per fingerprint, then index them in an
+    // LSH table so candidate discovery is sub-linear instead of O(n²).
+    let signatures: Vec<Vec<u64>> = fingerprints
+        .iter()
+        .map(|fp| {
+            frensense_engine::minhash::minhash_signature(
+                &fp.ngram_hashes,
+                frensense_engine::minhash::DEFAULT_NUM_HASHES,
+            )
+        })
+        .collect();
+
+    let mut index = frensense_engine::minhash::LSHIndex::default();
+    for (i, sig) in signatures.iter().enumerate() {
+        index.insert(sig, i as u64);
+    }
+
+    // Union only pairs that share an LSH band bucket. This turns the dominant
+    // cost from n² full comparisons into n · k, where k is the average number
+    // of candidates returned per query (≈ log n).
     for i in 0..n {
-        for j in (i + 1)..n {
-            let sim = frensense_engine::minhash::approximate_jaccard(
-                &fingerprints[i].ngram_hashes,
-                &fingerprints[j].ngram_hashes,
+        for j in index.query(&signatures[i]) {
+            let j = j as usize;
+            if j <= i {
+                continue; // each unordered pair considered once
+            }
+            let sim = frensense_engine::minhash::signature_similarity(
+                &signatures[i],
+                &signatures[j],
             );
             if sim >= similarity_threshold {
                 uf.union(i, j);
@@ -119,7 +142,7 @@ pub fn cluster_functions(
             .iter()
             .map(|&idx| {
                 let fp = &fingerprints[idx];
-                let role = classify_member_role(fp, fingerprints, &members);
+                let role = classify_member_role(fp, fingerprints, &signatures, idx, &members);
                 ClusterMember {
                     fingerprint: fp.clone(),
                     cluster_role: role,
@@ -150,6 +173,8 @@ pub fn cluster_functions(
 fn classify_member_role(
     fp: &FunctionFingerprint,
     all_fps: &[FunctionFingerprint],
+    signatures: &[Vec<u64>],
+    self_idx: usize,
     cluster_indices: &[usize],
 ) -> ClusterRole {
     let has_category = |cat: &str| {
@@ -180,16 +205,17 @@ fn classify_member_role(
         }
 
         // Check if this member differs significantly from others in the cluster
+        let self_name = &fp.function_name;
         let avg_sim: f64 = cluster_indices
             .iter()
             .filter(|&&other_idx| {
-                let other = &all_fps[other_idx];
-                other.function_name != fp.function_name
+                let other_name = &all_fps[other_idx].function_name;
+                other_name != self_name
             })
             .map(|&other_idx| {
-                frensense_engine::minhash::approximate_jaccard(
-                    &fp.ngram_hashes,
-                    &all_fps[other_idx].ngram_hashes,
+                frensense_engine::minhash::signature_similarity(
+                    &signatures[self_idx],
+                    &signatures[other_idx],
                 )
             })
             .sum::<f64>()
@@ -273,5 +299,46 @@ mod tests {
         assert_eq!(uf.find(0), uf.find(1));
         assert_eq!(uf.find(2), uf.find(3));
         assert_ne!(uf.find(0), uf.find(2));
+    }
+
+    fn make_fp(name: &str, body: &str) -> FunctionFingerprint {
+        let source = format!("fn {name}() {{ {body} }}");
+        let mut parser = tree_sitter::Parser::new();
+        assert!(parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .is_ok());
+        let tree = parser.parse(&source, None).unwrap();
+        let mut fps = Vec::new();
+        frensense_engine::fingerprint::extract_fingerprints(
+            tree.root_node(),
+            &source,
+            std::path::Path::new("test.rs"),
+            &mut fps,
+            5,
+        );
+        assert!(!fps.is_empty(), "no fingerprint for {source}");
+        fps.remove(0)
+    }
+
+    #[test]
+    fn test_cluster_functions_with_lsh() {
+        // Identical (duplicated) functions share the same ngram set.
+        let fps = vec![
+            make_fp("dup_a", "read_to_string(path)?; let x = parse(&s); x.len()"),
+            make_fp("dup_b", "read_to_string(path)?; let x = parse(&s); x.len()"),
+            make_fp("dup_c", "read_to_string(path)?; let x = parse(&s); x.len()"),
+            make_fp("unique_x", "a + b * c - d / e % f"),
+            make_fp("unique_y", "g * h + i - j / k % l"),
+        ];
+
+        let clusters = cluster_functions(&fps, 0.75);
+
+        // The three identical functions should land in one cluster of size 3.
+        let triple = clusters
+            .iter()
+            .filter(|c| c.members.len() == 3)
+            .collect::<Vec<_>>();
+        assert_eq!(triple.len(), 1, "expected one triple cluster, got {clusters:#?}");
+        assert!(!triple[0].has_inconsistency);
     }
 }

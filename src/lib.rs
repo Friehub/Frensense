@@ -142,6 +142,11 @@ pub struct Advisory {
     /// Used by composition layer to suppress hollow validators.
     #[serde(default)]
     pub taint_branch_ratio: Option<f64>,
+    /// Whether the function's name indicates a validator/sanitizer
+    /// (`validate_input`, `check_*`, `sanitize_*`, ...). From `TaintMetrics`.
+    /// Used by composition layer before suppressing high branch-ratio findings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_validation_name: Option<bool>,
     /// Per-dimension match breakdown, present when finding comes from corpus matching.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub match_evidence: Option<MatchEvidence>,
@@ -198,6 +203,7 @@ impl Advisory {
             requires_human: true,
             tags: Vec::new(),
             taint_branch_ratio: None,
+            has_validation_name: None,
             match_evidence: None,
             cwe: None,
             cvss: None,
@@ -249,6 +255,11 @@ impl Advisory {
 
     pub fn with_taint_branch_ratio(mut self, v: f64) -> Self {
         self.taint_branch_ratio = Some(v);
+        self
+    }
+
+    pub fn with_has_validation_name(mut self, v: bool) -> Self {
+        self.has_validation_name = Some(v);
         self
     }
 

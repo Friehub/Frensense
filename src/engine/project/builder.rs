@@ -34,6 +34,18 @@ impl Engine {
         self.confidence_boost_max = val;
     }
 
+    pub const fn set_taint_unconfirmed_penalty(&mut self, val: f64) {
+        self.taint_unconfirmed_penalty = val;
+    }
+
+    pub const fn set_high_branch_ratio_threshold(&mut self, val: f64) {
+        self.high_branch_ratio_threshold = val;
+    }
+
+    pub const fn set_high_branch_ratio_suppression_factor(&mut self, val: f64) {
+        self.high_branch_ratio_suppression_factor = val;
+    }
+
     pub const fn set_max_source_lines(&mut self, val: usize) {
         self.max_source_lines = Some(val);
     }

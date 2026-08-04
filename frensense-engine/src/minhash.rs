@@ -3,9 +3,9 @@
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use std::hash::{Hash, Hasher};
 
-const DEFAULT_NUM_HASHES: usize = 128;
-const DEFAULT_BANDS: usize = 32;
-const DEFAULT_ROWS_PER_BAND: usize = 4;
+pub const DEFAULT_NUM_HASHES: usize = 128;
+pub const DEFAULT_BANDS: usize = 32;
+pub const DEFAULT_ROWS_PER_BAND: usize = 4;
 
 fn sha1_hash(value: u64, seed: u64) -> u64 {
     let mut hasher = FxHasher::default();
