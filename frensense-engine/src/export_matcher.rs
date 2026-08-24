@@ -38,21 +38,41 @@ pub enum ExportHandlerKind {
 /// An empty `file_path_substring` matches any file.
 static EXPORT_HANDLER_RULES: &[(&str, &str, ExportHandlerKind)] = &[
     // SvelteKit: +server files (check BEFORE api/ so +server files under api/ match correctly)
-    ("+server", "GET",    ExportHandlerKind::SvelteKitHandler),
-    ("+server", "POST",   ExportHandlerKind::SvelteKitHandler),
-    ("+server", "PUT",    ExportHandlerKind::SvelteKitHandler),
+    ("+server", "GET", ExportHandlerKind::SvelteKitHandler),
+    ("+server", "POST", ExportHandlerKind::SvelteKitHandler),
+    ("+server", "PUT", ExportHandlerKind::SvelteKitHandler),
     ("+server", "DELETE", ExportHandlerKind::SvelteKitHandler),
-    ("+server", "PATCH",  ExportHandlerKind::SvelteKitHandler),
+    ("+server", "PATCH", ExportHandlerKind::SvelteKitHandler),
     // Next.js App Router: files under api/ with any name, HTTP method exports
-    ("api/", "GET",    ExportHandlerKind::HttpHandlerByName(HttpMethod::Get)),
-    ("api/", "POST",   ExportHandlerKind::HttpHandlerByName(HttpMethod::Post)),
-    ("api/", "PUT",    ExportHandlerKind::HttpHandlerByName(HttpMethod::Put)),
-    ("api/", "DELETE", ExportHandlerKind::HttpHandlerByName(HttpMethod::Delete)),
-    ("api/", "PATCH",  ExportHandlerKind::HttpHandlerByName(HttpMethod::Patch)),
+    (
+        "api/",
+        "GET",
+        ExportHandlerKind::HttpHandlerByName(HttpMethod::Get),
+    ),
+    (
+        "api/",
+        "POST",
+        ExportHandlerKind::HttpHandlerByName(HttpMethod::Post),
+    ),
+    (
+        "api/",
+        "PUT",
+        ExportHandlerKind::HttpHandlerByName(HttpMethod::Put),
+    ),
+    (
+        "api/",
+        "DELETE",
+        ExportHandlerKind::HttpHandlerByName(HttpMethod::Delete),
+    ),
+    (
+        "api/",
+        "PATCH",
+        ExportHandlerKind::HttpHandlerByName(HttpMethod::Patch),
+    ),
     // Next.js Pages Router: files under pages/api/, default export
     ("pages/api/", "", ExportHandlerKind::DefaultHandler),
     // AWS Lambda: any file, named handler or lambdaHandler
-    ("", "handler",       ExportHandlerKind::LambdaHandler),
+    ("", "handler", ExportHandlerKind::LambdaHandler),
     ("", "lambdaHandler", ExportHandlerKind::LambdaHandler),
     // Cloudflare Worker: any file, default export of an object with fetch
     ("", "", ExportHandlerKind::WorkerFetch), // checked separately
@@ -96,17 +116,15 @@ pub fn classify_exported_handler(
     // For default exports of objects, check if it has a fetch method → Worker.
     // This runs BEFORE extract_exported_name because objects don't have a name.
     if is_default {
-        let value = export_node
-            .child_by_field_name("value")
-            .or_else(|| {
-                for i in 0..export_node.child_count() {
-                    let child = export_node.child(i)?;
-                    if child.kind() != "export" && child.kind() != "default" && child.kind() != ";" {
-                        return Some(child);
-                    }
+        let value = export_node.child_by_field_name("value").or_else(|| {
+            for i in 0..export_node.child_count() {
+                let child = export_node.child(i)?;
+                if child.kind() != "export" && child.kind() != "default" && child.kind() != ";" {
+                    return Some(child);
                 }
-                None
-            });
+            }
+            None
+        });
         if let Some(value_node) = value {
             if value_node.kind() == "object" || value_node.kind() == "object_literal" {
                 for j in 0..value_node.child_count() {
@@ -256,7 +274,10 @@ mod tests {
         let fn_node = export_stmt.child(1).unwrap(); // 0=export, 1=function_declaration
         assert_eq!(fn_node.kind(), "function_declaration");
         let result = classify_exported_handler(fn_node, &source, "app/api/users/route.ts");
-        assert_eq!(result, Some(ExportHandlerKind::HttpHandlerByName(HttpMethod::Get)));
+        assert_eq!(
+            result,
+            Some(ExportHandlerKind::HttpHandlerByName(HttpMethod::Get))
+        );
     }
 
     #[test]
@@ -289,7 +310,8 @@ mod tests {
         for i in 0..export_stmt.child_count() {
             let child = export_stmt.child(i).unwrap();
             if child.kind() == "lexical_declaration" {
-                let result = classify_exported_handler(child, &source, "src/routes/api/orders/+server.ts");
+                let result =
+                    classify_exported_handler(child, &source, "src/routes/api/orders/+server.ts");
                 assert_eq!(result, Some(ExportHandlerKind::SvelteKitHandler));
                 return;
             }

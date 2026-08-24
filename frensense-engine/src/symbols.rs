@@ -65,7 +65,7 @@ impl SymbolRegistry {
     pub fn merge(&mut self, mut other: SymbolRegistry) {
         self.graph.merge(other.graph);
         // The node indices in other.file_index are no longer valid because `merge` created new nodes.
-        // We actually don't strictly need file_index to be perfectly merged for cross_file taint resolution, 
+        // We actually don't strictly need file_index to be perfectly merged for cross_file taint resolution,
         // as it relies on SemanticGraph, but we should clear or rebuild it if needed.
         // For now, rebuilding file_index is complex without returning the node_map from SemanticGraph::merge.
         // But cross_file.rs relies on `all_symbols()` which uses the SemanticGraph directly.
@@ -246,6 +246,12 @@ impl SymbolRegistry {
     }
 
     /// Extract call edges from a tree-sitter tree using the given call query.
+    ///
+    /// The query must expose two captures per match:
+    ///   `@caller` — the enclosing function / method name
+    ///   `@call`   — the callee being invoked
+    ///
+    /// If a match is missing either capture it is skipped silently.
     pub fn extract_edges_from_tree(
         &mut self,
         tree: &tree_sitter::Tree,
@@ -259,16 +265,41 @@ impl SymbolRegistry {
         let Ok(query) = Query::new(&lang, query_str) else {
             return;
         };
-        let mut cursor = tree_sitter::QueryCursor::new();
 
+        // Pre-compute capture-name → index map so the hot loop is O(1).
+        let capture_names = query.capture_names();
+        let caller_idx = capture_names
+            .iter()
+            .position(|n| *n == "caller")
+            .map(|i| i as u32);
+        let call_idx = capture_names
+            .iter()
+            .position(|n| *n == "call")
+            .map(|i| i as u32);
+
+        // Both captures must be present in the query; if either is absent the
+        // query string is malformed — skip the whole file without panicking.
+        let (Some(caller_idx), Some(call_idx)) = (caller_idx, call_idx) else {
+            return;
+        };
+
+        let mut cursor = tree_sitter::QueryCursor::new();
         for m in cursor.matches(&query, tree.root_node(), source.as_bytes()) {
-            for capture in m.captures {
-                if query.capture_names()[capture.index as usize] == "call" {
-                    let node = capture.node;
-                    let name = &source[node.start_byte()..node.end_byte()];
-                    #[cfg(feature = "full-analysis")]
-                    self.add_call_edge(file_path, name, name);
-                }
+            // Each match should have exactly one @caller and one @call capture.
+            let caller_name = m
+                .captures
+                .iter()
+                .find(|c| c.index == caller_idx)
+                .map(|c| &source[c.node.start_byte()..c.node.end_byte()]);
+            let callee_name = m
+                .captures
+                .iter()
+                .find(|c| c.index == call_idx)
+                .map(|c| &source[c.node.start_byte()..c.node.end_byte()]);
+
+            #[cfg(feature = "full-analysis")]
+            if let (Some(caller), Some(callee)) = (caller_name, callee_name) {
+                self.add_call_edge(file_path, caller, callee);
             }
         }
     }

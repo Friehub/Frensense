@@ -13,7 +13,8 @@ use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::symbols::SymbolRegistry;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 use frensense_engine::data_flow::DataFlowEngine;
-use frensense_engine::data_flow::resolver::{resolve_fn_definition, SymbolEntry};
+use frensense_engine::data_flow::resolver::{SymbolEntry, resolve_fn_definition};
+use frensense_engine::semantic::SemanticProvider;
 
 /// Result of cross-file taint verification.
 #[derive(Debug, Clone)]
@@ -76,6 +77,7 @@ pub struct CrossFileVerifier<'a> {
     max_depth: usize,
     source_sink: &'a CorpusSourceSinkRegistry,
     deps: &'a std::collections::HashSet<String>,
+    provider: Option<&'a dyn SemanticProvider>,
     pub source_name: Option<String>,
     pub potential_sink_name: Option<String>,
     pub sanitizers: frensense_engine::data_flow::SanitizerRegistry,
@@ -115,6 +117,7 @@ impl<'a> CrossFileVerifier<'a> {
             max_depth: 5,
             source_sink,
             deps,
+            provider: None,
             source_name: None,
             potential_sink_name: None,
             sanitizers: frensense_engine::data_flow::SanitizerRegistry::default_combined(),
@@ -138,6 +141,12 @@ impl<'a> CrossFileVerifier<'a> {
     #[must_use]
     pub fn with_file_env(mut self, env: frensense_engine::context::Environment) -> Self {
         self.file_env = Some(env);
+        self
+    }
+
+    #[must_use]
+    pub fn with_provider(mut self, provider: &'a dyn SemanticProvider) -> Self {
+        self.provider = Some(provider);
         self
     }
 
@@ -181,9 +190,18 @@ impl<'a> CrossFileVerifier<'a> {
 
                 let clean_type = param_type.trim_start_matches(':').trim();
 
-                // Determine the taint origin from the corpus-learned type or
-                // a heuristic name match for untyped languages (JavaScript, Python, etc.)
-                let origin = if self.source_sink.is_source_type(clean_type) {
+                // Prefer the type-checked provider when one is attached; fall
+                // back to the corpus-learned type / name heuristic otherwise.
+                let origin = if let Some(provider) = self.provider {
+                    provider
+                        .classify_param(&param_name, Some(clean_type))
+                        .or_else(|| {
+                            frensense_engine::data_flow::classify_param_name_in_context(
+                                &param_name,
+                                self.file_env.as_ref(),
+                            )
+                        })
+                } else if self.source_sink.is_source_type(clean_type) {
                     Some(TaintOrigin::UserInput)
                 } else {
                     frensense_engine::data_flow::classify_param_name_in_context(
@@ -442,8 +460,14 @@ impl<'a> CrossFileVerifier<'a> {
                     // Record as a potential sink since tainted data reached it
                     self.potential_sink_name = Some(fn_name_full.to_string());
 
-                    // Use is_sink_expr for context-aware matching (qualified + suffix)
-                    if self.source_sink.is_sink_expr(fn_name_full).is_some() {
+                    // Use the semantic provider (or corpus-learned matching)
+                    // for context-aware sink identification (qualified + suffix).
+                    let is_sink = if let Some(provider) = self.provider {
+                        provider.classify_sink(fn_name_full, None).is_some()
+                    } else {
+                        self.source_sink.is_sink_expr(fn_name_full).is_some()
+                    };
+                    if is_sink {
                         if let Some(cfg) = &self.cfg {
                             if let Some(sink_block) =
                                 frensense_engine::cfg::block_for_byte(cfg, call_node.start_byte())

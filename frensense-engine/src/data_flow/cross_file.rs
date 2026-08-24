@@ -270,18 +270,26 @@ mod tests {
         // With max_depth=1, backward BFS from sink reaches intermediate but not source
         // → no path found without propagation
         let before = resolver.resolve_taint("sink", "a.rs", 1);
-        assert!(before.is_empty(), "with depth=1, multi-hop chain should fail without propagation");
+        assert!(
+            before.is_empty(),
+            "with depth=1, multi-hop chain should fail without propagation"
+        );
 
         // After propagation: intermediate is transitively seeded
         resolver.propagate_taint();
         assert!(
-            resolver.exposed_taint.contains_key(&("intermediate".to_string(), "a.rs".to_string())),
+            resolver
+                .exposed_taint
+                .contains_key(&("intermediate".to_string(), "a.rs".to_string())),
             "propagate_taint should register intermediate as a taint source"
         );
 
         // Now with depth=1, backward BFS finds intermediate as a source
         let after = resolver.resolve_taint("sink", "a.rs", 1);
-        assert!(!after.is_empty(), "propagate_taint should enable depth-limited resolution");
+        assert!(
+            !after.is_empty(),
+            "propagate_taint should enable depth-limited resolution"
+        );
         assert_eq!(after.len(), 1, "should find exactly one taint path");
     }
 
@@ -289,35 +297,28 @@ mod tests {
     fn test_propagate_taint_does_not_exceed_depth() {
         let mut resolver = CrossFileTaintResolver::new();
         // Chain longer than PROPAGATE_MAX_DEPTH
-        resolver.call_graph.insert(
-            "a.rs:f0".to_string(),
-            vec!["a.rs:f1".to_string()],
-        );
-        resolver.call_graph.insert(
-            "a.rs:f1".to_string(),
-            vec!["a.rs:f2".to_string()],
-        );
-        resolver.call_graph.insert(
-            "a.rs:f2".to_string(),
-            vec!["a.rs:f3".to_string()],
-        );
-        resolver.call_graph.insert(
-            "a.rs:f3".to_string(),
-            vec!["a.rs:f4".to_string()],
-        );
-        resolver.call_graph.insert(
-            "a.rs:f4".to_string(),
-            vec!["a.rs:f5".to_string()],
-        );
-        resolver.call_graph.insert(
-            "a.rs:f5".to_string(),
-            vec!["a.rs:f6".to_string()],
-        );
+        resolver
+            .call_graph
+            .insert("a.rs:f0".to_string(), vec!["a.rs:f1".to_string()]);
+        resolver
+            .call_graph
+            .insert("a.rs:f1".to_string(), vec!["a.rs:f2".to_string()]);
+        resolver
+            .call_graph
+            .insert("a.rs:f2".to_string(), vec!["a.rs:f3".to_string()]);
+        resolver
+            .call_graph
+            .insert("a.rs:f3".to_string(), vec!["a.rs:f4".to_string()]);
+        resolver
+            .call_graph
+            .insert("a.rs:f4".to_string(), vec!["a.rs:f5".to_string()]);
+        resolver
+            .call_graph
+            .insert("a.rs:f5".to_string(), vec!["a.rs:f6".to_string()]);
         for i in 1..=6 {
-            resolver.reverse_call_graph.insert(
-                format!("a.rs:f{i}"),
-                vec![format!("a.rs:f{}", i - 1)],
-            );
+            resolver
+                .reverse_call_graph
+                .insert(format!("a.rs:f{i}"), vec![format!("a.rs:f{}", i - 1)]);
         }
 
         resolver.register_exposed_taint("f0", "a.rs", TaintOrigin::UserInput);
@@ -326,12 +327,16 @@ mod tests {
         // f1-f5 should be seeded, f6 should not (depth 6 > PROPAGATE_MAX_DEPTH=5)
         for i in 1..=5 {
             assert!(
-                resolver.exposed_taint.contains_key(&(format!("f{i}"), "a.rs".to_string())),
+                resolver
+                    .exposed_taint
+                    .contains_key(&(format!("f{i}"), "a.rs".to_string())),
                 "f{i} should be seeded within propagation depth"
             );
         }
         assert!(
-            !resolver.exposed_taint.contains_key(&("f6".to_string(), "a.rs".to_string())),
+            !resolver
+                .exposed_taint
+                .contains_key(&("f6".to_string(), "a.rs".to_string())),
             "f6 beyond PROPAGATE_MAX_DEPTH should not be seeded"
         );
     }

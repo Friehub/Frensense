@@ -124,6 +124,7 @@ fn main() -> Result<()> {
         engine.set_check_deps(true);
     }
     engine.set_use_data_flow(options.scan_mode == "taint");
+    engine.set_use_compiler(options.use_compiler);
 
     if let Some(val) = options.ngram_sim_threshold {
         engine.set_ngram_sim_threshold(val);

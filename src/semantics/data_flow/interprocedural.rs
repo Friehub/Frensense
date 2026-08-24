@@ -11,6 +11,7 @@ use tree_sitter::Node;
 use crate::semantics::data_flow::TaintOrigin;
 use crate::semantics::data_flow::TaintRegistry;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
+use frensense_engine::semantic::SemanticProvider;
 
 /// Result of interprocedural taint verification.
 #[derive(Debug, Clone)]
@@ -57,6 +58,7 @@ pub struct InterproceduralVerifier<'a> {
     _visited: HashSet<(String, usize)>,
     max_depth: usize,
     source_sink: &'a CorpusSourceSinkRegistry,
+    provider: Option<&'a dyn SemanticProvider>,
     sanitizers: frensense_engine::data_flow::SanitizerRegistry,
     propagators: frensense_engine::data_flow::propagators::PropagatorRegistry,
     cfg: Option<frensense_engine::cfg::ControlFlowGraph<'a>>,
@@ -76,6 +78,7 @@ impl<'a> InterproceduralVerifier<'a> {
             _visited: HashSet::new(),
             max_depth: 5,
             source_sink,
+            provider: None,
             sanitizers: frensense_engine::data_flow::SanitizerRegistry::default_combined(),
             propagators: frensense_engine::data_flow::propagators::PropagatorRegistry::new(),
             cfg: None,
@@ -85,6 +88,12 @@ impl<'a> InterproceduralVerifier<'a> {
     #[must_use]
     pub fn with_cfg(mut self, cfg: frensense_engine::cfg::ControlFlowGraph<'a>) -> Self {
         self.cfg = Some(cfg);
+        self
+    }
+
+    #[must_use]
+    pub fn with_provider(mut self, provider: &'a dyn SemanticProvider) -> Self {
+        self.provider = Some(provider);
         self
     }
 
@@ -127,6 +136,12 @@ impl<'a> InterproceduralVerifier<'a> {
             }
 
             let clean_type = param_type.trim_start_matches(':').trim();
+            if let Some(provider) = self.provider {
+                if let Some(origin) = provider.classify_param(&param_name, Some(clean_type)) {
+                    self.registry.taint(&param_name, origin);
+                    return;
+                }
+            }
             if self.source_sink.is_source_type(clean_type) {
                 self.registry.taint(&param_name, TaintOrigin::UserInput);
                 return;

@@ -275,7 +275,9 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                         successors: vec![(finally_b, CFEdgeKind::Unconditional)],
                         predecessors: vec![catch_b],
                     });
-                    blocks[catch_b].successors.push((catch_body_end, CFEdgeKind::Unconditional));
+                    blocks[catch_b]
+                        .successors
+                        .push((catch_body_end, CFEdgeKind::Unconditional));
                     parent_stack.push(current_block);
                     current_block = catch_b;
                 }

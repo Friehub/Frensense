@@ -96,24 +96,58 @@ pub fn symbol_query_for_ext(ext: &str) -> Option<&'static str> {
 }
 
 /// Tree-sitter call query for a file extension.
+///
+/// Each match captures two names:
+///   @caller — the enclosing function / method name
+///   @call   — the callee being invoked
+///
+/// This enables `extract_edges_from_tree` to wire `caller → callee` edges
+/// in the `SemanticGraph` without a separate AST walk.
 pub fn call_query_for_ext(ext: &str) -> Option<&'static str> {
     match ext {
         "rs" => Some(
             r"
-            (call_expression function: (identifier) @call)
-            (call_expression function: (field_expression field: (field_identifier) @call))
+            (function_item name: (identifier) @caller
+                body: (_
+                    (call_expression function: (identifier) @call)))
+            (function_item name: (identifier) @caller
+                body: (_
+                    (call_expression function:
+                        (field_expression field: (field_identifier) @call))))
         ",
         ),
         "ts" | "tsx" | "js" | "jsx" => Some(
             r"
-            (call_expression function: (identifier) @call)
-            (call_expression function: (member_expression property: (property_identifier) @call))
+            (function_declaration name: (identifier) @caller
+                body: (_
+                    (expression_statement
+                        (call_expression function: (identifier) @call))))
+            (function_declaration name: (identifier) @caller
+                body: (_
+                    (expression_statement
+                        (call_expression function:
+                            (member_expression property: (property_identifier) @call)))))
+            (method_definition name: (property_identifier) @caller
+                body: (_
+                    (expression_statement
+                        (call_expression function: (identifier) @call))))
+            (method_definition name: (property_identifier) @caller
+                body: (_
+                    (expression_statement
+                        (call_expression function:
+                            (member_expression property: (property_identifier) @call)))))
         ",
         ),
         "py" | "pyi" => Some(
             r"
-            (call function: (identifier) @call)
-            (call function: (attribute attribute: (identifier) @call))
+            (function_definition name: (identifier) @caller
+                body: (_
+                    (expression_statement
+                        (call function: (identifier) @call))))
+            (function_definition name: (identifier) @caller
+                body: (_
+                    (expression_statement
+                        (call function: (attribute attribute: (identifier) @call)))))
         ",
         ),
         _ => None,

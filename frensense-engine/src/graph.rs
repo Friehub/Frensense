@@ -146,7 +146,7 @@ impl SemanticGraph {
             if let Some(weight) = other.graph.node_weight(idx) {
                 let new_idx = self.graph.add_node(weight.clone());
                 node_map.insert(idx, new_idx);
-                
+
                 // Update name_index
                 let name = match weight {
                     SemanticNode::Declaration(s) => s.name.clone(),
@@ -158,10 +158,9 @@ impl SemanticGraph {
 
         // 2. Add all edges from other graph using the mapped indices
         for edge in other.graph.edge_references() {
-            if let (Some(&new_source), Some(&new_target)) = (
-                node_map.get(&edge.source()),
-                node_map.get(&edge.target())
-            ) {
+            if let (Some(&new_source), Some(&new_target)) =
+                (node_map.get(&edge.source()), node_map.get(&edge.target()))
+            {
                 self.graph.add_edge(new_source, new_target, *edge.weight());
             }
         }

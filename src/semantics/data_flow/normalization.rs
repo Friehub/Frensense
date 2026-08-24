@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-use frensense_engine::data_flow::alias::AliasTracker;
 use frensense_engine::data_flow::TaintRegistry;
+use frensense_engine::data_flow::alias::AliasTracker;
 use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -316,13 +316,21 @@ impl SemanticExtractor {
         for op in ops {
             let (name, value_range) = match op {
                 SemanticOp::Binding { name, value_range } => (name.as_str(), value_range),
-                SemanticOp::Assignment { target, value_range } => (target.as_str(), value_range),
+                SemanticOp::Assignment {
+                    target,
+                    value_range,
+                } => (target.as_str(), value_range),
                 _ => continue,
             };
             let rhs = &source[value_range.start_byte..value_range.end_byte];
             let rhs = rhs.trim();
             // Only track simple identifier-to-identifier aliases
-            if rhs.contains(' ') || rhs.contains('.') || rhs.contains('(') || rhs.contains('"') || rhs.contains('\'') {
+            if rhs.contains(' ')
+                || rhs.contains('.')
+                || rhs.contains('(')
+                || rhs.contains('"')
+                || rhs.contains('\'')
+            {
                 continue;
             }
             if registry.is_tainted(rhs) {

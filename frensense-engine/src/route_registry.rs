@@ -79,17 +79,57 @@ impl HandlerRegistry {
 ///
 /// Each entry maps: (method_suffix, HttpMethod, HandlerPosition)
 static REGISTRATION_PATTERNS: &[(&str, super::decorator::HttpMethod, HandlerPosition)] = &[
-    ("get", super::decorator::HttpMethod::Get, HandlerPosition::LastArg),
-    ("post", super::decorator::HttpMethod::Post, HandlerPosition::LastArg),
-    ("put", super::decorator::HttpMethod::Put, HandlerPosition::LastArg),
-    ("delete", super::decorator::HttpMethod::Delete, HandlerPosition::LastArg),
-    ("patch", super::decorator::HttpMethod::Patch, HandlerPosition::LastArg),
-    ("all", super::decorator::HttpMethod::Any, HandlerPosition::LastArg),
-    ("use", super::decorator::HttpMethod::Any, HandlerPosition::LastArg),
-    ("options", super::decorator::HttpMethod::Any, HandlerPosition::LastArg),
-    ("head", super::decorator::HttpMethod::Any, HandlerPosition::LastArg),
+    (
+        "get",
+        super::decorator::HttpMethod::Get,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "post",
+        super::decorator::HttpMethod::Post,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "put",
+        super::decorator::HttpMethod::Put,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "delete",
+        super::decorator::HttpMethod::Delete,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "patch",
+        super::decorator::HttpMethod::Patch,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "all",
+        super::decorator::HttpMethod::Any,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "use",
+        super::decorator::HttpMethod::Any,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "options",
+        super::decorator::HttpMethod::Any,
+        HandlerPosition::LastArg,
+    ),
+    (
+        "head",
+        super::decorator::HttpMethod::Any,
+        HandlerPosition::LastArg,
+    ),
     // Fastify route object: `fastify.route({ method: 'POST', url: '/', handler: fn })`
-    ("route", super::decorator::HttpMethod::Any, HandlerPosition::ObjectField("handler")),
+    (
+        "route",
+        super::decorator::HttpMethod::Any,
+        HandlerPosition::ObjectField("handler"),
+    ),
 ];
 
 /// Known router variable names (receiver of the method call).
@@ -97,8 +137,16 @@ static REGISTRATION_PATTERNS: &[(&str, super::decorator::HttpMethod, HandlerPosi
 /// We check the callee receiver against these to avoid false positives
 /// from unrelated `.get()` / `.post()` calls.
 static ROUTER_NAMES: &[&str] = &[
-    "app", "router", "fastify", "hono", "server", "route",
-    "mainRouter", "apiRouter", "adminRouter", "authRouter",
+    "app",
+    "router",
+    "fastify",
+    "hono",
+    "server",
+    "route",
+    "mainRouter",
+    "apiRouter",
+    "adminRouter",
+    "authRouter",
 ];
 
 /// Build a `HandlerRegistry` from a file's AST.
@@ -109,11 +157,7 @@ static ROUTER_NAMES: &[&str] = &[
 /// 3. The receiver is a known router variable name
 ///
 /// Extracts the handler function name from the arguments.
-pub fn build_handler_registry(
-    root: Node,
-    source: &str,
-    file_path: &str,
-) -> HandlerRegistry {
+pub fn build_handler_registry(root: Node, source: &str, file_path: &str) -> HandlerRegistry {
     let mut registry = HandlerRegistry::default();
     let mut cursor = root.walk();
 
@@ -217,7 +261,8 @@ fn extract_last_named_arg(args: Node, source: &str) -> Option<String> {
     // For member expressions (e.g. `sessionHandler.displayWelcomePage`),
     // extract just the property name (last segment)
     if kind == "member_expression" || kind == "field_expression" {
-        if let Some(prop) = last.child_by_field_name("property")
+        if let Some(prop) = last
+            .child_by_field_name("property")
             .or_else(|| last.child_by_field_name("field"))
         {
             return Some(source[prop.start_byte()..prop.end_byte()].to_string());
@@ -241,11 +286,7 @@ fn extract_first_string_arg(args: Node, source: &str) -> Option<String> {
 }
 
 /// Walk an object literal looking for `{ field: value }` and return the value text.
-fn extract_object_field_value(
-    args: Node,
-    source: &str,
-    field: &str,
-) -> Option<String> {
+fn extract_object_field_value(args: Node, source: &str, field: &str) -> Option<String> {
     // Look through all args for an object literal
     for i in 0..args.named_child_count() {
         let child = args.named_child(i)?;
@@ -258,11 +299,7 @@ fn extract_object_field_value(
 }
 
 /// Given an object literal node, find a pair with the given key and return its value text.
-fn find_object_field_value_raw(
-    obj_node: Node,
-    source: &str,
-    field: &str,
-) -> Option<String> {
+fn find_object_field_value_raw(obj_node: Node, source: &str, field: &str) -> Option<String> {
     for j in 0..obj_node.named_child_count() {
         let pair = obj_node.named_child(j)?;
         if pair.kind() != "pair" {
@@ -286,11 +323,15 @@ pub fn is_inline_registered_handler(fn_node: Node, source: &str) -> bool {
     if fn_node.kind() != "arrow_function" {
         return false;
     }
-    let Some(parent) = fn_node.parent() else { return false };
+    let Some(parent) = fn_node.parent() else {
+        return false;
+    };
     if parent.kind() != "arguments" {
         return false;
     }
-    let Some(call) = parent.parent() else { return false };
+    let Some(call) = parent.parent() else {
+        return false;
+    };
     if call.kind() != "call_expression" {
         return false;
     }
@@ -298,17 +339,17 @@ pub fn is_inline_registered_handler(fn_node: Node, source: &str) -> bool {
 }
 
 /// Try to infer a function's effective name when it's assigned to a property.
- ///
- /// Handles patterns like:
- /// - `this.displayWelcomePage = (req, res) => { ... }` → "displayWelcomePage"
- /// - `SessionHandler.prototype.displayWelcomePage = function(req, res) { ... }` → "displayWelcomePage"
- /// - `exports.handler = (req, res) => { ... }` → "handler"
- /// - `module.exports = { handler: (req, res) => { ... } }` → "handler" (via pair key)
- /// - `const foo = (req, res) => { ... }` → "foo"
- ///
- /// Walks upward from `fn_node` to find the enclosing binary expression or
- /// variable declarator, then extracts the property name.
- pub fn infer_function_name(fn_node: Node, source: &str) -> Option<String> {
+///
+/// Handles patterns like:
+/// - `this.displayWelcomePage = (req, res) => { ... }` → "displayWelcomePage"
+/// - `SessionHandler.prototype.displayWelcomePage = function(req, res) { ... }` → "displayWelcomePage"
+/// - `exports.handler = (req, res) => { ... }` → "handler"
+/// - `module.exports = { handler: (req, res) => { ... } }` → "handler" (via pair key)
+/// - `const foo = (req, res) => { ... }` → "foo"
+///
+/// Walks upward from `fn_node` to find the enclosing binary expression or
+/// variable declarator, then extracts the property name.
+pub fn infer_function_name(fn_node: Node, source: &str) -> Option<String> {
     let parent = fn_node.parent()?;
     let kind = parent.kind();
 
@@ -370,7 +411,7 @@ fn extract_property_name(node: Node, source: &str) -> Option<String> {
     Some(text.to_string())
 }
 
-    /// Check if a function or anonymous arrow is referenced as a handler
+/// Check if a function or anonymous arrow is referenced as a handler
 /// in the file's route registrations.
 /// This is a same-file check used during fingerprint extraction.
 ///
@@ -381,11 +422,7 @@ fn extract_property_name(node: Node, source: &str) -> Option<String> {
 ///
 /// Walks upward from `fn_node` to find the tree root, then walks the full tree
 /// looking for registration calls that reference this function's name.
-pub fn is_function_registered_in_file(
-    fn_node: Node,
-    source: &str,
-    _file_path: &str,
-) -> bool {
+pub fn is_function_registered_in_file(fn_node: Node, source: &str, _file_path: &str) -> bool {
     // First try to get the function's declared name (e.g., `function foo()`)
     let fn_name = if let Some(name_node) = fn_node.child_by_field_name("name") {
         source[name_node.start_byte()..name_node.end_byte()].to_string()

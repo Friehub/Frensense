@@ -91,21 +91,19 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
     let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
     // API sim: max of full-name and segment Jaccard (mirrors scorer)
     let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-    let api_sim_seg = if !candidate.api_call_segments.is_empty()
-        && !target.api_call_segments.is_empty()
-    {
-        jaccard(&candidate.api_call_segments, &target.api_call_segments)
-    } else {
-        0.0
-    };
+    let api_sim_seg =
+        if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
+            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+        } else {
+            0.0
+        };
     let api_sim = api_sim_full.max(api_sim_seg);
-    let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
-        && target.tainted_api_calls.is_empty()
-    {
-        1.0 // Both have no tainted calls — they agree; neutral match.
-    } else {
-        jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
-    };
+    let tainted_api_sim =
+        if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
+            1.0 // Both have no tainted calls — they agree; neutral match.
+        } else {
+            jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+        };
     let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
     let flow_sim = jaccard(
         &candidate.data_flow_path_hashes,
@@ -117,27 +115,28 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         &target.config_literal_hashes,
     );
 
-    let cf_order_sim = if candidate.control_flow_sequence_hash == 0
-        && target.control_flow_sequence_hash == 0
-    {
-        1.0
-    } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
-        1.0
-    } else {
-        0.0
-    };
+    let cf_order_sim =
+        if candidate.control_flow_sequence_hash == 0 && target.control_flow_sequence_hash == 0 {
+            1.0
+        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
+            1.0
+        } else {
+            0.0
+        };
 
-    let arg_type_sim = if !candidate.argument_call_types.is_empty()
-        && !target.argument_call_types.is_empty()
-    {
-        jaccard(&candidate.argument_call_types, &target.argument_call_types)
-    } else {
-        0.0
-    };
+    let arg_type_sim =
+        if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
+            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+        } else {
+            0.0
+        };
     let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
         && !target.literal_pattern_hashes.is_empty()
     {
-        jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+        jaccard(
+            &candidate.literal_pattern_hashes,
+            &target.literal_pattern_hashes,
+        )
     } else {
         0.0
     };

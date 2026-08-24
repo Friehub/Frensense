@@ -61,6 +61,7 @@ pub struct CliOptions {
     pub build_bundle: Flag,
     pub build_bundle_output: Option<PathBuf>,
     pub scan_mode: String,
+    pub use_compiler: bool,
     pub ngram_sim_threshold: Option<f64>,
     pub emit_hypotheses: bool,
 }
@@ -119,6 +120,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         build_bundle: Flag::No,
         build_bundle_output: None,
         scan_mode: "fast".to_string(),
+        use_compiler: false,
         ngram_sim_threshold: None,
         emit_hypotheses: false,
     };
@@ -129,6 +131,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--json" => options.format = "json".to_string(),
             "--sarif" => options.format = "sarif".to_string(),
             "--emit-hypotheses" => options.emit_hypotheses = true,
+            "--use-compiler" => options.use_compiler = true,
             "--strict" => options.is_strict = Flag::Yes,
             "--fix" => {
                 let scope = args.get(i + 1).map(std::string::String::as_str);

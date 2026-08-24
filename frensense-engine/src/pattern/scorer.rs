@@ -577,8 +577,8 @@ impl PatternScorer {
             .iter()
             .filter(|&&s| s > NOISE_GATE_MODERATE_SIGNAL)
             .count();
-        let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
-            || strong_count >= NOISE_GATE_MIN_MODERATE_DIMS;
+        let gate =
+            max_signal > NOISE_GATE_STRONG_SIGNAL || strong_count >= NOISE_GATE_MIN_MODERATE_DIMS;
 
         // Use the weighted sum as the final score — this is the same type of
         // score that the Platt scaling calibration was trained on (weighted
@@ -652,26 +652,24 @@ impl PatternScorer {
         let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
         // API sim: max of full-name and segment Jaccard for cross-variant matching
         let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-        let api_sim_seg = if !candidate.api_call_segments.is_empty()
-            && !target.api_call_segments.is_empty()
-        {
-            jaccard(&candidate.api_call_segments, &target.api_call_segments)
-        } else {
-            0.0
-        };
+        let api_sim_seg =
+            if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
+                jaccard(&candidate.api_call_segments, &target.api_call_segments)
+            } else {
+                0.0
+            };
         let api_sim = api_sim_full.max(api_sim_seg);
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
         let flow_sim = jaccard(
             &candidate.data_flow_path_hashes,
             &target.data_flow_path_hashes,
         );
-let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
-            && target.tainted_api_calls.is_empty()
-        {
-            1.0 // Both have no tainted calls — they agree; treat as neutral match.
-        } else {
-            jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
-        };
+        let tainted_api_sim =
+            if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
+                1.0 // Both have no tainted calls — they agree; treat as neutral match.
+            } else {
+                jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+            };
 
         let config_sim = jaccard(
             &candidate.config_literal_hashes,
@@ -697,7 +695,10 @@ let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
         let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
             && !target.literal_pattern_hashes.is_empty()
         {
-            jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+            jaccard(
+                &candidate.literal_pattern_hashes,
+                &target.literal_pattern_hashes,
+            )
         } else {
             0.0
         };
@@ -855,26 +856,24 @@ let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
         // Full names are too specific (models.sequelize.query ≠ sequelize.query),
         // segments capture the method name (query) for cross-variant matching.
         let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-        let api_sim_seg = if !candidate.api_call_segments.is_empty()
-            && !target.api_call_segments.is_empty()
-        {
-            jaccard(&candidate.api_call_segments, &target.api_call_segments)
-        } else {
-            0.0
-        };
+        let api_sim_seg =
+            if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
+                jaccard(&candidate.api_call_segments, &target.api_call_segments)
+            } else {
+                0.0
+            };
         let api_sim = api_sim_full.max(api_sim_seg);
         let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
         let flow_sim = jaccard(
             &candidate.data_flow_path_hashes,
             &target.data_flow_path_hashes,
         );
-        let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
-            && target.tainted_api_calls.is_empty()
-        {
-            1.0 // Both have no tainted calls — they agree; neutral match.
-        } else {
-            jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
-        };
+        let tainted_api_sim =
+            if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
+                1.0 // Both have no tainted calls — they agree; neutral match.
+            } else {
+                jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+            };
         let config_sim = jaccard(
             &candidate.config_literal_hashes,
             &target.config_literal_hashes,
@@ -886,8 +885,7 @@ let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
             && target.control_flow_sequence_hash == 0
         {
             1.0 // Both empty — no ordering signal, treat as neutral
-        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash
-        {
+        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
             1.0
         } else {
             0.0
@@ -904,7 +902,10 @@ let tainted_api_sim = if candidate.tainted_api_calls.is_empty()
         let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
             && !target.literal_pattern_hashes.is_empty()
         {
-            jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+            jaccard(
+                &candidate.literal_pattern_hashes,
+                &target.literal_pattern_hashes,
+            )
         } else {
             0.0
         };
@@ -1058,7 +1059,8 @@ mod tests {
         let neg = make_fingerprint("fn safe() { 1 + 1 }", "a.rs", "rs");
         let cand = make_fingerprint("fn get_password() { read_file() }", "b.rs", "rs");
         let default_w = &[
-            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,
+            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04,
+            0.04,
         ];
         let score =
             PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);
@@ -1074,7 +1076,8 @@ mod tests {
         let neg = make_fingerprint("fn safe() { \"clean\".to_string() }", "a.rs", "rs");
         let cand = make_fingerprint("fn safe() { \"clean\".to_string() }", "b.rs", "rs");
         let default_w = &[
-            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,
+            0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04,
+            0.04,
         ];
         let score =
             PatternScorer::score_against_corpus(&cand, &[pos], &[neg], None, None, 0.5, default_w);

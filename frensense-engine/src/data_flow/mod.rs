@@ -37,9 +37,22 @@ pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
     let lower = name.to_lowercase();
     if matches!(
         lower.as_str(),
-        "req" | "request" | "event" | "ctx" | "context" | "payload"
-            | "input" | "body" | "query" | "params" | "searchparams"
-            | "args" | "cmd" | "url" | "path" | "file"
+        "req"
+            | "request"
+            | "event"
+            | "ctx"
+            | "context"
+            | "payload"
+            | "input"
+            | "body"
+            | "query"
+            | "params"
+            | "searchparams"
+            | "args"
+            | "cmd"
+            | "url"
+            | "path"
+            | "file"
     ) {
         return Some(TaintOrigin::UserInput);
     }

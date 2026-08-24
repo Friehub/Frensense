@@ -27,24 +27,24 @@ pub mod deps;
 pub mod export_matcher;
 pub mod fingerprint;
 pub mod function_role;
-pub mod import_resolver;
 #[cfg(feature = "full-analysis")]
 pub mod graph;
+pub mod import_resolver;
 pub mod lang;
 pub mod minhash;
+#[cfg(feature = "oxc")]
+pub mod oxc_provider;
 pub mod parser;
 pub mod pattern;
 pub mod per_pattern_calibration;
 #[cfg(feature = "full-analysis")]
 pub mod profile;
 pub mod route_registry;
-#[cfg(feature = "full-analysis")]
-pub mod semantic_patterns;
-pub mod semantic;
-#[cfg(feature = "oxc")]
-pub mod oxc_provider;
 #[cfg(feature = "rust-hir")]
 pub mod rust_hir_provider;
+pub mod semantic;
+#[cfg(feature = "full-analysis")]
+pub mod semantic_patterns;
 pub mod symbols;
 #[cfg(feature = "full-analysis")]
 pub mod temporal;
@@ -147,7 +147,8 @@ pub fn analyze_file(
 
     let root = tree.root_node();
     let import_map = import_resolver::ImportMap::build_from_tree(source, root);
-    let route_registry = route_registry::build_handler_registry(root, source, &file_path.to_string_lossy());
+    let route_registry =
+        route_registry::build_handler_registry(root, source, &file_path.to_string_lossy());
 
     let mut functions = Vec::new();
     let parser_registry = parser::ParserRegistry;
@@ -225,15 +226,21 @@ pub fn analyze_project(
 
         // 2. Build the cross-file taint resolver
         let all_symbols = global_graph.all_symbols();
-        let mut resolver = crate::data_flow::cross_file::build_resolver(&all_symbols, &global_graph);
+        let mut resolver =
+            crate::data_flow::cross_file::build_resolver(&all_symbols, &global_graph);
 
         // 3. Register exposed taint sources (e.g. HTTP handlers)
         for res in results.values() {
             for func in &res.functions {
-                let role = crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
+                let role =
+                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
                 if role == crate::function_role::FunctionRole::HttpHandler {
                     let key = format!("{}:{}", res.file_path, func.function_name);
-                    resolver.register_exposed_taint(&key, &res.file_path, crate::data_flow::TaintOrigin::UserInput);
+                    resolver.register_exposed_taint(
+                        &key,
+                        &res.file_path,
+                        crate::data_flow::TaintOrigin::UserInput,
+                    );
                 }
             }
         }
@@ -247,10 +254,12 @@ pub fn analyze_project(
         // 4. Resolve taint for sinks (e.g. DbQuery, ShellExecutor) and update fingerprints
         for res in results.values_mut() {
             for func in &mut res.functions {
-                let role = crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
+                let role =
+                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
                 if matches!(
                     role,
-                    crate::function_role::FunctionRole::DbQuery | crate::function_role::FunctionRole::ShellExecutor
+                    crate::function_role::FunctionRole::DbQuery
+                        | crate::function_role::FunctionRole::ShellExecutor
                 ) {
                     let taints = resolver.resolve_taint(&func.function_name, &res.file_path, 10);
                     if !taints.is_empty() {
@@ -258,7 +267,8 @@ pub fn analyze_project(
                         for api in &func.raw_call_names {
                             let mut hasher = std::collections::hash_map::DefaultHasher::new();
                             std::hash::Hash::hash(api, &mut hasher);
-                            func.tainted_api_calls.push(std::hash::Hasher::finish(&hasher));
+                            func.tainted_api_calls
+                                .push(std::hash::Hasher::finish(&hasher));
                         }
                     }
                 }
@@ -272,7 +282,8 @@ pub fn analyze_project(
     for result in results.values_mut() {
         for fp in &mut result.functions {
             if !fp.is_registered_handler {
-                fp.is_registered_handler = project_registry.is_registered_handler(&fp.function_name);
+                fp.is_registered_handler =
+                    project_registry.is_registered_handler(&fp.function_name);
             }
         }
     }

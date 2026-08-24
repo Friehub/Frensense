@@ -38,28 +38,17 @@ use crate::import_resolver::ImportMap;
 pub trait SemanticProvider: Send + Sync {
     /// Is this parameter a taint source, and what kind?
     /// Called with both the parameter name AND its type annotation text.
-    fn classify_param(
-        &self,
-        name: &str,
-        type_annotation: Option<&str>,
-    ) -> Option<TaintOrigin>;
+    fn classify_param(&self, name: &str, type_annotation: Option<&str>) -> Option<TaintOrigin>;
 
     /// Is this call expression a dangerous sink?
     /// `call_text` is the raw call expression text ("exec", "db.query", etc.)
     /// `resolved_module` is the fully-qualified module if known ("node:child_process").
-    fn classify_sink(
-        &self,
-        call_text: &str,
-        resolved_module: Option<&str>,
-    ) -> Option<SinkCategory>;
+    fn classify_sink(&self, call_text: &str, resolved_module: Option<&str>)
+    -> Option<SinkCategory>;
 
     /// Is this function an HTTP handler?
     /// Called with the fingerprint and any available type information.
-    fn is_http_handler(
-        &self,
-        fp: &FunctionFingerprint,
-        type_context: &TypeContext,
-    ) -> bool;
+    fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool;
 
     /// Does the current file import this package?
     fn file_imports(&self, package: &str) -> bool;
@@ -132,7 +121,9 @@ impl OxcSymbolTable {
     /// Resolve a local binding name to its source package, if any.
     #[must_use]
     pub fn package_for(&self, name: &str) -> Option<&str> {
-        self.bindings.get(name).and_then(|module| module.package.as_deref())
+        self.bindings
+            .get(name)
+            .and_then(|module| module.package.as_deref())
     }
 }
 
@@ -178,7 +169,8 @@ impl HirTypeMap {
     /// HIR facts for a fingerprinted function, if the HIR analysed that file.
     #[must_use]
     pub fn function_facts(&self, file_path: &str, function_name: &str) -> Option<&FunctionHirFact> {
-        self.functions.get(&(file_path.to_owned(), function_name.to_owned()))
+        self.functions
+            .get(&(file_path.to_owned(), function_name.to_owned()))
     }
 
     /// Resolve a type annotation's base name to its fully qualified path.
@@ -303,11 +295,7 @@ impl ImportMapProvider {
 }
 
 impl SemanticProvider for ImportMapProvider {
-    fn classify_param(
-        &self,
-        name: &str,
-        type_annotation: Option<&str>,
-    ) -> Option<TaintOrigin> {
+    fn classify_param(&self, name: &str, type_annotation: Option<&str>) -> Option<TaintOrigin> {
         // 1. A corpus-learned source type wins outright.
         if let Some(annotation) = type_annotation {
             let clean = annotation.trim_start_matches(':').trim();
@@ -353,11 +341,7 @@ impl SemanticProvider for ImportMapProvider {
         self.source_sink.is_sink_expr(call_text)
     }
 
-    fn is_http_handler(
-        &self,
-        fp: &FunctionFingerprint,
-        type_context: &TypeContext,
-    ) -> bool {
+    fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: if any type used by the function resolves to an HTTP
         // framework package, the import system has confirmed it — a single
         // signal is sufficient, no weak-heuristic vote needed.
@@ -404,9 +388,7 @@ mod tests {
             .name_to_package
             .insert("db".to_string(), "pg".to_string());
         let mut registry = CorpusSourceSinkRegistry::default();
-        registry
-            .source_types
-            .insert("Request".to_string(), 3);
+        registry.source_types.insert("Request".to_string(), 3);
         ImportMapProvider::new(
             import_map,
             Arc::new(registry),
@@ -441,10 +423,7 @@ mod tests {
     #[test]
     fn test_classify_param_by_name() {
         let p = provider();
-        assert_eq!(
-            p.classify_param("req", None),
-            Some(TaintOrigin::UserInput),
-        );
+        assert_eq!(p.classify_param("req", None), Some(TaintOrigin::UserInput),);
         assert_eq!(
             p.classify_param("name", None),
             Some(TaintOrigin::UserInput),

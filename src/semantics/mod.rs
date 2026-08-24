@@ -2,6 +2,7 @@
 
 pub mod consistency;
 pub mod data_flow;
+pub mod provider;
 pub mod simple_taint;
 
 pub use data_flow::{DataFlowAnalyzer, TaintRegistry};

@@ -26,7 +26,15 @@ const CHECKS: &[MiddlewareCheck] = &[
         impact: "Missing helmet headers (X-Frame-Options, X-XSS-Protection, etc.) expose the app to clickjacking, XSS, and other browser-level attacks.",
         improvement: "Uncomment or add app.use(helmet()) and configure the desired policies for frameguard, xssFilter, noSniff, etc.",
         active_patterns: &["helmet("],
-        comment_patterns: &["helmet.frameguard", "helmet.noCache", "helmet.contentSecurityPolicy", "helmet.hsts", "helmet.iexss", "helmet.xssFilter", "helmet"],
+        comment_patterns: &[
+            "helmet.frameguard",
+            "helmet.noCache",
+            "helmet.contentSecurityPolicy",
+            "helmet.hsts",
+            "helmet.iexss",
+            "helmet.xssFilter",
+            "helmet",
+        ],
     },
     MiddlewareCheck {
         rule_id: "A5-X_POWERED_BY",
@@ -34,7 +42,11 @@ const CHECKS: &[MiddlewareCheck] = &[
         observation: "X-Powered-By header is not disabled — app.disable('x-powered-by') is commented out or missing",
         impact: "The X-Powered-By header leaks Express.js version information to attackers, aiding fingerprinting.",
         improvement: "Uncomment or add app.disable('x-powered-by') to remove the header.",
-        active_patterns: &["app.disable(\"x-powered-by\"", "app.disable('x-powered-by'", "app.disable(`x-powered-by`"],
+        active_patterns: &[
+            "app.disable(\"x-powered-by\"",
+            "app.disable('x-powered-by'",
+            "app.disable(`x-powered-by`",
+        ],
         comment_patterns: &["x-powered-by"],
     },
     MiddlewareCheck {
@@ -53,7 +65,12 @@ const CHECKS: &[MiddlewareCheck] = &[
         impact: "Using the default session cookie name makes the app more identifiable to attackers and aids session fingerprinting.",
         improvement: "Set a generic session key name as 'key: \"sessionId\"' in the session configuration.",
         active_patterns: &["key:", "key :"],
-        comment_patterns: &["key: \"sessionId\"", "key : \"sessionId\"", "key: 'sessionId'", "key : 'sessionId'"],
+        comment_patterns: &[
+            "key: \"sessionId\"",
+            "key : \"sessionId\"",
+            "key: 'sessionId'",
+            "key : 'sessionId'",
+        ],
     },
     MiddlewareCheck {
         rule_id: "A8-CSRF_MIDDLEWARE",
@@ -62,14 +79,19 @@ const CHECKS: &[MiddlewareCheck] = &[
         impact: "Without CSRF protection, an attacker can forge requests on behalf of authenticated users, triggering state-changing operations.",
         improvement: "Uncomment or add app.use(csurf()) and make the CSRF token available in templates via res.locals.csrftoken.",
         active_patterns: &["csrf(", "csurf(", "xsrf("],
-        comment_patterns: &["csrf()", "csurf()", "app.use(csrf", "app.use(csurf", "csrf", "csurf"],
+        comment_patterns: &[
+            "csrf()",
+            "csurf()",
+            "app.use(csrf",
+            "app.use(csurf",
+            "csrf",
+            "csurf",
+        ],
     },
 ];
 
 pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
-    let fname = snap.path.file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let fname = snap.path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let source = &snap.content;
 
     let mut advisories: Vec<Advisory> = Vec::new();
@@ -85,10 +107,16 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
             }
             let line = find_first_pattern_line(source, check.comment_patterns);
             advisories.push(
-                Advisory::bare(check.rule_id, Severity::Warning, snap.id, &snap.path, check.observation)
-                    .with_line(line)
-                    .with_impact(check.impact)
-                    .with_improvement(check.improvement),
+                Advisory::bare(
+                    check.rule_id,
+                    Severity::Warning,
+                    snap.id,
+                    &snap.path,
+                    check.observation,
+                )
+                .with_line(line)
+                .with_impact(check.impact)
+                .with_improvement(check.improvement),
             );
         }
 
@@ -146,13 +174,17 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
                     .with_improvement("Add cookie: { httpOnly: true, secure: true, sameSite: 'strict' } to the session configuration.")
             );
         }
-
     }
 
     // Check: A2-USER_ENUM — login error message reveals whether user exists
-    if fname.ends_with("-dao.js") || fname.ends_with("_dao.js") || fname.ends_with("session.js")
-        || fname.ends_with("auth.js") || fname.ends_with("login.js")
-        || fname == "server.js" || fname == "app.js" || fname == "index.js"
+    if fname.ends_with("-dao.js")
+        || fname.ends_with("_dao.js")
+        || fname.ends_with("session.js")
+        || fname.ends_with("auth.js")
+        || fname.ends_with("login.js")
+        || fname == "server.js"
+        || fname == "app.js"
+        || fname == "index.js"
     {
         if let Some(line) = find_user_enumeration(source) {
             advisories.push(
@@ -166,9 +198,14 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     }
 
     // Check: A2-WEAK_PW — no password minimum length in config (on password-handling files)
-    if fname.ends_with("-dao.js") || fname.ends_with("_dao.js") || fname.ends_with("session.js")
-        || fname.ends_with("user.js") || fname.ends_with("auth.js")
-        || fname == "server.js" || fname == "app.js" || fname == "index.js"
+    if fname.ends_with("-dao.js")
+        || fname.ends_with("_dao.js")
+        || fname.ends_with("session.js")
+        || fname.ends_with("user.js")
+        || fname.ends_with("auth.js")
+        || fname == "server.js"
+        || fname == "app.js"
+        || fname == "index.js"
     {
         if let Some(line) = find_weak_password_policy(source) {
             advisories.push(
@@ -182,7 +219,12 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     }
 
     // Check: A2-NO_SESSION_REGENERATE — session not regenerated on login (any file)
-    if fname.ends_with("-dao.js") || fname.ends_with("_dao.js") || fname.ends_with("session.js") || fname.ends_with("auth.js") || fname.ends_with("login.js") {
+    if fname.ends_with("-dao.js")
+        || fname.ends_with("_dao.js")
+        || fname.ends_with("session.js")
+        || fname.ends_with("auth.js")
+        || fname.ends_with("login.js")
+    {
         if let Some(line) = find_no_session_regenerate(source) {
             advisories.push(
                 Advisory::bare("A2-NO_SESSION_REGENERATE", Severity::Warning, snap.id, &snap.path,
@@ -236,7 +278,10 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     }
 
     // Check: A4-IDOR_PARAM — sensitive ID from URL params instead of session
-    if fname.ends_with("allocations.js") || fname.ends_with("profile.js") || fname.ends_with("users.js") {
+    if fname.ends_with("allocations.js")
+        || fname.ends_with("profile.js")
+        || fname.ends_with("users.js")
+    {
         let active = strip_comments(source);
         // Check for req.params destructuring pattern (may span multiple lines)
         if active.contains("req.params") && active.contains("userId") {
@@ -254,7 +299,8 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     }
 
     // Check: A10-SSRF — user-controlled URL passed to HTTP client
-    if fname.ends_with("research.js") || fname.ends_with("proxy.js") || fname.ends_with("fetch.js") {
+    if fname.ends_with("research.js") || fname.ends_with("proxy.js") || fname.ends_with("fetch.js")
+    {
         if let Some(line) = find_active_line_number(source, "needle.get(") {
             advisories.push(
                 Advisory::bare("A10-SSRF", Severity::Critical, snap.id, &snap.path,
@@ -267,7 +313,10 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     }
 
     // Check: REDOS — regex with nested quantifier causing catastrophic backtracking
-    if fname.ends_with("profile.js") || fname.ends_with("validate.js") || fname.ends_with("regex.js") {
+    if fname.ends_with("profile.js")
+        || fname.ends_with("validate.js")
+        || fname.ends_with("regex.js")
+    {
         for line in find_active_lines(source, |l| {
             l.contains("+)+") || l.contains("+}+") || l.contains("*)+") || l.contains("*}+")
         }) {
@@ -284,7 +333,8 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
     // Check: HPP_DOS — calling string methods (.trim()) on unchecked input vulnerable to HPP
     if fname.ends_with("profile.js") || fname.ends_with("user.js") || fname.ends_with("auth.js") {
         for line in find_active_lines(source, |l| {
-            l.contains(".trim(") && (l.contains("firstName") || l.contains("lastName") || l.contains("body"))
+            l.contains(".trim(")
+                && (l.contains("firstName") || l.contains("lastName") || l.contains("body"))
         }) {
             advisories.push(
                 Advisory::bare("HPP_DOS", Severity::Warning, snap.id, &snap.path,
@@ -361,14 +411,23 @@ fn strip_comments(source: &str) -> String {
     let mut i = 0;
     while i < source.len() {
         if i + 1 < source.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' {
-            while i < source.len() && bytes[i] != b'\n' { i += 1; }
-            if i < source.len() && bytes[i] == b'\n' { result.push('\n'); i += 1; }
-        } else if i + 1 < source.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
-            while i + 1 < source.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                if bytes[i] == b'\n' { result.push('\n'); }
+            while i < source.len() && bytes[i] != b'\n' {
                 i += 1;
             }
-            if i + 1 < source.len() { i += 2; }
+            if i < source.len() && bytes[i] == b'\n' {
+                result.push('\n');
+                i += 1;
+            }
+        } else if i + 1 < source.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            while i + 1 < source.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                if bytes[i] == b'\n' {
+                    result.push('\n');
+                }
+                i += 1;
+            }
+            if i + 1 < source.len() {
+                i += 2;
+            }
         } else {
             result.push(bytes[i] as char);
             i += 1;
@@ -384,12 +443,18 @@ fn extract_comment_regions(source: &str) -> Vec<(usize, usize)> {
     while i < source.len() {
         if i + 1 < source.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' {
             let start = i;
-            while i < source.len() && bytes[i] != b'\n' { i += 1; }
+            while i < source.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
             regions.push((start, i));
         } else if i + 1 < source.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
             let start = i;
-            while i + 1 < source.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') { i += 1; }
-            if i + 1 < source.len() { i += 2; }
+            while i + 1 < source.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                i += 1;
+            }
+            if i + 1 < source.len() {
+                i += 2;
+            }
             regions.push((start, i));
         } else {
             i += 1;
@@ -400,7 +465,11 @@ fn extract_comment_regions(source: &str) -> Vec<(usize, usize)> {
 
 fn find_insecure_save_uninitialized(source: &str) -> Option<u32> {
     let active = strip_comments(source);
-    for pattern in &["saveUninitialized: true", "save_uninitialized: true", "saveUninitialized : true"] {
+    for pattern in &[
+        "saveUninitialized: true",
+        "save_uninitialized: true",
+        "saveUninitialized : true",
+    ] {
         if active.contains(pattern) {
             return find_active_line_number(source, pattern);
         }
@@ -462,17 +531,22 @@ fn find_active_line_number(source: &str, pattern: &str) -> Option<u32> {
 /// Find all active (non-comment) lines matching a predicate.
 fn find_active_lines(source: &str, mut pred: impl FnMut(&str) -> bool) -> Vec<u32> {
     let mut in_block_comment = false;
-    source.lines().enumerate().filter(|(_, line)| {
-        let trimmed = line.trim();
-        if trimmed.starts_with("/*") || in_block_comment {
-            in_block_comment = !trimmed.contains("*/");
-            return false;
-        }
-        if trimmed.starts_with("//") || trimmed.starts_with("*") {
-            return false;
-        }
-        pred(line)
-    }).map(|(i, _)| (i + 1) as u32).collect()
+    source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| {
+            let trimmed = line.trim();
+            if trimmed.starts_with("/*") || in_block_comment {
+                in_block_comment = !trimmed.contains("*/");
+                return false;
+            }
+            if trimmed.starts_with("//") || trimmed.starts_with("*") {
+                return false;
+            }
+            pred(line)
+        })
+        .map(|(i, _)| (i + 1) as u32)
+        .collect()
 }
 
 /// Find missing cookie security flags (httpOnly, secure, sameSite).
@@ -489,9 +563,9 @@ fn find_missing_cookie_flags(source: &str) -> Option<u32> {
     let has_http_only = active.contains("httpOnly: true") || active.contains("httpOnly : true");
     let has_secure = active.contains("secure: true") || active.contains("secure : true");
     // Check for commented-out secure flag
-    let secure_in_comments = extract_comment_regions(source).iter().any(|&(s, e)|
+    let secure_in_comments = extract_comment_regions(source).iter().any(|&(s, e)| {
         source[s..e].contains("secure: true") || source[s..e].contains("secure : true")
-    );
+    });
     if !has_http_only || (!has_secure && secure_in_comments) {
         find_active_line_number(source, "cookie:")
             .or_else(|| find_active_line_number(source, "cookie :"))
@@ -517,12 +591,18 @@ fn find_no_session_regenerate(source: &str) -> Option<u32> {
     let lines: Vec<&str> = source.lines().collect();
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
-        if trimmed.starts_with("/*") { in_block = true; }
+        if trimmed.starts_with("/*") {
+            in_block = true;
+        }
         if in_block {
-            if trimmed.contains("*/") { in_block = false; }
+            if trimmed.contains("*/") {
+                in_block = false;
+            }
             continue;
         }
-        if trimmed.starts_with("//") || trimmed.starts_with("*") { continue; }
+        if trimmed.starts_with("//") || trimmed.starts_with("*") {
+            continue;
+        }
 
         if line.contains("req.session") && line.contains("= ") {
             // Found an active session assignment — check N preceding lines for regenerate
@@ -531,12 +611,18 @@ fn find_no_session_regenerate(source: &str) -> Option<u32> {
             let mut in_block2 = false;
             for j in start..=i {
                 let t = lines[j].trim();
-                if t.starts_with("/*") { in_block2 = true; }
+                if t.starts_with("/*") {
+                    in_block2 = true;
+                }
                 if in_block2 {
-                    if t.contains("*/") { in_block2 = false; }
+                    if t.contains("*/") {
+                        in_block2 = false;
+                    }
                     continue;
                 }
-                if t.starts_with("//") || t.starts_with("*") { continue; }
+                if t.starts_with("//") || t.starts_with("*") {
+                    continue;
+                }
                 if lines[j].contains("regenerate") {
                     has_regenerate = true;
                     break;
@@ -561,21 +647,32 @@ fn find_no_admin_check(source: &str) -> Option<u32> {
     let mut in_block = false;
     for (i, line) in source.lines().enumerate() {
         let trimmed = line.trim();
-        if trimmed.starts_with("/*") { in_block = true; }
+        if trimmed.starts_with("/*") {
+            in_block = true;
+        }
         if in_block {
-            if trimmed.contains("*/") { in_block = false; }
+            if trimmed.contains("*/") {
+                in_block = false;
+            }
             continue;
         }
-        if trimmed.starts_with("//") || trimmed.starts_with("*") { continue; }
+        if trimmed.starts_with("//") || trimmed.starts_with("*") {
+            continue;
+        }
 
         if (line.contains("/benefits") || line.contains("/admin"))
-                && !line.trim_start().starts_with("const ") && !line.trim_start().starts_with("let ")
-                && !line.trim_start().starts_with("var ") && !line.contains("require(")
-                && !line.contains("import ") && !line.contains("from ")
-            {
+            && !line.trim_start().starts_with("const ")
+            && !line.trim_start().starts_with("let ")
+            && !line.trim_start().starts_with("var ")
+            && !line.contains("require(")
+            && !line.contains("import ")
+            && !line.contains("from ")
+        {
             // Found a route — check if this same line uses `isAdmin` auth middleware
-            if !line.contains("isAdmin") && !line.contains("is_admin")
-                && !line.contains("requireAdmin") && !line.contains("ensureAdmin")
+            if !line.contains("isAdmin")
+                && !line.contains("is_admin")
+                && !line.contains("requireAdmin")
+                && !line.contains("ensureAdmin")
             {
                 return Some((i + 1) as u32);
             }
@@ -590,8 +687,12 @@ fn find_weak_password_policy(source: &str) -> Option<u32> {
     if !has_password {
         return None;
     }
-    let has_policy = active.contains("minLength") || active.contains("min_length") || active.contains("minlength")
-        || active.contains("minLen") || active.contains("password.length") || active.contains("password.len")
+    let has_policy = active.contains("minLength")
+        || active.contains("min_length")
+        || active.contains("minlength")
+        || active.contains("minLen")
+        || active.contains("password.length")
+        || active.contains("password.len")
         || active.contains("passwordStrength");
     if has_policy {
         return None;
@@ -605,11 +706,16 @@ fn find_weak_password_policy(source: &str) -> Option<u32> {
 
 fn find_user_enumeration(source: &str) -> Option<u32> {
     let active = strip_comments(source);
-    let login_related = active.contains("user not found") || active.contains("User not found")
-        || active.contains("doesn't exist") || active.contains("does not exist")
-        || active.contains("no account") || active.contains("No account")
-        || active.contains("invalidUserName") || active.contains("invalidPassword")
-        || active.contains("invalid user") || active.contains("Invalid user");
+    let login_related = active.contains("user not found")
+        || active.contains("User not found")
+        || active.contains("doesn't exist")
+        || active.contains("does not exist")
+        || active.contains("no account")
+        || active.contains("No account")
+        || active.contains("invalidUserName")
+        || active.contains("invalidPassword")
+        || active.contains("invalid user")
+        || active.contains("Invalid user");
     if login_related {
         // Prefer the render line where the username is leaked to the template
         find_active_line_number(source, "userName: userName")

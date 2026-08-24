@@ -3,8 +3,8 @@
 use std::path::Path;
 
 use crate::cfg::build_cfg;
-use crate::cfg::def_use::compute_def_use;
 use crate::cfg::def_use::DefUseChain;
+use crate::cfg::def_use::compute_def_use;
 use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 
 /// Maximum number of definition hops we trace backward before giving up.

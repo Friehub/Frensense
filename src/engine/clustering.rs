@@ -112,10 +112,8 @@ pub fn cluster_functions(
             if j <= i {
                 continue; // each unordered pair considered once
             }
-            let sim = frensense_engine::minhash::signature_similarity(
-                &signatures[i],
-                &signatures[j],
-            );
+            let sim =
+                frensense_engine::minhash::signature_similarity(&signatures[i], &signatures[j]);
             if sim >= similarity_threshold {
                 uf.union(i, j);
             }
@@ -304,9 +302,11 @@ mod tests {
     fn make_fp(name: &str, body: &str) -> FunctionFingerprint {
         let source = format!("fn {name}() {{ {body} }}");
         let mut parser = tree_sitter::Parser::new();
-        assert!(parser
-            .set_language(&tree_sitter_rust::LANGUAGE.into())
-            .is_ok());
+        assert!(
+            parser
+                .set_language(&tree_sitter_rust::LANGUAGE.into())
+                .is_ok()
+        );
         let tree = parser.parse(&source, None).unwrap();
         let mut fps = Vec::new();
         frensense_engine::fingerprint::extract_fingerprints(
@@ -338,7 +338,11 @@ mod tests {
             .iter()
             .filter(|c| c.members.len() == 3)
             .collect::<Vec<_>>();
-        assert_eq!(triple.len(), 1, "expected one triple cluster, got {clusters:#?}");
+        assert_eq!(
+            triple.len(),
+            1,
+            "expected one triple cluster, got {clusters:#?}"
+        );
         assert!(!triple[0].has_inconsistency);
     }
 }

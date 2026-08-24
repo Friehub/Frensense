@@ -10,6 +10,7 @@
 use super::TaintRegistry;
 use crate::semantics::data_flow::TaintOrigin;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
+use frensense_engine::semantic::SemanticProvider;
 use tree_sitter::Node;
 
 /// Walk a member-expression chain to find the base (leftmost) identifier.
@@ -38,6 +39,7 @@ pub fn seed_from_corpus_match(
     source: &str,
     registry: &mut TaintRegistry,
     source_sink: &CorpusSourceSinkRegistry,
+    provider: Option<&dyn SemanticProvider>,
 ) {
     let Some(params_node) = fn_node
         .child_by_field_name("parameters")
@@ -62,7 +64,11 @@ pub fn seed_from_corpus_match(
         }
 
         let clean_type = param_type.trim_start_matches(':').trim();
-        let origin = if source_sink.is_source_type(clean_type) {
+        let origin = if let Some(provider) = provider {
+            provider
+                .classify_param(&param_name, Some(clean_type))
+                .or_else(|| classify_param_origin(&param_name))
+        } else if source_sink.is_source_type(clean_type) {
             Some(TaintOrigin::UserInput)
         } else if let Some(decorator_origin) =
             frensense_engine::decorator::classify_param_decorator(param, source)
@@ -300,7 +306,7 @@ mod tests {
 
         let mut registry = TaintRegistry::default();
         let source_sink = test_source_sink();
-        seed_from_corpus_match(fn_node, source, &mut registry, &source_sink);
+        seed_from_corpus_match(fn_node, source, &mut registry, &source_sink, None);
 
         assert!(
             registry.is_tainted("req"),
@@ -320,7 +326,7 @@ mod tests {
 
         let mut registry = TaintRegistry::default();
         let source_sink = test_source_sink();
-        seed_from_corpus_match(fn_node, source, &mut registry, &source_sink);
+        seed_from_corpus_match(fn_node, source, &mut registry, &source_sink, None);
 
         assert!(
             !registry.is_tainted("randomVar"),

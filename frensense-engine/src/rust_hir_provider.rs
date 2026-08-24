@@ -27,10 +27,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use ra_ap_base_db::{CrateOrigin, FileChange, SourceRoot};
-use ra_ap_hir::{Crate, DisplayTarget, HirDisplay, ModuleDef};
+use ra_ap_hir::{Adt, Crate, DisplayTarget, HirDisplay, ModuleDef};
 use ra_ap_ide_db::RootDatabase;
 use ra_ap_paths::{AbsPath, AbsPathBuf};
-use ra_ap_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace};
+use ra_ap_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLibSource};
 use ra_ap_vfs::{FileId, VfsPath, file_set::FileSet};
 use rustc_hash::FxHashMap;
 
@@ -90,8 +90,15 @@ pub fn build_hir_type_map(manifest_path: &Path) -> Result<HirTypeMap, String> {
     let utf8 = camino_utf8(manifest_path)?;
     let manifest =
         ProjectManifest::discover_single(AbsPath::assert(utf8)).map_err(|e| format!("{e}"))?;
-    let workspace = ProjectWorkspace::load(manifest, &CargoConfig::default(), &|_| {})
-        .map_err(|e| format!("{e}"))?;
+    // Load the toolchain sysroot so `core`, `std`, `alloc` and their languages
+    // items (`Future`, `Sized`) resolve. `CargoConfig::default()` disables the
+    // sysroot, which would leave every std/framework type opaque.
+    let config = CargoConfig {
+        sysroot: Some(RustLibSource::Discover),
+        ..CargoConfig::default()
+    };
+    let workspace =
+        ProjectWorkspace::load(manifest, &config, &|_| {}).map_err(|e| format!("{e}"))?;
 
     // Assign a stable FileId to every source file the crate graph touches, and
     // remember the path for each id so facts can be keyed by file path later.
@@ -115,7 +122,7 @@ pub fn build_hir_type_map(manifest_path: &Path) -> Result<HirTypeMap, String> {
         // The crate graph only gives the loader crate *root* files. Submodule
         // files (`mod foo;`) are resolved lazily through the source-root file
         // set, so walk every crate's source directory to discover them too —
-        // otherwise `use web::Json` where `Json` lives in `web/src/extract.rs`
+        // otherwise `use axum::Json` where `Json` lives in `axum/src/extract.rs`
         // would resolve to an unknown type.
         for crate_id in crate_graph.iter() {
             let root_file = crate_graph[crate_id].basic.root_file_id;
@@ -166,7 +173,11 @@ fn collect_source_files(
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                if !entry.file_name().to_string_lossy().eq_ignore_ascii_case("target") {
+                if !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case("target")
+                {
                     let Ok(utf8) = ra_ap_paths::Utf8PathBuf::from_path_buf(path) else {
                         continue;
                     };
@@ -190,36 +201,46 @@ fn collect_source_files(
 
 /// Convert a std `Path` to a `Utf8Path`, mapping non-UTF-8 paths to an error.
 fn camino_utf8(path: &Path) -> Result<&ra_ap_paths::Utf8Path, String> {
-    ra_ap_paths::Utf8Path::from_path(path).ok_or_else(|| {
-        format!("path is not valid UTF-8: {}", path.display())
-    })
+    ra_ap_paths::Utf8Path::from_path(path)
+        .ok_or_else(|| format!("path is not valid UTF-8: {}", path.display()))
+}
+
+/// Canonical path of an ADT including its crate name, e.g.
+/// `axum::extract::Json`. `ModuleDef::canonical_path` omits the crate root
+/// (the root module is nameless), so the crate display name is prepended here.
+fn canonical_adt_path(db: &RootDatabase, adt: Adt) -> Option<String> {
+    let module = ModuleDef::from(adt).module(db)?;
+    let mut segments: Vec<String> = Vec::new();
+    if let Some(crate_name) = module.krate(db).display_name(db) {
+        segments.push(crate_name.to_string());
+    }
+    segments.extend(module.path_segments(db).map(|n| n.as_str().to_owned()));
+    segments.push(adt.name(db).as_str().to_owned());
+    Some(segments.join("::"))
 }
 
 /// Walk every local crate's HIR and collect the type-checked facts into an
 /// owned [`HirTypeMap`].
-fn collect_hir_type_map(db: &RootDatabase, id_to_path: &FxHashMap<FileId, AbsPathBuf>) -> HirTypeMap {
+fn collect_hir_type_map(
+    db: &RootDatabase,
+    id_to_path: &FxHashMap<FileId, AbsPathBuf>,
+) -> HirTypeMap {
     let mut map = HirTypeMap::default();
 
     for krate in Crate::all(db) {
         if !matches!(krate.origin(db), CrateOrigin::Local { .. }) {
             continue;
         }
-        let edition = krate.edition(db);
         let display_target = DisplayTarget::from_crate(db, krate.base());
-        eprintln!(
-            "DEBUG crate {:?} deps={:?}",
-            krate.display_name(db).map(|n| n.to_string()),
-            krate
-                .dependencies(db)
-                .iter()
-                .map(|d| d.name.as_str().to_string())
-                .collect::<Vec<_>>()
-        );
 
         for module in krate.modules(db) {
             // The module's defining file. Inline modules (`mod foo {}`) report
             // the enclosing file, which is what we want.
-            let Some(file_id) = module.definition_source(db).file_id.file_id().map(|e| e.file_id(db))
+            let Some(file_id) = module
+                .definition_source(db)
+                .file_id
+                .file_id()
+                .map(|e| e.file_id(db))
             else {
                 continue;
             };
@@ -235,57 +256,40 @@ fn collect_hir_type_map(db: &RootDatabase, id_to_path: &FxHashMap<FileId, AbsPat
 
                 let name = func.name(db).as_str().to_owned();
                 let is_async = func.is_async(db);
+                // The type-checked return type. For `async fn` this is the
+                // `Future`'s `Output` — otherwise `ret_type` yields the opaque
+                // `impl Future<...>` and the handler's own trait is hidden.
                 let ret_type = if is_async {
-                    func.async_ret_type(db)
+                    func.async_ret_type(db).unwrap_or_else(|| func.ret_type(db))
                 } else {
-                    Some(func.ret_type(db))
+                    func.ret_type(db)
                 };
-                let raw_ret = func.ret_type(db);
-                let raw_bounds: Vec<String> = raw_ret
-                    .as_impl_traits(db)
-                    .map(|it| it.map(|t| t.name(db).as_str().to_owned()).collect())
-                    .unwrap_or_default();
-                eprintln!(
-                    "DEBUG fn {file_path}::{name} async={is_async} rawret={} rawbounds={raw_bounds:?} asret={:?}",
-                    raw_ret.display(db, display_target),
-                    ret_type.as_ref().map(|t| t.display(db, display_target).to_string())
-                );
 
                 // The single handler fact: `-> impl IntoResponse` names its
                 // trait in the type-checked return type.
-                let return_trait_bounds = match ret_type {
-                    Some(ty) => {
-                        if let Some(traits) = ty.as_impl_traits(db) {
-                            traits
-                                .map(|trait_| trait_.name(db).as_str().to_owned())
-                                .collect()
-                        } else {
-                            Vec::new()
-                        }
-                    }
-                    None => Vec::new(),
-                };
+                let return_trait_bounds: Vec<String> = ret_type
+                    .as_impl_traits(db)
+                    .map(|it| {
+                        it.filter(|trait_| trait_.name(db).as_str() != "Sized")
+                            .map(|trait_| trait_.name(db).as_str().to_owned())
+                            .collect()
+                    })
+                    .unwrap_or_default();
 
                 let mut params = Vec::new();
                 for param in func.params_without_self(db) {
                     let param_name = param.name(db).map(|n| n.as_str().to_owned());
                     let rendered = param.ty().display(db, display_target).to_string();
-                    let adt = param.ty().strip_references().as_adt().map(|a| {
-                        ModuleDef::from(a).canonical_path(db, edition).unwrap_or_default()
-                    });
-                    eprintln!("DEBUG   param {param_name:?} ty={rendered} adt={adt:?}");
 
-                    // Record the base name → canonical path, e.g.
-                    // "Json" → "axum::extract::Json", for later parameter
-                    // classification.
-                    if let Some(adt) = param.ty().strip_references().as_adt() {
-                        let canonical = ModuleDef::from(adt).canonical_path(db, edition);
-                        if let Some(canonical) = canonical {
-                            let base = canonical.rsplit("::").next().unwrap_or(&canonical);
-                            map.type_paths
-                                .entry(base.to_owned())
-                                .or_insert_with(|| canonical);
-                        }
+                    // Record the base name → canonical path, e.g. "Json" →
+                    // "axum::extract::Json", for later parameter classification.
+                    if let Some(adt) = param.ty().strip_references().as_adt()
+                        && let Some(canonical) = canonical_adt_path(db, adt)
+                    {
+                        let base = canonical.rsplit("::").next().unwrap_or(&canonical);
+                        map.type_paths
+                            .entry(base.to_owned())
+                            .or_insert_with(|| canonical);
                     }
 
                     params.push((param_name, rendered));
@@ -344,11 +348,7 @@ impl RustHirProvider {
 }
 
 impl SemanticProvider for RustHirProvider {
-    fn classify_param(
-        &self,
-        name: &str,
-        type_annotation: Option<&str>,
-    ) -> Option<TaintOrigin> {
+    fn classify_param(&self, name: &str, type_annotation: Option<&str>) -> Option<TaintOrigin> {
         // Type-confirmed: the annotation's base name resolves to a real type
         // in the HIR, and that type is an HTTP extractor.
         if let Some(annotation) = type_annotation {
@@ -386,11 +386,7 @@ impl SemanticProvider for RustHirProvider {
         None
     }
 
-    fn is_http_handler(
-        &self,
-        fp: &FunctionFingerprint,
-        type_context: &TypeContext,
-    ) -> bool {
+    fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: the fingerprinted function returns `impl
         // IntoResponse` according to the HIR — a single signal is sufficient.
         if let Some(facts) = type_context
@@ -424,44 +420,46 @@ mod tests {
     use std::path::PathBuf;
 
     /// Build a tiny two-crate workspace in a tempdir and point the HIR at it.
-    /// The `web` crate stands in for axum: `web::extract::Json<T>` is an
-    /// extractor and `IntoResponse` is the handler marker trait.
+    /// The `axum` crate stands in for the real one: `axum::extract::Json<T>` is
+    /// an extractor and `axum::IntoResponse` is the handler marker trait.
+    /// Naming it `axum` (not `web`) lets `HTTP_EXTRACTOR_PREFIXES` match the
+    /// canonical paths exactly as it would in production.
     fn fixture() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().expect("tempdir");
         let root = dir.path();
         fs::write(
             root.join("Cargo.toml"),
-            "[workspace]\nmembers = [\"app\", \"web\"]\nresolver = \"2\"\n",
+            "[workspace]\nmembers = [\"app\", \"axum\"]\nresolver = \"2\"\n",
         )
         .unwrap();
         fs::create_dir_all(root.join("app/src")).unwrap();
         fs::write(
             root.join("app/Cargo.toml"),
             "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\
-             [dependencies]\nweb = { path = \"../web\" }\n",
+             [dependencies]\naxum = { path = \"../axum\" }\n",
         )
         .unwrap();
         fs::write(
             root.join("app/src/main.rs"),
-            "use web::{IntoResponse, Json};\n\n\
+            "use axum::{IntoResponse, Json};\n\n\
              fn main() {}\n\n\
              async fn handler(body: Json<u64>) -> impl IntoResponse {\n    body.0\n}\n\n\
              fn helper(x: u64) -> u64 { x + 1 }\n",
         )
         .unwrap();
-        fs::create_dir_all(root.join("web/src")).unwrap();
+        fs::create_dir_all(root.join("axum/src")).unwrap();
         fs::write(
-            root.join("web/Cargo.toml"),
-            "[package]\nname = \"web\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            root.join("axum/Cargo.toml"),
+            "[package]\nname = \"axum\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )
         .unwrap();
         fs::write(
-            root.join("web/src/lib.rs"),
+            root.join("axum/src/lib.rs"),
             "pub mod extract;\npub use extract::{IntoResponse, Json};\n",
         )
         .unwrap();
         fs::write(
-            root.join("web/src/extract.rs"),
+            root.join("axum/src/extract.rs"),
             "pub struct Json<T>(pub T);\npub trait IntoResponse {}\n",
         )
         .unwrap();
@@ -472,7 +470,14 @@ mod tests {
     #[test]
     fn builds_hir_type_map_from_workspace() {
         let (_dir, main_rs) = fixture();
-        let cargo_toml = main_rs.parent().unwrap().parent().unwrap().parent().unwrap().join("Cargo.toml");
+        let cargo_toml = main_rs
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("Cargo.toml");
 
         let map = build_hir_type_map(&cargo_toml).expect("build_hir_type_map");
         let main = main_rs.to_str().unwrap();
@@ -482,14 +487,19 @@ mod tests {
             .function_facts(main, "handler")
             .expect("handler facts present");
         assert!(handler.is_async);
-        assert_eq!(handler.return_trait_bounds, vec!["IntoResponse".to_string()]);
+        assert_eq!(
+            handler.return_trait_bounds,
+            vec!["IntoResponse".to_string()]
+        );
 
         // The parameter resolves to the extractor type.
-        assert_eq!(map.resolve_type("Json"), Some("web::extract::Json"));
-        assert!(handler
-            .params
-            .iter()
-            .any(|(name, ty)| name.as_deref() == Some("body") && ty == "Json<u64>"));
+        assert_eq!(map.resolve_type("Json"), Some("axum::extract::Json"));
+        assert!(
+            handler
+                .params
+                .iter()
+                .any(|(name, ty)| name.as_deref() == Some("body") && ty == "Json<u64>")
+        );
 
         // `helper` has no handler facts.
         let helper = map.function_facts(main, "helper").expect("helper facts");
@@ -500,7 +510,14 @@ mod tests {
     #[test]
     fn provider_classifies_from_hir_facts() {
         let (_dir, main_rs) = fixture();
-        let cargo_toml = main_rs.parent().unwrap().parent().unwrap().parent().unwrap().join("Cargo.toml");
+        let cargo_toml = main_rs
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("Cargo.toml");
 
         let map = Arc::new(build_hir_type_map(&cargo_toml).expect("build_hir_type_map"));
         let provider = RustHirProvider::new(map.clone());
@@ -512,7 +529,10 @@ mod tests {
         );
         // Unresolved types fall back to the name heuristic only.
         assert_eq!(provider.classify_param("x", Some("u64")), None);
-        assert_eq!(provider.resolve_name("Json"), Some("web::extract::Json".to_string()));
+        assert_eq!(
+            provider.resolve_name("Json"),
+            Some("axum::extract::Json".to_string())
+        );
 
         // The handler is recognised from its return type alone.
         let import_map = crate::import_resolver::ImportMap::new();

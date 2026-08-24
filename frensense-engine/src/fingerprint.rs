@@ -5,8 +5,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use tree_sitter::Node;
 
-use crate::lang::{Language, mapper::abstract_kind};
 use crate::lang::kinds::AbstractKind;
+use crate::lang::{Language, mapper::abstract_kind};
 
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
@@ -241,7 +241,7 @@ fn split_name_segments(name: &str) -> Vec<String> {
 fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language) -> Vec<u64> {
     let mut markers = FxHashSet::default();
     let mut cursor = node.walk();
-    
+
     let kind = abstract_kind(node.kind(), language);
     if kind != AbstractKind::Other {
         let mut hasher = FxHasher::default();
@@ -557,7 +557,10 @@ fn extract_arg_types_recursive(
             .child_by_field_name("function")
             .map(|f| {
                 let name = &source[f.start_byte()..f.end_byte()];
-                name.rsplit(|c: char| c == '.' || c == ':').next().unwrap_or(name).to_string()
+                name.rsplit(|c: char| c == '.' || c == ':')
+                    .next()
+                    .unwrap_or(name)
+                    .to_string()
             })
             .unwrap_or_default();
 
@@ -630,7 +633,10 @@ fn extract_literal_patterns_recursive(
             .child_by_field_name("function")
             .map(|f| {
                 let name = &source[f.start_byte()..f.end_byte()];
-                name.rsplit(|c: char| c == '.' || c == ':').next().unwrap_or(name).to_string()
+                name.rsplit(|c: char| c == '.' || c == ':')
+                    .next()
+                    .unwrap_or(name)
+                    .to_string()
             })
             .unwrap_or_default();
 
@@ -682,7 +688,10 @@ fn extract_literal_patterns_recursive(
                                     || upper.contains("WHERE")
                                     || upper.contains("INSERT")
                                     || upper.contains("DELETE");
-                                let has_params = arg_text.contains(':') && (arg_text.contains(":param") || arg_text.contains(":value") || arg_text.contains(":id"));
+                                let has_params = arg_text.contains(':')
+                                    && (arg_text.contains(":param")
+                                        || arg_text.contains(":value")
+                                        || arg_text.contains(":id"));
                                 let has_qmark = arg_text.contains('?');
                                 let is_parametrized = has_params || has_qmark;
 
@@ -695,7 +704,9 @@ fn extract_literal_patterns_recursive(
                                 } else {
                                     // Not a notable pattern — skip
                                     pos += 1;
-                                    if !cursor.goto_next_sibling() { break; }
+                                    if !cursor.goto_next_sibling() {
+                                        break;
+                                    }
                                     continue;
                                 }
                             }
@@ -1067,7 +1078,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
             if let Some(name_node) = node.child_by_field_name("name") {
                 function_name =
                     source_code[name_node.start_byte()..name_node.end_byte()].to_string();
-            } else if let Some(inferred) = crate::route_registry::infer_function_name(node, source_code)
+            } else if let Some(inferred) =
+                crate::route_registry::infer_function_name(node, source_code)
             {
                 function_name = inferred;
             }
@@ -1148,9 +1160,11 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 std::hash::Hash::hash(s, &mut hasher);
                 skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
             }
-            let has_http_decorator = crate::decorator::has_routing_decorator(node, source_code).is_some();
-            let is_registered_handler = crate::route_registry::is_function_registered_in_file(node, source_code, "")
-                || crate::route_registry::is_inline_registered_handler(node, source_code);
+            let has_http_decorator =
+                crate::decorator::has_routing_decorator(node, source_code).is_some();
+            let is_registered_handler =
+                crate::route_registry::is_function_registered_in_file(node, source_code, "")
+                    || crate::route_registry::is_inline_registered_handler(node, source_code);
 
             let fp = FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
@@ -1168,7 +1182,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 structural_markers: collect_structural_markers(body, source_code, lang),
                 type_usages: {
                     let mut tu = collect_type_usages(body, source_code);
-                    tu.extend(crate::decorator::collect_param_decorator_types(node, source_code));
+                    tu.extend(crate::decorator::collect_param_decorator_types(
+                        node,
+                        source_code,
+                    ));
                     tu
                 },
                 comment_density: if total_bytes > 0 {
@@ -1195,7 +1212,9 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 has_http_decorator,
                 is_registered_handler,
                 export_handler_kind: crate::export_matcher::classify_exported_handler(
-                    node, source_code, &path.to_string_lossy(),
+                    node,
+                    source_code,
+                    &path.to_string_lossy(),
                 ),
             };
 
@@ -1248,7 +1267,8 @@ pub fn extract_fingerprints(
             if let Some(name_node) = node.child_by_field_name("name") {
                 function_name =
                     source_code[name_node.start_byte()..name_node.end_byte()].to_string();
-            } else if let Some(inferred) = crate::route_registry::infer_function_name(node, source_code)
+            } else if let Some(inferred) =
+                crate::route_registry::infer_function_name(node, source_code)
             {
                 function_name = inferred;
             }
@@ -1328,9 +1348,11 @@ pub fn extract_fingerprints(
                 std::hash::Hash::hash(s, &mut hasher);
                 skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
             }
-            let has_http_decorator = crate::decorator::has_routing_decorator(node, source_code).is_some();
-            let is_registered_handler = crate::route_registry::is_function_registered_in_file(node, source_code, "")
-                || crate::route_registry::is_inline_registered_handler(node, source_code);
+            let has_http_decorator =
+                crate::decorator::has_routing_decorator(node, source_code).is_some();
+            let is_registered_handler =
+                crate::route_registry::is_function_registered_in_file(node, source_code, "")
+                    || crate::route_registry::is_inline_registered_handler(node, source_code);
 
             fingerprints.push(FunctionFingerprint {
                 file_path: path.to_string_lossy().to_string(),
@@ -1348,7 +1370,10 @@ pub fn extract_fingerprints(
                 structural_markers: collect_structural_markers(body, source_code, lang),
                 type_usages: {
                     let mut tu = collect_type_usages(body, source_code);
-                    tu.extend(crate::decorator::collect_param_decorator_types(node, source_code));
+                    tu.extend(crate::decorator::collect_param_decorator_types(
+                        node,
+                        source_code,
+                    ));
                     tu
                 },
                 comment_density: if total_bytes > 0 {
@@ -1375,7 +1400,9 @@ pub fn extract_fingerprints(
                 has_http_decorator,
                 is_registered_handler,
                 export_handler_kind: crate::export_matcher::classify_exported_handler(
-                    node, source_code, &path.to_string_lossy(),
+                    node,
+                    source_code,
+                    &path.to_string_lossy(),
                 ),
             });
         }

@@ -2,18 +2,34 @@
 
 use tree_sitter::Node;
 
-use crate::cfg;
 use super::{PatternFinding, SemanticPattern};
+use crate::cfg;
 
 pub struct MissingAuthGuard;
 
 impl MissingAuthGuard {
     const SINK_CALLS: &[&str] = &[
-        "send", "json", "redirect",
-        "write", "writeFile", "writeFileSync",
-        "query", "execute", "executeRaw", "queryRaw", "sql_query", "prepare",
-        "exec", "spawn", "execSync", "spawnSync",
-        "insert", "update", "delete", "save", "put",
+        "send",
+        "json",
+        "redirect",
+        "write",
+        "writeFile",
+        "writeFileSync",
+        "query",
+        "execute",
+        "executeRaw",
+        "queryRaw",
+        "sql_query",
+        "prepare",
+        "exec",
+        "spawn",
+        "execSync",
+        "spawnSync",
+        "insert",
+        "update",
+        "delete",
+        "save",
+        "put",
     ];
 
     fn block_contains_sink(block_text: &str) -> bool {
@@ -74,11 +90,8 @@ impl SemanticPattern for MissingAuthGuard {
                         let block_text = &source[block.start_byte..block.end_byte];
 
                         if Self::block_contains_sink(block_text) {
-                            let has_auth = cfg::has_auth_guard_dominator(
-                                &cfg_graph,
-                                block.id,
-                                source,
-                            );
+                            let has_auth =
+                                cfg::has_auth_guard_dominator(&cfg_graph, block.id, source);
 
                             if !has_auth {
                                 let fn_name = node

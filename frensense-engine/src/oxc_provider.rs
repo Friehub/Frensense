@@ -92,7 +92,9 @@ pub fn build_oxc_symbol_table(source: &str, path: &Path) -> OxcSymbolTable {
     //    Later declarators can chain off earlier ones (`const client = require('pg')`
     //    then `const db = new client.Client()`), so the collector resolves against
     //    the map it is growing.
-    let mut collector = BindingCollector { resolved: &mut table.bindings };
+    let mut collector = BindingCollector {
+        resolved: &mut table.bindings,
+    };
     collector.visit_program(program);
 
     table
@@ -103,11 +105,13 @@ fn ts_resolver(cwd: &Path) -> Resolver {
     let mut options = ResolveOptions::default();
     options.cwd = Some(cwd.parent().unwrap_or(cwd).to_path_buf());
     options.extensions = TS_EXTENSIONS.iter().map(|s| (*s).to_string()).collect();
-    options.condition_names =
-        ["import", "require", "node", "default", "types"].map(str::to_string).to_vec();
+    options.condition_names = ["import", "require", "node", "default", "types"]
+        .map(str::to_string)
+        .to_vec();
     options.main_fields = ["module", "types", "main"].map(str::to_string).to_vec();
-    options.main_files =
-        ["index.ts", "index.tsx", "index.js", "index"].map(str::to_string).to_vec();
+    options.main_files = ["index.ts", "index.tsx", "index.js", "index"]
+        .map(str::to_string)
+        .to_vec();
     Resolver::new(options)
 }
 
@@ -132,10 +136,14 @@ fn resolve_once(resolver: &Resolver, from: &Path, request: &str) -> ResolvedModu
     let base = from.parent().unwrap_or(from);
     match resolver.resolve(base, request) {
         Ok(resolution) => {
-            let package =
-                resolution.package_json().and_then(|package_json| package_json.name())
-                    .map(str::to_string);
-            ResolvedModule { package, path: Some(resolution.path().to_path_buf()) }
+            let package = resolution
+                .package_json()
+                .and_then(|package_json| package_json.name())
+                .map(str::to_string);
+            ResolvedModule {
+                package,
+                path: Some(resolution.path().to_path_buf()),
+            }
         }
         Err(_) => ResolvedModule::default(),
     }
@@ -145,19 +153,18 @@ fn resolve_once(resolver: &Resolver, from: &Path, request: &str) -> ResolvedModu
 /// re-exports, resolve the re-export target in turn. Returns the first module
 /// that lands on a known package (preferring it over the direct, unknown one),
 /// or the original resolution.
-fn follow_barrels(
-    resolver: &Resolver,
-    from: &Path,
-    request: &str,
-    depth: usize,
-) -> ResolvedModule {
+fn follow_barrels(resolver: &Resolver, from: &Path, request: &str, depth: usize) -> ResolvedModule {
     if depth == 0 {
         return resolve_once(resolver, from, request);
     }
     let resolved = resolve_once(resolver, from, request);
-    let Some(file_path) = &resolved.path else { return resolved };
+    let Some(file_path) = &resolved.path else {
+        return resolved;
+    };
 
-    let Ok(source) = std::fs::read_to_string(file_path) else { return resolved };
+    let Ok(source) = std::fs::read_to_string(file_path) else {
+        return resolved;
+    };
     let allocator = Allocator::default();
     let source_type = SourceType::from_path(file_path).unwrap_or_else(|_| SourceType::ts());
     let parser_return = Parser::new(&allocator, &source, source_type).parse();
@@ -170,7 +177,9 @@ fn follow_barrels(
     // the re-export resolved relative to the barrel's own directory, not the
     // original file's.
     for export in &module_record.indirect_export_entries {
-        let Some(request) = &export.module_request else { continue };
+        let Some(request) = &export.module_request else {
+            continue;
+        };
         let next_request = request.name.as_str();
         let next = follow_barrels(resolver, file_path, next_request, depth - 1);
         if next.package.as_deref().is_some_and(is_known_package) {
@@ -247,7 +256,9 @@ fn is_require(call: &CallExpression) -> bool {
 /// The module requested by `require('pg')` / `require('./util')`.
 fn require_target(call: &CallExpression<'_>) -> Option<ResolvedModule> {
     let literal = call.arguments.first()?.as_expression()?;
-    let Expression::StringLiteral(specifier) = literal else { return None };
+    let Expression::StringLiteral(specifier) = literal else {
+        return None;
+    };
     let request = specifier.value.as_str();
     if !is_bare_request(request) {
         return None;
@@ -306,7 +317,11 @@ impl OxcProvider {
         source_sink: Arc<CorpusSourceSinkRegistry>,
         environment: Option<Environment>,
     ) -> Self {
-        Self { symbol_table, source_sink, environment }
+        Self {
+            symbol_table,
+            source_sink,
+            environment,
+        }
     }
 
     /// Parse `source` (a file at `path`) and build a provider for it.
@@ -317,7 +332,11 @@ impl OxcProvider {
         source_sink: Arc<CorpusSourceSinkRegistry>,
         environment: Option<Environment>,
     ) -> Self {
-        Self::new(Arc::new(build_oxc_symbol_table(source, path)), source_sink, environment)
+        Self::new(
+            Arc::new(build_oxc_symbol_table(source, path)),
+            source_sink,
+            environment,
+        )
     }
 
     /// Access the underlying symbol table.
@@ -328,11 +347,7 @@ impl OxcProvider {
 }
 
 impl SemanticProvider for OxcProvider {
-    fn classify_param(
-        &self,
-        name: &str,
-        type_annotation: Option<&str>,
-    ) -> Option<TaintOrigin> {
+    fn classify_param(&self, name: &str, type_annotation: Option<&str>) -> Option<TaintOrigin> {
         // 1. A corpus-learned source type wins outright.
         if let Some(annotation) = type_annotation {
             let clean = annotation.trim_start_matches(':').trim();
@@ -345,7 +360,10 @@ impl SemanticProvider for OxcProvider {
         if let Some(annotation) = type_annotation {
             let base = base_type_name(annotation);
             if let Some(module) = self.symbol_table.types.get(base)
-                && module.package.as_deref().is_some_and(|p| HTTP_FRAMEWORK_PACKAGES.contains(&p))
+                && module
+                    .package
+                    .as_deref()
+                    .is_some_and(|p| HTTP_FRAMEWORK_PACKAGES.contains(&p))
             {
                 return Some(TaintOrigin::UserInput);
             }
@@ -378,20 +396,19 @@ impl SemanticProvider for OxcProvider {
         self.source_sink.is_sink_expr(call_text)
     }
 
-    fn is_http_handler(
-        &self,
-        fp: &FunctionFingerprint,
-        type_context: &TypeContext,
-    ) -> bool {
+    fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: if any type used by the function resolves to an HTTP
         // framework package, Oxc has confirmed it — a single signal suffices.
         let type_confirmed = fp.type_usages.iter().any(|annotation| {
-            self.symbol_table.types.get(annotation).is_some_and(|module| {
-                module
-                    .package
-                    .as_deref()
-                    .is_some_and(|package| HTTP_FRAMEWORK_PACKAGES.contains(&package))
-            })
+            self.symbol_table
+                .types
+                .get(annotation)
+                .is_some_and(|module| {
+                    module
+                        .package
+                        .as_deref()
+                        .is_some_and(|package| HTTP_FRAMEWORK_PACKAGES.contains(&package))
+                })
         });
         if type_confirmed {
             return true;
@@ -426,10 +443,14 @@ mod tests {
         for (name, package_name) in [("pg", "pg"), ("express", "express")] {
             let package_root = dir.path().join("node_modules").join(name);
             std::fs::create_dir_all(&package_root).expect("mkdir");
-            let mut package_json = std::fs::File::create(package_root.join("package.json"))
-                .expect("package.json");
+            let mut package_json =
+                std::fs::File::create(package_root.join("package.json")).expect("package.json");
             write!(package_json, r#"{{"name":"{package_name}"}}"#).expect("write");
-            let entry = if name == "pg" { "index.js" } else { "index.d.ts" };
+            let entry = if name == "pg" {
+                "index.js"
+            } else {
+                "index.d.ts"
+            };
             std::fs::File::create(package_root.join(entry)).expect("entry");
         }
         dir
@@ -450,15 +471,35 @@ mod tests {
         "#;
         let table = build_oxc_symbol_table(source, &path);
 
-        assert_eq!(table.bindings.get("Pool").and_then(|m| m.package.as_deref()), Some("pg"));
         assert_eq!(
-            table.bindings.get("express").and_then(|m| m.package.as_deref()),
+            table
+                .bindings
+                .get("Pool")
+                .and_then(|m| m.package.as_deref()),
+            Some("pg")
+        );
+        assert_eq!(
+            table
+                .bindings
+                .get("express")
+                .and_then(|m| m.package.as_deref()),
             Some("express")
         );
-        assert_eq!(table.types.get("Request").and_then(|m| m.package.as_deref()), Some("express"));
+        assert_eq!(
+            table
+                .types
+                .get("Request")
+                .and_then(|m| m.package.as_deref()),
+            Some("express")
+        );
         assert_eq!(
             table.types.get("Request").and_then(|m| m.path.as_deref()),
-            Some(project.path().join("node_modules/express/index.d.ts").as_path()),
+            Some(
+                project
+                    .path()
+                    .join("node_modules/express/index.d.ts")
+                    .as_path()
+            ),
         );
     }
 
@@ -474,8 +515,16 @@ mod tests {
         "#;
         let table = build_oxc_symbol_table(source, &path);
 
-        assert_eq!(table.package_for("db"), Some("pg"), "new Pool() binds db to pg");
-        assert_eq!(table.package_for("app"), Some("express"), "express() binds app to express");
+        assert_eq!(
+            table.package_for("db"),
+            Some("pg"),
+            "new Pool() binds db to pg"
+        );
+        assert_eq!(
+            table.package_for("app"),
+            Some("express"),
+            "express() binds app to express"
+        );
     }
 
     #[test]
@@ -489,7 +538,11 @@ mod tests {
         let table = build_oxc_symbol_table(source, &path);
 
         assert_eq!(table.package_for("client"), Some("pg"));
-        assert_eq!(table.package_for("db"), Some("pg"), "new client.Client() binds db to pg");
+        assert_eq!(
+            table.package_for("db"),
+            Some("pg"),
+            "new client.Client() binds db to pg"
+        );
     }
 
     #[test]
@@ -502,7 +555,10 @@ mod tests {
         "#;
         let table = build_oxc_symbol_table(source, &path);
 
-        assert_eq!(table.bindings.get("thing").map(|m| m.package.as_deref()), Some(None));
+        assert_eq!(
+            table.bindings.get("thing").map(|m| m.package.as_deref()),
+            Some(None)
+        );
         assert_eq!(table.package_for("x"), None);
     }
 
@@ -555,7 +611,10 @@ mod tests {
         let mut table = OxcSymbolTable::default();
         table.types.insert(
             "Request".to_string(),
-            ResolvedModule { package: Some("express".to_string()), path: None },
+            ResolvedModule {
+                package: Some("express".to_string()),
+                path: None,
+            },
         );
         let p = OxcProvider::new(Arc::new(table), registry(), Some(Environment::RouteHandler));
 
@@ -581,7 +640,10 @@ mod tests {
         let mut table = OxcSymbolTable::default();
         table.bindings.insert(
             "db".to_string(),
-            ResolvedModule { package: Some("pg".to_string()), path: None },
+            ResolvedModule {
+                package: Some("pg".to_string()),
+                path: None,
+            },
         );
         let p = OxcProvider::new(Arc::new(table), registry(), None);
 
@@ -603,7 +665,10 @@ mod tests {
         let mut table = OxcSymbolTable::default();
         table.bindings.insert(
             "Pool".to_string(),
-            ResolvedModule { package: Some("pg".to_string()), path: None },
+            ResolvedModule {
+                package: Some("pg".to_string()),
+                path: None,
+            },
         );
         let p = OxcProvider::new(Arc::new(table), registry(), None);
 
@@ -618,11 +683,17 @@ mod tests {
         let mut table = OxcSymbolTable::default();
         table.types.insert(
             "Request".to_string(),
-            ResolvedModule { package: Some("express".to_string()), path: None },
+            ResolvedModule {
+                package: Some("express".to_string()),
+                path: None,
+            },
         );
         table.types.insert(
             "Context".to_string(),
-            ResolvedModule { package: Some("hono".to_string()), path: None },
+            ResolvedModule {
+                package: Some("hono".to_string()),
+                path: None,
+            },
         );
         let p = OxcProvider::new(Arc::new(table), registry(), None);
         let import_map = crate::import_resolver::ImportMap::new();
@@ -632,13 +703,19 @@ mod tests {
             type_usages: vec!["Request".to_string()],
             ..empty_fingerprint()
         };
-        assert!(p.is_http_handler(&handler, &ctx), "Request → express is type-confirmed");
+        assert!(
+            p.is_http_handler(&handler, &ctx),
+            "Request → express is type-confirmed"
+        );
 
         let hono = FunctionFingerprint {
             type_usages: vec!["Context".to_string()],
             ..empty_fingerprint()
         };
-        assert!(p.is_http_handler(&hono, &ctx), "Context → hono is type-confirmed");
+        assert!(
+            p.is_http_handler(&hono, &ctx),
+            "Context → hono is type-confirmed"
+        );
 
         let plain = empty_fingerprint();
         assert!(!p.is_http_handler(&plain, &ctx));

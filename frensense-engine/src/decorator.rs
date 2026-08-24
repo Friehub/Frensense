@@ -48,7 +48,7 @@ pub static PARAM_TAINT_DECORATORS: &[(&str, TaintOrigin)] = &[
     ("MessageBody", TaintOrigin::UserInput),
     ("ConnectedSocket", TaintOrigin::Network),
     // Injected services — NOT user input
-    ("Inject", TaintOrigin::UserInput),   // ambiguous, treat as user input
+    ("Inject", TaintOrigin::UserInput), // ambiguous, treat as user input
 ];
 
 /// HTTP method types detected from decorators.
@@ -215,7 +215,9 @@ pub fn collect_param_decorator_types(fn_node: Node, source: &str) -> Vec<String>
     let params_node = fn_node
         .child_by_field_name("parameters")
         .or_else(|| fn_node.child_by_field_name("formal_parameters"));
-    let Some(params_node) = params_node else { return Vec::new() };
+    let Some(params_node) = params_node else {
+        return Vec::new();
+    };
 
     let mut decorator_types = Vec::new();
     for i in 0..params_node.child_count() {
@@ -329,7 +331,10 @@ mod tests {
             }
         }
         let method = method_node.expect("method_definition not found");
-        assert_eq!(has_routing_decorator(method, &source), Some(HttpMethod::Get));
+        assert_eq!(
+            has_routing_decorator(method, &source),
+            Some(HttpMethod::Get)
+        );
     }
 
     #[test]

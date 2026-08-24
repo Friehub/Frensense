@@ -498,18 +498,33 @@ mod tests {
             h.finish()
         };
         let dir = std::path::Path::new(
-            "/home/oxisrael/Friehub/Taas/Frensene_main/Frensense/corpus/targets"
+            "/home/oxisrael/Friehub/Taas/Frensene_main/Frensense/corpus/targets",
         );
         // Load patterns and check the sqli ones
         let (patterns, _warnings) = load_corpus(dir).unwrap();
-        let sqli_patterns: Vec<_> = patterns.iter().filter(|p| p.id.contains("sqli") && p.id.contains("models")).collect();
+        let sqli_patterns: Vec<_> = patterns
+            .iter()
+            .filter(|p| p.id.contains("sqli") && p.id.contains("models"))
+            .collect();
         eprintln!("Found {} sqli+models patterns", sqli_patterns.len());
         for pat in &sqli_patterns {
-            eprintln!("  Pattern: {} ({} positives, {} negatives)", pat.id, pat.positives.len(), pat.negatives.len());
+            eprintln!(
+                "  Pattern: {} ({} positives, {} negatives)",
+                pat.id,
+                pat.positives.len(),
+                pat.negatives.len()
+            );
             for (i, fp) in pat.positives.iter().enumerate() {
                 let has = fp.api_calls.contains(&sqli_hash);
-                eprintln!("    Positive[{}]: fn='{}' line={} has_sqli={} api_calls={} struct_markers={}",
-                    i, fp.function_name, fp.line, has, fp.api_calls.len(), fp.structural_markers.len());
+                eprintln!(
+                    "    Positive[{}]: fn='{}' line={} has_sqli={} api_calls={} struct_markers={}",
+                    i,
+                    fp.function_name,
+                    fp.line,
+                    has,
+                    fp.api_calls.len(),
+                    fp.structural_markers.len()
+                );
                 if !has && fp.api_calls.len() <= 10 {
                     eprintln!("      api_calls={:?}", fp.api_calls);
                 }
@@ -517,48 +532,74 @@ mod tests {
         }
 
         // Now check if the sqli pattern matches login.ts by loading login.ts fingerprints
-        let js_path = std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
+        let js_path =
+            std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
         let js_src = std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
         let lang = crate::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
         parser.set_language(&lang).unwrap();
         let tree = parser.parse(&js_src, None).unwrap();
         let mut js_fps = Vec::new();
-        crate::fingerprint::extract_fingerprints(tree.root_node(), &js_src, js_path, &mut js_fps, 5);
+        crate::fingerprint::extract_fingerprints(
+            tree.root_node(),
+            &js_src,
+            js_path,
+            &mut js_fps,
+            5,
+        );
         eprintln!("\nJuice Shop login.ts: {} fingerprints", js_fps.len());
         let has_sqli = js_fps.iter().any(|fp| fp.api_calls.contains(&sqli_hash));
         eprintln!("Juice Shop has models.sequelize.query: {}", has_sqli);
         for (i, fp) in js_fps.iter().enumerate() {
             let has = fp.api_calls.contains(&sqli_hash);
-            eprintln!("  [{}] fn='{}' line={} has_sqli={} api_calls={}",
-                i, fp.function_name, fp.line, has, fp.api_calls.len());
+            eprintln!(
+                "  [{}] fn='{}' line={} has_sqli={} api_calls={}",
+                i,
+                fp.function_name,
+                fp.line,
+                has,
+                fp.api_calls.len()
+            );
         }
-        assert!(!sqli_patterns.is_empty(), "SQLi models patterns should exist");
-        assert!(has_sqli, "Juice Shop login.ts should have models.sequelize.query API call");
+        assert!(
+            !sqli_patterns.is_empty(),
+            "SQLi models patterns should exist"
+        );
+        assert!(
+            has_sqli,
+            "Juice Shop login.ts should have models.sequelize.query API call"
+        );
     }
 
     #[test]
     fn debug_why_sqli_not_matching_registry() {
-        use std::hash::{Hash, Hasher};
         use crate::corpus::registry::PatternRegistry;
         use crate::pattern::scorer::PatternScorer;
+        use std::hash::{Hash, Hasher};
 
         // Load the corpus into registry
         let dir = std::path::Path::new(
-            "/home/oxisrael/Friehub/Taas/Frensene_main/Frensense/corpus/targets"
+            "/home/oxisrael/Friehub/Taas/Frensene_main/Frensense/corpus/targets",
         );
         let mut registry = PatternRegistry::new(0.0, 0.4, 0.05);
         registry.load_corpus(dir).unwrap();
 
         // Load JS login.ts
-        let js_path = std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
+        let js_path =
+            std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
         let js_src = std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
         let lang = crate::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
         parser.set_language(&lang).unwrap();
         let tree = parser.parse(&js_src, None).unwrap();
         let mut js_fps = Vec::new();
-        crate::fingerprint::extract_fingerprints(tree.root_node(), &js_src, js_path, &mut js_fps, 5);
+        crate::fingerprint::extract_fingerprints(
+            tree.root_node(),
+            &js_src,
+            js_path,
+            &mut js_fps,
+            5,
+        );
 
         // Find the handler at line 32 (the vulnerable one)
         let handler = js_fps.iter().find(|fp| fp.line == 32).unwrap();
@@ -568,17 +609,27 @@ mod tests {
 
         // Find the SQLi match and print its evidence
         // Print evidence for the FIRST SQLi match with models
-        let sqli_match = matches.iter().find(|m| m.pattern_id.contains("sqli") && m.pattern_id.contains("models"));
+        let sqli_match = matches
+            .iter()
+            .find(|m| m.pattern_id.contains("sqli") && m.pattern_id.contains("models"));
         if let Some(m) = sqli_match {
-            eprintln!("\n--- Match evidence: id={} score={:.4} pos_sim={:.4} neg_sim={:.4} ---",
-                m.pattern_id, m.score, m.positive_similarity, m.negative_similarity);
+            eprintln!(
+                "\n--- Match evidence: id={} score={:.4} pos_sim={:.4} neg_sim={:.4} ---",
+                m.pattern_id, m.score, m.positive_similarity, m.negative_similarity
+            );
             if let Some(ref ev) = m.matched_evidence {
-                eprintln!("  ngram_sim={:.4} ast_sim={:.4} sig_sim={:.4}",
-                    ev.ngram_sim, ev.ast_sim, ev.signature_sim);
-                eprintln!("  cf_sim={:.4} api_sim={:.4} motif_sim={:.4}",
-                    ev.control_flow_sim, ev.api_sim, ev.motif_sim);
-                eprintln!("  semantic_sim={:.4} flow_sim={:?} has_taint={}",
-                    ev.semantic_sim, ev.flow_sim, ev.has_taint_path);
+                eprintln!(
+                    "  ngram_sim={:.4} ast_sim={:.4} sig_sim={:.4}",
+                    ev.ngram_sim, ev.ast_sim, ev.signature_sim
+                );
+                eprintln!(
+                    "  cf_sim={:.4} api_sim={:.4} motif_sim={:.4}",
+                    ev.control_flow_sim, ev.api_sim, ev.motif_sim
+                );
+                eprintln!(
+                    "  semantic_sim={:.4} flow_sim={:?} has_taint={}",
+                    ev.semantic_sim, ev.flow_sim, ev.has_taint_path
+                );
             }
         } else {
             eprintln!("\n--- No SQLi+models match found. First 3 matches: ---");
@@ -593,10 +644,22 @@ mod tests {
                 eprintln!("  SQLi match: id={} score={:.4}", m.pattern_id, m.score);
             }
         }
-        let sql_matches: Vec<_> = matches.iter().filter(|m| m.pattern_id.contains("sqli")).collect();
-        assert!(!sql_matches.is_empty(), "At least one sqli pattern should match login.ts handler");
-        let best_sqli = sql_matches.iter().max_by(|a, b| a.score.partial_cmp(&b.score).unwrap()).unwrap();
-        eprintln!("Best SQLi match: id={} score={:.4}", best_sqli.pattern_id, best_sqli.score);
+        let sql_matches: Vec<_> = matches
+            .iter()
+            .filter(|m| m.pattern_id.contains("sqli"))
+            .collect();
+        assert!(
+            !sql_matches.is_empty(),
+            "At least one sqli pattern should match login.ts handler"
+        );
+        let best_sqli = sql_matches
+            .iter()
+            .max_by(|a, b| a.score.partial_cmp(&b.score).unwrap())
+            .unwrap();
+        eprintln!(
+            "Best SQLi match: id={} score={:.4}",
+            best_sqli.pattern_id, best_sqli.score
+        );
         // Print ALL sqli match scores
         for m in sql_matches.iter().filter(|m| m.score >= 0.05) {
             eprintln!("  {} score={:.4}", m.pattern_id, m.score);

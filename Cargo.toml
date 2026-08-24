@@ -68,6 +68,7 @@ typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 python = ["frensense-engine/python", "dep:tree-sitter-python"]
 fingerprinting = ["frensense-engine/serialize"]
 temporal = []
+rust-hir = ["frensense-engine/rust-hir"]
 
 [dev-dependencies]
 tempfile = "3"

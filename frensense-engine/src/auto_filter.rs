@@ -287,7 +287,7 @@ fn strip_comments_and_strings(source: &str) -> String {
             str_char = c;
             continue;
         }
-        
+
         clean_source.push(c);
     }
     clean_source

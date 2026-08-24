@@ -286,13 +286,20 @@ pub fn infer_sink_category(pattern_id: &str) -> Option<SinkCategory> {
         Some(SinkCategory::Xss)
     } else if lower.contains("ssrf") || lower.contains("server_side_request") {
         Some(SinkCategory::Ssrf)
-    } else if lower.contains("path_traversal") || lower.contains("read_file") || lower.contains("write_file") {
+    } else if lower.contains("path_traversal")
+        || lower.contains("read_file")
+        || lower.contains("write_file")
+    {
         Some(SinkCategory::PathTraversal)
     } else if lower.contains("open_redirect") || lower.contains("redirect") {
         Some(SinkCategory::OpenRedirect)
     } else if lower.contains("eval") || lower.contains("code_exec") || lower.contains("rce") {
         Some(SinkCategory::CodeExecution)
-    } else if lower.contains("credential") || lower.contains("secret") || lower.contains("password") || lower.contains("token") {
+    } else if lower.contains("credential")
+        || lower.contains("secret")
+        || lower.contains("password")
+        || lower.contains("token")
+    {
         Some(SinkCategory::CredentialLeak)
     } else if lower.contains("log") {
         Some(SinkCategory::LogLeak)

@@ -62,27 +62,28 @@ fn compute_calibration_features(
     let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
     // API sim: max of full-name and segment Jaccard (mirrors scorer)
     let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-    let api_sim_seg = if !candidate.api_call_segments.is_empty()
-        && !target.api_call_segments.is_empty()
-    {
-        jaccard(&candidate.api_call_segments, &target.api_call_segments)
-    } else {
-        0.0
-    };
+    let api_sim_seg =
+        if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
+            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+        } else {
+            0.0
+        };
     let api_sim = api_sim_full.max(api_sim_seg);
     let tainted_api_sim = jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls);
 
-    let arg_type_sim = if !candidate.argument_call_types.is_empty()
-        && !target.argument_call_types.is_empty()
-    {
-        jaccard(&candidate.argument_call_types, &target.argument_call_types)
-    } else {
-        0.0
-    };
+    let arg_type_sim =
+        if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
+            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+        } else {
+            0.0
+        };
     let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
         && !target.literal_pattern_hashes.is_empty()
     {
-        jaccard(&candidate.literal_pattern_hashes, &target.literal_pattern_hashes)
+        jaccard(
+            &candidate.literal_pattern_hashes,
+            &target.literal_pattern_hashes,
+        )
     } else {
         0.0
     };

@@ -1,7 +1,9 @@
-use crate::data_flow::entropy::{calculate_shannon_entropy, is_secret_indicator, MIN_LENGTH_FOR_ENTROPY};
+use crate::data_flow::entropy::{
+    MIN_LENGTH_FOR_ENTROPY, calculate_shannon_entropy, is_secret_indicator,
+};
+use crate::semantic_patterns::PatternFinding;
 use crate::semantic_patterns::helpers::node_text;
 use crate::semantic_patterns::registry::SemanticPattern;
-use crate::semantic_patterns::PatternFinding;
 use tree_sitter::Node;
 
 pub struct HardcodedCredentials;
@@ -11,9 +13,11 @@ const ENTROPY_THRESHOLD: f64 = 4.5;
 impl HardcodedCredentials {
     fn scan_node(node: Node, source: &str, findings: &mut Vec<PatternFinding>) {
         if node.kind() == "assignment_expression" || node.kind() == "variable_declarator" {
-            let lhs = node.child_by_field_name("left")
+            let lhs = node
+                .child_by_field_name("left")
                 .or_else(|| node.child_by_field_name("name"));
-            let rhs = node.child_by_field_name("right")
+            let rhs = node
+                .child_by_field_name("right")
                 .or_else(|| node.child_by_field_name("value"));
 
             if let (Some(lhs_node), Some(rhs_node)) = (lhs, rhs) {
@@ -25,14 +29,20 @@ impl HardcodedCredentials {
                         || rhs_node.kind() == "template_string"
                     {
                         let rhs_text = node_text(rhs_node, source);
-                        let inner = rhs_text.trim_matches('"').trim_matches('\'').trim_matches('`');
+                        let inner = rhs_text
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .trim_matches('`');
 
                         if inner.len() >= MIN_LENGTH_FOR_ENTROPY {
                             let entropy = calculate_shannon_entropy(inner);
                             if entropy >= ENTROPY_THRESHOLD {
                                 let line = source[..rhs_node.start_byte()].lines().count() + 1;
                                 let col = source[..rhs_node.start_byte()]
-                                    .rfind('\n').map_or(rhs_node.start_byte() + 1, |i| rhs_node.start_byte() - i);
+                                    .rfind('\n')
+                                    .map_or(rhs_node.start_byte() + 1, |i| {
+                                        rhs_node.start_byte() - i
+                                    });
 
                                 findings.push(PatternFinding {
                                     pattern_id: "HARDCODED_CREDENTIALS".to_string(),
@@ -67,15 +77,21 @@ impl HardcodedCredentials {
 }
 
 impl SemanticPattern for HardcodedCredentials {
-    fn id(&self) -> &str { "HARDCODED_CREDENTIALS" }
+    fn id(&self) -> &str {
+        "HARDCODED_CREDENTIALS"
+    }
 
     fn description(&self) -> &str {
         "Detects high-entropy string literals assigned to secret-indicator variable names"
     }
 
-    fn severity(&self) -> &str { "Warning" }
+    fn severity(&self) -> &str {
+        "Warning"
+    }
 
-    fn languages(&self) -> &[&str] { &["*"] }
+    fn languages(&self) -> &[&str] {
+        &["*"]
+    }
 
     fn scan(&self, tree: Node, source: &str, _file_path: &str) -> Vec<PatternFinding> {
         let mut findings = Vec::new();

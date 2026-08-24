@@ -332,7 +332,10 @@ function handler() {
         assert_eq!(tainted.get("cmd"), Some(&"UserInputSource"));
         let mut hashes = FxHashSet::default();
         find_sink_paths(tree.root_node(), code, &tainted, lookup, &mut hashes);
-        assert!(hashes.is_empty(), "string-literal arg must not produce a flow path, got {hashes:?}");
+        assert!(
+            hashes.is_empty(),
+            "string-literal arg must not produce a flow path, got {hashes:?}"
+        );
     }
 
     #[test]
@@ -343,7 +346,11 @@ function handler() {
         let tainted = collect_tainted_vars(tree.root_node(), code, lookup);
         let mut hashes = FxHashSet::default();
         find_sink_paths(tree.root_node(), code, &tainted, lookup, &mut hashes);
-        assert_eq!(hashes.len(), 1, "genuine flow should emit one path, got {hashes:?}");
+        assert_eq!(
+            hashes.len(),
+            1,
+            "genuine flow should emit one path, got {hashes:?}"
+        );
     }
 
     #[test]

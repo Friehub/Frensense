@@ -46,11 +46,23 @@ pub static MOTIFS: &[Motif] = &[
             "searchParams",
             "URLSearchParams",
             // Go
-            "c.Param", "c.Query", "c.PostForm", "r.URL.Query", "r.FormValue",
+            "c.Param",
+            "c.Query",
+            "c.PostForm",
+            "r.URL.Query",
+            "r.FormValue",
             // Rust
-            "Query", "Path", "Form", "Json",
+            "Query",
+            "Path",
+            "Form",
+            "Json",
             // Java/C#
-            "@RequestParam", "@PathVariable", "@RequestBody", "[FromQuery]", "[FromBody]", "[FromRoute]"
+            "@RequestParam",
+            "@PathVariable",
+            "@RequestBody",
+            "[FromQuery]",
+            "[FromBody]",
+            "[FromRoute]",
         ],
     },
     // --- Sink motifs ---
@@ -71,11 +83,16 @@ pub static MOTIFS: &[Motif] = &[
             "system",
             "ShellExecute",
             // Go
-            "exec.Command", "exec.CommandContext", "Run", "Output", "CombinedOutput",
+            "exec.Command",
+            "exec.CommandContext",
+            "Run",
+            "Output",
+            "CombinedOutput",
             // Rust
-            "Command::new", "spawn",
+            "Command::new",
+            "spawn",
             // C#
-            "Process.Start"
+            "Process.Start",
         ],
     },
     Motif {
@@ -99,11 +116,28 @@ pub static MOTIFS: &[Motif] = &[
             "insert",
             "insertOne",
             // Go
-            "QueryRow", "Query", "Exec", "db.First", "db.Find", "db.Create", "db.Save", "db.Updates",
+            "QueryRow",
+            "Query",
+            "Exec",
+            "db.First",
+            "db.Find",
+            "db.Create",
+            "db.Save",
+            "db.Updates",
             // Rust
-            "fetch_one", "fetch_optional", "fetch_all", "get_result", "load", "execute", "insert_into",
+            "fetch_one",
+            "fetch_optional",
+            "fetch_all",
+            "get_result",
+            "load",
+            "execute",
+            "insert_into",
             // Java/C#
-            "entityManager.persist", "entityManager.merge", "entityManager.createQuery", "DbContext.SaveChanges", "DbSet.Add"
+            "entityManager.persist",
+            "entityManager.merge",
+            "entityManager.createQuery",
+            "DbContext.SaveChanges",
+            "DbSet.Add",
         ],
     },
     Motif {
@@ -124,9 +158,17 @@ pub static MOTIFS: &[Motif] = &[
             "attohttpc",
             "isahc",
             // Go
-            "http.Get", "http.Post", "http.DefaultClient.Do", "client.Do",
+            "http.Get",
+            "http.Post",
+            "http.DefaultClient.Do",
+            "client.Do",
             // Java/C#
-            "HttpClient.send", "RestTemplate.getForObject", "RestTemplate.postForObject", "HttpClient.GetAsync", "HttpClient.PostAsync", "WebClient.DownloadString"
+            "HttpClient.send",
+            "RestTemplate.getForObject",
+            "RestTemplate.postForObject",
+            "HttpClient.GetAsync",
+            "HttpClient.PostAsync",
+            "WebClient.DownloadString",
         ],
     },
     Motif {
@@ -141,9 +183,14 @@ pub static MOTIFS: &[Motif] = &[
             "open",
             "fopen",
             // Go
-            "os.Open", "os.ReadFile", "ioutil.ReadFile",
+            "os.Open",
+            "os.ReadFile",
+            "ioutil.ReadFile",
             // Java/C#
-            "Files.readAllBytes", "Files.readString", "File.ReadAllText", "File.ReadAllBytes"
+            "Files.readAllBytes",
+            "Files.readString",
+            "File.ReadAllText",
+            "File.ReadAllBytes",
         ],
     },
     Motif {
@@ -156,9 +203,14 @@ pub static MOTIFS: &[Motif] = &[
             "write_all",
             "File::create",
             // Go
-            "os.Create", "os.WriteFile", "ioutil.WriteFile",
+            "os.Create",
+            "os.WriteFile",
+            "ioutil.WriteFile",
             // Java/C#
-            "Files.write", "Files.writeString", "File.WriteAllText", "File.WriteAllBytes"
+            "Files.write",
+            "Files.writeString",
+            "File.WriteAllText",
+            "File.WriteAllBytes",
         ],
     },
     Motif {
@@ -179,10 +231,16 @@ pub static MOTIFS: &[Motif] = &[
             "msgpack.unpack",
             "php.unserialize",
             // Go
-            "json.Unmarshal", "xml.Unmarshal", "gob.NewDecoder", "yaml.Unmarshal",
+            "json.Unmarshal",
+            "xml.Unmarshal",
+            "gob.NewDecoder",
+            "yaml.Unmarshal",
             // Java/C#
-            "ObjectInputStream.readObject", "JsonConvert.DeserializeObject", "XmlSerializer.Deserialize",
-            "BinaryFormatter.Deserialize", "JsonSerializer.Deserialize",
+            "ObjectInputStream.readObject",
+            "JsonConvert.DeserializeObject",
+            "XmlSerializer.Deserialize",
+            "BinaryFormatter.Deserialize",
+            "JsonSerializer.Deserialize",
         ],
     },
     Motif {
@@ -203,11 +261,23 @@ pub static MOTIFS: &[Motif] = &[
             "Response::json",
             "Response::error",
             // Go
-            "http.Error", "w.Write", "c.JSON", "c.String", "c.HTML",
+            "http.Error",
+            "w.Write",
+            "c.JSON",
+            "c.String",
+            "c.HTML",
             // Rust
-            "HttpResponse::Ok", "HttpResponse::BadRequest", "HttpResponse::InternalServerError", "Json",
+            "HttpResponse::Ok",
+            "HttpResponse::BadRequest",
+            "HttpResponse::InternalServerError",
+            "Json",
             // Java/C#
-            "ResponseEntity.ok", "ResponseEntity.badRequest", "Results.Ok", "Results.BadRequest", "return Ok", "return BadRequest"
+            "ResponseEntity.ok",
+            "ResponseEntity.badRequest",
+            "Results.Ok",
+            "Results.BadRequest",
+            "return Ok",
+            "return BadRequest",
         ],
     },
     Motif {
@@ -242,7 +312,14 @@ pub static MOTIFS: &[Motif] = &[
     },
     Motif {
         name: "TemplateEngineConfig",
-        members: &["swig.setDefaults", "swig.init", "nunjucks.configure", "handlebars.registerHelper", "setDefaults", "configure"],
+        members: &[
+            "swig.setDefaults",
+            "swig.init",
+            "nunjucks.configure",
+            "handlebars.registerHelper",
+            "setDefaults",
+            "configure",
+        ],
     },
     Motif {
         name: "TemplateRenderSink",

@@ -1,28 +1,39 @@
-use crate::semantic_patterns::registry::SemanticPattern;
 use crate::semantic_patterns::PatternFinding;
+use crate::semantic_patterns::registry::SemanticPattern;
 use tree_sitter::Node;
 
 pub struct IdorMissingOwnershipCheck;
 
 impl SemanticPattern for IdorMissingOwnershipCheck {
-    fn id(&self) -> &str { "IDOR_MISSING_OWNERSHIP_CHECK" }
+    fn id(&self) -> &str {
+        "IDOR_MISSING_OWNERSHIP_CHECK"
+    }
 
     fn description(&self) -> &str {
         "Function fetches a record using a user-controlled identifier and returns it without an ownership or authorization check"
     }
 
-    fn severity(&self) -> &str { "High" }
+    fn severity(&self) -> &str {
+        "High"
+    }
 
-    fn languages(&self) -> &[&str] { &["*"] }
+    fn languages(&self) -> &[&str] {
+        &["*"]
+    }
 
     fn scan(&self, tree: Node, source: &str, file_path: &str) -> Vec<PatternFinding> {
         let ext = std::path::Path::new(file_path)
-            .extension().and_then(|e| e.to_str()).unwrap_or("");
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
         let mut findings = Vec::new();
         let mut cursor = tree.walk();
         let function_kinds: &[&str] = &[
-            "function_declaration", "method_definition", "function_item",
-            "function_definition", "arrow_function",
+            "function_declaration",
+            "method_definition",
+            "function_item",
+            "function_definition",
+            "arrow_function",
         ];
 
         loop {
@@ -40,12 +51,15 @@ impl SemanticPattern for IdorMissingOwnershipCheck {
                     };
 
                     if self.has_idor_pattern(&body_text, &fn_text) {
-                        let fn_name = node.child_by_field_name("name")
+                        let fn_name = node
+                            .child_by_field_name("name")
                             .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-                            .unwrap_or("<anonymous>").to_string();
+                            .unwrap_or("<anonymous>")
+                            .to_string();
                         let line = source[..node.start_byte()].lines().count() + 1;
                         let col = source[..node.start_byte()]
-                            .rfind('\n').map_or(node.start_byte() + 1, |i| node.start_byte() - i);
+                            .rfind('\n')
+                            .map_or(node.start_byte() + 1, |i| node.start_byte() - i);
 
                         findings.push(PatternFinding {
                             pattern_id: self.id().to_string(),
@@ -63,10 +77,16 @@ impl SemanticPattern for IdorMissingOwnershipCheck {
                 }
             }
 
-            if cursor.goto_first_child() { continue; }
+            if cursor.goto_first_child() {
+                continue;
+            }
             loop {
-                if cursor.goto_next_sibling() { break; }
-                if !cursor.goto_parent() { return findings; }
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+                if !cursor.goto_parent() {
+                    return findings;
+                }
             }
         }
     }

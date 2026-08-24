@@ -4,12 +4,12 @@ use std::path::Path;
 
 use crate::corpus::loader::{CorpusPattern, load_corpus};
 use crate::corpus::source_sink::{CorpusSourceSinkRegistry, build_registry_from_dir};
+use crate::data_flow::taint_metrics::TaintMetrics;
+use crate::data_flow::{TaintOrigin, TaintRegistry};
 use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::PatternScorer;
-use crate::data_flow::taint_metrics::TaintMetrics;
-use crate::data_flow::{TaintOrigin, TaintRegistry};
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
@@ -295,8 +295,7 @@ impl PatternRegistry {
     /// Learn semantic markers from corpus patterns.
     fn compute_learned_semantic_markers(&mut self) {
         if self.learned_semantic_markers.is_empty() {
-            self.learned_semantic_markers =
-                learn_semantic_markers(&self.patterns);
+            self.learned_semantic_markers = learn_semantic_markers(&self.patterns);
         }
     }
 
@@ -454,7 +453,8 @@ impl PatternRegistry {
                         if text.contains(pattern) {
                             let origin = crate::corpus::loader::taint_source_origin(pattern);
                             seen_origins.push(origin.clone());
-                            if let Some(child) = n.child_by_field_name("property")
+                            if let Some(child) = n
+                                .child_by_field_name("property")
                                 .or_else(|| n.child(n.child_count().saturating_sub(1)))
                             {
                                 let name = &src[child.start_byte()..child.end_byte()];
@@ -473,7 +473,9 @@ impl PatternRegistry {
                     }
                     if !cursor.goto_parent() {
                         // Choose the most specific origin: prefer non-UserInput if any
-                        let dominant = seen_origins.into_iter().find(|o| !matches!(o, TaintOrigin::UserInput));
+                        let dominant = seen_origins
+                            .into_iter()
+                            .find(|o| !matches!(o, TaintOrigin::UserInput));
                         return Some((
                             TaintMetrics::compute(&reg, fn_node, src, &weighted_fp.function_name),
                             dominant.unwrap_or(TaintOrigin::UserInput),
@@ -547,10 +549,12 @@ impl PatternRegistry {
                 let struct_sim = pattern
                     .positives
                     .iter()
-                    .map(|p| crate::minhash::overlap_coefficient_sorted(
-                        &weighted_fp.structural_markers,
-                        &p.structural_markers,
-                    ))
+                    .map(|p| {
+                        crate::minhash::overlap_coefficient_sorted(
+                            &weighted_fp.structural_markers,
+                            &p.structural_markers,
+                        )
+                    })
                     .fold(0.0f64, f64::max);
                 if struct_sim < self.struct_overlap_threshold {
                     continue;
@@ -649,7 +653,8 @@ impl PatternRegistry {
                 }
                 // Apply SinkCategory × TaintOrigin relevance multiplier
                 if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
-                    let relevance: f64 = crate::corpus::source_sink::sink_taint_relevance(cat, origin);
+                    let relevance: f64 =
+                        crate::corpus::source_sink::sink_taint_relevance(cat, origin);
                     multiplier = multiplier.min(relevance);
                 }
                 best_score * multiplier
@@ -659,7 +664,11 @@ impl PatternRegistry {
 
             let threshold = self.threshold_for_pattern(&pattern.id);
             let has_taint = evidence.has_taint_path;
-            let effective_threshold = if has_taint { threshold.min(0.15) } else { threshold };
+            let effective_threshold = if has_taint {
+                threshold.min(0.15)
+            } else {
+                threshold
+            };
             if best_score >= effective_threshold {
                 matches.push(PatternMatch {
                     pattern_id: pattern.id.clone(),
@@ -676,13 +685,13 @@ impl PatternRegistry {
                     severity: pattern.severity.clone(),
                     runtime_probe: pattern.runtime_probe.clone(),
                     taint_branch_ratio: match &taint_metrics {
-                    Some((tm, _)) if tm.tainted_uses > 0 => Some(tm.taint_branch_ratio as f64),
-                    _ => None,
-                },
-                has_validation_name: taint_metrics
-                    .as_ref()
-                    .map(|(tm, _)| tm.has_validation_name)
-                    .unwrap_or(false),
+                        Some((tm, _)) if tm.tainted_uses > 0 => Some(tm.taint_branch_ratio as f64),
+                        _ => None,
+                    },
+                    has_validation_name: taint_metrics
+                        .as_ref()
+                        .map(|(tm, _)| tm.has_validation_name)
+                        .unwrap_or(false),
                 });
             }
         }
@@ -706,17 +715,25 @@ impl PatternRegistry {
 /// During scanning, these are merged into fingerprint semantic_markers so
 /// that matching code produces the same semantic-sim signal as the hardcoded
 /// markers would.
-pub fn learn_semantic_markers(patterns: &[CorpusPattern]) -> std::collections::HashMap<String, String> {
+pub fn learn_semantic_markers(
+    patterns: &[CorpusPattern],
+) -> std::collections::HashMap<String, String> {
     use std::collections::HashMap;
     // API call name → set of (category, pattern_count)
     let mut api_to_cats: HashMap<String, HashMap<String, usize>> = HashMap::new();
 
     for pattern in patterns {
-        let cat = pattern.id.split('_').nth(1).unwrap_or("unknown").to_string();
+        let cat = pattern
+            .id
+            .split('_')
+            .nth(1)
+            .unwrap_or("unknown")
+            .to_string();
         for fp in &pattern.positives {
             for call in &fp.raw_call_names {
                 // Use the last segment (method name) for generalization
-                let seg = call.rsplit(|c: char| c == '.' || c == ':')
+                let seg = call
+                    .rsplit(|c: char| c == '.' || c == ':')
                     .next()
                     .unwrap_or(call)
                     .to_string();
@@ -729,7 +746,10 @@ pub fn learn_semantic_markers(patterns: &[CorpusPattern]) -> std::collections::H
     let mut result = HashMap::new();
     for (api_name, category_counts) in &api_to_cats {
         // Skip very common method names that would be noise
-        const NOISE_NAMES: &[&str] = &["then", "catch", "json", "next", "toString", "map", "filter", "forEach", "find", "sort", "join", "split", "trim", "log", "error", "send", "status"];
+        const NOISE_NAMES: &[&str] = &[
+            "then", "catch", "json", "next", "toString", "map", "filter", "forEach", "find",
+            "sort", "join", "split", "trim", "log", "error", "send", "status",
+        ];
         if NOISE_NAMES.contains(&api_name.as_str()) {
             continue;
         }

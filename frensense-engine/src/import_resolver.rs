@@ -180,14 +180,12 @@ impl ImportMap {
                                 .child_by_field_name("alias")
                                 .or_else(|| spec.child_by_field_name("name"));
                             if let Some(l) = local {
-                                let local_name =
-                                    &source[l.start_byte()..l.end_byte()];
+                                let local_name = &source[l.start_byte()..l.end_byte()];
                                 map.name_to_package
                                     .insert(local_name.to_string(), package.to_string());
                             }
                             if let Some(imp) = imported {
-                                let imported_name =
-                                    &source[imp.start_byte()..imp.end_byte()];
+                                let imported_name = &source[imp.start_byte()..imp.end_byte()];
                                 map.name_to_package
                                     .insert(imported_name.to_string(), package.to_string());
                             }
@@ -241,22 +239,17 @@ impl ImportMap {
         }
 
         // Extract the module name from require('...')
-        let pkg = value
-            .child_by_field_name("arguments")
-            .and_then(|args| {
-                let mut ac = args.walk();
-                if ac.goto_first_child() {
-                    let first = ac.node();
-                    if first.kind() == "string" || first.kind() == "string_fragment" {
-                        let raw = &source[first.start_byte()..first.end_byte()];
-                        return Some(
-                            raw.trim_matches(&['"', '\'', '`'] as &[_])
-                                .to_string(),
-                        );
-                    }
+        let pkg = value.child_by_field_name("arguments").and_then(|args| {
+            let mut ac = args.walk();
+            if ac.goto_first_child() {
+                let first = ac.node();
+                if first.kind() == "string" || first.kind() == "string_fragment" {
+                    let raw = &source[first.start_byte()..first.end_byte()];
+                    return Some(raw.trim_matches(&['"', '\'', '`'] as &[_]).to_string());
                 }
-                None
-            });
+            }
+            None
+        });
 
         let Some(package) = pkg else {
             return;
@@ -291,31 +284,34 @@ impl ImportMap {
                                     let name = &source[vn.start_byte()..vn.end_byte()];
                                     map.name_to_package
                                         .insert(name.to_string(), package.clone());
-}
-}
+                                }
+                            }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+                            #[cfg(test)]
+                            mod tests {
+                                use super::*;
 
-    #[test]
-    fn test_new_is_empty() {
-        let map = ImportMap::new();
-        assert!(map.name_to_package.is_empty());
-    }
+                                #[test]
+                                fn test_new_is_empty() {
+                                    let map = ImportMap::new();
+                                    assert!(map.name_to_package.is_empty());
+                                }
 
-    #[test]
-    fn test_resolve_unknown() {
-        let map = ImportMap::new();
-        assert_eq!(map.resolve("Request"), None);
-    }
+                                #[test]
+                                fn test_resolve_unknown() {
+                                    let map = ImportMap::new();
+                                    assert_eq!(map.resolve("Request"), None);
+                                }
 
-    #[test]
-    fn test_entry_point_not_imported() {
-        let map = ImportMap::new();
-        assert_eq!(map.classify_entry_point("Request"), EntryPointKind::Unknown);
-    }
-}
+                                #[test]
+                                fn test_entry_point_not_imported() {
+                                    let map = ImportMap::new();
+                                    assert_eq!(
+                                        map.classify_entry_point("Request"),
+                                        EntryPointKind::Unknown
+                                    );
+                                }
+                            }
                             if !oc.goto_next_sibling() {
                                 break;
                             }
@@ -343,24 +339,60 @@ pub enum EntryPointKind {
 }
 
 static PACKAGE_HTTP_TYPES: &[(&str, &str, EntryPointKind)] = &[
-    ("express",       "Request",           EntryPointKind::HttpRequestResponse),
-    ("express",       "Response",          EntryPointKind::HttpRequestResponse),
-    ("express",       "NextFunction",      EntryPointKind::HttpRequestResponse),
-    ("fastify",       "FastifyRequest",    EntryPointKind::HttpRequestResponse),
-    ("fastify",       "FastifyReply",      EntryPointKind::HttpRequestResponse),
-    ("next/server",   "NextRequest",       EntryPointKind::HttpRequestOnly),
-    ("next/server",   "NextResponse",      EntryPointKind::HttpRequestOnly),
-    ("aws-lambda",    "APIGatewayProxyEvent",   EntryPointKind::HttpRequestResponse),
-    ("aws-lambda",    "SQSEvent",               EntryPointKind::EventConsumer),
-    ("aws-lambda",    "S3Event",                EntryPointKind::EventConsumer),
-    ("@nestjs/common","ExecutionContext", EntryPointKind::HttpRequestResponse),
-    ("hono",          "Context",           EntryPointKind::HttpRequestResponse),
-    ("hono",          "HonoRequest",       EntryPointKind::HttpRequestOnly),
-    ("koa",           "Context",           EntryPointKind::HttpRequestResponse),
-    ("@grpc/grpc-js", "ServerUnaryCall",   EntryPointKind::GrpcHandler),
-    ("ws",            "WebSocket",        EntryPointKind::WebSocketHandler),
-    ("kafkajs",       "EachMessagePayload", EntryPointKind::QueueConsumer),
-    ("stripe",        "Event",             EntryPointKind::WebhookReceiver),
+    ("express", "Request", EntryPointKind::HttpRequestResponse),
+    ("express", "Response", EntryPointKind::HttpRequestResponse),
+    (
+        "express",
+        "NextFunction",
+        EntryPointKind::HttpRequestResponse,
+    ),
+    (
+        "fastify",
+        "FastifyRequest",
+        EntryPointKind::HttpRequestResponse,
+    ),
+    (
+        "fastify",
+        "FastifyReply",
+        EntryPointKind::HttpRequestResponse,
+    ),
+    (
+        "next/server",
+        "NextRequest",
+        EntryPointKind::HttpRequestOnly,
+    ),
+    (
+        "next/server",
+        "NextResponse",
+        EntryPointKind::HttpRequestOnly,
+    ),
+    (
+        "aws-lambda",
+        "APIGatewayProxyEvent",
+        EntryPointKind::HttpRequestResponse,
+    ),
+    ("aws-lambda", "SQSEvent", EntryPointKind::EventConsumer),
+    ("aws-lambda", "S3Event", EntryPointKind::EventConsumer),
+    (
+        "@nestjs/common",
+        "ExecutionContext",
+        EntryPointKind::HttpRequestResponse,
+    ),
+    ("hono", "Context", EntryPointKind::HttpRequestResponse),
+    ("hono", "HonoRequest", EntryPointKind::HttpRequestOnly),
+    ("koa", "Context", EntryPointKind::HttpRequestResponse),
+    (
+        "@grpc/grpc-js",
+        "ServerUnaryCall",
+        EntryPointKind::GrpcHandler,
+    ),
+    ("ws", "WebSocket", EntryPointKind::WebSocketHandler),
+    (
+        "kafkajs",
+        "EachMessagePayload",
+        EntryPointKind::QueueConsumer,
+    ),
+    ("stripe", "Event", EntryPointKind::WebhookReceiver),
 ];
 
 impl ImportMap {

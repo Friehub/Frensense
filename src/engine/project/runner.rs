@@ -6,21 +6,54 @@ use crate::engine::auditor::AuditOptions;
 use crate::engine::suppression::SuppressConfig;
 
 use crate::semantics::data_flow::normalization::SemanticExtractor;
+use crate::semantics::provider::{RustHirMap, per_file_provider};
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
 use frensense_engine::data_flow::alias::AliasTracker;
 use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegistry};
 use frensense_engine::pattern::evidence::MatchEvidence;
-use rustc_hash::FxHasher;
-use std::hash::Hasher;
 use rayon::prelude::*;
+use rustc_hash::FxHasher;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 
 struct ProcessSnapshotsResult<'a> {
     symbols: SymbolRegistry,
     file_ids: Vec<(FileId, PathBuf)>,
     snapshot_map: rustc_hash::FxHashMap<FileId, &'a FileSnapshot>,
+}
+
+/// Build the rust-analyzer HIR map for the analysed workspace once per scan.
+/// Returns `None` when the `rust-hir` feature is off, `--use-compiler` is not
+/// set, there is no `Cargo.toml`, or the type-check fails (we then fall back
+/// to heuristics rather than abort the scan).
+fn build_rust_hir(engine: &Engine, root: &Path) -> Option<std::sync::Arc<RustHirMap>> {
+    #[cfg(feature = "rust-hir")]
+    {
+        if !engine.use_compiler {
+            return None;
+        }
+        let manifest = root.join("Cargo.toml");
+        if !manifest.exists() {
+            return None;
+        }
+        return frensense_engine::rust_hir_provider::build_hir_type_map(&manifest)
+            .map(std::sync::Arc::new)
+            .map_err(|e| {
+                tracing::warn!(
+                    file = %manifest.display(),
+                    error = %e,
+                    "rust-hir type map build failed; falling back to heuristics"
+                )
+            })
+            .ok();
+    }
+    #[cfg(not(feature = "rust-hir"))]
+    {
+        let _ = (engine, root);
+        None
+    }
 }
 
 ///
@@ -134,6 +167,8 @@ fn run_findings_modules(
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     all_advisories: &mut Vec<Advisory>,
     use_data_flow: bool,
+    use_compiler: bool,
+    rust_hir: Option<std::sync::Arc<RustHirMap>>,
     cross_file_taint: &mut frensense_engine::data_flow::cross_file::CrossFileTaintResolver,
 ) {
     use crate::engine::findings::{FindingContext, registered_modules};
@@ -149,7 +184,20 @@ fn run_findings_modules(
 
     // Seed the cross-file taint resolver with user input sources
     if use_data_flow {
+        let source_sink_arc = std::sync::Arc::new(source_sink.clone());
         for snap in snapshots {
+            let file_env =
+                frensense_engine::context::FileContext::extract(&snap.path, &snap.content)
+                    .environment;
+            let provider = per_file_provider(
+                &snap.content,
+                &snap.tree,
+                &snap.path,
+                source_sink_arc.clone(),
+                Some(file_env),
+                use_compiler,
+                rust_hir.clone(),
+            );
             let root = snap.tree.root_node();
             let mut stack = vec![root];
             while let Some(node) = stack.pop() {
@@ -222,17 +270,14 @@ fn run_findings_modules(
                             )
                             .environment;
 
-                            let origin = if source_sink.is_source_type(clean_type) {
-                                Some(frensense_engine::data_flow::TaintOrigin::UserInput)
-                            } else {
-                                Some(
+                            let origin = provider
+                                .classify_param(&param_name, Some(clean_type))
+                                .or_else(|| {
                                     frensense_engine::data_flow::classify_param_name_in_context(
                                         &param_name,
                                         Some(&param_env),
-                                    ),
-                                )
-                                .and_then(|o| o)
-                            };
+                                    )
+                                });
                             if let Some(o) = origin {
                                 detected_origin = Some(o);
                                 break;
@@ -412,6 +457,7 @@ fn run_corpus_scan(
     all_advisories: &mut Vec<Advisory>,
     npm_deps: &std::collections::HashSet<String>,
     cross_file_taint: &mut frensense_engine::data_flow::cross_file::CrossFileTaintResolver,
+    rust_hir: Option<std::sync::Arc<RustHirMap>>,
 ) -> frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry {
     let alias_tracker = std::sync::Mutex::new(AliasTracker::new());
 
@@ -470,8 +516,20 @@ fn run_corpus_scan(
 
     // Override per-category weights for security categories where API call overlap
     // is the strongest signal but trained weights under-emphasize it.
-    registry.set_category_weights("sqli", [0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04, 0.04]);
-    registry.set_category_weights("nosqli", [0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04, 0.04]);
+    registry.set_category_weights(
+        "sqli",
+        [
+            0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04,
+            0.04,
+        ],
+    );
+    registry.set_category_weights(
+        "nosqli",
+        [
+            0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04,
+            0.04,
+        ],
+    );
 
     if !corpus_loaded {
         return frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry::default();
@@ -479,6 +537,8 @@ fn run_corpus_scan(
     let ngram_window_size = engine.ngram_window_size;
     let per_category_calibration = engine.per_category_calibration.clone();
     let calibration = engine.calibration.clone();
+    let use_compiler = engine.use_compiler;
+    let source_sink_arc = std::sync::Arc::new(registry.source_sink_registry().clone());
 
     let all_fps: Vec<(
         frensense_engine::fingerprint::FunctionFingerprint,
@@ -616,6 +676,21 @@ fn run_corpus_scan(
                 if use_data_flow {
                     let verification = {
                         let mut guard = alias_tracker.lock().unwrap();
+                        let file_env =
+                            frensense_engine::context::FileContext::extract(
+                                &snap_i.path,
+                                &snap_i.content,
+                            )
+                            .environment;
+                        let provider = per_file_provider(
+                            &snap_i.content,
+                            &snap_i.tree,
+                            &snap_i.path,
+                            source_sink_arc.clone(),
+                            Some(file_env),
+                            use_compiler,
+                            rust_hir.clone(),
+                        );
                         verify_taint_flow(
                             func_node_i.clone(),
                             &snap_i.content,
@@ -627,6 +702,7 @@ fn run_corpus_scan(
                             registry.source_sink_registry(),
                             npm_deps,
                             &mut *guard,
+                            Some(provider.as_ref()),
                         )
                     };
 
@@ -862,9 +938,7 @@ fn precompute_taint_summaries_for_file(
                 registry.is_tainted(name)
             }
             "member_expression" | "field_expression" => {
-                if let Some(object) =
-                    node.child_by_field_name("object").or_else(|| node.child(0))
-                {
+                if let Some(object) = node.child_by_field_name("object").or_else(|| node.child(0)) {
                     node_uses_tainted_var(object, source, registry)
                 } else {
                     false
@@ -946,11 +1020,9 @@ fn precompute_taint_summaries_for_file(
                         }
                         let mut pname = String::new();
                         if let Some(pat) = param.child_by_field_name("pattern") {
-                            pname =
-                                source[pat.start_byte()..pat.end_byte()].to_string();
+                            pname = source[pat.start_byte()..pat.end_byte()].to_string();
                         } else if param.kind() == "identifier" {
-                            pname = source[param.start_byte()..param.end_byte()]
-                                .to_string();
+                            pname = source[param.start_byte()..param.end_byte()].to_string();
                         }
                         if !pname.is_empty() {
                             param_names.push(pname.clone());
@@ -974,9 +1046,7 @@ fn precompute_taint_summaries_for_file(
                                         let mut rc = child.walk();
                                         if rc.goto_first_child() {
                                             let first = rc.node();
-                                            if first.kind() == "return"
-                                                && rc.goto_next_sibling()
-                                            {
+                                            if first.kind() == "return" && rc.goto_next_sibling() {
                                                 return Some(rc.node());
                                             }
                                         }
@@ -990,24 +1060,19 @@ fn precompute_taint_summaries_for_file(
                                     }
                                 }
                             }
-                            if matches!(
-                                child.kind(),
-                                "variable_declarator" | "lexical_declaration"
-                            ) {
+                            if matches!(child.kind(), "variable_declarator" | "lexical_declaration")
+                            {
                                 if let Some(name_node) = child
                                     .child_by_field_name("name")
                                     .or_else(|| child.child_by_field_name("pattern"))
-                                    && let Some(value_node) =
-                                        child.child_by_field_name("value")
+                                    && let Some(value_node) = child.child_by_field_name("value")
                                 {
-                                    if node_uses_tainted_var(
-                                        value_node, source, &registry,
-                                    ) {
+                                    if node_uses_tainted_var(value_node, source, &registry) {
                                         let mut nc = name_node.walk();
                                         for n_child in name_node.children(&mut nc) {
                                             if n_child.kind() == "identifier" {
-                                                let n = source[n_child.start_byte()
-                                                    ..n_child.end_byte()]
+                                                let n = source
+                                                    [n_child.start_byte()..n_child.end_byte()]
                                                     .to_string();
                                                 registry.taint(&n, TaintOrigin::UserInput);
                                             }
@@ -1072,6 +1137,7 @@ fn verify_taint_flow(
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     deps: &std::collections::HashSet<String>,
     alias_tracker: &mut AliasTracker,
+    provider: Option<&dyn frensense_engine::semantic::SemanticProvider>,
 ) -> TaintVerification {
     use crate::semantics::data_flow::cross_file::CrossFileVerifier;
 
@@ -1080,8 +1146,7 @@ fn verify_taint_flow(
     let mut cfg = frensense_engine::cfg::build_cfg(tree.root_node(), source, ext);
     frensense_engine::cfg::compute_dominators(&mut cfg);
 
-    let file_env = frensense_engine::context::FileContext::extract(file_path, source)
-        .environment;
+    let file_env = frensense_engine::context::FileContext::extract(file_path, source).environment;
 
     let mut verifier = CrossFileVerifier::new(
         source,
@@ -1095,6 +1160,9 @@ fn verify_taint_flow(
     )
     .with_cfg(cfg)
     .with_file_env(file_env);
+    if let Some(provider) = provider {
+        verifier = verifier.with_provider(provider);
+    }
     verifier.seed_taint(fn_node);
 
     // Record aliases from semantic ops so taint propagates through renames
@@ -1194,6 +1262,7 @@ impl Engine {
         let all_symbols = symbols.query_all();
         let mut cross_file_taint =
             frensense_engine::data_flow::cross_file::build_resolver(&all_symbols, symbols.graph());
+        let rust_hir = build_rust_hir(self, root);
         let source_sink = run_corpus_scan(
             self,
             root,
@@ -1204,6 +1273,7 @@ impl Engine {
             &mut all_advisories,
             &npm_deps,
             &mut cross_file_taint,
+            rust_hir.clone(),
         );
         run_findings_modules(
             root,
@@ -1212,9 +1282,11 @@ impl Engine {
             &file_trees,
             &self.extra_taint_rule_dirs,
             &mut dep_resolver,
-             &source_sink,
+            &source_sink,
             &mut all_advisories,
             self.use_data_flow,
+            self.use_compiler,
+            rust_hir,
             &mut cross_file_taint,
         );
         self.apply_composition(&mut all_advisories);
@@ -1373,6 +1445,7 @@ impl Engine {
         let mut cross_file_taint =
             frensense_engine::data_flow::cross_file::build_resolver(&all_symbols, symbols.graph());
 
+        let rust_hir = build_rust_hir(self, root);
         let source_sink = run_corpus_scan(
             self,
             root,
@@ -1383,6 +1456,7 @@ impl Engine {
             &mut all_advisories,
             &npm_deps,
             &mut cross_file_taint,
+            rust_hir.clone(),
         );
         Self::run_taint_analysis(&snapshots, &symbols, &file_trees, &mut all_advisories);
         run_findings_modules(
@@ -1395,6 +1469,8 @@ impl Engine {
             &source_sink,
             &mut all_advisories,
             self.use_data_flow,
+            self.use_compiler,
+            rust_hir,
             &mut cross_file_taint,
         );
 
@@ -1804,5 +1880,3 @@ fn is_test_file(path: &Path) -> bool {
 
     false
 }
-
-

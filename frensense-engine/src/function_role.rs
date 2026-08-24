@@ -27,53 +27,148 @@ pub enum FunctionRole {
 /// Known Express/HTTP response method names (last-segment form) across languages.
 const HTTP_METHODS: &[&str] = &[
     // JS/TS
-    "json", "send", "redirect", "status", "render", "end", "write", "setheader", "cookie", "clearcookie", "type", "format", "attachment",
+    "json",
+    "send",
+    "redirect",
+    "status",
+    "render",
+    "end",
+    "write",
+    "setheader",
+    "cookie",
+    "clearcookie",
+    "type",
+    "format",
+    "attachment",
     // Go
-    "writeheader", "setcookie", "writestring", "servehttp",
+    "writeheader",
+    "setcookie",
+    "writestring",
+    "servehttp",
     // Rust
-    "ok", "created", "internal_server_error", "into_response", "content_type", "body", "finish",
+    "ok",
+    "created",
+    "internal_server_error",
+    "into_response",
+    "content_type",
+    "body",
+    "finish",
     // Java/C#
-    "badrequest", "notfound", "addcookie", "setstatus", "view"
+    "badrequest",
+    "notfound",
+    "addcookie",
+    "setstatus",
+    "view",
 ];
 
 /// Names that mark a function parameter as request-shaped.
-const REQUEST_PARAM_NAMES: &[&str] = &[
-    "req", "request", "ctx", "context", "event", "c",
-];
+const REQUEST_PARAM_NAMES: &[&str] = &["req", "request", "ctx", "context", "event", "c"];
 
 /// Route-registration call patterns that indicate the function is an
 /// HTTP handler definition, not a helper that merely calls response methods.
 const ROUTE_REGISTRATIONS: &[&str] = &[
-    "app.get", "app.post", "app.put", "app.delete", "app.patch", "app.use", "app.all",
-    "router.get", "router.post", "router.put", "router.delete", "router.patch",
-    "route.get", "route.post", "route.put", "route.delete",
-    "server.get", "server.post", "server.put", "server.delete",
-    "fastify.get", "fastify.post", "fastify.put", "fastify.delete",
-    "hono.get", "hono.post", "hono.put", "hono.delete",
+    "app.get",
+    "app.post",
+    "app.put",
+    "app.delete",
+    "app.patch",
+    "app.use",
+    "app.all",
+    "router.get",
+    "router.post",
+    "router.put",
+    "router.delete",
+    "router.patch",
+    "route.get",
+    "route.post",
+    "route.put",
+    "route.delete",
+    "server.get",
+    "server.post",
+    "server.put",
+    "server.delete",
+    "fastify.get",
+    "fastify.post",
+    "fastify.put",
+    "fastify.delete",
+    "hono.get",
+    "hono.post",
+    "hono.put",
+    "hono.delete",
 ];
 
 /// Known database query API names across languages.
 const DB_API: &[&str] = &[
     // Generic / JS
-    "query", "execute", "prepare", "raw", "find", "findone", "findmany", "insert", "update", "delete", "create", "save", "select", "from", "where", "join", "aggregate", "count", "transaction", "commit", "rollback", "upsert",
+    "query",
+    "execute",
+    "prepare",
+    "raw",
+    "find",
+    "findone",
+    "findmany",
+    "insert",
+    "update",
+    "delete",
+    "create",
+    "save",
+    "select",
+    "from",
+    "where",
+    "join",
+    "aggregate",
+    "count",
+    "transaction",
+    "commit",
+    "rollback",
+    "upsert",
     // Go
-    "queryrow", "exec", "begin", "first", "updates",
+    "queryrow",
+    "exec",
+    "begin",
+    "first",
+    "updates",
     // Rust
-    "fetch_one", "fetch_optional", "fetch_all", "load", "get_result", "insert_into",
+    "fetch_one",
+    "fetch_optional",
+    "fetch_all",
+    "load",
+    "get_result",
+    "insert_into",
     // Java/C#
-    "persist", "merge", "remove", "savechanges", "add"
+    "persist",
+    "merge",
+    "remove",
+    "savechanges",
+    "add",
 ];
 
 /// Known shell execution API names across languages.
 const SHELL_API: &[&str] = &[
     // Generic / JS
-    "exec", "spawn", "execfile", "execsync", "spawnsync", "system", "popen", "run", "cmd", "sh", "bash",
+    "exec",
+    "spawn",
+    "execfile",
+    "execsync",
+    "spawnsync",
+    "system",
+    "popen",
+    "run",
+    "cmd",
+    "sh",
+    "bash",
     // Go
-    "command", "output", "combinedoutput", "start",
+    "command",
+    "output",
+    "combinedoutput",
+    "start",
     // Rust
-    "command::new", "status",
+    "command::new",
+    "status",
     // Java/C#
-    "getruntime().exec", "processbuilder", "process.start"
+    "getruntime().exec",
+    "processbuilder",
+    "process.start",
 ];
 
 /// Classify a function's role from its fingerprint.
@@ -277,13 +372,13 @@ mod tests {
     fn test_http_handler_classification() {
         // Two signals: response call + request-shaped param → HttpHandler
         let fp = make_fp(
-            vec![1, 2, 3],                 // api_calls
-            vec![4, 5],                    // segments
-            vec![10, 11],                  // control_flow
-            vec![20, 21, 22, 23, 24, 25],  // structural
-            vec![30, 31],                  // sig
-            vec![40, 41],                  // param_types
-            vec!["res.send".to_string()],  // raw_call_names — signal (a)
+            vec![1, 2, 3],                              // api_calls
+            vec![4, 5],                                 // segments
+            vec![10, 11],                               // control_flow
+            vec![20, 21, 22, 23, 24, 25],               // structural
+            vec![30, 31],                               // sig
+            vec![40, 41],                               // param_types
+            vec!["res.send".to_string()],               // raw_call_names — signal (a)
             vec!["req".to_string(), "res".to_string()], // param_names — signal (b)
         );
         assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
@@ -299,7 +394,7 @@ mod tests {
             vec![20, 21, 22, 23, 24, 25],
             vec![30],
             vec![],
-            vec!["res.send".to_string()],  // raw_call_names — signal (a) only
+            vec!["res.send".to_string()], // raw_call_names — signal (a) only
             vec![],
         );
         assert_eq!(classify_role(&fp), FunctionRole::Unknown);
@@ -368,7 +463,7 @@ mod tests {
             vec![20, 21, 22, 23, 24, 25], // structural
             vec![30],
             vec![40],
-            vec!["exec".to_string()],     // raw_call_names
+            vec!["exec".to_string()], // raw_call_names
             vec![],
         );
         assert_eq!(classify_role(&fp), FunctionRole::ShellExecutor);
@@ -377,7 +472,16 @@ mod tests {
     #[test]
     fn test_data_transformer_classification() {
         // DataTransformer: no API calls, no control flow, no raw_call_names
-        let fp = make_fp(vec![], vec![], vec![], vec![20, 21, 22], vec![30], vec![], vec![], vec![]);
+        let fp = make_fp(
+            vec![],
+            vec![],
+            vec![],
+            vec![20, 21, 22],
+            vec![30],
+            vec![],
+            vec![],
+            vec![],
+        );
         assert_eq!(classify_role(&fp), FunctionRole::DataTransformer);
     }
 

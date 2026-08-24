@@ -67,6 +67,7 @@ pub struct Engine {
     extra_taint_rule_dirs: Vec<PathBuf>,
     pub check_deps: bool,
     pub use_data_flow: bool,
+    pub use_compiler: bool,
     pub ngram_sim_threshold: f64,
     calibration: Option<crate::engine::confidence_calibration::CalibrationParams>,
     per_category_calibration:
@@ -118,6 +119,7 @@ impl Engine {
             ngram_sim_threshold: 0.05,
             calibration: None,
             per_category_calibration: None,
+            use_compiler: false,
         }
     }
 
@@ -158,6 +160,14 @@ impl Engine {
 
     pub fn set_use_data_flow(&mut self, enable: bool) {
         self.use_data_flow = enable;
+    }
+
+    /// Use the type-checked semantic providers (`OxcProvider` for TS/JS,
+    /// `RustHirProvider` for Rust) instead of the tree-sitter name heuristics.
+    /// The compiler path is opt-in because it needs `cargo metadata` and a
+    /// type-check of the analysed workspace.
+    pub fn set_use_compiler(&mut self, enable: bool) {
+        self.use_compiler = enable;
     }
 
     pub fn set_ngram_sim_threshold(&mut self, threshold: f64) {
@@ -205,7 +215,6 @@ impl Engine {
     pub fn calibration(&self) -> Option<&crate::engine::confidence_calibration::CalibrationParams> {
         self.calibration.as_ref()
     }
-
 }
 
 impl Default for Engine {

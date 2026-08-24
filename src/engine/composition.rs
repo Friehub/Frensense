@@ -240,11 +240,17 @@ mod tests {
             has_validation_name: true,
         };
         let result = compose_confidence(&signals, 0.8, &CompositionConfig::default());
-        assert!((result - 0.8).abs() < 0.01, "0.8 ratio must not suppress, got {result}");
+        assert!(
+            (result - 0.8).abs() < 0.01,
+            "0.8 ratio must not suppress, got {result}"
+        );
 
         signals.taint_branch_ratio = Some(0.6);
         let result = compose_confidence(&signals, 0.8, &CompositionConfig::default());
-        assert!((result - 0.8).abs() < 0.01, "0.6 ratio must not suppress, got {result}");
+        assert!(
+            (result - 0.8).abs() < 0.01,
+            "0.6 ratio must not suppress, got {result}"
+        );
     }
 
     #[test]
@@ -258,7 +264,10 @@ mod tests {
             has_validation_name: true,
         };
         let result = compose_confidence(&validator, 0.8, &CompositionConfig::default());
-        assert!((result - 0.24).abs() < 0.01, "validator suppressed, got {result}");
+        assert!(
+            (result - 0.24).abs() < 0.01,
+            "validator suppressed, got {result}"
+        );
 
         // IDOR-style: branches on input but is NOT a validator (no name).
         // Same high ratio must NOT suppress, otherwise a real finding is buried.
