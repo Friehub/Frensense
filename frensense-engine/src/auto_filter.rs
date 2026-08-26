@@ -191,39 +191,6 @@ pub fn merge_filters(
     m
 }
 
-fn extract_imports(source: &str) -> Vec<String> {
-    let mut r = Vec::new();
-    for line in source.lines() {
-        let t = line.trim();
-        if let Some(idx) = t.find("from ") {
-            let after = t[idx + 5..].trim();
-            let pkg = after.trim_start_matches('\'').trim_start_matches('"');
-            let pkg = pkg
-                .trim_end_matches('\'')
-                .trim_end_matches('"')
-                .trim_end_matches(';');
-            if !pkg.is_empty() && !pkg.contains(' ') {
-                r.push(pkg.to_string());
-            }
-        }
-        if let Some(s) = t.find("require(") {
-            let inner = t[s + 8..].trim();
-            if let Some(e) = inner.find(')') {
-                let pkg = inner[..e].trim().trim_matches('\'').trim_matches('"');
-                if !pkg.is_empty() {
-                    r.push(pkg.to_string());
-                }
-            }
-        }
-    }
-    r
-}
-
-/// Rough line count for a source string (used as threshold denominator).
-fn count_lines(s: &str) -> usize {
-    s.bytes().filter(|&b| b == b'\n').count().max(1)
-}
-
 /// Get concatenated source text for all negative variants of a pattern.
 /// Negative sources are stored under "{pattern_id}_neg" (or "_neg2", "_neg3").
 /// Returns empty string if no negative source found.
@@ -331,24 +298,6 @@ fn extract_node_types(source: &str) -> Vec<String> {
         }
     }
     r
-}
-
-/// Find the longest common prefix among a set of strings.
-fn common_prefix<'a>(names: &[&'a str]) -> Option<String> {
-    if names.is_empty() {
-        return None;
-    }
-    if names.len() == 1 {
-        return Some(names[0].to_string());
-    }
-    let first = names[0].as_bytes();
-    for len in (1..=first.len()).rev() {
-        let prefix = &first[..len];
-        if names[1..].iter().all(|n| n.as_bytes().starts_with(prefix)) {
-            return Some(String::from_utf8_lossy(prefix).to_string());
-        }
-    }
-    None
 }
 
 pub fn extract_call_targets(source: &str) -> Vec<String> {

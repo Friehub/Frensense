@@ -13,6 +13,7 @@ use frensense_engine::data_flow::alias::AliasTracker;
 use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegistry};
 use frensense_engine::pattern::evidence::MatchEvidence;
 use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
@@ -289,115 +290,6 @@ fn run_findings_modules(
                                 &fn_name_str,
                                 &snap.path.to_string_lossy(),
                                 origin,
-                            );
-                            exposed_count += 1;
-                        }
-
-                        // Intra-procedural fallback for anonymous functions
-                        let mut body_stack = vec![node];
-                        let mut is_db_source = false;
-
-                        while let Some(b_node) = body_stack.pop() {
-                            let mut b_cursor = b_node.walk();
-                            for b_child in b_node.children(&mut b_cursor) {
-                                body_stack.push(b_child);
-                            }
-
-                            if b_node.kind() == "call_expression"
-                                || b_node.kind() == "member_expression"
-                            {
-                                if let Ok(expr_text) = b_node.utf8_text(snap.content.as_bytes()) {
-                                    let expr_lower = expr_text.to_lowercase();
-                                    if expr_lower.contains("request.headers")
-                                        || expr_lower.contains("req.header")
-                                        || expr_lower.contains("req.headers")
-                                        || expr_lower == "headers()"
-                                        || expr_lower.contains("headers.get")
-                                    {
-                                        if detected_origin.is_none() {
-                                            detected_origin = Some(
-                                                frensense_engine::data_flow::TaintOrigin::UserInput,
-                                            );
-                                            cross_file_taint.register_exposed_taint(
-                                                &fn_name_str,
-                                                &snap.path.to_string_lossy(),
-                                                frensense_engine::data_flow::TaintOrigin::UserInput,
-                                            );
-                                            exposed_count += 1;
-                                        }
-                                    }
-                                }
-                            }
-
-                            if b_node.kind() == "call_expression" {
-                                if let Some(func_node) = b_node.child_by_field_name("function") {
-                                    if let Ok(call_name) =
-                                        func_node.utf8_text(snap.content.as_bytes())
-                                    {
-                                        let lower = call_name.to_lowercase();
-
-                                        let is_safe_base = call_name.starts_with("Object.")
-                                            || call_name.starts_with("Array.")
-                                            || call_name.starts_with("String.")
-                                            || call_name.starts_with("Math.")
-                                            || call_name.starts_with("JSON.")
-                                            || call_name.starts_with("console.")
-                                            || call_name.starts_with("process.");
-
-                                        let mut is_sink = false;
-
-                                        if !is_safe_base {
-                                            // Second-order DB taint: mark DB read calls
-                                            if lower.ends_with(".findbypk")
-                                                || lower.ends_with(".findone")
-                                                || lower.ends_with(".findall")
-                                                || lower.ends_with(".find")
-                                                || lower.ends_with(".query")
-                                            {
-                                                is_db_source = true;
-                                            }
-
-                                            is_sink = lower == "eval"
-                                                || lower == "exec"
-                                                || lower.ends_with(".query")
-                                                || lower == "query"
-                                                || lower.ends_with(".send")
-                                                || lower == "send"
-                                                || lower.ends_with(".json")
-                                                || lower == "json"
-                                                || lower.ends_with(".sendfile")
-                                                || lower == "sendfile"
-                                                || lower.ends_with(".sendstatus")
-                                                || lower == "sendstatus"
-                                                || lower.ends_with(".find")
-                                                || lower.ends_with(".findone")
-                                                || lower.ends_with(".create")
-                                                || lower.ends_with(".insert")
-                                                || lower.ends_with(".update")
-                                                || lower.ends_with(".remove");
-                                        }
-
-                                        if detected_origin.is_some() && is_sink {
-                                            all_advisories.push(Advisory::bare(
-                                            "CROSS_FILE_TAINT",
-                                            crate::Severity::Critical,
-                                            snap.id,
-                                            &snap.path,
-                                            format!("User input flows to sensitive sink {} in {}", call_name, fn_name_str),
-                                        )
-                                        .with_impact("Unvalidated user input reaches a sensitive execution context.")
-                                        .with_improvement("Add validation or sanitization to the source before passing data."));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if is_db_source && detected_origin.is_none() {
-                            cross_file_taint.register_exposed_taint(
-                                &fn_name_str,
-                                &snap.path.to_string_lossy(),
-                                frensense_engine::data_flow::TaintOrigin::Database,
                             );
                             exposed_count += 1;
                         }
@@ -1091,7 +983,7 @@ fn precompute_taint_summaries_for_file(
                     fn_name,
                     FunctionTaintSummary {
                         propagates_return,
-                        tainted_params: HashMap::new(),
+                        tainted_params: FxHashMap::default(),
                         return_origins,
                     },
                 );

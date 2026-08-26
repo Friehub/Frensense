@@ -115,26 +115,6 @@ fn longest_common_subsequence(a: &[u64], b: &[u64]) -> usize {
     prev[n]
 }
 
-/// Compute AST edit distance between two function nodes.
-/// Returns a normalized score between 0.0 (identical structure) and 1.0 (completely different).
-pub fn compute_ast_distance(node_a: Node, node_b: Node, source_a: &str, source_b: &str) -> f64 {
-    let skeleton_a = extract_skeleton(node_a, source_a);
-    let skeleton_b = extract_skeleton(node_b, source_b);
-    let mut hash_a = Vec::with_capacity(skeleton_a.len());
-    for s in &skeleton_a {
-        let mut hasher = rustc_hash::FxHasher::default();
-        std::hash::Hash::hash(s, &mut hasher);
-        hash_a.push(std::hash::Hasher::finish(&hasher));
-    }
-    let mut hash_b = Vec::with_capacity(skeleton_b.len());
-    for s in &skeleton_b {
-        let mut hasher = rustc_hash::FxHasher::default();
-        std::hash::Hash::hash(s, &mut hasher);
-        hash_b.push(std::hash::Hasher::finish(&hasher));
-    }
-    tree_edit_distance(&hash_a, &hash_b)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

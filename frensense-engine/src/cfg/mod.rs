@@ -2,7 +2,8 @@
 
 pub mod def_use;
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashMap;
+use std::collections::HashSet;
 use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,7 +32,7 @@ pub struct ControlFlowGraph<'a> {
     pub blocks: Vec<BasicBlock<'a>>,
     entry: usize,
     exit: usize,
-    label_index: HashMap<String, usize>,
+    label_index: FxHashMap<String, usize>,
 }
 
 impl<'a> ControlFlowGraph<'a> {
@@ -91,7 +92,7 @@ impl<'a> ControlFlowGraph<'a> {
 #[allow(clippy::too_many_lines)]
 pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlowGraph<'a> {
     let mut blocks: Vec<BasicBlock<'a>> = Vec::new();
-    let mut label_index: HashMap<String, usize> = HashMap::new();
+    let mut label_index: FxHashMap<String, usize> = FxHashMap::default();
 
     let entry = blocks.len();
     blocks.push(BasicBlock {
@@ -381,7 +382,7 @@ fn collect_statement_nodes<'a>(node: Node<'a>, statements: &mut Vec<Node<'a>>) {
 fn split_statement_blocks(cfg: &mut ControlFlowGraph) {
     let n = cfg.blocks.len();
     let mut new_blocks: Vec<BasicBlock> = Vec::new();
-    let mut block_map: HashMap<usize, (usize, usize)> = HashMap::new();
+    let mut block_map: FxHashMap<usize, (usize, usize)> = FxHashMap::default();
 
     for old_id in 0..n {
         let block = &cfg.blocks[old_id];

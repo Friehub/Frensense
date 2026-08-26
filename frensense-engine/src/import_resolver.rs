@@ -8,7 +8,7 @@
 //! With the import map, any parameter typed `Request` is unambiguously
 //! an Express request, so `is_http_handler` can use it as a signal.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use tree_sitter::Node;
 
 /// Maps imported names (as they appear in type annotations) to their
@@ -19,13 +19,13 @@ use tree_sitter::Node;
 #[derive(Debug, Clone, Default)]
 pub struct ImportMap {
     /// `name → package`, e.g. `"Request" → "express"`
-    pub name_to_package: HashMap<String, String>,
+    pub name_to_package: FxHashMap<String, String>,
 }
 
 impl ImportMap {
     pub fn new() -> Self {
         Self {
-            name_to_package: HashMap::new(),
+            name_to_package: FxHashMap::default(),
         }
     }
 

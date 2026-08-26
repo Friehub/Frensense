@@ -652,13 +652,13 @@ fn extract_literal_patterns_recursive(
 
                         let pattern_type = match kind {
                             "binary_expression" if arg_text.contains('+') => {
-                                // String concatenation: "SELECT " + userId
-                                if arg_text.to_uppercase().contains("SELECT")
-                                    || arg_text.to_uppercase().contains("FROM")
-                                    || arg_text.to_uppercase().contains("WHERE")
-                                    || arg_text.to_uppercase().contains("INSERT")
-                                    || arg_text.to_uppercase().contains("UPDATE")
-                                    || arg_text.to_uppercase().contains("DELETE")
+                                let arg_upper = arg_text.to_uppercase();
+                                if arg_upper.contains("SELECT")
+                                    || arg_upper.contains("FROM")
+                                    || arg_upper.contains("WHERE")
+                                    || arg_upper.contains("INSERT")
+                                    || arg_upper.contains("UPDATE")
+                                    || arg_upper.contains("DELETE")
                                 {
                                     "sql_concat"
                                 } else {
@@ -667,9 +667,10 @@ fn extract_literal_patterns_recursive(
                             }
                             "template_string" => {
                                 let interp = arg_text.contains("${");
-                                let has_sql = arg_text.to_uppercase().contains("SELECT")
-                                    || arg_text.to_uppercase().contains("FROM")
-                                    || arg_text.to_uppercase().contains("WHERE");
+                                let arg_upper = arg_text.to_uppercase();
+                                let has_sql = arg_upper.contains("SELECT")
+                                    || arg_upper.contains("FROM")
+                                    || arg_upper.contains("WHERE");
                                 if interp && has_sql {
                                     "sql_template_interp"
                                 } else if interp {
@@ -1240,183 +1241,9 @@ pub fn extract_fingerprints(
     source_code: &str,
     path: &Path,
     fingerprints: &mut Vec<FunctionFingerprint>,
-    _window_size: usize,
+    window_size: usize,
 ) {
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let language = crate::parser::ext_to_language(ext).to_string();
-
-    let lang: Language = match ext {
-        "rs" => Language::Rust,
-        "ts" | "tsx" => Language::TypeScript,
-        "js" | "jsx" => Language::JavaScript,
-        "c" | "h" => Language::C,
-        "py" | "pyi" => Language::Python,
-        _ => return,
-    };
-
-    let mut cursor = root.walk();
-    loop {
-        let node = cursor.node();
-        let kind = node.kind();
-        if matches!(
-            kind,
-            "function_item" | "function_declaration" | "method_definition" | "arrow_function"
-        ) && let Some(body) = node.child_by_field_name("body")
-        {
-            let mut function_name = "anonymous".to_string();
-            if let Some(name_node) = node.child_by_field_name("name") {
-                function_name =
-                    source_code[name_node.start_byte()..name_node.end_byte()].to_string();
-            } else if let Some(inferred) =
-                crate::route_registry::infer_function_name(node, source_code)
-            {
-                function_name = inferred;
-            }
-
-            let body_code = &source_code[body.start_byte()..body.end_byte()];
-            let tokens: Vec<String> = body_code
-                .split_whitespace()
-                .filter(|t| !t.is_empty() && !t.starts_with("//"))
-                .map(|t| normalize_token(t).to_string())
-                .collect();
-
-            let total_bytes = body.end_byte() - body.start_byte();
-            let comment_bytes = count_comment_bytes(body, source_code);
-            let sig_tokens = extract_signature_tokens(node, source_code);
-            let param_types = extract_param_types(node, source_code);
-            let name_segments = split_name_segments(&function_name);
-
-            // Multi-scale n-grams: combine window sizes 3, 5, and 8
-            let mut multi_scale_hashes = token_ngrams_positional(&tokens, 3);
-            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 5));
-            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 8));
-
-            // AST-aware features
-            let control_flow = extract_control_flow(body, source_code);
-            let cf_sequence_hash = extract_cf_sequence_hash(body, source_code);
-            let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
-            let property_accesses = extract_property_accesses(body, source_code);
-            let semantic_markers = extract_semantic_markers(
-                body,
-                source_code,
-                &api_calls,
-                &api_call_segments,
-                &property_accesses,
-            );
-
-            // Extract tainted API calls
-            let param_names: Vec<String> = node
-                .child_by_field_name("parameters")
-                .map(|p| {
-                    let mut names = Vec::new();
-                    let mut c = p.walk();
-                    if c.goto_first_child() {
-                        loop {
-                            let child = c.node();
-                            if let Some(name) = child
-                                .child_by_field_name("pattern")
-                                .or_else(|| child.child_by_field_name("name"))
-                            {
-                                let text = &source_code[name.start_byte()..name.end_byte()];
-                                if child.kind() == "identifier"
-                                    || child.kind() == "required_parameter"
-                                {
-                                    names.push(text.to_string());
-                                }
-                            }
-                            if !c.goto_next_sibling() {
-                                break;
-                            }
-                        }
-                    }
-                    names
-                })
-                .unwrap_or_default();
-            let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
-            let raw_call_names = collect_raw_call_names(body, source_code);
-            let motif_hashes =
-                extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
-            let data_flow_path_hashes =
-                crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
-            let argument_call_types = extract_argument_call_types(body, source_code);
-            let literal_pattern_hashes = extract_literal_patterns(body, source_code);
-
-            let skeleton = crate::ast_distance::extract_skeleton(body, source_code);
-            let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
-            for s in &skeleton {
-                let mut hasher = rustc_hash::FxHasher::default();
-                std::hash::Hash::hash(s, &mut hasher);
-                skeleton_hashes.push(std::hash::Hasher::finish(&hasher));
-            }
-            let has_http_decorator =
-                crate::decorator::has_routing_decorator(node, source_code).is_some();
-            let is_registered_handler =
-                crate::route_registry::is_function_registered_in_file(node, source_code, "")
-                    || crate::route_registry::is_inline_registered_handler(node, source_code);
-
-            fingerprints.push(FunctionFingerprint {
-                file_path: path.to_string_lossy().to_string(),
-                function_name,
-                line: node.start_position().row + 1,
-                language: language.clone(),
-                ngram_hashes: multi_scale_hashes.clone(),
-                weighted_ngram_hashes: multi_scale_hashes.into_iter().map(|h| (h, 1.0)).collect(),
-                signature_ngrams: token_ngrams_sorted(&sig_tokens, 3.min(sig_tokens.len().max(1))),
-                param_type_ngrams: token_ngrams_sorted(
-                    &param_types,
-                    2.min(param_types.len().max(1)),
-                ),
-                name_segments,
-                structural_markers: collect_structural_markers(body, source_code, lang),
-                type_usages: {
-                    let mut tu = collect_type_usages(body, source_code);
-                    tu.extend(crate::decorator::collect_param_decorator_types(
-                        node,
-                        source_code,
-                    ));
-                    tu
-                },
-                comment_density: if total_bytes > 0 {
-                    comment_bytes as f64 / total_bytes as f64
-                } else {
-                    0.0
-                },
-                semantic_markers,
-                skeleton,
-                skeleton_hashes,
-                control_flow_hashes: control_flow,
-                control_flow_sequence_hash: cf_sequence_hash,
-                api_calls,
-                api_call_segments,
-                property_accesses,
-                motif_hashes,
-                data_flow_path_hashes,
-                raw_call_names,
-                param_names,
-                tainted_api_calls,
-                config_literal_hashes: Vec::new(),
-                argument_call_types,
-                literal_pattern_hashes,
-                has_http_decorator,
-                is_registered_handler,
-                export_handler_kind: crate::export_matcher::classify_exported_handler(
-                    node,
-                    source_code,
-                    &path.to_string_lossy(),
-                ),
-            });
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        loop {
-            if cursor.goto_next_sibling() {
-                break;
-            }
-            if !cursor.goto_parent() {
-                return;
-            }
-        }
-    }
+    let mut with_nodes = Vec::new();
+    extract_fingerprints_with_nodes(root, source_code, path, &mut with_nodes, window_size);
+    fingerprints.extend(with_nodes.into_iter().map(|(fp, _)| fp));
 }

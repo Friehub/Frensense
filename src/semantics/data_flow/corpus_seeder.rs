@@ -229,58 +229,11 @@ pub fn seed_from_ast_body(node: Node, source: &str, registry: &mut TaintRegistry
     }
 }
 
-/// Classify a bare parameter name into a `TaintOrigin` for untyped languages.
+/// Classify a parameter name into a `TaintOrigin` for untyped languages.
 ///
-/// This duplicates the logic in `cross_file::classify_param_origin` to keep the
-/// modules independently testable. Both tables must stay in sync.
+/// Delegates to the canonical implementation in `frensense_engine::data_flow`.
 fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
-    let lower = name.to_lowercase();
-    if matches!(
-        lower.as_str(),
-        "req"
-            | "request"
-            | "event"
-            | "ctx"
-            | "context"
-            | "payload"
-            | "input"
-            | "body"
-            | "query"
-            | "params"
-            | "searchparams"
-            | "args"
-            | "cmd"
-            | "url"
-            | "path"
-            | "file"
-    ) {
-        return Some(TaintOrigin::UserInput);
-    }
-    if matches!(
-        lower.as_str(),
-        "env" | "config" | "settings" | "conf" | "options" | "opts" | "cfg"
-    ) {
-        return Some(TaintOrigin::Environment);
-    }
-    if matches!(
-        lower.as_str(),
-        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
-    ) {
-        return Some(TaintOrigin::Database);
-    }
-    if matches!(
-        lower.as_str(),
-        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
-    ) {
-        return Some(TaintOrigin::Network);
-    }
-    if matches!(
-        lower.as_str(),
-        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
-    ) {
-        return Some(TaintOrigin::FileSystem);
-    }
-    None
+    frensense_engine::data_flow::classify_param_origin(name)
 }
 
 #[cfg(test)]

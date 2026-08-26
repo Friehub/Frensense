@@ -219,40 +219,6 @@ fn extract_exported_name(fn_node: Node, source: &str) -> Option<String> {
     None
 }
 
-/// Extract the route path from a file path, matching known framework conventions.
-///
-/// Examples:
-/// - `app/api/users/[id]/route.ts` → `/api/users/:id`
-/// - `src/routes/api/orders/+server.ts` → `/api/orders`
-/// - `pages/api/products/[slug].ts` → `/api/products/:slug`
-pub fn extract_route_path_from_file(file_path: &str) -> Option<String> {
-    let path = std::path::Path::new(file_path);
-
-    let stem = path.file_stem()?.to_str()?;
-    let mut full = path.with_extension("").to_string_lossy().to_string();
-
-    if stem == "route" || stem == "+server" {
-        if let Some(parent) = path.parent() {
-            full = parent.with_extension("").to_string_lossy().to_string();
-        }
-    }
-
-    let route = if let Some(idx) = full.find("app/") {
-        &full[idx + 4..]
-    } else if let Some(idx) = full.find("pages/") {
-        &full[idx + 6..]
-    } else if let Some(idx) = full.find("src/routes/") {
-        &full[idx + 11..]
-    } else if let Some(idx) = full.find("routes/") {
-        &full[idx + 7..]
-    } else {
-        return None;
-    };
-
-    let route = route.replace('[', ":").replace(']', "");
-    Some(format!("/{}", route))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,33 +308,5 @@ mod tests {
         let fn_node = tree.root_node().child(0).unwrap();
         let result = classify_exported_handler(fn_node, &source, "src/util.ts");
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_route_path_app_router() {
-        let path = "app/api/users/[id]/route.ts";
-        let route = extract_route_path_from_file(path);
-        assert_eq!(route, Some("/api/users/:id".to_string()));
-    }
-
-    #[test]
-    fn test_route_path_pages_router() {
-        let path = "pages/api/products/[slug].ts";
-        let route = extract_route_path_from_file(path);
-        assert_eq!(route, Some("/api/products/:slug".to_string()));
-    }
-
-    #[test]
-    fn test_route_path_sveltekit() {
-        let path = "src/routes/api/orders/+server.ts";
-        let route = extract_route_path_from_file(path);
-        assert_eq!(route, Some("/api/orders".to_string()));
-    }
-
-    #[test]
-    fn test_route_path_no_match() {
-        let path = "src/lib/utils.ts";
-        let route = extract_route_path_from_file(path);
-        assert!(route.is_none());
     }
 }

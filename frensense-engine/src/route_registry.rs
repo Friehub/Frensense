@@ -11,7 +11,7 @@
 //! known router registration patterns (e.g. `app.get('/path', fn)`),
 //! extracts the handler name, and builds a project-wide registry.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use tree_sitter::Node;
 
 use crate::data_flow::TaintOrigin;
@@ -47,7 +47,7 @@ pub struct RouteRegistration {
 #[derive(Debug, Clone, Default)]
 pub struct HandlerRegistry {
     /// function name → route registration(s).
-    handlers: HashMap<String, Vec<RouteRegistration>>,
+    handlers: FxHashMap<String, Vec<RouteRegistration>>,
 }
 
 impl HandlerRegistry {

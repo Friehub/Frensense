@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 use tree_sitter::Tree;
 
@@ -33,7 +33,7 @@ pub fn resolve_fn_definition(
     current_root: tree_sitter::Node,
     current_source: &str,
     all_symbols: &[SymbolEntry],
-    file_trees: &HashMap<String, (&str, &Tree)>,
+    file_trees: &FxHashMap<String, (&str, &Tree)>,
 ) -> Option<ResolvedFunction> {
     let name = fn_name.split("::").last().unwrap_or(fn_name);
 
@@ -251,7 +251,7 @@ mod tests {
         registry.register_symbol("handler", 27, 34);
 
         let all_symbols: Vec<SymbolEntry> = vec![];
-        let file_trees: HashMap<String, (&str, &Tree)> = HashMap::new();
+        let file_trees: FxHashMap<String, (&str, &Tree)> = FxHashMap::default();
 
         let result = resolve_fn_definition(
             "handler",
@@ -279,7 +279,7 @@ mod tests {
         let root = tree.root_node();
 
         let all_symbols = vec![make_symbol_entry("target", "test.rs", 0, 15)];
-        let file_trees: HashMap<String, (&str, &Tree)> = HashMap::new();
+        let file_trees: FxHashMap<String, (&str, &Tree)> = FxHashMap::default();
         let registry = TaintRegistry::default();
 
         let result = resolve_fn_definition(
@@ -309,7 +309,7 @@ mod tests {
         let tree_a = parser.parse(source_a, None).unwrap();
         let tree_b = parser.parse(source_b, None).unwrap();
 
-        let mut file_trees: HashMap<String, (&str, &Tree)> = HashMap::new();
+        let mut file_trees: FxHashMap<String, (&str, &Tree)> = FxHashMap::default();
         file_trees.insert("a.rs".to_string(), (source_a, &tree_a));
 
         let all_symbols = vec![make_symbol_entry("helper", "a.rs", 0, 15)];

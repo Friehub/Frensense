@@ -40,18 +40,21 @@ pub fn is_secret_indicator(name: &str) -> bool {
 }
 
 pub fn calculate_shannon_entropy(s: &str) -> f64 {
-    let mut map = std::collections::HashMap::new();
-    let len = s.chars().count() as f64;
-    if len == 0.0 {
+    let len = s.len();
+    if len == 0 {
         return 0.0;
     }
-    for c in s.chars() {
-        *map.entry(c).or_insert(0) += 1;
+    let mut counts = [0u32; 128];
+    for &b in s.as_bytes() {
+        counts[b as usize] += 1;
     }
-    let mut entropy = 0.0;
-    for count in map.values() {
-        let p = (*count as f64) / len;
-        entropy -= p * p.log2();
-    }
-    entropy
+    let len_f = len as f64;
+    counts
+        .iter()
+        .filter(|&&c| c > 0)
+        .map(|&c| {
+            let p = c as f64 / len_f;
+            -p * p.log2()
+        })
+        .sum()
 }

@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-optimize] - 2026-08-26
+
+### Added
+- **Rayon parallelism**: `PatternRegistry::scan_function` scoring loop parallelized via `rayon::par_iter()`. Pre-computes `extracted_flows` and `TaintMetrics` once before parallel section; each candidate gets its own `dim_cache`. Extracted `score_candidate()` helper method for parallel dispatch.
+- **thiserror for FrensenseError**: `FrensenseError` now derives `thiserror::Error`, removing ~30 lines of manual `Display`/`Error` impls. Added `From<std::io::Error>` and `From<tree_sitter::LanguageError>` conversions.
+- **FxHashMap for all hot paths**: Converted `HashMap` → `FxHashMap` in `TaintRegistry`, `DataFlowEngine`, `CrossFileTaintResolver`, `AliasTracker`, `ControlFlowGraph`, `DefUseChains`, `RouteRegistry`, `ImportResolver`, `ProjectAnalysis`. Uses `rustc_hash` (already a dependency) for 3-5x faster lookups.
+
+### Changed
+- **Corpus API error types**: `load_corpus`, `load_corpus_dirs`, `load_from_bundle` now return `crate::Result<usize>` (was `Result<usize, String>`).
+- **Deduplicated `extract_fingerprints`**: `extract_fingerprints` now delegates to `extract_fingerprints_with_nodes` and discards nodes (was ~180 lines of duplication).
+- **Fixed `to_uppercase()` duplication**: `fingerprint.rs:654-672` — compute `arg_upper` once instead of calling `.to_uppercase()` 6x on same string.
+- **Shannon entropy optimization**: Replaced `HashMap<char, i32>` + `.chars().count()` with fixed-size `[u32; 128]` byte array in `data_flow/entropy.rs`.
+- **Removed dead code**: Deleted `semantic_patterns/` module (6 files: `auth_guard_dominator`, `csrf_missing_token`, `hardcoded_credentials`, `helpers`, `idor_missing_ownership`, `registry`), `findings/semantic_patterns.rs`, `findings/temporal_violation.rs`. Removed NO-OP modules from `registered_modules()`. Removed dead functions: `extract_imports`, `count_lines`, `common_prefix`, `similarity_score`, `approximate_jaccard`, `hash_ngrams`, `compute_ast_distance`, `has_controller_decorator`, `extract_controller_prefix`, `extract_route_path_from_file`. Removed hardcoded 18-name taint check in `interprocedural.rs` → delegates to `registry.has_any_tainted()`. Removed duplicate `classify_param_origin()` in `corpus_seeder.rs` → delegates to canonical impl.
+- **Fixed evaluate.py**: Changed `data.get("findings", [])` → `data.get("findings", data.get("advisorys", []))` to read correct JSON key.
+- **Benchmark results updated**: NodeGoat v0.5.0 metrics regenerated with optimized binary.
+
+### Performance
+- **87% faster on NodeGoat**: Wall time 29.0s → 3.8s at threshold 0.40 (113 functions, 572 patterns).
+- **No accuracy regression**: F1=0.7164, TP=24, FP=13, FN=6 (identical to pre-optimization).
+
 ## [0.5.0-tasks] - 2026-07-24
 
 ### Added

@@ -41,8 +41,8 @@ def load_json_findings(path: str) -> list[dict]:
     findings = []
     with open(path) as f:
         data = json.load(f)
-    # Support both array-of-findings and {findings: [...]} envelopes
-    items = data if isinstance(data, list) else data.get("findings", [])
+    # Support both array-of-findings and {findings: [...]} or {advisories: [...]} envelopes
+    items = data if isinstance(data, list) else data.get("findings", data.get("advisories", []))
     for item in items:
         findings.append({
             "file": item.get("file_path", item.get("file", "")),

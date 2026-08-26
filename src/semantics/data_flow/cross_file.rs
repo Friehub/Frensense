@@ -5,7 +5,8 @@
 //! Follows taint flow across file boundaries to verify that
 //! user-controlled data reaches dangerous sinks through imports and exports.
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashMap;
+use std::collections::HashSet;
 use tree_sitter::Node;
 
 use crate::semantics::data_flow::TaintOrigin;
@@ -676,7 +677,7 @@ impl<'a> CrossFileVerifier<'a> {
     fn callee_returns_tainted(&self, fn_name: &str) -> bool {
         let caller_file = &self.file_path;
 
-        let engine_file_trees: HashMap<String, (&str, &tree_sitter::Tree)> = self
+        let engine_file_trees: FxHashMap<String, (&str, &tree_sitter::Tree)> = self
             .file_trees
             .iter()
             .map(|(k, (t, s, _))| (k.clone(), (s.as_str(), t)))
@@ -735,15 +736,6 @@ impl<'a> CrossFileVerifier<'a> {
             _ => false,
         }
     }
-}
-
-/// Classify a parameter name into a `TaintOrigin` based on naming conventions.
-///
-/// Delegates to the shared implementation in `frensense_engine::data_flow` to
-/// eliminate the duplication that previously existed between this file and
-/// `runner.rs`. Both callers now use the same canonical list.
-fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
-    frensense_engine::data_flow::classify_param_origin(name)
 }
 
 #[cfg(test)]

@@ -185,33 +185,6 @@ impl LSHIndex {
     }
 }
 
-pub fn similarity_score(hashes_a: &[u64], hashes_b: &[u64]) -> f64 {
-    let sig_a = minhash_signature(hashes_a, DEFAULT_NUM_HASHES);
-    let sig_b = minhash_signature(hashes_b, DEFAULT_NUM_HASHES);
-    signature_similarity(&sig_a, &sig_b)
-}
-
-pub fn approximate_jaccard(hashes_a: &[u64], hashes_b: &[u64]) -> f64 {
-    similarity_score(hashes_a, hashes_b)
-}
-
-pub fn hash_ngrams(tokens: &[String], window_size: usize) -> Vec<u64> {
-    if tokens.len() < window_size {
-        return Vec::new();
-    }
-    let mut hashes = FxHashSet::default();
-    for i in 0..=(tokens.len().saturating_sub(window_size)) {
-        let mut state = FxHasher::default();
-        for token in &tokens[i..i + window_size] {
-            token.hash(&mut state);
-        }
-        hashes.insert(state.finish());
-    }
-    let mut vec: Vec<u64> = hashes.into_iter().collect();
-    vec.sort_unstable();
-    vec
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,11 +229,5 @@ mod tests {
         index.insert(&sig, 42);
         let candidates = index.query(&sig);
         assert!(candidates.contains(&42));
-    }
-
-    #[test]
-    fn test_approximate_jaccard_empty() {
-        let sim = approximate_jaccard(&[], &[]);
-        assert!((sim - 1.0).abs() < 1e-10);
     }
 }

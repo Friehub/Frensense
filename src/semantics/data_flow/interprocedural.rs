@@ -163,26 +163,7 @@ impl<'a> InterproceduralVerifier<'a> {
             };
         };
 
-        // Check if any parameter is tainted
-        let has_tainted = self.registry.is_tainted("req")
-            || self.registry.is_tainted("request")
-            || self.registry.is_tainted("input")
-            || self.registry.is_tainted("body")
-            || self.registry.is_tainted("query")
-            || self.registry.is_tainted("params")
-            || self.registry.is_tainted("args")
-            || self.registry.is_tainted("data")
-            || self.registry.is_tainted("payload")
-            || self.registry.is_tainted("event")
-            || self.registry.is_tainted("ctx")
-            || self.registry.is_tainted("context")
-            || self.registry.is_tainted("name")
-            || self.registry.is_tainted("cmd")
-            || self.registry.is_tainted("url")
-            || self.registry.is_tainted("path")
-            || self.registry.is_tainted("file");
-
-        if !has_tainted && !self.registry.has_any_tainted() {
+        if !self.registry.has_any_tainted() {
             return InterproceduralResult {
                 verified: false,
                 depth: 0,

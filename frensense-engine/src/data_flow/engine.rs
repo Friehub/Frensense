@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crate::data_flow::TaintOrigin;
 use crate::data_flow::TaintRegistry;
@@ -8,15 +8,15 @@ use crate::data_flow::TaintRegistry;
 #[derive(Debug, Clone)]
 pub struct FunctionTaintSummary {
     pub propagates_return: bool,
-    pub tainted_params: HashMap<usize, TaintOrigin>,
+    pub tainted_params: FxHashMap<usize, TaintOrigin>,
     pub return_origins: Vec<TaintOrigin>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct DataFlowEngine {
-    summaries: HashMap<(String, String), FunctionTaintSummary>,
-    global_taint: HashMap<(String, String), TaintOrigin>,
-    global_field_taint: HashMap<(String, String, String), TaintOrigin>,
+    summaries: FxHashMap<(String, String), FunctionTaintSummary>,
+    global_taint: FxHashMap<(String, String), TaintOrigin>,
+    global_field_taint: FxHashMap<(String, String, String), TaintOrigin>,
 }
 
 impl DataFlowEngine {
@@ -109,7 +109,7 @@ impl DataFlowEngine {
         has_return_taint: bool,
         return_origins: Vec<TaintOrigin>,
     ) {
-        let mut tainted_params = HashMap::new();
+        let mut tainted_params = FxHashMap::default();
         for (idx, name) in param_names.iter().enumerate() {
             if let Some(origin) = registry.get_origin(name) {
                 tainted_params.insert(idx, origin);
@@ -180,7 +180,7 @@ mod tests {
             "foo",
             FunctionTaintSummary {
                 propagates_return: true,
-                tainted_params: HashMap::new(),
+                tainted_params: FxHashMap::default(),
                 return_origins: vec![TaintOrigin::UserInput],
             },
         );

@@ -22,7 +22,7 @@ pub use resolver::map_call_args_to_params;
 pub use resolver::resolve_fn_definition;
 pub use sanitizer::{SanitizerRegistry, SinkContext};
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Shared parameter-name-to-taint-origin classifier used by both the CLI runner
 /// and the semantic analysis pipeline. Consolidated here to eliminate the
@@ -143,26 +143,26 @@ impl From<&str> for TaintOrigin {
 
 #[derive(Debug, Clone)]
 pub struct TaintRegistry {
-    scopes: Vec<HashMap<String, TaintOrigin>>,
-    symbol_ranges: Vec<HashMap<String, (usize, usize)>>,
-    field_taint: Vec<HashMap<(String, String), TaintOrigin>>,
+    scopes: Vec<FxHashMap<String, TaintOrigin>>,
+    symbol_ranges: Vec<FxHashMap<String, (usize, usize)>>,
+    field_taint: Vec<FxHashMap<(String, String), TaintOrigin>>,
 }
 
 impl Default for TaintRegistry {
     fn default() -> Self {
         Self {
-            scopes: vec![HashMap::new()],
-            symbol_ranges: vec![HashMap::new()],
-            field_taint: vec![HashMap::new()],
+            scopes: vec![FxHashMap::default()],
+            symbol_ranges: vec![FxHashMap::default()],
+            field_taint: vec![FxHashMap::default()],
         }
     }
 }
 
 impl TaintRegistry {
     pub fn push_scope(&mut self) {
-        self.scopes.push(HashMap::new());
-        self.symbol_ranges.push(HashMap::new());
-        self.field_taint.push(HashMap::new());
+        self.scopes.push(FxHashMap::default());
+        self.symbol_ranges.push(FxHashMap::default());
+        self.field_taint.push(FxHashMap::default());
     }
 
     pub fn pop_scope(&mut self) {

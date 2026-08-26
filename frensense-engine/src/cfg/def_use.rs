@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use tree_sitter::Node;
 
 use crate::cfg::{BasicBlock, ControlFlowGraph};
@@ -27,9 +27,9 @@ pub struct Use {
 pub struct DefUseChain {
     pub definitions: Vec<Definition>,
     pub uses: Vec<Use>,
-    pub def_for_use: HashMap<usize, Vec<usize>>,
-    pub use_for_def: HashMap<usize, Vec<usize>>,
-    pub reaching_defs: HashMap<usize, HashSet<usize>>,
+    pub def_for_use: FxHashMap<usize, Vec<usize>>,
+    pub use_for_def: FxHashMap<usize, Vec<usize>>,
+    pub reaching_defs: FxHashMap<usize, FxHashSet<usize>>,
 }
 
 impl DefUseChain {
@@ -354,14 +354,14 @@ fn compute_reaching_defs(cfg: &ControlFlowGraph, chains: &mut DefUseChain) {
     while changed {
         changed = false;
         for i in 0..n {
-            let mut incoming: HashSet<usize> = HashSet::new();
+            let mut incoming: FxHashSet<usize> = FxHashSet::default();
             for &pred in &cfg.blocks[i].predecessors {
                 if let Some(rd) = chains.reaching_defs.get(&pred) {
                     incoming.extend(rd);
                 }
             }
 
-            let block_defs: HashSet<usize> = chains
+            let block_defs: FxHashSet<usize> = chains
                 .definitions
                 .iter()
                 .enumerate()
@@ -369,13 +369,13 @@ fn compute_reaching_defs(cfg: &ControlFlowGraph, chains: &mut DefUseChain) {
                 .map(|(idx, _)| idx)
                 .collect();
 
-            let def_names: HashSet<&str> = block_defs
+            let def_names: FxHashSet<&str> = block_defs
                 .iter()
                 .filter_map(|&idx| chains.definitions.get(idx))
                 .map(|d| d.name.as_str())
                 .collect();
 
-            let mut new_rd: HashSet<usize> = incoming
+            let mut new_rd: FxHashSet<usize> = incoming
                 .into_iter()
                 .filter(|&idx| {
                     chains

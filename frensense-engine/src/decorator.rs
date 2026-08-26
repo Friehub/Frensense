@@ -98,88 +98,6 @@ pub fn has_routing_decorator(fn_node: Node, source: &str) -> Option<HttpMethod> 
     None
 }
 
-/// Check if a class has a controller decorator (e.g. `@Controller('/users')`).
-///
-/// In tree-sitter TypeScript, the `decorator` node is a CHILD of `class_declaration`,
-/// not a sibling — so we walk the class_node's children directly.
-pub fn has_controller_decorator(class_node: Node, source: &str) -> bool {
-    if class_node.kind() != "class_declaration" {
-        return false;
-    }
-    for i in 0..class_node.child_count() {
-        let child = match class_node.child(i) {
-            Some(c) => c,
-            None => continue,
-        };
-        if child.kind() != "decorator" {
-            continue;
-        }
-        let call = child
-            .child_by_field_name("expression")
-            .or_else(|| child.named_child(0));
-        let Some(call) = call else { continue };
-        let name_node = if call.kind() == "call_expression" {
-            call.child_by_field_name("function")
-        } else {
-            Some(call)
-        };
-        let Some(name_node) = name_node else { continue };
-        let name = &source[name_node.start_byte()..name_node.end_byte()];
-        if name == "Controller"
-            || name == "RestController"
-            || name == "JsonController"
-            || name == "Resolver"
-        {
-            return true;
-        }
-    }
-    false
-}
-
-/// Get the `@Controller('/path')` route prefix from a class declaration.
-///
-/// Decorators are children of `class_declaration`, not siblings.
-pub fn extract_controller_prefix(class_node: Node, source: &str) -> Option<String> {
-    if class_node.kind() != "class_declaration" {
-        return None;
-    }
-    for i in 0..class_node.child_count() {
-        let child = match class_node.child(i) {
-            Some(c) => c,
-            None => continue,
-        };
-        if child.kind() != "decorator" {
-            continue;
-        }
-        let call = child
-            .child_by_field_name("expression")
-            .or_else(|| child.named_child(0));
-        let Some(call) = call else { continue };
-        if call.kind() != "call_expression" {
-            continue;
-        }
-        let name_node = call.child_by_field_name("function")?;
-        let name = &source[name_node.start_byte()..name_node.end_byte()];
-        if name != "Controller" && name != "RestController" {
-            continue;
-        }
-        // Extract the first argument (the route path)
-        let args = call.child_by_field_name("arguments")?;
-        let mut cursor = args.walk();
-        if !cursor.goto_first_child() {
-            return None;
-        }
-        let first_arg = cursor.node();
-        if first_arg.kind() == "string" || first_arg.kind() == "string_fragment" {
-            let raw = &source[first_arg.start_byte()..first_arg.end_byte()];
-            return Some(raw.trim_matches(&['"', '\'', '`'] as &[_]).to_string());
-        }
-        // Could also be a no-arg @Controller()
-        return Some(String::new());
-    }
-    None
-}
-
 /// Extract the decorator name from a parameter node (e.g. `"Body"` from `@Body()`).
 /// Returns `None` if the parameter has no decorator or the decorator is unrecognized.
 pub fn param_decorator_name(param_node: Node, source: &str) -> Option<&'static str> {
@@ -335,23 +253,6 @@ mod tests {
             has_routing_decorator(method, &source),
             Some(HttpMethod::Get)
         );
-    }
-
-    #[test]
-    fn test_class_has_controller_decorator() {
-        let src = "@Controller('/users')\nclass UserController {}";
-        let (tree, source) = parse_ts(src);
-        let class = tree.root_node().child(0).unwrap();
-        assert_eq!(class.kind(), "class_declaration");
-        assert!(has_controller_decorator(class, &source));
-    }
-
-    #[test]
-    fn test_class_without_controller() {
-        let src = "class UserController {}";
-        let (tree, source) = parse_ts(src);
-        let class = tree.root_node().child(0).unwrap();
-        assert!(!has_controller_decorator(class, &source));
     }
 
     #[test]

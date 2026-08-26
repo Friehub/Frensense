@@ -4,7 +4,8 @@ use crate::data_flow::TaintOrigin;
 #[cfg(feature = "full-analysis")]
 use crate::graph::{EdgeKind, SemanticGraph};
 use crate::symbols::Symbol;
-use std::collections::{HashMap, HashSet, VecDeque};
+use rustc_hash::FxHashMap;
+use std::collections::{HashSet, VecDeque};
 
 /// Maximum propagation depth through the call graph for transitive taint.
 /// A depth of 5 covers typical layered architectures (handler → service → service → repository → DB).
@@ -22,10 +23,10 @@ pub struct CrossFileTaint {
 
 #[derive(Debug, Clone, Default)]
 pub struct CrossFileTaintResolver {
-    call_graph: HashMap<String, Vec<String>>,
-    reverse_call_graph: HashMap<String, Vec<String>>,
-    module_map: HashMap<String, Vec<String>>,
-    exposed_taint: HashMap<(String, String), TaintOrigin>,
+    call_graph: FxHashMap<String, Vec<String>>,
+    reverse_call_graph: FxHashMap<String, Vec<String>>,
+    module_map: FxHashMap<String, Vec<String>>,
+    exposed_taint: FxHashMap<(String, String), TaintOrigin>,
 }
 
 impl CrossFileTaintResolver {

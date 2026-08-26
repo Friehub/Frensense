@@ -21,7 +21,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     )> {
         let name = full_name.split("::").last().unwrap_or(full_name);
 
-        let engine_file_trees: std::collections::HashMap<String, (&str, &tree_sitter::Tree)> = self
+        let engine_file_trees: rustc_hash::FxHashMap<String, (&str, &tree_sitter::Tree)> = self
             .context
             .file_trees
             .iter()

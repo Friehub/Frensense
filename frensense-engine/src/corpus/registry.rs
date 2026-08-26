@@ -10,6 +10,7 @@ use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_wei
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::PatternScorer;
+use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
@@ -80,8 +81,10 @@ impl PatternRegistry {
         }
     }
 
-    pub fn load_corpus(&mut self, corpus_dir: &Path) -> Result<usize, String> {
-        let patterns = load_corpus(corpus_dir)?.0;
+    pub fn load_corpus(&mut self, corpus_dir: &Path) -> crate::Result<usize> {
+        let patterns = load_corpus(corpus_dir)
+            .map_err(|e| crate::FrensenseError::Engine(e))?
+            .0;
         let count = patterns.len();
         self.source_sink = build_registry_from_dir(corpus_dir);
         self.patterns = patterns;
@@ -90,12 +93,12 @@ impl PatternRegistry {
         Ok(count)
     }
 
-    pub fn load_corpus_dirs(&mut self, dirs: &[&Path]) -> Result<usize, String> {
+    pub fn load_corpus_dirs(&mut self, dirs: &[&Path]) -> crate::Result<usize> {
         let mut all_patterns = Vec::new();
         for dir in dirs {
             match load_corpus(dir) {
                 Ok((patterns, _warnings)) => all_patterns.extend(patterns),
-                Err(e) => eprintln!("Corpus warning: skipping {}: {e}", dir.display()),
+                Err(ref e) => eprintln!("Corpus warning: skipping {}: {e}", dir.display()),
             }
         }
         // Build source/sink registry from the first corpus dir (primary)
@@ -154,8 +157,9 @@ impl PatternRegistry {
     }
 
     #[cfg(feature = "serialize")]
-    pub fn load_from_bundle(&mut self, bytes: &[u8]) -> Result<usize, String> {
-        let loaded = crate::corpus::bundle::load_bundle(bytes)?;
+    pub fn load_from_bundle(&mut self, bytes: &[u8]) -> crate::Result<usize> {
+        let loaded = crate::corpus::bundle::load_bundle(bytes)
+            .map_err(|e| crate::FrensenseError::Engine(e))?;
         let count = loaded.patterns.len();
 
         self.patterns = loaded
@@ -431,15 +435,24 @@ impl PatternRegistry {
             apply_idf_weights(&mut weighted_fp, &self.idf_weights);
         }
 
-        let mut extracted_flows: Option<std::collections::HashSet<(String, String)>> = None;
-
-        let mut dim_cache = rustc_hash::FxHashMap::default();
+        // Pre-compute data flows once (shared across all candidates, cheap AST walk)
+        let precomputed_flows = func_node.and_then(|node| {
+            let src = source?;
+            let needs_flows = self.patterns.iter().any(|p| {
+                p.semantic_filter
+                    .as_ref()
+                    .map_or(false, |f| !f.required_taint_flows.is_empty())
+            });
+            if needs_flows {
+                Some(crate::corpus::data_flow_extractor::extract_data_flows(
+                    node, src,
+                ))
+            } else {
+                None
+            }
+        });
 
         // Pre-compute TaintMetrics once per function (not per candidate).
-        // Seeds a TaintRegistry by scanning the function body for identifiers
-        // that match TAINT_SOURCE_PATTERNS (e.g. req.body, req.query).
-        // Tracks the taint origins found so SinkCategory relevance can downweight
-        // mismatches (e.g. FileSystem data reaching an SQL sink).
         let taint_metrics: Option<(TaintMetrics, TaintOrigin)> = func_node.and_then(|fn_node| {
             let src = source?;
             let mut reg = TaintRegistry::default();
@@ -472,7 +485,6 @@ impl PatternRegistry {
                         break;
                     }
                     if !cursor.goto_parent() {
-                        // Choose the most specific origin: prefer non-UserInput if any
                         let dominant = seen_origins
                             .into_iter()
                             .find(|o| !matches!(o, TaintOrigin::UserInput));
@@ -485,216 +497,25 @@ impl PatternRegistry {
             }
         });
 
-        let mut matches = Vec::new();
-        for &(idx, hit_both) in &all_candidates {
-            let pattern = &self.patterns[idx];
-
-            // Merge hand-authored semantic filter with auto-derived suggestions
-            let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
-                (Some(hand), Some(auto)) => Some(crate::auto_filter::merge_filters(
-                    hand,
-                    Some(auto),
-                    &pattern.id,
-                )),
-                (Some(hand), None) => Some(hand.clone()),
-                (None, Some(auto)) => Some(crate::auto_filter::merge_filters(
-                    &Default::default(),
-                    Some(auto),
-                    &pattern.id,
-                )),
-                (None, None) => None,
-            };
-
-            // Apply semantic filter if present
-            if let (Some(filter), Some(node), Some(src)) =
-                (merged_filter.as_ref(), func_node, source)
-            {
-                if !filter.required_taint_flows.is_empty() && extracted_flows.is_none() {
-                    extracted_flows = Some(crate::corpus::data_flow_extractor::extract_data_flows(
-                        node, src,
-                    ));
-                }
-
-                if !filter.matches(
-                    node,
-                    src,
-                    Some(fp.file_path.as_str()),
-                    extracted_flows.as_ref(),
-                ) {
-                    continue;
-                }
-            }
-
-            // Semantic gate: skip trivially small functions
-            if weighted_fp.structural_markers.len() < 3
-                || (weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty())
-            {
-                continue;
-            }
-
-            // Function role classifier
-            let candidate_role = crate::function_role::classify_role(&weighted_fp);
-            if let Some(first_pos) = pattern.positives.first() {
-                let pattern_role = crate::function_role::classify_role(first_pos);
-                if crate::function_role::roles_are_incompatible(candidate_role, pattern_role) {
-                    continue;
-                }
-            }
-
-            // Structural overlap gate: uses the positive with MAX overlap against candidate.
-            // Multi-function patterns (e.g. higher-order wrappers) have different structures
-            // per function — first() picks the outer wrapper which lacks markers from the
-            // inner callback. Using max-overlap ensures the inner (vulnerable) function is used.
-            if !pattern.positives.is_empty() {
-                let struct_sim = pattern
-                    .positives
-                    .iter()
-                    .map(|p| {
-                        crate::minhash::overlap_coefficient_sorted(
-                            &weighted_fp.structural_markers,
-                            &p.structural_markers,
-                        )
-                    })
-                    .fold(0.0f64, f64::max);
-                if struct_sim < self.struct_overlap_threshold {
-                    continue;
-                }
-            }
-
-            // Issue 7 fix: API-call gate uses the positive with MAXIMUM overlap against
-            // the candidate, not the first positive with any calls.
-            // For multi-function patterns the first positive is often the module-scope
-            // wrapper (require, MongoClient.connect) while the actual vulnerability is
-            // in the callback (eval, app.use). Using find() picks the wrong positive,
-            // causing the gate to reject valid callback candidates.
-            let gate_pos = pattern
-                .positives
-                .iter()
-                .filter(|p| !p.api_calls.is_empty())
-                .max_by_key(|p| {
-                    p.api_calls
-                        .iter()
-                        .filter(|h| weighted_fp.api_calls.contains(h))
-                        .count()
-                });
-            if let Some(gate_pos) = gate_pos {
-                let api_overlap = !weighted_fp.api_calls.is_empty()
-                    && gate_pos
-                        .api_calls
-                        .iter()
-                        .any(|h| weighted_fp.api_calls.contains(h));
-                let motif_overlap = !weighted_fp.motif_hashes.is_empty()
-                    && !gate_pos.motif_hashes.is_empty()
-                    && gate_pos
-                        .motif_hashes
-                        .iter()
-                        .any(|h| weighted_fp.motif_hashes.contains(h));
-                if !api_overlap && !motif_overlap {
-                    if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                        let top_calls: Vec<u64> = {
-                            let mut scored: Vec<(u64, f32)> = gate_pos
-                                .api_calls
-                                .iter()
-                                .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
-                                .collect();
-                            scored.sort_by(|a, b| {
-                                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-                            });
-                            scored.into_iter().take(3).map(|(h, _)| h).collect()
-                        };
-                        if top_calls.iter().all(|h| !weighted_fp.api_calls.contains(h)) {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-            }
-
-            let pat_weights = crate::pattern::weight_learner::category_weights(
-                &pattern.id,
-                &self.category_weights,
-            );
-            let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence_cached(
-                &weighted_fp,
-                &pattern.positives,
-                &pattern.negatives,
-                pattern.expected_context.as_ref(),
-                actual_context,
-                self.ngram_sim_threshold,
-                pat_weights,
-                &mut dim_cache,
-            );
-
-            let best_score = if !hit_both {
-                best_score * 0.85
-            } else {
-                best_score
-            };
-
-            // Apply per-pattern calibration (Platt scaling sigmoid) trained at
-            // bundle-build time. Falls back to raw score when no params exist.
-            let best_score = crate::per_pattern_calibration::calibrate(
-                best_score,
-                self.pattern_calibration.get(&pattern.id),
-            );
-
-            // TaintMetrics-based confidence adjustment:
-            //   - is_hollow_validator (validation-name but no branching on taint) → 0.5x
-            //   - taint_branch_ratio > 0.5 (heavy validation on tainted data)       → 0.8x
-            //   - SinkCategory × TaintOrigin relevance mismatch                     → 0.3-0.9x
-            //   - otherwise → keep score unchanged
-            let best_score = if let Some((ref tm, ref origin)) = taint_metrics {
-                let mut multiplier: f64 = 1.0;
-                if tm.is_hollow_validator() {
-                    multiplier = 0.5;
-                } else if tm.taint_branch_ratio > 0.5 {
-                    multiplier = 0.8;
-                }
-                // Apply SinkCategory × TaintOrigin relevance multiplier
-                if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
-                    let relevance: f64 =
-                        crate::corpus::source_sink::sink_taint_relevance(cat, origin);
-                    multiplier = multiplier.min(relevance);
-                }
-                best_score * multiplier
-            } else {
-                best_score
-            };
-
-            let threshold = self.threshold_for_pattern(&pattern.id);
-            let has_taint = evidence.has_taint_path;
-            let effective_threshold = if has_taint {
-                threshold.min(0.15)
-            } else {
-                threshold
-            };
-            if best_score >= effective_threshold {
-                matches.push(PatternMatch {
-                    pattern_id: pattern.id.clone(),
-                    score: best_score,
-                    positive_similarity: evidence.api_sim,
-                    negative_similarity: evidence.negative_sim,
-                    observation: pattern.observation.clone(),
-                    impact: pattern.impact.clone(),
-                    improvement: pattern.improvement.clone(),
-                    matched_evidence: Some(evidence),
-                    cwe: pattern.cwe.clone(),
-                    cvss: pattern.cvss,
-                    owasp: pattern.owasp.clone(),
-                    severity: pattern.severity.clone(),
-                    runtime_probe: pattern.runtime_probe.clone(),
-                    taint_branch_ratio: match &taint_metrics {
-                        Some((tm, _)) if tm.tainted_uses > 0 => Some(tm.taint_branch_ratio as f64),
-                        _ => None,
-                    },
-                    has_validation_name: taint_metrics
-                        .as_ref()
-                        .map(|(tm, _)| tm.has_validation_name)
-                        .unwrap_or(false),
-                });
-            }
-        }
+        // Parallel scoring: each candidate scored independently, then merged
+        let mut matches: Vec<PatternMatch> = all_candidates
+            .par_iter()
+            .filter_map(|&(idx, hit_both)| {
+                let pattern = &self.patterns[idx];
+                self.score_candidate(
+                    pattern,
+                    idx,
+                    hit_both,
+                    &weighted_fp,
+                    func_node,
+                    source,
+                    fp,
+                    actual_context,
+                    &taint_metrics,
+                    precomputed_flows.as_ref(),
+                )
+            })
+            .collect();
 
         matches.sort_by(|a, b| {
             b.score
@@ -702,6 +523,199 @@ impl PatternRegistry {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         matches
+    }
+
+    /// Score a single candidate pattern against the function fingerprint.
+    /// Extracted from the scan loop for rayon parallelism.
+    fn score_candidate(
+        &self,
+        pattern: &CorpusPattern,
+        _idx: usize,
+        hit_both: bool,
+        weighted_fp: &FunctionFingerprint,
+        func_node: Option<tree_sitter::Node>,
+        source: Option<&str>,
+        fp: &FunctionFingerprint,
+        actual_context: Option<&crate::context::FileContext>,
+        taint_metrics: &Option<(TaintMetrics, TaintOrigin)>,
+        precomputed_flows: Option<&std::collections::HashSet<(String, String)>>,
+    ) -> Option<PatternMatch> {
+        // Merge hand-authored semantic filter with auto-derived suggestions
+        let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
+            (Some(hand), Some(auto)) => Some(crate::auto_filter::merge_filters(
+                hand,
+                Some(auto),
+                &pattern.id,
+            )),
+            (Some(hand), None) => Some(hand.clone()),
+            (None, Some(auto)) => Some(crate::auto_filter::merge_filters(
+                &Default::default(),
+                Some(auto),
+                &pattern.id,
+            )),
+            (None, None) => None,
+        };
+
+        // Apply semantic filter if present
+        if let (Some(filter), Some(node), Some(src)) = (merged_filter.as_ref(), func_node, source) {
+            if !filter.matches(node, src, Some(fp.file_path.as_str()), precomputed_flows) {
+                return None;
+            }
+        }
+
+        // Semantic gate: skip trivially small functions
+        if weighted_fp.structural_markers.len() < 3
+            || (weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty())
+        {
+            return None;
+        }
+
+        // Function role classifier
+        let candidate_role = crate::function_role::classify_role(weighted_fp);
+        if let Some(first_pos) = pattern.positives.first() {
+            let pattern_role = crate::function_role::classify_role(first_pos);
+            if crate::function_role::roles_are_incompatible(candidate_role, pattern_role) {
+                return None;
+            }
+        }
+
+        // Structural overlap gate
+        if !pattern.positives.is_empty() {
+            let struct_sim = pattern
+                .positives
+                .iter()
+                .map(|p| {
+                    crate::minhash::overlap_coefficient_sorted(
+                        &weighted_fp.structural_markers,
+                        &p.structural_markers,
+                    )
+                })
+                .fold(0.0f64, f64::max);
+            if struct_sim < self.struct_overlap_threshold {
+                return None;
+            }
+        }
+
+        // API-call gate
+        let gate_pos = pattern
+            .positives
+            .iter()
+            .filter(|p| !p.api_calls.is_empty())
+            .max_by_key(|p| {
+                p.api_calls
+                    .iter()
+                    .filter(|h| weighted_fp.api_calls.contains(h))
+                    .count()
+            });
+        if let Some(gate_pos) = gate_pos {
+            let api_overlap = !weighted_fp.api_calls.is_empty()
+                && gate_pos
+                    .api_calls
+                    .iter()
+                    .any(|h| weighted_fp.api_calls.contains(h));
+            let motif_overlap = !weighted_fp.motif_hashes.is_empty()
+                && !gate_pos.motif_hashes.is_empty()
+                && gate_pos
+                    .motif_hashes
+                    .iter()
+                    .any(|h| weighted_fp.motif_hashes.contains(h));
+            if !api_overlap && !motif_overlap {
+                if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
+                    let top_calls: Vec<u64> = {
+                        let mut scored: Vec<(u64, f32)> = gate_pos
+                            .api_calls
+                            .iter()
+                            .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
+                            .collect();
+                        scored.sort_by(|a, b| {
+                            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                        scored.into_iter().take(3).map(|(h, _)| h).collect()
+                    };
+                    if top_calls.iter().all(|h| !weighted_fp.api_calls.contains(h)) {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+            }
+        }
+
+        let mut dim_cache = FxHashMap::default();
+        let pat_weights =
+            crate::pattern::weight_learner::category_weights(&pattern.id, &self.category_weights);
+        let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence_cached(
+            weighted_fp,
+            &pattern.positives,
+            &pattern.negatives,
+            pattern.expected_context.as_ref(),
+            actual_context,
+            self.ngram_sim_threshold,
+            pat_weights,
+            &mut dim_cache,
+        );
+
+        let best_score = if !hit_both {
+            best_score * 0.85
+        } else {
+            best_score
+        };
+
+        let best_score = crate::per_pattern_calibration::calibrate(
+            best_score,
+            self.pattern_calibration.get(&pattern.id),
+        );
+
+        let best_score = if let Some((tm, origin)) = taint_metrics {
+            let mut multiplier: f64 = 1.0;
+            if tm.is_hollow_validator() {
+                multiplier = 0.5;
+            } else if tm.taint_branch_ratio > 0.5 {
+                multiplier = 0.8;
+            }
+            if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
+                let relevance: f64 = crate::corpus::source_sink::sink_taint_relevance(cat, origin);
+                multiplier = multiplier.min(relevance);
+            }
+            best_score * multiplier
+        } else {
+            best_score
+        };
+
+        let threshold = self.threshold_for_pattern(&pattern.id);
+        let has_taint = evidence.has_taint_path;
+        let effective_threshold = if has_taint {
+            threshold.min(0.15)
+        } else {
+            threshold
+        };
+        if best_score >= effective_threshold {
+            Some(PatternMatch {
+                pattern_id: pattern.id.clone(),
+                score: best_score,
+                positive_similarity: evidence.api_sim,
+                negative_similarity: evidence.negative_sim,
+                observation: pattern.observation.clone(),
+                impact: pattern.impact.clone(),
+                improvement: pattern.improvement.clone(),
+                matched_evidence: Some(evidence),
+                cwe: pattern.cwe.clone(),
+                cvss: pattern.cvss,
+                owasp: pattern.owasp.clone(),
+                severity: pattern.severity.clone(),
+                runtime_probe: pattern.runtime_probe.clone(),
+                taint_branch_ratio: match taint_metrics {
+                    Some((tm, _)) if tm.tainted_uses > 0 => Some(tm.taint_branch_ratio as f64),
+                    _ => None,
+                },
+                has_validation_name: taint_metrics
+                    .as_ref()
+                    .map(|(tm, _)| tm.has_validation_name)
+                    .unwrap_or(false),
+            })
+        } else {
+            None
+        }
     }
 }
 

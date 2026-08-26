@@ -2,8 +2,6 @@ pub mod cross_file_taint;
 pub mod middleware_audit;
 pub mod package_audit;
 pub mod secret_scan;
-pub mod semantic_patterns;
-pub mod temporal_violation;
 
 use crate::Advisory;
 use crate::engine::project::FileSnapshot;
@@ -29,28 +27,14 @@ pub trait FindingModule: Send + Sync {
     fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory>;
 }
 
-struct TemporalViolation;
 struct CrossFileTaint;
-struct SemanticPatterns;
 struct MiddlewareAudit;
 struct SecretScan;
 struct PackageAudit;
 
-impl FindingModule for TemporalViolation {
-    fn run(&self, _snap: &FileSnapshot, _ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        Vec::new()
-    }
-}
-
 impl FindingModule for CrossFileTaint {
     fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
         cross_file_taint::find(snap, ctx)
-    }
-}
-
-impl FindingModule for SemanticPatterns {
-    fn run(&self, _snap: &FileSnapshot, _ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        Vec::new()
     }
 }
 
@@ -76,9 +60,7 @@ impl FindingModule for PackageAudit {
 #[must_use]
 pub fn registered_modules() -> Vec<Box<dyn FindingModule>> {
     vec![
-        Box::new(TemporalViolation),
         Box::new(CrossFileTaint),
-        Box::new(SemanticPatterns),
         Box::new(MiddlewareAudit),
         Box::new(SecretScan),
         Box::new(PackageAudit),

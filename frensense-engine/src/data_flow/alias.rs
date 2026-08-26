@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::data_flow::{TaintOrigin, TaintRegistry};
 
 #[derive(Debug, Clone, Default)]
 pub struct AliasTracker {
-    aliases: HashMap<String, HashSet<String>>,
+    aliases: FxHashMap<String, FxHashSet<String>>,
 }
 
 impl AliasTracker {

@@ -43,13 +43,11 @@ pub mod route_registry;
 #[cfg(feature = "rust-hir")]
 pub mod rust_hir_provider;
 pub mod semantic;
-#[cfg(feature = "full-analysis")]
-pub mod semantic_patterns;
 pub mod symbols;
 #[cfg(feature = "full-analysis")]
 pub mod temporal;
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 
 /// Opaque identifier for a source file within a single analysis session.
@@ -81,36 +79,27 @@ pub struct AnalysisResult {
 /// Structured result of analyzing a full project (multiple files).
 #[derive(Debug, Clone)]
 pub struct ProjectAnalysis {
-    pub files: HashMap<String, AnalysisResult>,
+    pub files: FxHashMap<String, AnalysisResult>,
     pub project_registry: route_registry::HandlerRegistry,
     #[cfg(feature = "full-analysis")]
     pub profile: Option<profile::ProjectProfile>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum FrensenseError {
+    #[error("Parse failure: {0}")]
     ParseFailure(String),
+    #[error("Config error: {0}")]
     Config(String),
+    #[error("IO error: {0}")]
     Io(String),
+    #[error("Parser error: {0}")]
     ParserError(String),
+    #[error("Pattern error: {0}")]
     Pattern(String),
+    #[error("Engine error: {0}")]
     Engine(String),
 }
-
-impl std::fmt::Display for FrensenseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ParseFailure(msg) => write!(f, "Parse failure: {msg}"),
-            Self::Config(msg) => write!(f, "Config error: {msg}"),
-            Self::Io(msg) => write!(f, "IO error: {msg}"),
-            Self::ParserError(msg) => write!(f, "Parser error: {msg}"),
-            Self::Pattern(msg) => write!(f, "Pattern error: {msg}"),
-            Self::Engine(msg) => write!(f, "Engine error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for FrensenseError {}
 
 impl From<std::io::Error> for FrensenseError {
     fn from(e: std::io::Error) -> Self {
@@ -192,7 +181,7 @@ pub fn analyze_file(
 pub fn analyze_project(
     files: impl IntoIterator<Item = (String, String)>,
 ) -> Result<ProjectAnalysis> {
-    let mut results = HashMap::new();
+    let mut results = FxHashMap::default();
     let mut project_registry = route_registry::HandlerRegistry::default();
     #[cfg(feature = "full-analysis")]
     let mut all_fingerprints = Vec::new();
