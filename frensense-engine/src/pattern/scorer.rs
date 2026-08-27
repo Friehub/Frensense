@@ -13,80 +13,97 @@ use crate::pattern::matcher::MatchResult;
 use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scoring constants
+// Scoring configuration
 //
-// These thresholds and factors are shared across every scoring path in this
-// module. They are named and documented here deliberately: a single wrong value
-// silently shifts behaviour across the whole pipeline (retrieval, gating, noise
-// filtering, confidence composition) and is hard to reproduce. Tune with care
-// and keep the doc comments in sync with the effective behaviour.
+// All thresholds and factors that affect scoring behaviour are collected here
+// in a single struct. This makes them configurable via CLI flags or config
+// files, and ensures a single source of truth for defaults.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Neutral default for similarity when both sides are empty — no signal at all,
-/// so neither agreement nor disagreement. Used by `weighted_jaccard` and
-/// `type_usage_overlap`.
+/// Configurable scoring parameters for the pattern matcher.
+///
+/// All fields have sensible defaults matching the original hardcoded constants.
+/// Use `ScorerConfig::default()` to get the standard configuration, then
+/// override individual fields as needed.
+#[derive(Debug, Clone)]
+pub struct ScorerConfig {
+    /// Neutral default for similarity when both sides are empty.
+    pub empty_similarity_default: f64,
+    /// Cross-lingual transfer penalty (0.0-1.0). Lower = harsher penalty.
+    pub cross_lingual_penalty: f32,
+    /// Penalty for zero semantic marker overlap (0.0-1.0).
+    pub semantic_zero_penalty: f64,
+    /// Boost for semantic marker match (1.0+ = boost, <1.0 = penalty).
+    pub semantic_match_boost: f64,
+    /// Noise gate: moderate dimension threshold.
+    pub noise_gate_moderate_signal: f64,
+    /// Noise gate: strong dimension threshold.
+    pub noise_gate_strong_signal: f64,
+    /// Noise gate: minimum moderate dims required.
+    pub noise_gate_min_moderate_dims: usize,
+    /// Early-exit floor for best positive score.
+    pub min_best_positive_score: f64,
+    /// Floor for negative similarity penalty.
+    pub neg_penalty_floor: f64,
+    /// Weight of negative similarity in penalty term.
+    pub neg_penalty_weight: f64,
+    /// Minimum ngram similarity before AST edit distance is computed.
+    pub ast_ngram_min_threshold: f64,
+    /// Weight of base match score in rule-based blend.
+    pub base_score_weight: f64,
+    /// Weight of structural score in rule-based blend.
+    pub structural_score_weight: f64,
+    /// Weight of profile boost in rule-based blend.
+    pub profile_boost_weight: f64,
+    /// Default profile boost when no learned value exists.
+    pub default_profile_boost: f64,
+    /// Kind-diversity count for structural score saturation.
+    pub kind_diversity_saturation: f64,
+    /// Per-factor context mismatch penalty.
+    pub context_mismatch_penalty: f64,
+}
+
+impl Default for ScorerConfig {
+    fn default() -> Self {
+        Self {
+            empty_similarity_default: 0.5,
+            cross_lingual_penalty: 0.20,
+            semantic_zero_penalty: 0.30,
+            semantic_match_boost: 2.0,
+            noise_gate_moderate_signal: 0.15,
+            noise_gate_strong_signal: 0.4,
+            noise_gate_min_moderate_dims: 2,
+            min_best_positive_score: 0.1,
+            neg_penalty_floor: 0.1,
+            neg_penalty_weight: 0.3,
+            ast_ngram_min_threshold: 0.25,
+            base_score_weight: 0.4,
+            structural_score_weight: 0.3,
+            profile_boost_weight: 0.3,
+            default_profile_boost: 0.5,
+            kind_diversity_saturation: 10.0,
+            context_mismatch_penalty: 0.5,
+        }
+    }
+}
+
+// Keep the old constants as defaults for backward compatibility
 const EMPTY_SIMILARITY_DEFAULT: f64 = 0.5;
-
-/// Cross-lingual transfer penalty (M8). When a pattern's language genuinely
-/// differs from the candidate's (and they are not JS/TS siblings, which share an
-/// AST), the match is scaled by this factor — 0.20 → an 80% reduction — because
-/// cross-language shape matches are far more likely to be coincidental.
 const CROSS_LINGUAL_PENALTY: f32 = 0.20;
-
-/// Penalty for a positive whose semantic markers are non-empty but share zero
-/// overlap with the candidate. 0.30 → a 70% reduction: a structural match with
-/// no shared semantic signal is weak evidence.
 const SEMANTIC_ZERO_PENALTY: f64 = 0.30;
-
-/// Boost applied when a positive's non-empty semantic markers overlap the
-/// candidate's. 2.0 → the positive score doubles, since shared semantic markers
-/// strongly corroborate a real match.
 const SEMANTIC_MATCH_BOOST: f64 = 2.0;
-
-/// Noise gate — moderate dimension threshold. A per-dimension signal above this
-/// counts toward the multi-dimension branch of the gate (see
-/// `NOISE_GATE_MIN_MODERATE_DIMS`).
 const NOISE_GATE_MODERATE_SIGNAL: f64 = 0.15;
-
-/// Noise gate — strong dimension threshold. A single dimension above this
-/// passes the gate on its own, even if no other dimension is significant.
 const NOISE_GATE_STRONG_SIGNAL: f64 = 0.4;
-
-/// Noise gate — minimum number of dimensions with *moderate* signal required to
-/// pass the gate when no single dimension is strong.
 const NOISE_GATE_MIN_MODERATE_DIMS: usize = 2;
-
-/// Early-exit floor in `score_against_corpus`: if the best positive score is
-/// below this, no penalty or boost can reach any plausible final threshold, so
-/// scoring stops early.
 const MIN_BEST_POSITIVE_SCORE: f64 = 0.1;
-
-/// Floor for the negative-similarity penalty term. Prevents an overwhelmingly
-/// similar negative from driving the final score below this value.
 const NEG_PENALTY_FLOOR: f64 = 0.1;
-
-/// Weight of the worst negative similarity inside the penalty term.
 const NEG_PENALTY_WEIGHT: f64 = 0.3;
-
-/// Minimum ngram similarity before the O(n²) AST tree-edit distance is worth
-/// computing; below this the cheaper structural-marker Jaccard is used instead.
-const AST_NGRAM_MIN_THRESHOLD: f64 = 0.12;
-
-// `compute_final` blend weights (rule-based scorer path):
-/// Weight of the base match score in the final blended score.
+const AST_NGRAM_MIN_THRESHOLD: f64 = 0.25;
 const BASE_SCORE_WEIGHT: f64 = 0.4;
-/// Weight of the structural (canonical-form) score in the final blend.
 const STRUCTURAL_SCORE_WEIGHT: f64 = 0.3;
-/// Weight of the profile boost in the final blend.
 const PROFILE_BOOST_WEIGHT: f64 = 0.3;
-/// Default profile boost used when the pattern's kind has no learned profile value.
 const DEFAULT_PROFILE_BOOST: f64 = 0.5;
-/// Kind-diversity count at which the structural score saturates toward 1.0.
 const KIND_DIVERSITY_SATURATION: f64 = 10.0;
-
-/// Per-factor penalty for a context mismatch between the expected and actual
-/// context (sensitivity downgrade or environment mismatch). Applied
-/// multiplicatively for each mismatched attribute.
 const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
 
 #[derive(Debug, Clone, Default)]
@@ -415,6 +432,13 @@ impl PatternScorer {
             }
 
             let dim = raw_dim(positive, false);
+
+            // Early exit: if ngram similarity is very low, this positive can't produce
+            // a high score. Skip the expensive weighted_score computation.
+            if dim.ngram_sim < 0.05 && dim.api_sim < 0.1 {
+                continue;
+            }
+
             let sem_mult = if positive.semantic_markers.is_empty() {
                 1.0
             } else if dim.semantic_sim == 0.0 {

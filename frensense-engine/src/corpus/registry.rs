@@ -9,7 +9,7 @@ use crate::data_flow::{TaintOrigin, TaintRegistry};
 use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
-use crate::pattern::scorer::PatternScorer;
+use crate::pattern::scorer::{PatternScorer, ScorerConfig};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -59,6 +59,8 @@ pub struct PatternRegistry {
     /// across the corpus. Merged with hardcoded markers during scanning.
     pub learned_semantic_markers: std::collections::HashMap<String, String>,
     source_sink: CorpusSourceSinkRegistry,
+    /// Configurable scoring parameters.
+    pub scorer_config: ScorerConfig,
 }
 
 impl PatternRegistry {
@@ -78,7 +80,18 @@ impl PatternRegistry {
             pattern_calibration: std::collections::HashMap::new(),
             learned_semantic_markers: std::collections::HashMap::new(),
             source_sink: CorpusSourceSinkRegistry::default(),
+            scorer_config: ScorerConfig::default(),
         }
+    }
+
+    /// Set custom scorer configuration.
+    pub fn set_scorer_config(&mut self, config: ScorerConfig) {
+        self.scorer_config = config;
+    }
+
+    /// Get a reference to the current scorer configuration.
+    pub fn scorer_config(&self) -> &ScorerConfig {
+        &self.scorer_config
     }
 
     pub fn load_corpus(&mut self, corpus_dir: &Path) -> crate::Result<usize> {
@@ -385,6 +398,7 @@ impl PatternRegistry {
         source: Option<&str>,
         actual_context: Option<&crate::context::FileContext>,
     ) -> Vec<PatternMatch> {
+        let t0 = std::time::Instant::now();
         // Query both LSH tables (structural + API-call)
         let struct_candidates: std::collections::HashSet<usize> =
             if let Some(ref lsh) = self.lsh_index {
@@ -417,7 +431,7 @@ impl PatternRegistry {
 
         // Merge: a candidate passes if it's in EITHER table (preserve recall).
         // Track which table(s) it passed through for penalty application.
-        let all_candidates: Vec<(usize, bool)> = {
+        let all_candidates_raw: Vec<(usize, bool)> = {
             let mut seen = std::collections::HashSet::new();
             let mut merged = Vec::new();
             for &id in struct_candidates.iter().chain(api_candidates.iter()) {
@@ -428,6 +442,10 @@ impl PatternRegistry {
             }
             merged
         };
+        let t_lsh = t0.elapsed();
+        let all_candidates_raw_len = all_candidates_raw.len();
+        let all_candidates = all_candidates_raw;
+        let candidate_count = all_candidates.len();
 
         // Apply IDF weights to candidate fingerprint for scoring
         let mut weighted_fp = fp.clone();
@@ -522,6 +540,18 @@ impl PatternRegistry {
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+        let t_end = t0.elapsed();
+        if t_end.as_millis() > 50 {
+            eprintln!(
+                "[scan_function] func={} raw={} filtered={} lsh={:.1?} total={:.1?} matches={}",
+                fp.function_name,
+                all_candidates_raw_len,
+                candidate_count,
+                t_lsh,
+                t_end,
+                matches.len(),
+            );
+        }
         matches
     }
 

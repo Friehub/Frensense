@@ -1,7 +1,5 @@
 pub mod cross_file_taint;
 pub mod middleware_audit;
-pub mod package_audit;
-pub mod secret_scan;
 
 use crate::Advisory;
 use crate::engine::project::FileSnapshot;
@@ -9,9 +7,7 @@ use crate::engine::project::FileSnapshot;
 /// Shared context passed to all finding modules.
 pub struct FindingContext<'a> {
     pub symbols: &'a crate::semantics::symbols::SymbolRegistry,
-    pub dep_resolver: Option<&'a mut frensense_engine::deps::DependencyResolver>,
     pub data_flow_engine: Option<&'a frensense_engine::data_flow::DataFlowEngine>,
-    pub alias_tracker: Option<&'a frensense_engine::data_flow::AliasTracker>,
     pub cross_file_taint:
         Option<&'a frensense_engine::data_flow::cross_file::CrossFileTaintResolver>,
     pub temporal_analyzer: Option<&'a frensense_engine::temporal::TemporalAnalyzer>,
@@ -29,8 +25,6 @@ pub trait FindingModule: Send + Sync {
 
 struct CrossFileTaint;
 struct MiddlewareAudit;
-struct SecretScan;
-struct PackageAudit;
 
 impl FindingModule for CrossFileTaint {
     fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
@@ -44,25 +38,11 @@ impl FindingModule for MiddlewareAudit {
     }
 }
 
-impl FindingModule for SecretScan {
-    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        secret_scan::find(snap, ctx)
-    }
-}
-
-impl FindingModule for PackageAudit {
-    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        package_audit::find(snap, ctx)
-    }
-}
-
 /// Returns the registered finding modules in execution order.
 #[must_use]
 pub fn registered_modules() -> Vec<Box<dyn FindingModule>> {
     vec![
         Box::new(CrossFileTaint),
         Box::new(MiddlewareAudit),
-        Box::new(SecretScan),
-        Box::new(PackageAudit),
     ]
 }

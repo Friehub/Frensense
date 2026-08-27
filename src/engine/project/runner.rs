@@ -315,9 +315,7 @@ fn run_findings_modules(
     for snap in snapshots {
         let mut ctx = FindingContext {
             symbols,
-            dep_resolver: Some(&mut dep_resolver),
             data_flow_engine: Some(&data_flow_engine),
-            alias_tracker: Some(&alias_tracker),
             cross_file_taint: Some(&cross_file_taint),
             temporal_analyzer: Some(&temporal_analyzer),
             source_sink,
