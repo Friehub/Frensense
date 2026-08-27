@@ -64,6 +64,15 @@ pub struct CliOptions {
     pub use_compiler: bool,
     pub ngram_sim_threshold: Option<f64>,
     pub emit_hypotheses: bool,
+    // Scorer configuration
+    pub scorer_cross_lingual_penalty: Option<f32>,
+    pub scorer_semantic_zero_penalty: Option<f64>,
+    pub scorer_semantic_match_boost: Option<f64>,
+    pub scorer_noise_gate_moderate: Option<f64>,
+    pub scorer_noise_gate_strong: Option<f64>,
+    pub scorer_neg_penalty_floor: Option<f64>,
+    pub scorer_neg_penalty_weight: Option<f64>,
+    pub scorer_context_mismatch_penalty: Option<f64>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -123,6 +132,14 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         use_compiler: false,
         ngram_sim_threshold: None,
         emit_hypotheses: false,
+        scorer_cross_lingual_penalty: None,
+        scorer_semantic_zero_penalty: None,
+        scorer_semantic_match_boost: None,
+        scorer_noise_gate_moderate: None,
+        scorer_noise_gate_strong: None,
+        scorer_neg_penalty_floor: None,
+        scorer_neg_penalty_weight: None,
+        scorer_context_mismatch_penalty: None,
     };
 
     let mut i = 1;
@@ -486,6 +503,79 @@ pub fn parse_options(args: &[String]) -> CliOptions {
             "--build-bundle-output" => {
                 if let Some(val) = args.get(i + 1) {
                     options.build_bundle_output = Some(PathBuf::from(val));
+                    i += 1;
+                }
+            }
+            // Scorer configuration flags
+            "--scorer-cross-lingual-penalty" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_cross_lingual_penalty = Some(val.parse::<f32>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-cross-lingual-penalty value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-semantic-zero-penalty" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_semantic_zero_penalty = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-semantic-zero-penalty value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-semantic-match-boost" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_semantic_match_boost = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-semantic-match-boost value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-noise-gate-moderate" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_noise_gate_moderate = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-noise-gate-moderate value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-noise-gate-strong" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_noise_gate_strong = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-noise-gate-strong value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-neg-penalty-floor" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_neg_penalty_floor = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-neg-penalty-floor value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-neg-penalty-weight" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_neg_penalty_weight = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-neg-penalty-weight value '{val}'");
+                        std::process::exit(1);
+                    }));
+                    i += 1;
+                }
+            }
+            "--scorer-context-mismatch-penalty" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.scorer_context_mismatch_penalty = Some(val.parse::<f64>().unwrap_or_else(|_| {
+                        eprintln!("Error: Invalid --scorer-context-mismatch-penalty value '{val}'");
+                        std::process::exit(1);
+                    }));
                     i += 1;
                 }
             }

@@ -72,6 +72,16 @@ pub struct Engine {
     calibration: Option<crate::engine::confidence_calibration::CalibrationParams>,
     per_category_calibration:
         Option<crate::engine::per_category_calibration::PerCategoryCalibration>,
+
+    // Scorer configuration (CLI-overridable)
+    scorer_cross_lingual_penalty: Option<f32>,
+    scorer_semantic_zero_penalty: Option<f64>,
+    scorer_semantic_match_boost: Option<f64>,
+    scorer_noise_gate_moderate: Option<f64>,
+    scorer_noise_gate_strong: Option<f64>,
+    scorer_neg_penalty_floor: Option<f64>,
+    scorer_neg_penalty_weight: Option<f64>,
+    scorer_context_mismatch_penalty: Option<f64>,
 }
 
 impl Engine {
@@ -120,6 +130,14 @@ impl Engine {
             calibration: None,
             per_category_calibration: None,
             use_compiler: false,
+            scorer_cross_lingual_penalty: None,
+            scorer_semantic_zero_penalty: None,
+            scorer_semantic_match_boost: None,
+            scorer_noise_gate_moderate: None,
+            scorer_noise_gate_strong: None,
+            scorer_neg_penalty_floor: None,
+            scorer_neg_penalty_weight: None,
+            scorer_context_mismatch_penalty: None,
         }
     }
 
@@ -172,6 +190,32 @@ impl Engine {
 
     pub fn set_ngram_sim_threshold(&mut self, threshold: f64) {
         self.ngram_sim_threshold = threshold;
+    }
+
+    // Scorer configuration setters
+    pub fn set_scorer_cross_lingual_penalty(&mut self, val: f32) {
+        self.scorer_cross_lingual_penalty = Some(val);
+    }
+    pub fn set_scorer_semantic_zero_penalty(&mut self, val: f64) {
+        self.scorer_semantic_zero_penalty = Some(val);
+    }
+    pub fn set_scorer_semantic_match_boost(&mut self, val: f64) {
+        self.scorer_semantic_match_boost = Some(val);
+    }
+    pub fn set_scorer_noise_gate_moderate(&mut self, val: f64) {
+        self.scorer_noise_gate_moderate = Some(val);
+    }
+    pub fn set_scorer_noise_gate_strong(&mut self, val: f64) {
+        self.scorer_noise_gate_strong = Some(val);
+    }
+    pub fn set_scorer_neg_penalty_floor(&mut self, val: f64) {
+        self.scorer_neg_penalty_floor = Some(val);
+    }
+    pub fn set_scorer_neg_penalty_weight(&mut self, val: f64) {
+        self.scorer_neg_penalty_weight = Some(val);
+    }
+    pub fn set_scorer_context_mismatch_penalty(&mut self, val: f64) {
+        self.scorer_context_mismatch_penalty = Some(val);
     }
 
     pub fn load_calibration(&mut self) {

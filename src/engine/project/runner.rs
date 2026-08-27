@@ -367,6 +367,36 @@ fn run_corpus_scan(
     for (category, threshold) in &engine.threshold_overrides {
         registry.set_threshold_override(category.clone(), *threshold);
     }
+
+    // Apply scorer configuration from CLI flags
+    {
+        let mut config = frensense_engine::pattern::scorer::ScorerConfig::default();
+        if let Some(val) = engine.scorer_cross_lingual_penalty {
+            config.cross_lingual_penalty = val;
+        }
+        if let Some(val) = engine.scorer_semantic_zero_penalty {
+            config.semantic_zero_penalty = val;
+        }
+        if let Some(val) = engine.scorer_semantic_match_boost {
+            config.semantic_match_boost = val;
+        }
+        if let Some(val) = engine.scorer_noise_gate_moderate {
+            config.noise_gate_moderate_signal = val;
+        }
+        if let Some(val) = engine.scorer_noise_gate_strong {
+            config.noise_gate_strong_signal = val;
+        }
+        if let Some(val) = engine.scorer_neg_penalty_floor {
+            config.neg_penalty_floor = val;
+        }
+        if let Some(val) = engine.scorer_neg_penalty_weight {
+            config.neg_penalty_weight = val;
+        }
+        if let Some(val) = engine.scorer_context_mismatch_penalty {
+            config.context_mismatch_penalty = val;
+        }
+        registry.set_scorer_config(config);
+    }
     let mut corpus_loaded = false;
 
     #[cfg(feature = "fingerprinting")]

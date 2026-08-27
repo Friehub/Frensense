@@ -130,6 +130,32 @@ fn main() -> Result<()> {
         engine.set_ngram_sim_threshold(val);
     }
 
+    // Apply scorer configuration from CLI flags
+    if let Some(val) = options.scorer_cross_lingual_penalty {
+        engine.set_scorer_cross_lingual_penalty(val);
+    }
+    if let Some(val) = options.scorer_semantic_zero_penalty {
+        engine.set_scorer_semantic_zero_penalty(val);
+    }
+    if let Some(val) = options.scorer_semantic_match_boost {
+        engine.set_scorer_semantic_match_boost(val);
+    }
+    if let Some(val) = options.scorer_noise_gate_moderate {
+        engine.set_scorer_noise_gate_moderate(val);
+    }
+    if let Some(val) = options.scorer_noise_gate_strong {
+        engine.set_scorer_noise_gate_strong(val);
+    }
+    if let Some(val) = options.scorer_neg_penalty_floor {
+        engine.set_scorer_neg_penalty_floor(val);
+    }
+    if let Some(val) = options.scorer_neg_penalty_weight {
+        engine.set_scorer_neg_penalty_weight(val);
+    }
+    if let Some(val) = options.scorer_context_mismatch_penalty {
+        engine.set_scorer_context_mismatch_penalty(val);
+    }
+
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = frensense::parser::ParserRegistry::extensions_for(lang_arg) {
             engine.set_language_filter(exts);
