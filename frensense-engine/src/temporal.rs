@@ -3,6 +3,7 @@
 use std::path::Path;
 use tree_sitter::Node;
 
+use crate::cfg::{self, ControlFlowGraph};
 use crate::graph::{EdgeKind, EventType, SemanticGraph, SemanticNodeId, TemporalEvent};
 
 #[derive(Debug, Clone)]
@@ -55,6 +56,7 @@ pub struct TemporalRule {
 }
 
 impl TemporalRule {
+    /// Validate temporal constraints using line-order (legacy, fallback).
     pub fn validate(&self, events: &[TemporalEvent], file_path: &str) -> Vec<TemporalEvent> {
         let mut violations = Vec::new();
 
@@ -80,6 +82,61 @@ impl TemporalRule {
                         file_path: file_path.to_string(),
                         line: be.line,
                         column: be.column,
+                        start_byte: be.start_byte,
+                    });
+                }
+            }
+        }
+
+        violations
+    }
+
+    /// Validate temporal constraints using CFG dominator analysis.
+    /// This is the correct check: "every path from A to exit passes through B".
+    pub fn validate_cfg(
+        &self,
+        events: &[TemporalEvent],
+        cfg: &ControlFlowGraph,
+        file_path: &str,
+    ) -> Vec<TemporalEvent> {
+        let mut violations = Vec::new();
+
+        for constraint in &self.constraints {
+            let before_events: Vec<&TemporalEvent> = events
+                .iter()
+                .filter(|e| e.label == constraint.before)
+                .collect();
+            let after_events: Vec<&TemporalEvent> = events
+                .iter()
+                .filter(|e| e.label == constraint.after)
+                .collect();
+
+            for be in &before_events {
+                let be_block = match cfg.find_block_for_byte(be.start_byte) {
+                    Some(b) => b,
+                    None => continue, // Can't locate in CFG, skip
+                };
+
+                // Check: does ANY after_event's block dominate all exits reachable from be_block?
+                let satisfied = after_events.iter().any(|ae| {
+                    if let Some(ae_block) = cfg.find_block_for_byte(ae.start_byte) {
+                        cfg.dominates_all_exits_from(be_block, ae_block)
+                    } else {
+                        false
+                    }
+                });
+
+                if !satisfied {
+                    violations.push(TemporalEvent {
+                        event_type: EventType::Call,
+                        label: format!(
+                            "Violation: {} should be followed by {}",
+                            constraint.before, constraint.after
+                        ),
+                        file_path: file_path.to_string(),
+                        line: be.line,
+                        column: be.column,
+                        start_byte: be.start_byte,
                     });
                 }
             }
@@ -290,7 +347,38 @@ impl TemporalAnalyzer {
         let events =
             crate::graph::extract_temporal_events(root, source, file_path, temporal_labels);
         let file_str = file_path.to_string_lossy().to_string();
-        self.analyze(&events, &file_str)
+        
+        // Build CFG for dominator-based analysis
+        let mut control_flow = cfg::build_cfg(root, source, &file_str);
+        cfg::compute_dominators(&mut control_flow);
+        
+        self.analyze_with_cfg(&events, &control_flow, &file_str)
+    }
+
+    pub fn analyze_with_cfg(
+        &mut self,
+        events: &[TemporalEvent],
+        cfg: &ControlFlowGraph,
+        file_path: &str,
+    ) -> Vec<TemporalEvent> {
+        self.violations.clear();
+        self.last_event_id = None;
+
+        for event in events {
+            let node_id = self.graph.add_event(event.clone());
+            if let Some(prev) = self.last_event_id {
+                self.graph
+                    .add_edge(prev, node_id, EdgeKind::SequentiallyFollows);
+            }
+            self.last_event_id = Some(node_id);
+        }
+
+        for rule in &self.rules {
+            let rule_violations = rule.validate_cfg(events, cfg, file_path);
+            self.violations.extend(rule_violations);
+        }
+
+        self.violations.clone()
     }
 
     pub fn analyze_event_list(&self, events: &[TemporalEvent]) -> Vec<TemporalEvent> {
@@ -319,6 +407,7 @@ impl TemporalAnalyzer {
                             file_path: be.file_path.clone(),
                             line: be.line,
                             column: be.column,
+                            start_byte: be.start_byte,
                         });
                     }
                 }
@@ -434,6 +523,7 @@ pub fn extract_ordered_events<'a>(
                         file_path: file_str.clone(),
                         line,
                         column,
+                        start_byte: node.start_byte(),
                     });
                 }
 
@@ -446,6 +536,7 @@ pub fn extract_ordered_events<'a>(
                                 file_path: file_str.clone(),
                                 line,
                                 column,
+                                start_byte: node.start_byte(),
                             });
                         }
                     }
@@ -470,6 +561,9 @@ pub fn extract_ordered_events<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cfg::{self, BasicBlock, CFEdgeKind, ControlFlowGraph};
+    use rustc_hash::FxHashMap;
+    use std::collections::HashSet;
 
     #[test]
     fn test_temporal_rule_lock_unlock_violation() {
@@ -479,6 +573,7 @@ mod tests {
             file_path: "test.rs".to_string(),
             line: 1,
             column: 1,
+            start_byte: 0,
         }];
 
         let rule = TemporalRule {
@@ -504,6 +599,7 @@ mod tests {
                 file_path: "test.rs".to_string(),
                 line: 1,
                 column: 1,
+                start_byte: 0,
             },
             TemporalEvent {
                 event_type: EventType::Release,
@@ -511,6 +607,7 @@ mod tests {
                 file_path: "test.rs".to_string(),
                 line: 10,
                 column: 1,
+                start_byte: 50,
             },
         ];
 
@@ -536,6 +633,7 @@ mod tests {
             file_path: "test.rs".to_string(),
             line: 1,
             column: 1,
+            start_byte: 0,
         }];
 
         let mut analyzer = TemporalAnalyzer::new();
@@ -556,6 +654,7 @@ mod tests {
                 file_path: "test.rs".to_string(),
                 line: 1,
                 column: 1,
+                start_byte: 0,
             },
             TemporalEvent {
                 event_type: EventType::Release,
@@ -563,6 +662,7 @@ mod tests {
                 file_path: "test.rs".to_string(),
                 line: 5,
                 column: 1,
+                start_byte: 30,
             },
         ];
 
@@ -576,8 +676,226 @@ mod tests {
             file_path: "test.rs".to_string(),
             line: 1,
             column: 1,
+            start_byte: 0,
         }];
         let violations2 = analyzer.check_must_follow(&events2, "lock", "unlock");
         assert!(!violations2.is_empty(), "should detect lock without unlock");
+    }
+
+    #[test]
+    fn test_cfg_dominator_violation() {
+        // Test case: lock without unlock should be a violation
+        let blocks = vec![
+            BasicBlock {
+                id: 0,
+                start_byte: 0,
+                end_byte: 50,
+                kind: "entry".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(1, CFEdgeKind::Unconditional)],
+                predecessors: vec![],
+            },
+            BasicBlock {
+                id: 1,
+                start_byte: 50,
+                end_byte: 100,
+                kind: "exit".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![],
+                predecessors: vec![0],
+            },
+        ];
+        let mut cfg = ControlFlowGraph::new(blocks, 0, 1);
+        cfg::compute_dominators(&mut cfg);
+
+        let events = vec![TemporalEvent {
+            event_type: EventType::Acquire,
+            label: "lock".to_string(),
+            file_path: "test.rs".to_string(),
+            line: 1,
+            column: 1,
+            start_byte: 10,
+        }];
+
+        let rule = TemporalRule {
+            name: "lock_unlock".to_string(),
+            constraints: vec![TemporalConstraint {
+                before: "lock".to_string(),
+                after: "unlock".to_string(),
+                description: "test".to_string(),
+                severity: Severity::Error,
+            }],
+        };
+
+        let violations = rule.validate_cfg(&events, &cfg, "test.rs");
+        assert!(!violations.is_empty(), "should detect missing unlock via CFG");
+    }
+
+    #[test]
+    fn test_cfg_dominator_no_violation() {
+        // Test case: lock followed by unlock on all paths
+        let blocks = vec![
+            BasicBlock {
+                id: 0,
+                start_byte: 0,
+                end_byte: 30,
+                kind: "entry".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(1, CFEdgeKind::Unconditional)],
+                predecessors: vec![],
+            },
+            BasicBlock {
+                id: 1,
+                start_byte: 30,
+                end_byte: 60,
+                kind: "lock".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(2, CFEdgeKind::Unconditional)],
+                predecessors: vec![0],
+            },
+            BasicBlock {
+                id: 2,
+                start_byte: 60,
+                end_byte: 90,
+                kind: "unlock".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(3, CFEdgeKind::Unconditional)],
+                predecessors: vec![1],
+            },
+            BasicBlock {
+                id: 3,
+                start_byte: 90,
+                end_byte: 120,
+                kind: "exit".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![],
+                predecessors: vec![2],
+            },
+        ];
+        let mut cfg = ControlFlowGraph::new(blocks, 0, 3);
+        cfg::compute_dominators(&mut cfg);
+
+        let events = vec![
+            TemporalEvent {
+                event_type: EventType::Acquire,
+                label: "lock".to_string(),
+                file_path: "test.rs".to_string(),
+                line: 1,
+                column: 1,
+                start_byte: 35,
+            },
+            TemporalEvent {
+                event_type: EventType::Release,
+                label: "unlock".to_string(),
+                file_path: "test.rs".to_string(),
+                line: 2,
+                column: 1,
+                start_byte: 65,
+            },
+        ];
+
+        let rule = TemporalRule {
+            name: "lock_unlock".to_string(),
+            constraints: vec![TemporalConstraint {
+                before: "lock".to_string(),
+                after: "unlock".to_string(),
+                description: "test".to_string(),
+                severity: Severity::Error,
+            }],
+        };
+
+        let violations = rule.validate_cfg(&events, &cfg, "test.rs");
+        assert!(violations.is_empty(), "lock then unlock should pass CFG check");
+    }
+
+    #[test]
+    fn test_cfg_conditional_unlock_violation() {
+        // Test case: lock followed by conditional unlock (inside if)
+        // This should be a VIOLATION because unlock doesn't dominate all exits
+        let blocks = vec![
+            BasicBlock {
+                id: 0,
+                start_byte: 0,
+                end_byte: 20,
+                kind: "entry".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(1, CFEdgeKind::Unconditional)],
+                predecessors: vec![],
+            },
+            BasicBlock {
+                id: 1,
+                start_byte: 20,
+                end_byte: 40,
+                kind: "lock".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(2, CFEdgeKind::Branch), (3, CFEdgeKind::Branch)],
+                predecessors: vec![0],
+            },
+            BasicBlock {
+                id: 2,
+                start_byte: 40,
+                end_byte: 60,
+                kind: "unlock".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![(3, CFEdgeKind::Unconditional)],
+                predecessors: vec![1],
+            },
+            BasicBlock {
+                id: 3,
+                start_byte: 60,
+                end_byte: 80,
+                kind: "exit".to_string(),
+                nodes: vec![],
+                dominators: HashSet::new(),
+                successors: vec![],
+                predecessors: vec![1, 2],
+            },
+        ];
+        let mut cfg = ControlFlowGraph::new(blocks, 0, 3);
+        cfg::compute_dominators(&mut cfg);
+
+        let events = vec![
+            TemporalEvent {
+                event_type: EventType::Acquire,
+                label: "lock".to_string(),
+                file_path: "test.rs".to_string(),
+                line: 1,
+                column: 1,
+                start_byte: 25,
+            },
+            TemporalEvent {
+                event_type: EventType::Release,
+                label: "unlock".to_string(),
+                file_path: "test.rs".to_string(),
+                line: 2,
+                column: 1,
+                start_byte: 45,
+            },
+        ];
+
+        let rule = TemporalRule {
+            name: "lock_unlock".to_string(),
+            constraints: vec![TemporalConstraint {
+                before: "lock".to_string(),
+                after: "unlock".to_string(),
+                description: "test".to_string(),
+                severity: Severity::Error,
+            }],
+        };
+
+        let violations = rule.validate_cfg(&events, &cfg, "test.rs");
+        assert!(
+            !violations.is_empty(),
+            "conditional unlock should be detected as violation"
+        );
     }
 }

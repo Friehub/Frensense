@@ -158,6 +158,7 @@ impl LSHIndex {
 
     pub fn query(&self, signature: &[u64]) -> Vec<u64> {
         let mut candidates = FxHashSet::default();
+        let mut bands_matched = 0usize;
         for band in 0..self.num_bands {
             let start = band * self.rows_per_band;
             if start >= signature.len() {
@@ -170,10 +171,14 @@ impl LSHIndex {
             }
             let bucket_key = hasher.finish();
             if let Some(ids) = self.bands[band].get(&bucket_key) {
+                bands_matched += 1;
                 for &fp in ids {
                     candidates.insert(fp);
                 }
             }
+        }
+        if candidates.len() > 100 {
+            eprintln!("[LSH] query: {} bands matched, {} candidates from {} signatures", bands_matched, candidates.len(), signature.len());
         }
         candidates.into_iter().collect()
     }

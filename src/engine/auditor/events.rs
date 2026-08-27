@@ -27,6 +27,7 @@ impl FrensenseAuditor {
                 file_path: path.to_string_lossy().to_string(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column + 1,
+                start_byte: node.start_byte(),
             };
             let idx = registry.graph_mut().add_event(event);
 

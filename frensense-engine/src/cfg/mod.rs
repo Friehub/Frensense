@@ -36,6 +36,15 @@ pub struct ControlFlowGraph<'a> {
 }
 
 impl<'a> ControlFlowGraph<'a> {
+    pub fn new(blocks: Vec<BasicBlock<'a>>, entry: usize, exit: usize) -> Self {
+        Self {
+            blocks,
+            entry,
+            exit,
+            label_index: FxHashMap::default(),
+        }
+    }
+
     pub fn entry(&self) -> usize {
         self.entry
     }
@@ -86,6 +95,52 @@ impl<'a> ControlFlowGraph<'a> {
             }
         }
         false
+    }
+
+    /// Find the basic block containing a given byte offset.
+    pub fn find_block_for_byte(&self, byte_offset: usize) -> Option<usize> {
+        self.blocks.iter().position(|b| {
+            byte_offset >= b.start_byte && byte_offset < b.end_byte
+        })
+    }
+
+    /// Find all exit blocks (blocks with no successors, or the designated exit block).
+    pub fn exit_nodes(&self) -> Vec<usize> {
+        let mut exits: Vec<usize> = self.blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| b.successors.is_empty())
+            .map(|(id, _)| id)
+            .collect();
+        // Always include the designated exit block if it exists
+        if !exits.contains(&self.exit) {
+            exits.push(self.exit);
+        }
+        exits
+    }
+
+    /// Check if `after_block` dominates all exit nodes reachable from `before_block`.
+    /// This is the "must-be-followed-by" property: every path from A to function exit
+    /// must pass through B.
+    pub fn dominates_all_exits_from(&self, before_block: usize, after_block: usize) -> bool {
+        let exits = self.exit_nodes();
+        if exits.is_empty() {
+            return true; // No exits — vacuously true
+        }
+
+        // Find all exit nodes reachable from before_block
+        let reachable_exits: Vec<usize> = exits.into_iter()
+            .filter(|&exit| self.is_reachable(before_block, exit))
+            .collect();
+
+        if reachable_exits.is_empty() {
+            return true; // No reachable exits — vacuously true
+        }
+
+        // Check if after_block dominates all reachable exits
+        reachable_exits.iter().all(|&exit| {
+            self.blocks[exit].dominators.contains(&after_block)
+        })
     }
 }
 

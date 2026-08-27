@@ -47,6 +47,7 @@ pub struct TemporalEvent {
     pub file_path: String,
     pub line: usize,
     pub column: usize,
+    pub start_byte: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -371,6 +372,7 @@ pub fn extract_temporal_events<'a>(
                         file_path: file_str.clone(),
                         line,
                         column,
+                        start_byte: node.start_byte(),
                     });
                 }
             } else if call_text.contains(".await") {
@@ -380,6 +382,7 @@ pub fn extract_temporal_events<'a>(
                     file_path: file_str.clone(),
                     line,
                     column,
+                    start_byte: node.start_byte(),
                 });
             } else if call_text.contains(".close()")
                 || call_text.contains(".release()")
@@ -391,6 +394,7 @@ pub fn extract_temporal_events<'a>(
                     file_path: file_str.clone(),
                     line,
                     column,
+                    start_byte: node.start_byte(),
                 });
             }
 
@@ -403,6 +407,7 @@ pub fn extract_temporal_events<'a>(
                             file_path: file_str.clone(),
                             line,
                             column,
+                            start_byte: node.start_byte(),
                         });
                     }
                 }
