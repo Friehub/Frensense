@@ -60,10 +60,6 @@ impl CrossFileTaintResolver {
             }
         }
 
-        eprintln!(
-            "DEBUG CROSS_FILE_TAINT: build_from_symbols generated {} keys in call_graph",
-            self.call_graph.len()
-        );
     }
 
     pub fn register_exposed_taint(

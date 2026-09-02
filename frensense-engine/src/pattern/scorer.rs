@@ -61,6 +61,34 @@ pub struct ScorerConfig {
     pub kind_diversity_saturation: f64,
     /// Per-factor context mismatch penalty.
     pub context_mismatch_penalty: f64,
+
+    // --- LSH / Indexing ---
+    /// Number of MinHash signatures for LSH. Default: 128.
+    pub lsh_num_hashes: usize,
+    /// Number of LSH bands. Default: 32.
+    pub lsh_bands: usize,
+    /// Rows per LSH band. Default: 4.
+    pub lsh_rows_per_band: usize,
+
+    // --- Fingerprinting ---
+    /// N-gram window sizes for multi-scale hashing. Default: [3, 5, 8].
+    pub ngram_windows: Vec<usize>,
+    /// Maximum control-flow path depth. Default: 10.
+    pub cf_max_depth: usize,
+
+    // --- Taint / Verification ---
+    /// Confidence multiplier for taint-verified findings. Default: 1.2.
+    pub taint_verified_boost: f64,
+    /// Confidence multiplier for cross-file taint-verified findings. Default: 1.15.
+    pub cross_file_taint_boost: f64,
+    /// Maximum confidence after taint boost. Default: 0.95.
+    pub taint_boost_cap: f64,
+    /// Minimum score for untainted matches to be emitted. Default: 0.20.
+    pub score_suppression_floor: f64,
+
+    // --- Category-specific overrides ---
+    /// Per-category weight overrides. Key = category name, value = 15-d weight vector.
+    pub category_weight_overrides: rustc_hash::FxHashMap<String, [f64; 15]>,
 }
 
 impl Default for ScorerConfig {
@@ -83,6 +111,20 @@ impl Default for ScorerConfig {
             default_profile_boost: 0.5,
             kind_diversity_saturation: 10.0,
             context_mismatch_penalty: 0.5,
+
+            lsh_num_hashes: 128,
+            lsh_bands: 32,
+            lsh_rows_per_band: 4,
+
+            ngram_windows: vec![3, 5, 8],
+            cf_max_depth: 10,
+
+            taint_verified_boost: 1.2,
+            cross_file_taint_boost: 1.15,
+            taint_boost_cap: 0.95,
+            score_suppression_floor: 0.20,
+
+            category_weight_overrides: rustc_hash::FxHashMap::default(),
         }
     }
 }

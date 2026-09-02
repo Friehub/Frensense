@@ -3,7 +3,6 @@
 pub mod corpus_seeder;
 pub mod cross_file;
 pub mod handlers;
-pub mod interprocedural;
 pub mod lookup;
 pub mod normalization;
 pub mod tracking;

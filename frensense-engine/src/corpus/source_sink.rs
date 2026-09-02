@@ -105,6 +105,18 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     "transmute_copy",
     "from_utf8_unchecked",
     "from_raw_parts",
+    // MongoDB / NoSQL operator sinks (used as object property keys)
+    "$where",
+    "$regex",
+    "$gt",
+    "$lt",
+    "$ne",
+    "$in",
+    "$nin",
+    "$exists",
+    "$expr",
+    "$function",
+    "$accumulator",
     // Framework Specific (Cloudflare, Express, Next.js, Hono, Prisma)
     "c.redirect",
     "env.KV.put",
@@ -636,7 +648,35 @@ fn extract_sinks_from_source(source: &str) -> Vec<String> {
     };
 
     extract_call_names(tree.root_node(), source, &mut sinks);
+    // Also extract object property names that are MongoDB/NoSQL operators
+    extract_property_sinks(tree.root_node(), source, &mut sinks);
     sinks
+}
+
+/// Extract object property names that are MongoDB/NoSQL operators.
+/// These are used as sinks when their values contain user input.
+/// Example: `{ $where: \`...\`, $regex: \`...\` }`
+fn extract_property_sinks(node: Node, source: &str, sinks: &mut Vec<String>) {
+    if node.kind() == "pair" {
+        if let Some(key) = node.child_by_field_name("key") {
+            let key_name = &source[key.start_byte()..key.end_byte()];
+            // MongoDB operators start with $ and are known sinks
+            if key_name.starts_with('$') {
+                sinks.push(key_name.to_string());
+            }
+        }
+    }
+
+    // Recurse
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            extract_property_sinks(cursor.node(), source, sinks);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
 }
 
 /// Recursively extract type annotations from function parameters.

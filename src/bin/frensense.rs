@@ -123,7 +123,8 @@ fn main() -> Result<()> {
     if options.check_deps.is_yes() {
         engine.set_check_deps(true);
     }
-    engine.set_use_data_flow(options.scan_mode == "taint");
+    engine.set_use_data_flow(options.scan_mode == "taint" || options.scan_mode == "taint-only");
+    engine.set_use_taint_only(options.scan_mode == "taint-only");
     engine.set_use_compiler(options.use_compiler);
 
     if let Some(val) = options.ngram_sim_threshold {
@@ -154,6 +155,44 @@ fn main() -> Result<()> {
     }
     if let Some(val) = options.scorer_context_mismatch_penalty {
         engine.set_scorer_context_mismatch_penalty(val);
+    }
+
+    // Apply taint/verification configuration
+    if let Some(val) = options.taint_verified_boost {
+        engine.set_taint_verified_boost(val);
+    }
+    if let Some(val) = options.cross_file_taint_boost {
+        engine.set_cross_file_taint_boost(val);
+    }
+    if let Some(val) = options.taint_boost_cap {
+        engine.set_taint_boost_cap(val);
+    }
+    if let Some(val) = options.score_suppression_floor {
+        engine.set_score_suppression_floor(val);
+    }
+
+    // Apply LSH configuration
+    if let Some(val) = options.lsh_num_hashes {
+        engine.set_lsh_num_hashes(val);
+    }
+    if let Some(val) = options.lsh_bands {
+        engine.set_lsh_bands(val);
+    }
+    if let Some(val) = options.lsh_rows_per_band {
+        engine.set_lsh_rows_per_band(val);
+    }
+
+    // Apply fingerprinting configuration
+    if let Some(ref val) = options.ngram_windows {
+        let windows: Vec<usize> = val.split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+        if !windows.is_empty() {
+            engine.set_ngram_windows(windows);
+        }
+    }
+    if let Some(val) = options.cf_max_depth {
+        engine.set_cf_max_depth(val);
     }
 
     if let Some(lang_arg) = &options.language_filter {

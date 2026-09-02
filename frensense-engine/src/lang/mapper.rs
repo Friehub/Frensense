@@ -130,5 +130,12 @@ pub fn abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
             "type" => AbstractKind::TypeAnnotation,
             _ => AbstractKind::Other,
         },
+        Language::Html => match ts_kind {
+            "element" | "script_element" | "style_element" | "raw_text" => AbstractKind::Other,
+            "attribute" | "attribute_name" | "attribute_value" => AbstractKind::Other,
+            "text" | "doctype" => AbstractKind::StringLiteral,
+            "comment" => AbstractKind::Other,
+            _ => AbstractKind::Other,
+        },
     }
 }

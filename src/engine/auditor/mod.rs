@@ -2,9 +2,6 @@
 
 pub mod discovery;
 pub mod events;
-pub mod project_auditor;
-pub mod rules;
-pub use project_auditor::ProjectAuditor;
 
 use glob::Pattern;
 use std::collections::{HashMap, HashSet};
@@ -82,8 +79,7 @@ impl FrensenseAuditor {
 
     #[must_use]
     pub fn default_auditor() -> Self {
-        let rules = Self::default_rules();
-        Self::new(rules)
+        Self::new(Vec::new())
     }
 
     pub fn set_suppressions(&mut self, config: SuppressConfig) {

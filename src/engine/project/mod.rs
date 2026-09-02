@@ -67,6 +67,7 @@ pub struct Engine {
     extra_taint_rule_dirs: Vec<PathBuf>,
     pub check_deps: bool,
     pub use_data_flow: bool,
+    pub use_taint_only: bool,
     pub use_compiler: bool,
     pub ngram_sim_threshold: f64,
     calibration: Option<crate::engine::confidence_calibration::CalibrationParams>,
@@ -82,6 +83,9 @@ pub struct Engine {
     scorer_neg_penalty_floor: Option<f64>,
     scorer_neg_penalty_weight: Option<f64>,
     scorer_context_mismatch_penalty: Option<f64>,
+
+    // Full scorer config (built from individual fields + defaults)
+    pub scorer_config: frensense_engine::pattern::scorer::ScorerConfig,
 }
 
 impl Engine {
@@ -126,6 +130,7 @@ impl Engine {
             extra_taint_rule_dirs: Vec::new(),
             check_deps: false,
             use_data_flow: false,
+            use_taint_only: false,
             ngram_sim_threshold: 0.05,
             calibration: None,
             per_category_calibration: None,
@@ -138,6 +143,7 @@ impl Engine {
             scorer_neg_penalty_floor: None,
             scorer_neg_penalty_weight: None,
             scorer_context_mismatch_penalty: None,
+            scorer_config: frensense_engine::pattern::scorer::ScorerConfig::default(),
         }
     }
 
@@ -180,6 +186,13 @@ impl Engine {
         self.use_data_flow = enable;
     }
 
+    pub fn set_use_taint_only(&mut self, enable: bool) {
+        self.use_taint_only = enable;
+        if enable {
+            self.use_data_flow = true;
+        }
+    }
+
     /// Use the type-checked semantic providers (`OxcProvider` for TS/JS,
     /// `RustHirProvider` for Rust) instead of the tree-sitter name heuristics.
     /// The compiler path is opt-in because it needs `cargo metadata` and a
@@ -216,6 +229,65 @@ impl Engine {
     }
     pub fn set_scorer_context_mismatch_penalty(&mut self, val: f64) {
         self.scorer_context_mismatch_penalty = Some(val);
+    }
+
+    /// Build the full ScorerConfig from individual CLI fields + defaults.
+    /// Call this after all setter methods and before running the engine.
+    pub fn build_scorer_config(&mut self) {
+        let mut config = frensense_engine::pattern::scorer::ScorerConfig::default();
+        if let Some(v) = self.scorer_cross_lingual_penalty {
+            config.cross_lingual_penalty = v;
+        }
+        if let Some(v) = self.scorer_semantic_zero_penalty {
+            config.semantic_zero_penalty = v;
+        }
+        if let Some(v) = self.scorer_semantic_match_boost {
+            config.semantic_match_boost = v;
+        }
+        if let Some(v) = self.scorer_noise_gate_moderate {
+            config.noise_gate_moderate_signal = v;
+        }
+        if let Some(v) = self.scorer_noise_gate_strong {
+            config.noise_gate_strong_signal = v;
+        }
+        if let Some(v) = self.scorer_neg_penalty_floor {
+            config.neg_penalty_floor = v;
+        }
+        if let Some(v) = self.scorer_neg_penalty_weight {
+            config.neg_penalty_weight = v;
+        }
+        if let Some(v) = self.scorer_context_mismatch_penalty {
+            config.context_mismatch_penalty = v;
+        }
+        self.scorer_config = config;
+    }
+
+    pub fn set_taint_verified_boost(&mut self, val: f64) {
+        self.scorer_config.taint_verified_boost = val;
+    }
+    pub fn set_cross_file_taint_boost(&mut self, val: f64) {
+        self.scorer_config.cross_file_taint_boost = val;
+    }
+    pub fn set_taint_boost_cap(&mut self, val: f64) {
+        self.scorer_config.taint_boost_cap = val;
+    }
+    pub fn set_score_suppression_floor(&mut self, val: f64) {
+        self.scorer_config.score_suppression_floor = val;
+    }
+    pub fn set_lsh_num_hashes(&mut self, val: usize) {
+        self.scorer_config.lsh_num_hashes = val;
+    }
+    pub fn set_lsh_bands(&mut self, val: usize) {
+        self.scorer_config.lsh_bands = val;
+    }
+    pub fn set_lsh_rows_per_band(&mut self, val: usize) {
+        self.scorer_config.lsh_rows_per_band = val;
+    }
+    pub fn set_ngram_windows(&mut self, val: Vec<usize>) {
+        self.scorer_config.ngram_windows = val;
+    }
+    pub fn set_cf_max_depth(&mut self, val: usize) {
+        self.scorer_config.cf_max_depth = val;
     }
 
     pub fn load_calibration(&mut self) {

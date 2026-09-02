@@ -573,30 +573,6 @@ pub trait FrensenseRule: Send + Sync {
 
 pub use crate::engine::source::SourceRegistry;
 
-/// A project-level rule that operates across all files simultaneously.
-/// Receives the fully assembled, immutable `SymbolRegistry` and `SourceRegistry`.
-pub trait ProjectRule: Send + Sync {
-    fn metadata(&self) -> &RuleMetadata;
-
-    ///
-    /// # Panics
-    /// May panic if internal assertions fail.
-    /// The core logic. Receives the complete project graph (read-only).
-    fn check_project(&self, symbols: &SymbolRegistry, sources: &SourceRegistry) -> Vec<Advisory>;
-
-    fn id(&self) -> &str {
-        self.metadata().id.as_ref()
-    }
-
-    fn is_enabled_in(&self, env: FrensenseEnvironment) -> bool {
-        let meta = self.metadata();
-        if env == FrensenseEnvironment::Production {
-            return !meta.tags.iter().any(|t| t == "beta");
-        }
-        true
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum FrensenseError {
     #[error("Parse failure: {0}")]

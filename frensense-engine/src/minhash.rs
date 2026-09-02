@@ -36,7 +36,7 @@ pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
 
 pub fn jaccard_similarity_sorted(a: &[u64], b: &[u64]) -> f64 {
     if a.is_empty() && b.is_empty() {
-        return 0.0;
+        return 0.5;
     }
     if a.is_empty() || b.is_empty() {
         return 0.0;

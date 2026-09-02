@@ -10,4 +10,5 @@ pub enum Language {
     JavaScript,
     C,
     Python,
+    Html,
 }

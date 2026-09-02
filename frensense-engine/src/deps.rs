@@ -35,6 +35,62 @@ impl DependencyResolver {
         &self.npm_deps
     }
 
+    pub fn cargo_deps(&self) -> &HashSet<String> {
+        &self.cargo_deps
+    }
+
+    /// Check for known vulnerable npm packages.
+    /// Returns a list of (package_name, vulnerability_description) pairs.
+    pub fn check_vulnerable_npm_deps(&self) -> Vec<(String, String)> {
+        let mut vulns = Vec::new();
+        
+        // Known vulnerable packages (from NodeGoat and common CVEs)
+        let known_vulnerable: &[(&str, &str)] = &[
+            ("bcrypt-nodejs", "CWE-798: Use of hardcoded credentials; unmaintained, use bcrypt or bcryptjs instead"),
+            ("marked", "CWE-79: XSS in markdown rendering; versions < 4.0.10 are vulnerable"),
+            ("needle", "CWE-200: Information exposure; versions < 2.6.0 have SSRF vulnerabilities"),
+            ("node-esapi", "CWE-1395: Dependency on unmaintained ESAPI library"),
+            ("swig", "CWE-79: Template injection; unmaintained, use nunjucks or handlebars"),
+            ("helmet", "CWE-1021: Versions < 3.0.0 missing critical security headers"),
+            ("express-session", "CWE-384: Session fixation if session secret is weak"),
+            ("forever", "CWE-400: Process management issues; use pm2 instead"),
+            ("grunt", "CWE-1104: Use of unmaintained build tool"),
+            ("mocha", "CWE-676: Use of potentially dangerous functions in test framework"),
+            ("nodemon", "CWE-295: No TLS verification in development mode"),
+            ("selenium-webdriver", "CWE-295: No certificate verification by default"),
+        ];
+        
+        for (pkg, desc) in known_vulnerable {
+            if self.npm_deps.contains(*pkg) {
+                vulns.push((pkg.to_string(), desc.to_string()));
+            }
+        }
+        
+        vulns
+    }
+
+    /// Check for known vulnerable Cargo crates.
+    /// Returns a list of (crate_name, vulnerability_description) pairs.
+    pub fn check_vulnerable_cargo_deps(&self) -> Vec<(String, String)> {
+        let mut vulns = Vec::new();
+        
+        // Known vulnerable crates (common CVEs)
+        let known_vulnerable: &[(&str, &str)] = &[
+            ("hyper", "CWE-1104: Versions < 0.14.18 have HTTP/2 rapid reset vulnerability"),
+            ("openssl", "CWE-1104: Versions < 0.10.48 have certificate verification issues"),
+            ("reqwest", "CWE-1104: Versions < 0.11.14 have potential SSRF"),
+            ("tokio", "CWE-362: Versions < 1.18.4 have race condition in signal handling"),
+        ];
+        
+        for (crate_name, desc) in known_vulnerable {
+            if self.cargo_deps.contains(*crate_name) {
+                vulns.push((crate_name.to_string(), desc.to_string()));
+            }
+        }
+        
+        vulns
+    }
+
     pub fn load_project(&mut self, root: &Path) {
         // If root is a file, use its parent directory
         let project_root = if root.is_file() {

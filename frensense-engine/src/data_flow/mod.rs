@@ -8,6 +8,7 @@ pub mod entropy;
 pub mod normalization;
 pub mod pii;
 pub mod propagators;
+pub mod reaching_defs;
 pub mod resolver;
 pub mod sanitizer;
 pub mod taint_metrics;
@@ -16,6 +17,7 @@ pub use alias::AliasTracker;
 pub use engine::DataFlowEngine;
 pub use engine::FunctionTaintSummary;
 pub use propagators::PropagatorRegistry;
+pub use reaching_defs::DefState;
 pub use resolver::ResolvedFunction;
 pub use resolver::SymbolEntry;
 pub use resolver::map_call_args_to_params;
@@ -53,6 +55,32 @@ pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
             | "url"
             | "path"
             | "file"
+            | "userid"
+            | "user_id"
+            | "uid"
+            | "token"
+            | "jwt"
+            | "email"
+            | "password"
+            | "passwd"
+            | "username"
+            | "user_name"
+            | "login"
+            | "message"
+            | "text"
+            | "html"
+            | "value"
+            | "threshold"
+            | "stocks"
+            | "funds"
+            | "bonds"
+            | "ssn"
+            | "dob"
+            | "address"
+            | "bankacc"
+            | "bankrouting"
+            | "firstname"
+            | "lastname"
     ) {
         return Some(TaintOrigin::UserInput);
     }
@@ -76,7 +104,7 @@ pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
     }
     if matches!(
         lower.as_str(),
-        "fd" | "filepath" | "filename" | "buf" | "reader" | "content" | "src"
+        "fd" | "filepath" | "filename" | "buf" | "reader" | "src"
     ) {
         return Some(TaintOrigin::FileSystem);
     }

@@ -392,7 +392,47 @@ impl SemanticProvider for OxcProvider {
         {
             return Some(category);
         }
-        // 3. Fall back to the name-based registry.
+        // 3. Method-name-based fallback for DB operations when the receiver
+        //    can't be resolved (e.g., function parameters like `db` in
+        //    `ContributionsDAO(db)`). If the method name starts with a known
+        //    DB operation, classify it as a sink regardless of the receiver.
+        if let Some(method) = call_text.split('.').nth(1).and_then(|s| s.split('(').next()) {
+            let m = method.to_lowercase();
+            if m.starts_with("query")
+                || m.starts_with("exec")
+                || m.starts_with("raw")
+                || m.starts_with("execute")
+                || m.starts_with("update")
+                || m.starts_with("insert")
+                || m.starts_with("delete")
+                || m.starts_with("remove")
+                || m.starts_with("find")
+                || m.starts_with("aggregate")
+                || m.starts_with("count")
+                || m.starts_with("bulk")
+            {
+                return Some(SinkCategory::SqlInjection);
+            }
+            if m.starts_with("spawn")
+                || m.starts_with("fork")
+            {
+                return Some(SinkCategory::CommandInjection);
+            }
+            if m.starts_with("read")
+                || m.starts_with("write")
+                || m.starts_with("append")
+                || m.starts_with("readdir")
+                || m.starts_with("unlink")
+                || m.starts_with("rename")
+                || m.starts_with("mkdir")
+                || m.starts_with("rmdir")
+                || m.starts_with("stat")
+                || m.starts_with("access")
+            {
+                return Some(SinkCategory::PathTraversal);
+            }
+        }
+        // 4. Fall back to the name-based registry.
         self.source_sink.is_sink_expr(call_text)
     }
 

@@ -14,6 +14,7 @@ use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::symbols::SymbolRegistry;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
 use frensense_engine::data_flow::DataFlowEngine;
+use frensense_engine::data_flow::DefState;
 use frensense_engine::data_flow::resolver::{SymbolEntry, resolve_fn_definition};
 use frensense_engine::semantic::SemanticProvider;
 
@@ -26,6 +27,8 @@ pub struct CrossFileResult {
     pub detail: String,
     pub source_name: Option<String>,
     pub sink_name: Option<String>,
+    /// Line number (0-indexed) of the actual sink node, if known.
+    pub sink_line: Option<u32>,
 }
 
 fn extract_binding_names<'a>(node: Node<'a>, source: &'a str) -> Vec<String> {
@@ -34,6 +37,11 @@ fn extract_binding_names<'a>(node: Node<'a>, source: &'a str) -> Vec<String> {
     while let Some(n) = stack.pop() {
         match n.kind() {
             "identifier" | "shorthand_property_identifier_pattern" => {
+                names.push(source[n.start_byte()..n.end_byte()].to_string());
+            }
+            "member_expression" | "field_expression" => {
+                // For `this.db` or `self.x`, use the full text as the name
+                // so that `is_node_tainted` can match it later.
                 names.push(source[n.start_byte()..n.end_byte()].to_string());
             }
             "pair_pattern" => {
@@ -64,6 +72,10 @@ pub struct CrossFileVerifier<'a> {
     file_path: String,
     file_env: Option<frensense_engine::context::Environment>,
     registry: TaintRegistry,
+    /// Reaching-definitions state for AST-structural taint tracking.
+    /// Instead of checking "is this name tainted?", we track
+    /// "which definitions reach this point and are they tainted?"
+    defs: frensense_engine::data_flow::DefState,
     _symbols: &'a SymbolRegistry,
     data_flow: &'a DataFlowEngine,
     file_trees: &'a rustc_hash::FxHashMap<
@@ -111,11 +123,12 @@ impl<'a> CrossFileVerifier<'a> {
             file_path: file_path.to_string(),
             file_env: None,
             registry: TaintRegistry::default(),
+            defs: frensense_engine::data_flow::DefState::new(),
             _symbols: symbols,
             data_flow,
             file_trees,
             _visited: HashSet::new(),
-            max_depth: 5,
+            max_depth: 10,
             source_sink,
             deps,
             provider: None,
@@ -212,7 +225,8 @@ impl<'a> CrossFileVerifier<'a> {
                 };
 
                 if let Some(origin) = origin {
-                    self.registry.taint(&param_name, origin);
+                    self.registry.taint(&param_name, origin.clone());
+                    self.defs.taint(&param_name, origin);
                     if self.source_name.is_none() {
                         self.source_name = Some(param_name);
                     }
@@ -245,6 +259,7 @@ impl<'a> CrossFileVerifier<'a> {
                 detail: "No function body".to_string(),
                 source_name: None,
                 sink_name: None,
+                sink_line: None,
             };
         };
 
@@ -257,6 +272,7 @@ impl<'a> CrossFileVerifier<'a> {
                 detail: "No tainted parameters detected".to_string(),
                 source_name: None,
                 sink_name: None,
+                sink_line: None,
             };
         }
 
@@ -282,6 +298,7 @@ impl<'a> CrossFileVerifier<'a> {
                 detail: "Maximum depth reached".to_string(),
                 source_name: None,
                 sink_name: None,
+                sink_line: None,
             };
         }
 
@@ -291,6 +308,20 @@ impl<'a> CrossFileVerifier<'a> {
             // Check for sink function calls
             "call_expression" => {
                 if let Some(result) = self.check_call_for_sink(node, depth, path) {
+                    return result;
+                }
+                // Check if tainted data flows through callback arguments
+                if let Some(result) = self.check_callbacks(node, depth, path) {
+                    return result;
+                }
+                // Check if tainted data flows through promise chains
+                if let Some(result) = self.check_promise_chain(node, depth, path) {
+                    return result;
+                }
+            }
+            // Check for object properties with sink names (e.g., $where in MongoDB)
+            "object" => {
+                if let Some(result) = self.check_object_for_sink(node, depth, path) {
                     return result;
                 }
             }
@@ -325,14 +356,16 @@ impl<'a> CrossFileVerifier<'a> {
                             let value_text =
                                 &self.source[value_node.start_byte()..value_node.end_byte()];
                             if !self.source_sink.is_sanitizer_call(value_text) {
-                                for name in names {
-                                    self.registry.taint(&name, TaintOrigin::UserInput);
+                                for name in &names {
+                                    self.registry.taint(name, TaintOrigin::UserInput);
+                                    self.defs.taint(name, TaintOrigin::UserInput);
                                 }
                             }
                         }
                     } else if self.is_node_environment_source(value_node) {
                         for name in names {
                             self.registry.taint(&name, TaintOrigin::Environment);
+                            self.defs.taint(&name, TaintOrigin::Environment);
                         }
                     }
                 }
@@ -365,26 +398,134 @@ impl<'a> CrossFileVerifier<'a> {
                         if is_sanitized {
                             for name in &names {
                                 self.registry.untaint(name);
+                                self.defs.untaint(name);
                             }
                         } else {
                             let value_text = &self.source[right.start_byte()..right.end_byte()];
                             if !self.source_sink.is_sanitizer_call(value_text) {
-                                for name in names {
+                                for name in &names {
                                     self.registry.taint(&name, TaintOrigin::UserInput);
+                                    self.defs.taint(name, TaintOrigin::UserInput);
                                 }
                             }
                         }
                     } else if self.is_node_environment_source(right) {
                         for name in names {
                             self.registry.taint(&name, TaintOrigin::Environment);
+                            self.defs.taint(&name, TaintOrigin::Environment);
                         }
                     } else {
                         // Clear taint on reassignment to a non-tainted value
                         for name in &names {
                             self.registry.untaint(name);
+                            self.defs.untaint(name);
                         }
                     }
                 }
+            }
+            // Handle if/else with fork/merge to avoid cross-branch taint leakage
+            "if_statement" => {
+                // Process condition first (it sees current state)
+                if let Some(condition) = node.child_by_field_name("condition") {
+                    let cond_result = self.follow_taint(condition, depth + 1, path);
+                    if cond_result.verified {
+                        return cond_result;
+                    }
+                }
+
+                // Fork state for consequence (then branch)
+                let state_before = self.defs.fork();
+                if let Some(consequence) = node.child_by_field_name("consequence") {
+                    let then_result = self.follow_taint(consequence, depth + 1, path);
+                    if then_result.verified {
+                        return then_result;
+                    }
+                }
+                let state_then = self.defs.clone();
+
+                // Fork from original state for alternate (else branch)
+                self.defs = state_before;
+                if let Some(alternate) = node.child_by_field_name("alternate") {
+                    let else_result = self.follow_taint(alternate, depth + 1, path);
+                    if else_result.verified {
+                        return else_result;
+                    }
+                }
+                let state_else = self.defs.clone();
+
+                // Merge: a variable is tainted after merge only if it's tainted
+                // in at least one branch (union merge for soundness)
+                self.defs = state_then;
+                self.defs.merge_union(&state_else);
+
+                return CrossFileResult {
+                    verified: false,
+                    depth,
+                    path: path.clone(),
+                detail: "No sink found in if/else".to_string(),
+                source_name: self.source_name.clone(),
+                sink_name: self.potential_sink_name.clone(),
+                sink_line: None,
+            };
+            }
+            // Handle switch statements with fork/merge per case
+            "switch_statement" => {
+                if let Some(discriminant) = node.child_by_field_name("value") {
+                    let disc_result = self.follow_taint(discriminant, depth + 1, path);
+                    if disc_result.verified {
+                        return disc_result;
+                    }
+                }
+
+                let state_before = self.defs.fork();
+                let mut case_states: Vec<DefState> = Vec::new();
+
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        if child.kind() == "switch_case" {
+                            self.defs = state_before.clone();
+                            // Process case body statements
+                            let mut body_cursor = child.walk();
+                            if body_cursor.goto_first_child() {
+                                loop {
+                                    let body_child = body_cursor.node();
+                                    let result =
+                                        self.follow_taint(body_child, depth + 1, path);
+                                    if result.verified {
+                                        return result;
+                                    }
+                                    if !body_cursor.goto_next_sibling() {
+                                        break;
+                                    }
+                                }
+                            }
+                            case_states.push(self.defs.clone());
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+
+                // Merge all case states
+                if let Some(first) = case_states.first() {
+                    self.defs = first.clone();
+                }
+                for state in &case_states[1..] {
+                    self.defs.merge_union(state);
+                }
+
+                return CrossFileResult {
+                    verified: false,
+                    depth,
+                    path: path.clone(),
+                detail: "No sink found in switch".to_string(),
+                source_name: self.source_name.clone(),
+                sink_name: self.potential_sink_name.clone(),
+                sink_line: None,
+            };
             }
             _ => {}
         }
@@ -411,6 +552,7 @@ impl<'a> CrossFileVerifier<'a> {
             detail: "No sink found in function body".to_string(),
             source_name: self.source_name.clone(),
             sink_name: self.potential_sink_name.clone(),
+            sink_line: None,
         }
     }
 
@@ -492,9 +634,253 @@ impl<'a> CrossFileVerifier<'a> {
                             detail: format!("Tainted data reaches sink '{fn_name_full}'"),
                             source_name: self.source_name.clone(),
                             sink_name: Some(fn_name_full.to_string()),
+                            sink_line: Some(call_node.start_position().row as u32),
                         });
                     }
                 }
+            }
+        }
+
+        None
+    }
+
+    /// Check if tainted data flows through callback arguments.
+    ///
+    /// Example: `processInput(() => req.query.cmd)`
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
+    fn check_callbacks(
+        &mut self,
+        call_node: Node,
+        depth: usize,
+        path: &mut Vec<String>,
+    ) -> Option<CrossFileResult> {
+        let callee = call_node
+            .child_by_field_name("function")
+            .or_else(|| call_node.child_by_field_name("callee"))
+            .or_else(|| call_node.child(0))?;
+
+        let fn_name = &self.source[callee.start_byte()..callee.end_byte()];
+
+        if let Some(args_list) = call_node.child_by_field_name("arguments") {
+            let mut cursor = args_list.walk();
+            for arg in args_list.children(&mut cursor) {
+                if matches!(arg.kind(), "(" | ")" | ",") {
+                    continue;
+                }
+
+                if arg.kind() == "arrow_function" {
+                    if let Some(body) = arg.child_by_field_name("body") {
+                        let result = self.follow_taint(body, depth + 1, path);
+                        if result.verified {
+                            return Some(CrossFileResult {
+                                verified: true,
+                                depth: result.depth,
+                                path: result.path,
+                                detail: format!("Tainted data flows through callback to {fn_name}"),
+                                source_name: self.source_name.clone(),
+                                sink_name: Some(fn_name.to_string()),
+                                sink_line: result.sink_line,
+                            });
+                        }
+                    }
+                }
+
+                if arg.kind() == "function"
+                    && let Some(body) = arg.child_by_field_name("body")
+                {
+                    let result = self.follow_taint(body, depth + 1, path);
+                    if result.verified {
+                        return Some(CrossFileResult {
+                            verified: true,
+                            depth: result.depth,
+                            path: result.path,
+                            detail: format!("Tainted data flows through callback to {fn_name}"),
+                            source_name: self.source_name.clone(),
+                            sink_name: Some(fn_name.to_string()),
+                            sink_line: result.sink_line,
+                        });
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Check if tainted data flows through a promise chain.
+    ///
+    /// Example: `getData().then(data => exec(data))`
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
+    fn check_promise_chain(
+        &mut self,
+        call_node: Node,
+        depth: usize,
+        path: &mut Vec<String>,
+    ) -> Option<CrossFileResult> {
+        let callee = call_node
+            .child_by_field_name("function")
+            .or_else(|| call_node.child_by_field_name("callee"))
+            .or_else(|| call_node.child(0))?;
+
+        if callee.kind() != "member_expression" {
+            return None;
+        }
+
+        let method_name = if let Some(prop) = callee.child_by_field_name("property") {
+            &self.source[prop.start_byte()..prop.end_byte()]
+        } else {
+            return None;
+        };
+
+        let promise_methods = ["then", "catch", "finally", "tap"];
+        if !promise_methods.contains(&method_name) {
+            return None;
+        }
+
+        if let Some(object) = callee
+            .child_by_field_name("object")
+            .or_else(|| callee.child(0))
+            && !self.is_node_tainted(object)
+        {
+            return None;
+        }
+
+        if let Some(args_list) = call_node.child_by_field_name("arguments") {
+            let mut cursor = args_list.walk();
+            for arg in args_list.children(&mut cursor) {
+                if matches!(arg.kind(), "(" | ")" | ",") {
+                    continue;
+                }
+
+                if arg.kind() == "arrow_function" {
+                    if let Some(params) = arg
+                        .child_by_field_name("parameters")
+                        .or_else(|| arg.child_by_field_name("formal_parameters"))
+                    {
+                        let mut param_cursor = params.walk();
+                        if let Some(first_param) = params
+                            .children(&mut param_cursor)
+                            .find(|p| !matches!(p.kind(), "(" | ")" | "," | ";"))
+                            && let Some(name_node) = first_param
+                                .child_by_field_name("name")
+                                .or_else(|| first_param.child(0))
+                        {
+                            let param_name =
+                                &self.source[name_node.start_byte()..name_node.end_byte()];
+                            self.registry.taint(param_name, TaintOrigin::UserInput);
+                        }
+                    }
+
+                    if let Some(body) = arg.child_by_field_name("body") {
+                        let result = self.follow_taint(body, depth + 1, path);
+                        if result.verified {
+                            return Some(CrossFileResult {
+                                verified: true,
+                                depth: result.depth,
+                                path: result.path,
+                                detail: format!(
+                                    "Tainted data flows through .{method_name}() callback"
+                                ),
+                                source_name: self.source_name.clone(),
+                                sink_name: Some(format!("{method_name}()")),
+                                sink_line: result.sink_line,
+                            });
+                        }
+                    }
+                }
+
+                if arg.kind() == "function" {
+                    if let Some(params) = arg.child_by_field_name("parameters") {
+                        let mut param_cursor = params.walk();
+                        if let Some(first_param) = params
+                            .children(&mut param_cursor)
+                            .find(|p| !matches!(p.kind(), "(" | ")" | "," | ";"))
+                            && let Some(name_node) = first_param
+                                .child_by_field_name("name")
+                                .or_else(|| first_param.child(0))
+                        {
+                            let param_name =
+                                &self.source[name_node.start_byte()..name_node.end_byte()];
+                            self.registry.taint(param_name, TaintOrigin::UserInput);
+                        }
+                    }
+
+                    if let Some(body) = arg.child_by_field_name("body") {
+                        let result = self.follow_taint(body, depth + 1, path);
+                        if result.verified {
+                            return Some(CrossFileResult {
+                                verified: true,
+                                depth: result.depth,
+                                path: result.path,
+                                detail: format!(
+                                    "Tainted data flows through .{method_name}() callback"
+                                ),
+                                source_name: self.source_name.clone(),
+                                sink_name: Some(format!("{method_name}()")),
+                                sink_line: result.sink_line,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Check if an object literal contains sink properties with tainted values.
+    ///
+    /// Example: `{ $where: \`this.userId == ${userId} && this.stocks > '${threshold}'\` }`
+    /// The `$where` property is a MongoDB sink, and if its value (template literal)
+    /// contains tainted data, this is a verified taint flow.
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
+    fn check_object_for_sink(
+        &mut self,
+        object_node: Node,
+        depth: usize,
+        path: &mut Vec<String>,
+    ) -> Option<CrossFileResult> {
+        let mut cursor = object_node.walk();
+        for child in object_node.children(&mut cursor) {
+            if child.kind() != "pair" {
+                continue;
+            }
+
+            // Get the property name (key)
+            let key_node = child.child_by_field_name("key")?;
+            let key_name = &self.source[key_node.start_byte()..key_node.end_byte()];
+
+            // Check if this property name is a known sink
+            let is_sink = if let Some(provider) = self.provider {
+                provider.classify_sink(key_name, None).is_some()
+            } else {
+                self.source_sink.is_sink_expr(key_name).is_some()
+            };
+
+            if !is_sink {
+                continue;
+            }
+
+            // Check if the value contains tainted data
+            let value_node = child.child_by_field_name("value")?;
+            if self.is_node_tainted(value_node) {
+                let value_text = &self.source[value_node.start_byte()..value_node.end_byte()];
+                path.push(format!("{key_name}: {value_text}"));
+                return Some(CrossFileResult {
+                    verified: true,
+                    depth,
+                    path: path.clone(),
+                    detail: format!("Tainted data flows into sink property '{key_name}'"),
+                    source_name: self.source_name.clone(),
+                    sink_name: Some(key_name.to_string()),
+                    sink_line: Some(object_node.start_position().row as u32),
+                });
             }
         }
 
@@ -509,9 +895,23 @@ impl<'a> CrossFileVerifier<'a> {
         match node.kind() {
             "identifier" => {
                 let name = &self.source[node.start_byte()..node.end_byte()];
-                self.registry.is_tainted(name)
+                // Check reaching-definitions first (more precise), then fall back to registry
+                self.defs.is_tainted(name) || self.registry.is_tainted(name)
             }
             "member_expression" | "field_expression" => {
+                // Check reaching-definitions first
+                let full_name = &self.source[node.start_byte()..node.end_byte()];
+                if let Some(object) = node.child_by_field_name("object").or_else(|| node.child(0)) {
+                    let object_name = &self.source[object.start_byte()..object.end_byte()];
+                    if self.defs.is_member_tainted(full_name, object_name) {
+                        return true;
+                    }
+                }
+                // Fall back to registry
+                if self.registry.is_tainted(full_name) {
+                    return true;
+                }
+                // Also check just the object (e.g. if `this` itself is tainted)
                 if let Some(object) = node.child_by_field_name("object").or_else(|| node.child(0)) {
                     return self.is_node_tainted(object);
                 }
@@ -595,6 +995,7 @@ impl<'a> CrossFileVerifier<'a> {
                         if let Some(object) = c.child_by_field_name("object") {
                             if matches!(
                                 short_name,
+                                // HTTP request methods
                                 "json"
                                     | "text"
                                     | "formData"
@@ -606,6 +1007,42 @@ impl<'a> CrossFileVerifier<'a> {
                                     | "first"
                                     | "all"
                                     | "get"
+                                    // DB/collection methods (MongoDB, Mongoose, Sequelize, Knex)
+                                    | "collection"
+                                    | "find"
+                                    | "findOne"
+                                    | "findById"
+                                    | "findByIdAndUpdate"
+                                    | "findByIdAndDelete"
+                                    | "update"
+                                    | "updateOne"
+                                    | "updateMany"
+                                    | "insertOne"
+                                    | "insertMany"
+                                    | "deleteOne"
+                                    | "deleteMany"
+                                    | "aggregate"
+                                    | "exec"
+                                    | "lean"
+                                    | "sort"
+                                    | "limit"
+                                    | "skip"
+                                    | "populate"
+                                    | "select"
+                                    | "where"
+                                    | "then"
+                                    // SQL query methods
+                                    | "raw"
+                                    | "insert"
+                                    | "orderBy"
+                                    | "groupBy"
+                                    | "queryRaw"
+                                    | "execute"
+                                    // File system methods
+                                    | "readFile"
+                                    | "readFileSync"
+                                    | "readdir"
+                                    | "readdirSync"
                             ) {
                                 if self.is_node_tainted(object) {
                                     return true;
@@ -661,10 +1098,118 @@ impl<'a> CrossFileVerifier<'a> {
                 }
                 false
             }
+            // Object literals: tainted if any property value is tainted
+            "object" | "object_pattern" => {
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        match child.kind() {
+                            "pair" => {
+                                if let Some(value) = child.child_by_field_name("value") {
+                                    if self.is_node_tainted(value) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            "shorthand_property_identifier" | "identifier" => {
+                                if self.is_node_tainted(child) {
+                                    return true;
+                                }
+                            }
+                            "spread_element" => {
+                                if let Some(arg) = child.child(0) {
+                                    if self.is_node_tainted(arg) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
+            // Array literals: tainted if any element is tainted
+            "array" | "array_pattern" => {
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        if !matches!(child.kind(), "[" | "]" | ",") {
+                            if self.is_node_tainted(child) {
+                                return true;
+                            }
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
             // Parenthesized expressions: recurse on inner
             "parenthesized_expression" => {
                 if let Some(inner) = node.child(0) {
                     return self.is_node_tainted(inner);
+                }
+                false
+            }
+            // Unary expressions (e.g., !tainted): check operand
+            "unary_expression" => {
+                if let Some(operand) = node.child(0) {
+                    return self.is_node_tainted(operand);
+                }
+                false
+            }
+            // Conditional expressions: tainted if either branch is tainted
+            "conditional_expression" => {
+                if let Some(consequent) = node.child_by_field_name("consequence") {
+                    if self.is_node_tainted(consequent) {
+                        return true;
+                    }
+                }
+                if let Some(alternate) = node.child_by_field_name("alternative") {
+                    if self.is_node_tainted(alternate) {
+                        return true;
+                    }
+                }
+                false
+            }
+            // Assignment expressions used as values: check right side
+            "assignment_expression" => {
+                if let Some(right) = node.child_by_field_name("right") {
+                    return self.is_node_tainted(right);
+                }
+                false
+            }
+            // Arrow/function expressions: check body
+            "arrow_function" | "function" => {
+                if let Some(body) = node.child_by_field_name("body") {
+                    return self.is_node_tainted(body);
+                }
+                false
+            }
+            // Sequence expressions (comma operator): check last expression
+            "sequence_expression" => {
+                let mut last = None;
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        if !matches!(child.kind(), "," | "(" | ")") {
+                            last = Some(child);
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                if let Some(expr) = last {
+                    return self.is_node_tainted(expr);
                 }
                 false
             }

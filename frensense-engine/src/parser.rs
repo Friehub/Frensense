@@ -12,6 +12,7 @@ const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
     (&["javascript", "js"], &["js", "jsx"]),
     (&["python", "py"], &["py", "pyi"]),
     (&["yaml", "yml"], &["yml", "yaml"]),
+    (&["html"], &["html", "htm"]),
 ];
 
 /// Maps file extension to human-readable language name.
@@ -22,6 +23,7 @@ pub fn ext_to_language(ext: &str) -> &'static str {
         "js" | "jsx" => "javascript",
         "py" | "pyi" => "python",
         "yml" | "yaml" => "yaml",
+        "html" | "htm" => "html",
         _ => "unknown",
     }
 }
@@ -31,7 +33,7 @@ pub fn is_supported(path: &Path) -> bool {
     let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
     matches!(
         ext,
-        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml" | "json"
+        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "pyi" | "yml" | "yaml" | "json" | "html" | "htm"
     )
 }
 
@@ -79,6 +81,7 @@ pub fn symbol_query_for_ext(ext: &str) -> Option<&'static str> {
         "js" | "jsx" => Some(
             r"
             (function_declaration name: (identifier) @name)
+            (method_definition name: (property_identifier) @name)
             (class_declaration name: (identifier) @name)
             (variable_declarator name: (identifier) @name)
             (lexical_declaration (variable_declarator name: (identifier) @name))
@@ -89,6 +92,13 @@ pub fn symbol_query_for_ext(ext: &str) -> Option<&'static str> {
             (function_definition name: (identifier) @name)
             (class_definition name: (identifier) @name)
             (assignment left: (identifier) @name)
+        ",
+        ),
+        "html" | "htm" => Some(
+            r"
+            (element (tag_name) @name)
+            (script_element (tag_name) @name)
+            (style_element (tag_name) @name)
         ",
         ),
         _ => None,
@@ -114,6 +124,15 @@ pub fn call_query_for_ext(ext: &str) -> Option<&'static str> {
                 body: (_
                     (call_expression function:
                         (field_expression field: (field_identifier) @call))))
+            (function_item name: (identifier) @caller
+                body: (_
+                    (let_declaration
+                        value: (call_expression function: (identifier) @call))))
+            (function_item name: (identifier) @caller
+                body: (_
+                    (let_declaration
+                        value: (call_expression function:
+                            (field_expression field: (field_identifier) @call)))))
         ",
         ),
         "ts" | "tsx" | "js" | "jsx" => Some(
@@ -136,6 +155,23 @@ pub fn call_query_for_ext(ext: &str) -> Option<&'static str> {
                     (expression_statement
                         (call_expression function:
                             (member_expression property: (property_identifier) @call)))))
+            (expression_statement
+                (assignment_expression
+                    left: (member_expression
+                        property: (property_identifier) @caller)
+                    right: (arrow_function
+                        body: (statement_block
+                            (expression_statement
+                                (call_expression function: (identifier) @call))))))
+            (expression_statement
+                (assignment_expression
+                    left: (member_expression
+                        property: (property_identifier) @caller)
+                    right: (arrow_function
+                        body: (statement_block
+                            (expression_statement
+                                (call_expression function:
+                                    (member_expression property: (property_identifier) @call)))))))
         ",
         ),
         "py" | "pyi" => Some(
@@ -150,6 +186,7 @@ pub fn call_query_for_ext(ext: &str) -> Option<&'static str> {
                         (call function: (attribute attribute: (identifier) @call)))))
         ",
         ),
+        "html" | "htm" => None,
         _ => None,
     }
 }
@@ -172,6 +209,8 @@ impl ParserRegistry {
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
             #[cfg(feature = "python")]
             "py" | "pyi" => Ok(tree_sitter_python::LANGUAGE.into()),
+            #[cfg(feature = "html")]
+            "html" | "htm" => Ok(tree_sitter_html::LANGUAGE.into()),
             "yml" | "yaml" => Err(FrensenseError::Config(format!(
                 "YAML tree-sitter parsing not available in the engine (use consumer crate). Extension: {ext}"
             ))),
@@ -189,6 +228,7 @@ impl ParserRegistry {
             "javascript" | "js" => Self::get_language(Path::new("x.js")),
             "python" | "py" => Self::get_language(Path::new("x.py")),
             "yaml" | "yml" => Self::get_language(Path::new("x.yaml")),
+            "html" => Self::get_language(Path::new("x.html")),
             _ => Err(FrensenseError::Config(format!(
                 "Unsupported language: {name}"
             ))),

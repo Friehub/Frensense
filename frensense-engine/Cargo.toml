@@ -17,6 +17,7 @@ tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-javascript = { version = "0.23", optional = true }
 tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-html = { version = "0.23", optional = true }
 rustc-hash = "1.1"
 rayon = "1"
 thiserror = "2"
@@ -49,6 +50,7 @@ default = ["rust", "typescript", "serialize", "full-analysis", "oxc"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 python = ["dep:tree-sitter-python"]
+html = ["dep:tree-sitter-html"]
 serialize = ["dep:serde", "dep:serde_json", "dep:bincode", "dep:blake3"]
 full-analysis = []
 oxc = [
