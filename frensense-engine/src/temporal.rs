@@ -347,11 +347,11 @@ impl TemporalAnalyzer {
         let events =
             crate::graph::extract_temporal_events(root, source, file_path, temporal_labels);
         let file_str = file_path.to_string_lossy().to_string();
-        
+
         // Build CFG for dominator-based analysis
         let mut control_flow = cfg::build_cfg(root, source, &file_str);
         cfg::compute_dominators(&mut control_flow);
-        
+
         self.analyze_with_cfg(&events, &control_flow, &file_str)
     }
 
@@ -730,7 +730,10 @@ mod tests {
         };
 
         let violations = rule.validate_cfg(&events, &cfg, "test.rs");
-        assert!(!violations.is_empty(), "should detect missing unlock via CFG");
+        assert!(
+            !violations.is_empty(),
+            "should detect missing unlock via CFG"
+        );
     }
 
     #[test]
@@ -811,7 +814,10 @@ mod tests {
         };
 
         let violations = rule.validate_cfg(&events, &cfg, "test.rs");
-        assert!(violations.is_empty(), "lock then unlock should pass CFG check");
+        assert!(
+            violations.is_empty(),
+            "lock then unlock should pass CFG check"
+        );
     }
 
     #[test]

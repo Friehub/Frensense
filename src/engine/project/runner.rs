@@ -434,11 +434,12 @@ fn run_corpus_scan(
     // is the strongest signal but trained weights under-emphasize it.
     // These can be overridden via ScorerConfig::category_weight_overrides.
     let default_sqli_weights: [f64; 15] = [
-        0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04,
-        0.04,
+        0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04, 0.04,
     ];
     for category in &["sqli", "nosqli"] {
-        let weights = engine.scorer_config.category_weight_overrides
+        let weights = engine
+            .scorer_config
+            .category_weight_overrides
             .get(*category)
             .copied()
             .unwrap_or(default_sqli_weights);
@@ -446,7 +447,9 @@ fn run_corpus_scan(
     }
 
     if !corpus_loaded {
-        return frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry::default();
+        return frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry::new(
+            engine.use_compiler,
+        );
     }
     let ngram_window_size = engine.ngram_window_size;
     let per_category_calibration = engine.per_category_calibration.clone();
@@ -582,6 +585,27 @@ fn run_corpus_scan(
 
                 let pattern_params = registry.pattern_calibration.get(&m.pattern_id[..]);
                 confidence = frensense_engine::per_pattern_calibration::calibrate(confidence, pattern_params);
+
+                // Minimum-score gate: skip findings where key similarity dimensions are near-zero.
+                // This prevents the calibration sigmoid from boosting noise into high-confidence FPs.
+                if let Some(ref evidence) = m.matched_evidence {
+                    let ngram_low = evidence.ngram_sim < 0.05;
+                    let sig_low = evidence.signature_sim < 0.05;
+                    // Skip if both ngram AND signature are near-zero (no textual/structural match).
+                    // API similarity alone is insufficient — generic calls like `console.log`
+                    // match many patterns without real vulnerability overlap.
+                    if ngram_low && sig_low {
+                        tracing::debug!(
+                            pattern = %m.pattern_id,
+                            ngram = evidence.ngram_sim,
+                            sig = evidence.signature_sim,
+                            api = evidence.api_sim,
+                            ast = evidence.ast_sim,
+                            "skipping low-quality match (ngram + signature near zero)"
+                        );
+                        continue;
+                    }
+                }
 
                 let mut taint_verified = false;
                 let mut taint_detail = String::new();
@@ -1643,6 +1667,9 @@ impl Engine {
             );
         }
 
+        // Check for vulnerable dependencies
+        check_vulnerable_deps(root, &mut all_advisories);
+
         // Apply severity overrides and composition to all findings
         apply_severity_overrides(
             &mut all_advisories,
@@ -2034,81 +2061,49 @@ fn is_test_file(path: &Path) -> bool {
 
 /// Check for vulnerable dependencies in package.json and add advisories.
 fn check_vulnerable_deps(root: &Path, advisories: &mut Vec<Advisory>) {
-    let pkg_path = root.join("package.json");
-    if !pkg_path.exists() {
-        return;
-    }
-    
-    let Ok(content) = std::fs::read_to_string(&pkg_path) else {
-        return;
-    };
-    
-    // Parse dependencies from package.json
-    let deps = extract_npm_deps_for_vuln_check(&content);
-    
-    // Known vulnerable packages (from NodeGoat and common CVEs)
-    let vulnerable = [
-        ("bcrypt-nodejs", "CWE-798", "0.0.3", "Use of hardcoded credentials; unmaintained, use bcrypt or bcryptjs instead"),
-        ("marked", "CWE-79", "0.3.5", "XSS in markdown rendering; versions < 4.0.10 are vulnerable"),
-        ("needle", "CWE-200", "2.2.4", "Information exposure; versions < 2.6.0 have SSRF vulnerabilities"),
-        ("node-esapi", "CWE-1395", "0.0.1", "Dependency on unmaintained ESAPI library"),
-        ("swig", "CWE-79", "1.4.2", "Template injection; unmaintained, use nunjucks or handlebars"),
-        ("helmet", "CWE-1021", "2.0.0", "Versions < 3.0.0 missing critical security headers"),
-        ("forever", "CWE-400", "2.0.0", "Process management issues; use pm2 instead"),
-    ];
-    
-    for (pkg, cwe, version, desc) in vulnerable {
-        if deps.iter().any(|(name, ver)| name == pkg && ver.contains(version)) {
-            let mut advisory = Advisory::bare(
-                format!("VULN_DEP_{}", pkg.to_uppercase()),
-                crate::Severity::Warning,
-                FileId(0),
-                &pkg_path,
-                format!("Vulnerable dependency detected: {}@{}", pkg, version),
-            );
-            advisory.confidence = 0.9;
-            advisory.impact = desc.to_string();
-            advisory.improvement = format!("Upgrade {} to a secure version", pkg);
-            advisory.cwe = Some(cwe.to_string());
-            advisory.cvss = Some(7.5);
-            advisory.owasp = Some("A06:2021".to_string());
-            advisory.tags = vec!["vulnerable-dependency".to_string()];
-            advisories.push(advisory);
-        }
-    }
-}
+    use frensense_engine::deps::DependencyResolver;
 
-fn extract_npm_deps_for_vuln_check(content: &str) -> Vec<(String, String)> {
-    let mut deps = Vec::new();
-    
-    // Simple JSON parsing for dependencies
-    if let Some(deps_start) = content.find("\"dependencies\"") {
-        let deps_section = &content[deps_start..];
-        let mut in_deps = false;
-        
-        for line in deps_section.lines() {
-            let trimmed = line.trim();
-            if trimmed.contains('{') {
-                in_deps = true;
-                continue;
-            }
-            if !in_deps {
-                continue;
-            }
-            if trimmed.starts_with('}') {
-                break;
-            }
-            
-            if let Some(colon_pos) = trimmed.find(':') {
-                let key = trimmed[..colon_pos].trim().trim_matches('"').trim_matches(',').trim_matches('"');
-                let value = trimmed[colon_pos + 1..].trim().trim_matches(',').trim_matches('"');
-                
-                if !key.is_empty() && !value.is_empty() {
-                    deps.push((key.to_string(), value.to_string()));
-                }
-            }
-        }
+    let mut resolver = DependencyResolver::new();
+    resolver.load_project(root);
+
+    // Check npm vulnerabilities (tries `npm audit --json`, falls back to hardcoded)
+    let npm_vulns = resolver.check_vulnerable_npm_deps(root);
+    for (pkg, desc) in npm_vulns {
+        let mut advisory = Advisory::bare(
+            format!("VULN_NPM_{}", pkg.to_uppercase().replace('-', "_")),
+            crate::Severity::Warning,
+            FileId(0),
+            &root.join("package.json"),
+            format!("Vulnerable npm package: {pkg}"),
+        );
+        advisory.confidence = 0.9;
+        advisory.impact = desc;
+        advisory.improvement =
+            format!("Upgrade {pkg} to a secure version or replace with a maintained alternative");
+        advisory.cwe = Some("A06:2021".to_string());
+        advisory.cvss = Some(7.5);
+        advisory.owasp = Some("A06:2021".to_string());
+        advisory.tags = vec!["vulnerable-dependency".to_string(), "npm".to_string()];
+        advisories.push(advisory);
     }
-    
-    deps
+
+    // Check cargo vulnerabilities (tries `cargo audit --json`, falls back to hardcoded)
+    let cargo_vulns = resolver.check_vulnerable_cargo_deps(root);
+    for (crate_name, desc) in cargo_vulns {
+        let mut advisory = Advisory::bare(
+            format!("VULN_CARGO_{}", crate_name.to_uppercase().replace('-', "_")),
+            crate::Severity::Warning,
+            FileId(0),
+            &root.join("Cargo.toml"),
+            format!("Vulnerable cargo crate: {crate_name}"),
+        );
+        advisory.confidence = 0.9;
+        advisory.impact = desc;
+        advisory.improvement = format!("Update {crate_name} to a patched version");
+        advisory.cwe = Some("A06:2021".to_string());
+        advisory.cvss = Some(7.5);
+        advisory.owasp = Some("A06:2021".to_string());
+        advisory.tags = vec!["vulnerable-dependency".to_string(), "cargo".to_string()];
+        advisories.push(advisory);
+    }
 }

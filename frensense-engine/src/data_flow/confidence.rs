@@ -218,10 +218,7 @@ fn is_real_source(
     }
     let context = &source[start..end];
 
-    if crate::corpus::loader::TAINT_SOURCE_PATTERNS
-        .iter()
-        .any(|&p| context.contains(p))
-    {
+    if registry.is_source_pattern(context) {
         return true;
     }
 

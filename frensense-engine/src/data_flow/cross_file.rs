@@ -59,7 +59,6 @@ impl CrossFileTaintResolver {
                 }
             }
         }
-
     }
 
     pub fn register_exposed_taint(

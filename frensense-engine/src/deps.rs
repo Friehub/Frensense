@@ -40,54 +40,309 @@ impl DependencyResolver {
     }
 
     /// Check for known vulnerable npm packages.
+    /// Tries `npm audit --json` first; falls back to hardcoded list if npm is unavailable.
     /// Returns a list of (package_name, vulnerability_description) pairs.
-    pub fn check_vulnerable_npm_deps(&self) -> Vec<(String, String)> {
+    pub fn check_vulnerable_npm_deps(&self, project_root: &Path) -> Vec<(String, String)> {
+        // Try npm audit first
+        if let Some(vulns) = Self::run_npm_audit(project_root) {
+            if !vulns.is_empty() {
+                return vulns;
+            }
+            // npm audit found nothing — still return empty (don't fall through to hardcoded)
+            return Vec::new();
+        }
+
+        // Fallback: hardcoded list
+        self.check_vulnerable_npm_deps_hardcoded()
+    }
+
+    /// Try running `npm audit --json` and parse results.
+    /// Returns None if npm is not available or audit fails.
+    fn run_npm_audit(project_root: &Path) -> Option<Vec<(String, String)>> {
+        let output = std::process::Command::new("npm")
+            .args(["audit", "--json"])
+            .current_dir(project_root)
+            .output()
+            .ok()?;
+
+        if !output.status.success() && output.stdout.is_empty() {
+            return None;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Self::parse_npm_audit_json(&stdout)
+    }
+
+    /// Parse `npm audit --json` output.
+    fn parse_npm_audit_json(json: &str) -> Option<Vec<(String, String)>> {
         let mut vulns = Vec::new();
-        
-        // Known vulnerable packages (from NodeGoat and common CVEs)
+
+        // Find "vulnerabilities" object
+        let vulns_start = json.find("\"vulnerabilities\"")?;
+        let vulns_section = &json[vulns_start..];
+
+        let mut depth = 0;
+        let mut in_vulns = false;
+        let mut current_pkg = String::new();
+
+        for line in vulns_section.lines() {
+            let trimmed = line.trim();
+
+            if trimmed.contains('{') {
+                if in_vulns {
+                    depth += 1;
+                }
+                // Check if this line starts a package entry: "package-name": {
+                if !in_vulns && trimmed.contains('"') && trimmed.ends_with('{') {
+                    if let Some(pkg_name) = extract_audit_pkg_name(trimmed) {
+                        current_pkg = pkg_name;
+                        in_vulns = true;
+                        depth = 1;
+                        continue;
+                    }
+                }
+            }
+
+            if in_vulns && trimmed.starts_with('}') {
+                depth -= 1;
+                if depth == 0 {
+                    in_vulns = false;
+                    current_pkg.clear();
+                }
+            }
+
+            if in_vulns && trimmed.contains("\"severity\"") {
+                if let Some(severity) = extract_json_string_value(trimmed) {
+                    if severity == "critical" || severity == "high" {
+                        // Try to get more info from "via" array
+                        let via = Self::extract_via_info(vulns_section, &current_pkg);
+                        let desc = if let Some(via_info) = via {
+                            format!("[{severity}] {via_info}")
+                        } else {
+                            format!("[{severity}] Vulnerable package: {current_pkg}")
+                        };
+                        vulns.push((current_pkg.clone(), desc));
+                    }
+                }
+            }
+        }
+
+        Some(vulns)
+    }
+
+    /// Extract the "via" field info for a vulnerability entry.
+    fn extract_via_info(section: &str, pkg_name: &str) -> Option<String> {
+        let pkg_pos = section.find(&format!("\"{pkg_name}\""))?;
+        let via_pos = section[pkg_pos..].find("\"via\"")?;
+        let via_section = &section[pkg_pos + via_pos..];
+
+        // Simple extraction: look for string entries in the via array
+        let mut reasons = Vec::new();
+        for line in via_section.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with('[')
+                || trimmed.starts_with(']')
+                || trimmed.starts_with('{')
+                || trimmed.starts_with('}')
+            {
+                continue;
+            }
+            // Extract quoted strings
+            if let Some(start) = trimmed.find('"') {
+                if let Some(end) = trimmed[start + 1..].find('"') {
+                    let val = &trimmed[start + 1..start + 1 + end];
+                    if !val.is_empty() && val != pkg_name {
+                        reasons.push(val.to_string());
+                    }
+                }
+            }
+            if reasons.len() >= 2 {
+                break;
+            }
+        }
+
+        if reasons.is_empty() {
+            None
+        } else {
+            Some(reasons.join("; "))
+        }
+    }
+
+    fn check_vulnerable_npm_deps_hardcoded(&self) -> Vec<(String, String)> {
+        let mut vulns = Vec::new();
+
         let known_vulnerable: &[(&str, &str)] = &[
-            ("bcrypt-nodejs", "CWE-798: Use of hardcoded credentials; unmaintained, use bcrypt or bcryptjs instead"),
-            ("marked", "CWE-79: XSS in markdown rendering; versions < 4.0.10 are vulnerable"),
-            ("needle", "CWE-200: Information exposure; versions < 2.6.0 have SSRF vulnerabilities"),
-            ("node-esapi", "CWE-1395: Dependency on unmaintained ESAPI library"),
-            ("swig", "CWE-79: Template injection; unmaintained, use nunjucks or handlebars"),
-            ("helmet", "CWE-1021: Versions < 3.0.0 missing critical security headers"),
-            ("express-session", "CWE-384: Session fixation if session secret is weak"),
-            ("forever", "CWE-400: Process management issues; use pm2 instead"),
+            (
+                "bcrypt-nodejs",
+                "CWE-798: Use of hardcoded credentials; unmaintained, use bcrypt or bcryptjs instead",
+            ),
+            (
+                "marked",
+                "CWE-79: XSS in markdown rendering; versions < 4.0.10 are vulnerable",
+            ),
+            (
+                "needle",
+                "CWE-200: Information exposure; versions < 2.6.0 have SSRF vulnerabilities",
+            ),
+            (
+                "node-esapi",
+                "CWE-1395: Dependency on unmaintained ESAPI library",
+            ),
+            (
+                "swig",
+                "CWE-79: Template injection; unmaintained, use nunjucks or handlebars",
+            ),
+            (
+                "helmet",
+                "CWE-1021: Versions < 3.0.0 missing critical security headers",
+            ),
+            (
+                "express-session",
+                "CWE-384: Session fixation if session secret is weak",
+            ),
+            (
+                "forever",
+                "CWE-400: Process management issues; use pm2 instead",
+            ),
             ("grunt", "CWE-1104: Use of unmaintained build tool"),
-            ("mocha", "CWE-676: Use of potentially dangerous functions in test framework"),
-            ("nodemon", "CWE-295: No TLS verification in development mode"),
-            ("selenium-webdriver", "CWE-295: No certificate verification by default"),
+            (
+                "mocha",
+                "CWE-676: Use of potentially dangerous functions in test framework",
+            ),
+            (
+                "nodemon",
+                "CWE-295: No TLS verification in development mode",
+            ),
+            (
+                "selenium-webdriver",
+                "CWE-295: No certificate verification by default",
+            ),
         ];
-        
+
         for (pkg, desc) in known_vulnerable {
             if self.npm_deps.contains(*pkg) {
                 vulns.push((pkg.to_string(), desc.to_string()));
             }
         }
-        
+
         vulns
     }
 
     /// Check for known vulnerable Cargo crates.
-    /// Returns a list of (crate_name, vulnerability_description) pairs.
-    pub fn check_vulnerable_cargo_deps(&self) -> Vec<(String, String)> {
+    /// Tries `cargo audit --json` first; falls back to hardcoded list if cargo-audit is unavailable.
+    pub fn check_vulnerable_cargo_deps(&self, project_root: &Path) -> Vec<(String, String)> {
+        // Try cargo audit first
+        if let Some(vulns) = Self::run_cargo_audit(project_root) {
+            if !vulns.is_empty() {
+                return vulns;
+            }
+            return Vec::new();
+        }
+
+        // Fallback: hardcoded list
+        self.check_vulnerable_cargo_deps_hardcoded()
+    }
+
+    /// Try running `cargo audit --json` and parse results.
+    fn run_cargo_audit(project_root: &Path) -> Option<Vec<(String, String)>> {
+        let output = std::process::Command::new("cargo")
+            .args(["audit", "--json"])
+            .current_dir(project_root)
+            .output()
+            .ok()?;
+
+        if !output.status.success() && output.stdout.is_empty() {
+            return None;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Self::parse_cargo_audit_json(&stdout)
+    }
+
+    /// Parse `cargo audit --json` output.
+    fn parse_cargo_audit_json(json: &str) -> Option<Vec<(String, String)>> {
         let mut vulns = Vec::new();
-        
-        // Known vulnerable crates (common CVEs)
+
+        // Find "vulnerabilities" array
+        let vulns_start = json.find("\"vulnerabilities\"")?;
+        let vulns_section = &json[vulns_start..];
+
+        // Simple extraction: find "advisories" or "vulnerabilities" entries
+        let mut current_pkg = String::new();
+        let mut current_id = String::new();
+        let mut current_desc = String::new();
+
+        for line in vulns_section.lines() {
+            let trimmed = line.trim();
+
+            if trimmed.contains("\"name\"") && !current_pkg.is_empty() {
+                // New entry starting, save previous
+                if !current_pkg.is_empty() && !current_id.is_empty() {
+                    let desc = format!("[{current_id}] {current_desc}");
+                    vulns.push((current_pkg.clone(), desc));
+                    current_id.clear();
+                    current_desc.clear();
+                }
+            }
+
+            if trimmed.contains("\"name\"") {
+                if let Some(val) = extract_json_string_value(trimmed) {
+                    current_pkg = val;
+                }
+            }
+            if trimmed.contains("\"id\"") {
+                if let Some(val) = extract_json_string_value(trimmed) {
+                    current_id = val;
+                }
+            }
+            if trimmed.contains("\"description\"") {
+                if let Some(val) = extract_json_string_value(trimmed) {
+                    current_desc = val;
+                }
+            }
+        }
+
+        // Don't forget the last entry
+        if !current_pkg.is_empty() && !current_id.is_empty() {
+            let desc = if current_desc.is_empty() {
+                format!("[{current_id}] Vulnerable crate")
+            } else {
+                format!("[{current_id}] {current_desc}")
+            };
+            vulns.push((current_pkg, desc));
+        }
+
+        Some(vulns)
+    }
+
+    fn check_vulnerable_cargo_deps_hardcoded(&self) -> Vec<(String, String)> {
+        let mut vulns = Vec::new();
+
         let known_vulnerable: &[(&str, &str)] = &[
-            ("hyper", "CWE-1104: Versions < 0.14.18 have HTTP/2 rapid reset vulnerability"),
-            ("openssl", "CWE-1104: Versions < 0.10.48 have certificate verification issues"),
-            ("reqwest", "CWE-1104: Versions < 0.11.14 have potential SSRF"),
-            ("tokio", "CWE-362: Versions < 1.18.4 have race condition in signal handling"),
+            (
+                "hyper",
+                "CWE-1104: Versions < 0.14.18 have HTTP/2 rapid reset vulnerability",
+            ),
+            (
+                "openssl",
+                "CWE-1104: Versions < 0.10.48 have certificate verification issues",
+            ),
+            (
+                "reqwest",
+                "CWE-1104: Versions < 0.11.14 have potential SSRF",
+            ),
+            (
+                "tokio",
+                "CWE-362: Versions < 1.18.4 have race condition in signal handling",
+            ),
         ];
-        
+
         for (crate_name, desc) in known_vulnerable {
             if self.cargo_deps.contains(*crate_name) {
                 vulns.push((crate_name.to_string(), desc.to_string()));
             }
         }
-        
+
         vulns
     }
 
@@ -431,6 +686,28 @@ impl DependencyResolver {
 
         hits
     }
+}
+
+/// Extract a package name from an npm audit entry line like `"bcrypt-nodejs": {`.
+fn extract_audit_pkg_name(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let start = trimmed.find('"')? + 1;
+    let end = trimmed[start..].find('"')?;
+    let name = &trimmed[start..start + end];
+    if name.is_empty() || name.contains('/') {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+/// Extract a JSON string value from a line like `"key": "value"`.
+fn extract_json_string_value(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let colon_pos = trimmed.find(':')?;
+    let after_colon = trimmed[colon_pos + 1..].trim();
+    let start = after_colon.find('"')? + 1;
+    let end = after_colon[start..].find('"')?;
+    Some(after_colon[start..start + end].to_string())
 }
 
 fn parse_json_keys(text: &str, set: &mut HashSet<String>) {

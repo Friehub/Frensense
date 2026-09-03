@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-09-03
+
+### Added
+- **Minimum-score gate**: Skip corpus matches where ngram AND signature similarity are both near-zero (<0.05). Prevents calibration sigmoid from boosting noise into high-confidence false positives. Generic API matches like `console.log` alone are insufficient for a finding.
+- **Compiler-aware sink registry**: `CorpusSourceSinkRegistry::new(use_compiler: bool)` — when `use_compiler=true`, uses a reduced 95-item sink list (vs 168 full list) covering only truly dangerous bare calls, framework-specific sinks, and MongoDB operators. OXC module resolution handles generic sinks like `query`, `readFile`, `fetch`.
+- **`npm audit` / `cargo audit` subprocess integration**: Vulnerability detection now tries `npm audit --json` and `cargo audit --json` before falling back to hardcoded lists. Requires tools to be installed; gracefully degrades if unavailable.
+- **LanguageProvider trait methods**: Added `known_sink_names()`, `known_source_patterns()`, `resolve_receiver_module()` to `SemanticProvider` trait with default impls. `OxcProvider` implements using `PACKAGE_SINK_CATEGORIES` + global function sinks. `ImportMapProvider` uses hardcoded fallbacks.
+- **Module-based sink classification**: `check_call_for_sink()` now calls `provider.resolve_receiver_module(fn_name_full)` and passes resolved module to `classify_sink()` — enables OXC module-based classification for calls like `db.query()`.
+
+### Changed
+- **`PACKAGE_SINK_CATEGORIES` made `pub`**: Was `const`, now `pub const` so `oxc_provider.rs` can reference it.
+- **`source_patterns` on `CorpusSourceSinkRegistry`**: Initialized from `always_register_source_patterns()`, merged via `merge()`, checked via `is_source_pattern()`. `confidence.rs:is_real_source()` now uses `registry.is_source_pattern()` instead of hardcoded `TAINT_SOURCE_PATTERNS`.
+- **`.gitignore` fixed**: Removed `Cargo.lock` (binary project should track it), added `frensense-bench/datasets/synthetic/`, `frensense-bench/datasets/nodegoat/`, `frensense-bench/results/`.
+- **Stale TOML files removed**: Deleted 12 unused `.toml` corpus metadata files.
+
+### Fixed
+- **Vulnerable dependency JSON parser**: Fixed trim order bug in `extract_npm_deps_for_vuln_check` where `trim_matches('"')` was applied before `trim_matches(',')`.
+
+### Benchmark (NodeGoat, threshold 0.40)
+| Metric | Before | After |
+|--------|--------|-------|
+| TP | 24 | 22 |
+| FP | 252 | 22 |
+| FN | 6 | 8 |
+| Recall | 0.800 | 0.733 |
+| F1 | 0.157 | 0.595 |
+| Wall time | 1:36 | 0:41 |
+
+91% FP reduction with only 2 TPs lost. F1 improved 3.8x. Scan time reduced 58%.
+
 ## [0.5.0-optimize] - 2026-08-26
 
 ### Added

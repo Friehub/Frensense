@@ -184,7 +184,8 @@ fn main() -> Result<()> {
 
     // Apply fingerprinting configuration
     if let Some(ref val) = options.ngram_windows {
-        let windows: Vec<usize> = val.split(',')
+        let windows: Vec<usize> = val
+            .split(',')
             .filter_map(|s| s.trim().parse().ok())
             .collect();
         if !windows.is_empty() {

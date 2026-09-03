@@ -97,10 +97,7 @@ impl FrensenseAuditor {
         // Post-processing: discover `this.method = () => {}` patterns that
         // tree-sitter queries can't capture (assignment_expression, not
         // variable_declarator).
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
         if matches!(ext, "js" | "jsx" | "ts" | "tsx") {
             self.discover_this_method_assignments(tree, content, file_id, &path_str, &mut symbols);
         }
@@ -328,8 +325,8 @@ impl FrensenseAuditor {
                                 if left.kind() == "member_expression" {
                                     if let Some(object) = left.child_by_field_name("object") {
                                         if object.kind() == "identifier" {
-                                            let obj_name = &content
-                                                [object.start_byte()..object.end_byte()];
+                                            let obj_name =
+                                                &content[object.start_byte()..object.end_byte()];
                                             if obj_name == "this" {
                                                 if let Some(prop) =
                                                     left.child_by_field_name("property")

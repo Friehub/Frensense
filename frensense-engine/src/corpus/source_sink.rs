@@ -197,6 +197,165 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     "JWT.decode",
 ];
 
+/// Reduced sink list for compiler-aware mode.
+/// When `use_compiler=true`, OXC module resolution covers generic sinks
+/// like `query`, `readFile`, `fetch` by resolving imports to their source modules.
+/// This list keeps only:
+/// - Truly dangerous bare calls (eval, exec, transmute)
+/// - Framework-specific sinks that can't be resolved through imports
+/// - MongoDB operators (property keys, not function calls)
+pub const ALWAYS_REGISTER_SINKS_COMPILER_AWARE: &[&str] = &[
+    // Code Execution — truly dangerous bare calls
+    "eval",
+    "exec",
+    "execSync",
+    "Function",
+    "setTimeout",
+    "setInterval",
+    "runInNewContext",
+    "runInThisContext",
+    // Command Injection
+    "execFile",
+    "execFileSync",
+    "execa",
+    // Unsafe Memory (Rust)
+    "transmute",
+    "transmute_copy",
+    "from_utf8_unchecked",
+    "from_raw_parts",
+    // MongoDB / NoSQL operator sinks (property keys, not function calls)
+    "$where",
+    "$regex",
+    "$gt",
+    "$lt",
+    "$ne",
+    "$in",
+    "$nin",
+    "$exists",
+    "$expr",
+    "$function",
+    "$accumulator",
+    // Framework Specific — can't be resolved through imports
+    "c.redirect",
+    "env.KV.put",
+    "KVNamespace.put",
+    "KVNamespace.delete",
+    "env.DB.prepare",
+    "res.send",
+    "res.json",
+    "res.redirect",
+    "res.render",
+    "revalidatePath",
+    "prisma.queryRawUnsafe",
+    "prisma.executeRawUnsafe",
+    "R2Bucket.put",
+    "D1Database.prepare",
+    "DurableObjectStub.fetch",
+    "Queue.send",
+    // SSTI — template engine renders (module-qualified, keep as fallback)
+    "ejs.render",
+    "ejs.renderFile",
+    "pug.compile",
+    "pug.render",
+    "handlebars.compile",
+    "handlebars.render",
+    "nunjucks.render",
+    "nunjucks.renderString",
+    "nunjucks.renderFile",
+    "marko.render",
+    "eta.render",
+    "swig.render",
+    "liquid.render",
+    "mustache.render",
+    "jade.render",
+    "react-dom/server.renderToString",
+    "vue-server-renderer.renderToString",
+    "render_template",
+    "render_template_string",
+    // Insecure Deserialization
+    "yaml.load",
+    "js-yaml.load",
+    "pickle.loads",
+    "bincode::deserialize",
+    "msgpack.decode",
+    "msgpack.unpack",
+    "php.unserialize",
+    "ObjectInputStream.readObject",
+    "BinaryFormatter.Deserialize",
+    // Prototype Pollution
+    "Object.assign",
+    "_.merge",
+    "lodash.merge",
+    "_.defaultsDeep",
+    "_.set",
+    "$.extend",
+    "jQuery.extend",
+    "angular.merge",
+    "setPrototypeOf",
+    // XXE — XML parsers
+    "DOMParser",
+    "libxml2",
+    "SAXParser",
+    "XMLReader",
+    "DocumentBuilder",
+    "DocumentBuilderFactory",
+    "XmlDocument",
+    "XDocument",
+    "XmlTextReader",
+    "simplexml_load_string",
+    "DOMDocument",
+    // JWT
+    "jwt.verify",
+    "jwt.decode",
+    "jwt.sign",
+    "jsonwebtoken.verify",
+    "jsonwebtoken.decode",
+    "jsonwebtoken.sign",
+    "JWT.verify",
+    "JWT.decode",
+];
+
+/// Return `ALWAYS_REGISTER_SINKS` as `(name, SinkCategory)` pairs.
+/// Used by `ImportMapProvider::known_sink_names()`.
+pub fn always_register_sinks_with_categories() -> Vec<(&'static str, SinkCategory)> {
+    ALWAYS_REGISTER_SINKS
+        .iter()
+        .map(|&name| (name, SinkCategory::from_sink_name(name)))
+        .collect()
+}
+
+/// Return compiler-aware sink list as `(name, SinkCategory)` pairs.
+pub fn always_register_sinks_compiler_aware() -> Vec<(&'static str, SinkCategory)> {
+    ALWAYS_REGISTER_SINKS_COMPILER_AWARE
+        .iter()
+        .map(|&name| (name, SinkCategory::from_sink_name(name)))
+        .collect()
+}
+
+/// Return the hardcoded source patterns.
+/// Used by `ImportMapProvider::known_source_patterns()`.
+pub fn always_register_source_patterns() -> Vec<&'static str> {
+    vec![
+        "req.query",
+        "req.body",
+        "req.params",
+        "req.headers",
+        "req.cookies",
+        "req.file",
+        "req.files",
+        "ctx.request",
+        "ctx.query",
+        "ctx.params",
+        "ctx.body",
+        "event.body",
+        "request.body",
+        "request.query",
+        "process.argv",
+        "process.env",
+        "c.req",
+    ]
+}
+
 pub fn get_sink_tier(sink: &str) -> SinkTier {
     let base = sink.rsplit('.').next().unwrap_or(sink);
     if ALWAYS_REGISTER_SINKS.contains(&base) {
@@ -330,14 +489,24 @@ pub struct CorpusSourceSinkRegistry {
     pub qualified_sink_names: FxHashMap<String, (SinkCategory, usize)>,
     /// Call expressions that sanitize / escape tainted data, learned from negative corpus.
     pub sanitizer_names: FxHashMap<String, usize>,
+    /// Known taint source patterns (member expressions like `req.body`, `process.env`).
+    /// Initialized from hardcoded patterns and extended by provider's `known_source_patterns()`.
+    pub source_patterns: Vec<String>,
 }
 
 impl Default for CorpusSourceSinkRegistry {
     fn default() -> Self {
+        Self::from_sink_list(ALWAYS_REGISTER_SINKS)
+    }
+}
+
+impl CorpusSourceSinkRegistry {
+    /// Create a new registry with the given sink list.
+    fn from_sink_list(sinks: &[&str]) -> Self {
         let mut sink_names = FxHashMap::default();
         let mut qualified_sink_names = FxHashMap::default();
 
-        for &sink in ALWAYS_REGISTER_SINKS {
+        for &sink in sinks {
             let cat = SinkCategory::from_sink_name(sink);
             if sink.contains("::") || sink.contains('.') {
                 qualified_sink_names.insert(sink.to_string(), (cat, 100));
@@ -351,15 +520,35 @@ impl Default for CorpusSourceSinkRegistry {
             sink_names,
             qualified_sink_names,
             sanitizer_names: FxHashMap::default(),
+            source_patterns: always_register_source_patterns()
+                .into_iter()
+                .map(String::from)
+                .collect(),
         }
     }
-}
 
-impl CorpusSourceSinkRegistry {
+    /// Create a new registry.
+    /// When `use_compiler=true`, uses the reduced compiler-aware sink list.
+    /// When `use_compiler=false`, uses the full hardcoded fallback list.
+    pub fn new(use_compiler: bool) -> Self {
+        if use_compiler {
+            Self::from_sink_list(ALWAYS_REGISTER_SINKS_COMPILER_AWARE)
+        } else {
+            Self::default()
+        }
+    }
+
     /// Check if a type annotation string is a known source type.
     pub fn is_source_type(&self, type_str: &str) -> bool {
         let clean = type_str.trim();
         self.source_types.contains_key(clean)
+    }
+
+    /// Check if a text context contains a known taint source pattern.
+    /// Used by `confidence.rs:is_real_source()` to verify that a definition
+    /// is actually a taint source.
+    pub fn is_source_pattern(&self, context: &str) -> bool {
+        self.source_patterns.iter().any(|p| context.contains(p))
     }
 
     /// Check if a function name is a known sink (supports qualified names like "KV.put").
@@ -480,6 +669,11 @@ impl CorpusSourceSinkRegistry {
         }
         for (k, v) in &other.sanitizer_names {
             *self.sanitizer_names.entry(k.clone()).or_insert(0) += v;
+        }
+        for pattern in &other.source_patterns {
+            if !self.source_patterns.contains(pattern) {
+                self.source_patterns.push(pattern.clone());
+            }
         }
     }
 

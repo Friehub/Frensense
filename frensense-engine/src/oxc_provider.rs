@@ -36,8 +36,8 @@ use crate::corpus::source_sink::{CorpusSourceSinkRegistry, SinkCategory};
 use crate::data_flow::TaintOrigin;
 use crate::fingerprint::FunctionFingerprint;
 use crate::semantic::{
-    HTTP_FRAMEWORK_PACKAGES, OxcSymbolTable, ResolvedModule, SemanticProvider, TypeContext,
-    base_type_name, package_sink_category,
+    HTTP_FRAMEWORK_PACKAGES, OxcSymbolTable, PACKAGE_SINK_CATEGORIES, ResolvedModule,
+    SemanticProvider, TypeContext, base_type_name, package_sink_category,
 };
 
 /// Default set of extensions the resolver tries, in order.
@@ -396,7 +396,11 @@ impl SemanticProvider for OxcProvider {
         //    can't be resolved (e.g., function parameters like `db` in
         //    `ContributionsDAO(db)`). If the method name starts with a known
         //    DB operation, classify it as a sink regardless of the receiver.
-        if let Some(method) = call_text.split('.').nth(1).and_then(|s| s.split('(').next()) {
+        if let Some(method) = call_text
+            .split('.')
+            .nth(1)
+            .and_then(|s| s.split('(').next())
+        {
             let m = method.to_lowercase();
             if m.starts_with("query")
                 || m.starts_with("exec")
@@ -413,9 +417,7 @@ impl SemanticProvider for OxcProvider {
             {
                 return Some(SinkCategory::SqlInjection);
             }
-            if m.starts_with("spawn")
-                || m.starts_with("fork")
-            {
+            if m.starts_with("spawn") || m.starts_with("fork") {
                 return Some(SinkCategory::CommandInjection);
             }
             if m.starts_with("read")
@@ -467,6 +469,159 @@ impl SemanticProvider for OxcProvider {
 
     fn resolve_name(&self, name: &str) -> Option<String> {
         self.symbol_table.package_for(name).map(str::to_string)
+    }
+
+    fn known_sink_names(&self) -> Vec<(&'static str, SinkCategory)> {
+        // Global sinks that don't require module resolution — these are always
+        // dangerous regardless of which file imports them.
+        let mut sinks: Vec<(&str, SinkCategory)> = vec![
+            ("eval", SinkCategory::CodeExecution),
+            ("Function", SinkCategory::CodeExecution),
+            ("setTimeout", SinkCategory::CodeExecution),
+            ("setInterval", SinkCategory::CodeExecution),
+            ("require", SinkCategory::CodeExecution),
+            ("import", SinkCategory::CodeExecution),
+            // MongoDB NoSQL operator sinks (used as object property keys)
+            ("$where", SinkCategory::NoSqlInjection),
+            ("$regex", SinkCategory::NoSqlInjection),
+            ("$gt", SinkCategory::NoSqlInjection),
+            ("$lt", SinkCategory::NoSqlInjection),
+            ("$ne", SinkCategory::NoSqlInjection),
+            ("$in", SinkCategory::NoSqlInjection),
+            ("$nin", SinkCategory::NoSqlInjection),
+            ("$exists", SinkCategory::NoSqlInjection),
+            ("$expr", SinkCategory::NoSqlInjection),
+            ("$function", SinkCategory::NoSqlInjection),
+            ("$accumulator", SinkCategory::NoSqlInjection),
+            // Prototype pollution (framework-level)
+            ("Object.assign", SinkCategory::CodeExecution),
+            ("_.merge", SinkCategory::CodeExecution),
+            ("lodash.merge", SinkCategory::CodeExecution),
+            ("_.defaultsDeep", SinkCategory::CodeExecution),
+            ("_.set", SinkCategory::CodeExecution),
+            ("$.extend", SinkCategory::CodeExecution),
+            ("jQuery.extend", SinkCategory::CodeExecution),
+            ("setPrototypeOf", SinkCategory::CodeExecution),
+            // SSTI — template engine renders
+            ("ejs.render", SinkCategory::CodeExecution),
+            ("ejs.renderFile", SinkCategory::CodeExecution),
+            ("pug.compile", SinkCategory::CodeExecution),
+            ("pug.render", SinkCategory::CodeExecution),
+            ("handlebars.compile", SinkCategory::CodeExecution),
+            ("handlebars.render", SinkCategory::CodeExecution),
+            ("nunjucks.render", SinkCategory::CodeExecution),
+            ("nunjucks.renderString", SinkCategory::CodeExecution),
+            ("nunjucks.renderFile", SinkCategory::CodeExecution),
+            ("marko.render", SinkCategory::CodeExecution),
+            ("eta.render", SinkCategory::CodeExecution),
+            ("swig.render", SinkCategory::CodeExecution),
+            ("liquid.render", SinkCategory::CodeExecution),
+            ("mustache.render", SinkCategory::CodeExecution),
+            ("jade.render", SinkCategory::CodeExecution),
+            (
+                "react-dom/server.renderToString",
+                SinkCategory::CodeExecution,
+            ),
+            (
+                "vue-server-renderer.renderToString",
+                SinkCategory::CodeExecution,
+            ),
+            // Insecure deserialization
+            ("yaml.load", SinkCategory::CodeExecution),
+            ("js-yaml.load", SinkCategory::CodeExecution),
+            ("DOMParser", SinkCategory::CodeExecution),
+            // XSS
+            ("innerHTML", SinkCategory::Xss),
+            ("outerHTML", SinkCategory::Xss),
+            ("document.write", SinkCategory::Xss),
+            ("document.writeln", SinkCategory::Xss),
+            ("dangerouslySetInnerHTML", SinkCategory::Xss),
+            // Open redirect
+            ("location.href", SinkCategory::OpenRedirect),
+            ("window.location", SinkCategory::OpenRedirect),
+        ];
+
+        // Package-level sinks from PACKAGE_SINK_CATEGORIES — any method call
+        // on a value from these packages is a sink, regardless of method name.
+        for &(_package, ref category) in PACKAGE_SINK_CATEGORIES {
+            // The package itself isn't a sink name; the methods on it are.
+            // We register the package so `classify_sink` can resolve receivers.
+            // But for the fallback name registry, we add common method names
+            // that are always dangerous on these packages.
+            match category {
+                SinkCategory::SqlInjection => {
+                    sinks.push(("query", SinkCategory::SqlInjection));
+                    sinks.push(("execute", SinkCategory::SqlInjection));
+                    sinks.push(("executeRaw", SinkCategory::SqlInjection));
+                    sinks.push(("queryRaw", SinkCategory::SqlInjection));
+                    sinks.push(("raw", SinkCategory::SqlInjection));
+                    sinks.push(("prepare", SinkCategory::SqlInjection));
+                    sinks.push(("findOne", SinkCategory::SqlInjection));
+                    sinks.push(("findMany", SinkCategory::SqlInjection));
+                    sinks.push(("create", SinkCategory::SqlInjection));
+                    sinks.push(("update", SinkCategory::SqlInjection));
+                    sinks.push(("delete", SinkCategory::SqlInjection));
+                    sinks.push(("aggregate", SinkCategory::SqlInjection));
+                    sinks.push(("upsert", SinkCategory::SqlInjection));
+                }
+                SinkCategory::CommandInjection => {
+                    sinks.push(("exec", SinkCategory::CommandInjection));
+                    sinks.push(("execSync", SinkCategory::CommandInjection));
+                    sinks.push(("spawn", SinkCategory::CommandInjection));
+                    sinks.push(("spawnSync", SinkCategory::CommandInjection));
+                    sinks.push(("execFile", SinkCategory::CommandInjection));
+                    sinks.push(("execFileSync", SinkCategory::CommandInjection));
+                }
+                SinkCategory::Ssrf => {
+                    sinks.push(("fetch", SinkCategory::Ssrf));
+                    sinks.push(("get", SinkCategory::Ssrf));
+                    sinks.push(("post", SinkCategory::Ssrf));
+                    sinks.push(("put", SinkCategory::Ssrf));
+                    sinks.push(("request", SinkCategory::Ssrf));
+                }
+                SinkCategory::PathTraversal => {
+                    sinks.push(("readFile", SinkCategory::PathTraversal));
+                    sinks.push(("writeFile", SinkCategory::PathTraversal));
+                    sinks.push(("readFileSync", SinkCategory::PathTraversal));
+                    sinks.push(("writeFileSync", SinkCategory::PathTraversal));
+                    sinks.push(("read", SinkCategory::PathTraversal));
+                    sinks.push(("write", SinkCategory::PathTraversal));
+                    sinks.push(("open", SinkCategory::PathTraversal));
+                    sinks.push(("stat", SinkCategory::PathTraversal));
+                    sinks.push(("access", SinkCategory::PathTraversal));
+                    sinks.push(("unlink", SinkCategory::PathTraversal));
+                    sinks.push(("readdir", SinkCategory::PathTraversal));
+                }
+                _ => {}
+            }
+        }
+
+        // Deduplicate by name (keep first occurrence)
+        let mut seen = rustc_hash::FxHashSet::default();
+        sinks.retain(|(name, _)| seen.insert(*name));
+        sinks
+    }
+
+    fn known_source_patterns(&self) -> Vec<&'static str> {
+        vec![
+            "req.query",
+            "req.body",
+            "req.params",
+            "req.headers",
+            "req.cookies",
+            "req.file",
+            "req.files",
+            "ctx.request",
+            "ctx.query",
+            "ctx.params",
+            "ctx.body",
+            "event.body",
+            "request.body",
+            "request.query",
+            "process.argv",
+            "process.env",
+            "c.req",
+        ]
     }
 }
 

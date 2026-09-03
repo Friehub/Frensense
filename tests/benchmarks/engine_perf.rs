@@ -418,8 +418,8 @@ fn bench_rule_compilation(c: &mut Criterion) {
 
     group.bench_function("compile_all_builtin_rules", |b| {
         b.iter(|| {
-            let rules = FrensenseAuditor::default_rules();
-            black_box(rules)
+            let auditor = FrensenseAuditor::default_auditor();
+            black_box(auditor)
         });
     });
 
@@ -519,6 +519,11 @@ fn bench_fingerprinting(c: &mut Criterion) {
         requires_human: false,
         tags: vec!["async".into(), "service".into()],
         taint_branch_ratio: Some(0.0),
+        has_validation_name: None,
+        match_evidence: None,
+        cwe: None,
+        cvss: None,
+        owasp: None,
     };
 
     // Measure identity() — used on every baseline comparison

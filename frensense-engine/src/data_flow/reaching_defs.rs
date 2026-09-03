@@ -45,12 +45,7 @@ impl DefState {
     }
 
     /// Mark a variable as tainted with a specific source range.
-    pub fn taint_with_range(
-        &mut self,
-        var: &str,
-        origin: TaintOrigin,
-        range: (usize, usize),
-    ) {
+    pub fn taint_with_range(&mut self, var: &str, origin: TaintOrigin, range: (usize, usize)) {
         self.defs.insert(
             var.to_string(),
             Definition {
@@ -145,7 +140,7 @@ mod tests {
 
         state1.merge(&state2);
         assert!(!state1.is_tainted("a")); // only in branch 1
-        assert!(state1.is_tainted("b"));  // in both branches
+        assert!(state1.is_tainted("b")); // in both branches
         assert!(!state1.is_tainted("c")); // only in branch 2
     }
 

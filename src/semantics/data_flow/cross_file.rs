@@ -462,11 +462,11 @@ impl<'a> CrossFileVerifier<'a> {
                     verified: false,
                     depth,
                     path: path.clone(),
-                detail: "No sink found in if/else".to_string(),
-                source_name: self.source_name.clone(),
-                sink_name: self.potential_sink_name.clone(),
-                sink_line: None,
-            };
+                    detail: "No sink found in if/else".to_string(),
+                    source_name: self.source_name.clone(),
+                    sink_name: self.potential_sink_name.clone(),
+                    sink_line: None,
+                };
             }
             // Handle switch statements with fork/merge per case
             "switch_statement" => {
@@ -491,8 +491,7 @@ impl<'a> CrossFileVerifier<'a> {
                             if body_cursor.goto_first_child() {
                                 loop {
                                     let body_child = body_cursor.node();
-                                    let result =
-                                        self.follow_taint(body_child, depth + 1, path);
+                                    let result = self.follow_taint(body_child, depth + 1, path);
                                     if result.verified {
                                         return result;
                                     }
@@ -521,11 +520,11 @@ impl<'a> CrossFileVerifier<'a> {
                     verified: false,
                     depth,
                     path: path.clone(),
-                detail: "No sink found in switch".to_string(),
-                source_name: self.source_name.clone(),
-                sink_name: self.potential_sink_name.clone(),
-                sink_line: None,
-            };
+                    detail: "No sink found in switch".to_string(),
+                    source_name: self.source_name.clone(),
+                    sink_name: self.potential_sink_name.clone(),
+                    sink_line: None,
+                };
             }
             _ => {}
         }
@@ -605,8 +604,13 @@ impl<'a> CrossFileVerifier<'a> {
 
                     // Use the semantic provider (or corpus-learned matching)
                     // for context-aware sink identification (qualified + suffix).
+                    // When the provider is available, resolve the callee's
+                    // receiver module so classify_sink can use import resolution.
                     let is_sink = if let Some(provider) = self.provider {
-                        provider.classify_sink(fn_name_full, None).is_some()
+                        let resolved_module = provider.resolve_receiver_module(fn_name_full);
+                        provider
+                            .classify_sink(fn_name_full, resolved_module.as_deref())
+                            .is_some()
                     } else {
                         self.source_sink.is_sink_expr(fn_name_full).is_some()
                     };

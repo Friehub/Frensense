@@ -350,8 +350,14 @@ impl<'a> InterproceduralVerifier<'a> {
 
         let fn_name = &self.source[callee.start_byte()..callee.end_byte()];
 
-        // Check if this is a corpus-learned sink
-        if self.source_sink.is_sink(fn_name).is_none() {
+        // Check if this is a corpus-learned sink, using the provider when available
+        let is_sink = if let Some(provider) = self.provider {
+            let resolved_module = provider.resolve_receiver_module(fn_name);
+            provider.classify_sink(fn_name, resolved_module.as_deref()).is_some()
+        } else {
+            self.source_sink.is_sink(fn_name).is_some()
+        };
+        if !is_sink {
             return None;
         }
 

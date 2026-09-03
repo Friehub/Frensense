@@ -43,6 +43,7 @@ tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 tree-sitter-javascript = { version = "0.23", optional = true }
 tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-html = { version = "0.23", optional = true }
 thiserror = "1.0"
 tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -61,11 +62,11 @@ blake3 = "1.5"
 toml = "0.8"
 
 [features]
-disabled_yaml_rules = []
 default = ["rust", "typescript", "fingerprinting", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
 python = ["frensense-engine/python", "dep:tree-sitter-python"]
+html = ["frensense-engine/html", "dep:tree-sitter-html"]
 fingerprinting = ["frensense-engine/serialize"]
 temporal = []
 rust-hir = ["frensense-engine/rust-hir"]

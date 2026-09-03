@@ -99,14 +99,15 @@ impl<'a> ControlFlowGraph<'a> {
 
     /// Find the basic block containing a given byte offset.
     pub fn find_block_for_byte(&self, byte_offset: usize) -> Option<usize> {
-        self.blocks.iter().position(|b| {
-            byte_offset >= b.start_byte && byte_offset < b.end_byte
-        })
+        self.blocks
+            .iter()
+            .position(|b| byte_offset >= b.start_byte && byte_offset < b.end_byte)
     }
 
     /// Find all exit blocks (blocks with no successors, or the designated exit block).
     pub fn exit_nodes(&self) -> Vec<usize> {
-        let mut exits: Vec<usize> = self.blocks
+        let mut exits: Vec<usize> = self
+            .blocks
             .iter()
             .enumerate()
             .filter(|(_, b)| b.successors.is_empty())
@@ -129,7 +130,8 @@ impl<'a> ControlFlowGraph<'a> {
         }
 
         // Find all exit nodes reachable from before_block
-        let reachable_exits: Vec<usize> = exits.into_iter()
+        let reachable_exits: Vec<usize> = exits
+            .into_iter()
             .filter(|&exit| self.is_reachable(before_block, exit))
             .collect();
 
@@ -138,9 +140,9 @@ impl<'a> ControlFlowGraph<'a> {
         }
 
         // Check if after_block dominates all reachable exits
-        reachable_exits.iter().all(|&exit| {
-            self.blocks[exit].dominators.contains(&after_block)
-        })
+        reachable_exits
+            .iter()
+            .all(|&exit| self.blocks[exit].dominators.contains(&after_block))
     }
 }
 

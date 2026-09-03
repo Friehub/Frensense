@@ -178,7 +178,12 @@ impl LSHIndex {
             }
         }
         if candidates.len() > 100 {
-            eprintln!("[LSH] query: {} bands matched, {} candidates from {} signatures", bands_matched, candidates.len(), signature.len());
+            eprintln!(
+                "[LSH] query: {} bands matched, {} candidates from {} signatures",
+                bands_matched,
+                candidates.len(),
+                signature.len()
+            );
         }
         candidates.into_iter().collect()
     }

@@ -34,6 +34,7 @@ fn make_advisory(
         requires_human: false,
         tags: vec![],
         taint_branch_ratio: None,
+        has_validation_name: None,
         match_evidence: None,
         cwe: None,
         cvss: None,

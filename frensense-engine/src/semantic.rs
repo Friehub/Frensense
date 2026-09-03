@@ -55,6 +55,27 @@ pub trait SemanticProvider: Send + Sync {
 
     /// Resolve a local name to its source package.
     fn resolve_name(&self, name: &str) -> Option<String>;
+
+    /// All known sink function names for this language (e.g. "eval", "exec",
+    /// "query"). Used to populate the corpus registry's baseline sink list.
+    /// Returns `(name, category)` pairs.
+    fn known_sink_names(&self) -> Vec<(&'static str, SinkCategory)> {
+        Vec::new()
+    }
+
+    /// All known taint source patterns for this language (e.g. "req.body",
+    /// "process.env"). Used to populate the corpus registry's baseline source list.
+    fn known_source_patterns(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
+
+    /// Resolve the callee's receiver to its source module, for use in
+    /// `classify_sink` when the caller doesn't already know the module.
+    /// E.g., for `db.query(...)`, resolves `db` → `"pg"`.
+    fn resolve_receiver_module(&self, call_text: &str) -> Option<String> {
+        let receiver = call_text.split('.').next()?;
+        self.resolve_name(receiver)
+    }
 }
 
 /// Type information available for a function — ranging from nothing
@@ -194,7 +215,7 @@ pub(crate) const HTTP_FRAMEWORK_PACKAGES: &[&str] = &[
 /// the method name (e.g. `db.query(...)` where `db` comes from `pg` needs no
 /// entry for "query"). Kept small and stable — grows only when a new library
 /// is adopted.
-const PACKAGE_SINK_CATEGORIES: &[(&str, SinkCategory)] = &[
+pub const PACKAGE_SINK_CATEGORIES: &[(&str, SinkCategory)] = &[
     // SQL / NoSQL database libraries
     ("pg", SinkCategory::SqlInjection),
     ("postgres", SinkCategory::SqlInjection),
@@ -368,6 +389,16 @@ impl SemanticProvider for ImportMapProvider {
 
     fn resolve_name(&self, name: &str) -> Option<String> {
         self.import_map.resolve(name).map(str::to_string)
+    }
+
+    fn known_sink_names(&self) -> Vec<(&'static str, SinkCategory)> {
+        // ImportMapProvider uses the same hardcoded list as before — these are
+        // the fallback sinks when OXC is not available.
+        crate::corpus::source_sink::always_register_sinks_with_categories()
+    }
+
+    fn known_source_patterns(&self) -> Vec<&'static str> {
+        crate::corpus::source_sink::always_register_source_patterns()
     }
 }
 
