@@ -353,11 +353,11 @@ impl PatternRegistry {
         if self.patterns.len() < 10 {
             return;
         }
-        let num_hashes = 120;
-        // LSH tuning: bands=40, rows=12. Threshold = (1/40)^(1/12) ≈ 0.71.
-        // This filters candidates to ~30-70 per function.
-        let num_bands = 40;
-        let rows_per_band = 12;
+        // Use default LSH parameters from minhash module.
+        // Threshold = (1/40)^(1/12) ≈ 0.71 — filters candidates to ~30-70 per function.
+        let num_hashes = crate::minhash::DEFAULT_NUM_HASHES;
+        let num_bands = crate::minhash::DEFAULT_BANDS;
+        let rows_per_band = crate::minhash::DEFAULT_ROWS_PER_BAND;
 
         // Structural LSH (existing)
         let mut struct_index = LSHIndex::new(num_bands, rows_per_band);
@@ -402,7 +402,7 @@ impl PatternRegistry {
         // Query both LSH tables (structural + API-call)
         let struct_candidates: std::collections::HashSet<usize> =
             if let Some(ref lsh) = self.lsh_index {
-                let sig = minhash_signature(&fp.structural_markers, 128);
+                let sig = minhash_signature(&fp.structural_markers, crate::minhash::DEFAULT_NUM_HASHES);
                 lsh.query(&sig)
                     .iter()
                     .map(|&id| id as usize)
@@ -414,11 +414,11 @@ impl PatternRegistry {
         let api_candidates: std::collections::HashSet<usize> =
             if let Some(ref lsh) = self.lsh_index_api {
                 let sig = if !fp.api_call_segments.is_empty() {
-                    minhash_signature(&fp.api_call_segments, 128)
+                    minhash_signature(&fp.api_call_segments, crate::minhash::DEFAULT_NUM_HASHES)
                 } else if !fp.api_calls.is_empty() {
-                    minhash_signature(&fp.api_calls, 128)
+                    minhash_signature(&fp.api_calls, crate::minhash::DEFAULT_NUM_HASHES)
                 } else {
-                    minhash_signature(&fp.structural_markers, 128)
+                    minhash_signature(&fp.structural_markers, crate::minhash::DEFAULT_NUM_HASHES)
                 };
                 lsh.query(&sig)
                     .iter()

@@ -3,9 +3,16 @@
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use std::hash::{Hash, Hasher};
 
-pub const DEFAULT_NUM_HASHES: usize = 128;
-pub const DEFAULT_BANDS: usize = 32;
-pub const DEFAULT_ROWS_PER_BAND: usize = 4;
+/// Number of MinHash signatures for LSH. Higher = more accurate similarity estimation.
+pub const DEFAULT_NUM_HASHES: usize = 120;
+
+/// Number of LSH bands. More bands = higher recall but more candidates.
+/// Threshold = (1/bands)^(1/rows_per_band).
+pub const DEFAULT_BANDS: usize = 40;
+
+/// Rows per LSH band. More rows = tighter threshold (fewer candidates).
+/// Threshold = (1/bands)^(1/rows_per_band) = (1/40)^(1/12) ≈ 0.71.
+pub const DEFAULT_ROWS_PER_BAND: usize = 12;
 
 fn sha1_hash(value: u64, seed: u64) -> u64 {
     let mut hasher = FxHasher::default();
