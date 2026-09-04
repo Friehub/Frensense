@@ -100,7 +100,7 @@ pub struct FunctionFingerprint {
     ///   - Binary expression concatenation (`"SELECT " + userId`)
     ///   - Template interpolation (`\`SELECT * FROM ${id}\``)
     ///   - Placeholder patterns (`:param` in parameterized queries)
-    /// Enables distinguishing vulnerable SQL concatenation from safe parameterized queries.
+    ///     Enables distinguishing vulnerable SQL concatenation from safe parameterized queries.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub literal_pattern_hashes: Vec<u64>,
 
@@ -359,7 +359,7 @@ fn collect_cf_sequence(node: Node<'_>, source: &str) -> Vec<String> {
     events
 }
 
-fn collect_cf_seq_recursive(node: Node<'_>, source: &str, events: &mut Vec<String>) {
+fn collect_cf_seq_recursive(node: Node<'_>, _source: &str, events: &mut Vec<String>) {
     let kind = node.kind();
     let event = match kind {
         "if_expression"
@@ -382,7 +382,7 @@ fn collect_cf_seq_recursive(node: Node<'_>, source: &str, events: &mut Vec<Strin
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            collect_cf_seq_recursive(cursor.node(), source, events);
+            collect_cf_seq_recursive(cursor.node(), _source, events);
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -392,7 +392,7 @@ fn collect_cf_seq_recursive(node: Node<'_>, source: &str, events: &mut Vec<Strin
 
 fn extract_cf_recursive(
     node: Node<'_>,
-    source: &str,
+    _source: &str,
     path: &mut Vec<String>,
     hashes: &mut FxHashSet<u64>,
 ) {
@@ -439,7 +439,7 @@ fn extract_cf_recursive(
     if cursor.goto_first_child() {
         loop {
             let child = cursor.node();
-            extract_cf_recursive(child, source, path, hashes);
+            extract_cf_recursive(child, _source, path, hashes);
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -557,10 +557,7 @@ fn extract_arg_types_recursive(
             .child_by_field_name("function")
             .map(|f| {
                 let name = &source[f.start_byte()..f.end_byte()];
-                name.rsplit(|c: char| c == '.' || c == ':')
-                    .next()
-                    .unwrap_or(name)
-                    .to_string()
+                name.rsplit(['.', ':']).next().unwrap_or(name).to_string()
             })
             .unwrap_or_default();
 
@@ -614,7 +611,7 @@ fn extract_arg_types_recursive(
 ///   - template_string with interpolation (`SELECT * FROM ${id}`)
 ///   - string literal containing SQL keywords (SELECT, FROM, WHERE, etc.)
 ///   - string literal containing parameterized placeholders (:param, ?)
-/// Hashes as (function_segment, pattern_type) for each call.
+///     Hashes as (function_segment, pattern_type) for each call.
 fn extract_literal_patterns(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut patterns = rustc_hash::FxHashSet::default();
     extract_literal_patterns_recursive(node, source, &mut patterns);
@@ -633,10 +630,7 @@ fn extract_literal_patterns_recursive(
             .child_by_field_name("function")
             .map(|f| {
                 let name = &source[f.start_byte()..f.end_byte()];
-                name.rsplit(|c: char| c == '.' || c == ':')
-                    .next()
-                    .unwrap_or(name)
-                    .to_string()
+                name.rsplit(['.', ':']).next().unwrap_or(name).to_string()
             })
             .unwrap_or_default();
 
@@ -780,7 +774,7 @@ fn extract_tainted_recursive(
 }
 
 /// Check if a subtree contains any identifier that matches a parameter name.
-fn has_param_ref(node: Node<'_>, source: &str, _param_names: &[String]) -> bool {
+fn has_param_ref(node: Node<'_>, _source: &str, _param_names: &[String]) -> bool {
     // Simplify: any identifier in a call argument is treated as potentially tainted.
     // Pure literals (strings, numbers, booleans, null) are not.
     // This catches exec(cmd), exec(toUrl), exec(result.value) without needing
@@ -796,7 +790,7 @@ fn has_param_ref(node: Node<'_>, source: &str, _param_names: &[String]) -> bool 
             let mut cursor = node.walk();
             if cursor.goto_first_child() {
                 loop {
-                    if has_param_ref(cursor.node(), source, _param_names) {
+                    if has_param_ref(cursor.node(), _source, _param_names) {
                         return true;
                     }
                     if !cursor.goto_next_sibling() {

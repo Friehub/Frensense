@@ -312,11 +312,13 @@ fn is_db_query(fp: &FunctionFingerprint) -> bool {
 /// - Unknown is compatible with everything (no information)
 pub fn roles_are_incompatible(role_a: FunctionRole, role_b: FunctionRole) -> bool {
     use FunctionRole::*;
-    match (role_a, role_b) {
-        (HttpHandler, ShellExecutor) | (ShellExecutor, HttpHandler) => true,
-        (HttpHandler, DbQuery) | (DbQuery, HttpHandler) => true,
-        _ => false,
-    }
+    matches!(
+        (role_a, role_b),
+        (HttpHandler, ShellExecutor)
+            | (ShellExecutor, HttpHandler)
+            | (HttpHandler, DbQuery)
+            | (DbQuery, HttpHandler)
+    )
 }
 
 #[cfg(test)]

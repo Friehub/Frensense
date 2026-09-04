@@ -915,29 +915,6 @@ fn validate(input: &str) -> bool {
     }
 }
 
-/// Known taint source access patterns — user-controlled input entry points.
-/// If a positive example contains these and the negative does not, the pattern
-/// requires taint access to match (auto-promotes to SemanticFilter.contains_call_to).
-pub const TAINT_SOURCE_PATTERNS: &[&str] = &[
-    "req.query",
-    "req.body",
-    "req.params",
-    "req.headers",
-    "req.cookies",
-    "req.file",
-    "req.files",
-    "ctx.request",
-    "ctx.query",
-    "ctx.params",
-    "ctx.body",
-    "event.body",
-    "request.body",
-    "request.query",
-    "process.argv",
-    "process.env",
-    "c.req",
-];
-
 /// Classify a taint source pattern by its likely origin.
 /// Used during taint seeding to capture the correct TaintOrigin
 /// so the SinkCategory × TaintOrigin relevance multiplier can downweight
@@ -1009,7 +986,7 @@ fn collect_function_features(node: tree_sitter::Node<'_>, source: &str) -> Funct
 
     // M2: Detect taint sources by scanning the raw source text of this function's span
     let func_src = &source[node.start_byte()..node.end_byte().min(source.len())];
-    for &pattern in TAINT_SOURCE_PATTERNS {
+    for pattern in crate::corpus::source_sink::always_register_source_patterns() {
         if func_src.contains(pattern) {
             features.taint_sources.push(pattern.to_string());
         }

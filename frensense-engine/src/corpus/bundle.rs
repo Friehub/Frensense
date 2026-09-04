@@ -67,6 +67,7 @@
 
 use std::path::Path;
 
+use crate::auto_filter::AutoFilterEntry;
 use crate::corpus::loader::load_corpus;
 use crate::fingerprint::FunctionFingerprint;
 
@@ -129,15 +130,7 @@ struct BundlePayload {
     category_weights: Vec<(String, [f64; 15])>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     #[serde(default)]
-    auto_filter_stats: Vec<(
-        String,
-        Vec<String>,
-        Vec<String>,
-        Vec<String>,
-        String,
-        Vec<String>,
-        Vec<String>,
-    )>,
+    auto_filter_stats: Vec<AutoFilterEntry>,
     /// Per-pattern sigmoid calibration params (A, B).
     #[serde(default)]
     pattern_calibration: Vec<(String, f32, f32)>,
@@ -149,15 +142,7 @@ pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
     pub category_weights: Vec<(String, [f64; 15])>,
-    pub auto_filter_stats: Vec<(
-        String,
-        Vec<String>,
-        Vec<String>,
-        Vec<String>,
-        String,
-        Vec<String>,
-        Vec<String>,
-    )>,
+    pub auto_filter_stats: Vec<AutoFilterEntry>,
     pub pattern_calibration: Vec<(String, f32, f32)>,
 }
 
@@ -339,15 +324,7 @@ pub fn build_bundle_from_patterns(
     let auto_stats = crate::auto_filter::compute_auto_filters(patterns, &pattern_source_texts);
     // Serialize auto-derived filter stats.  Each entry is:
     // (pid, imports, calls, excludes_call, function_name_regex, excludes_nodes, excludes_fnames)
-    let auto_filter_stats: Vec<(
-        String,
-        Vec<String>,
-        Vec<String>,
-        Vec<String>,
-        String,
-        Vec<String>,
-        Vec<String>,
-    )> = {
+    let auto_filter_stats: Vec<AutoFilterEntry> = {
         let mut v = Vec::new();
         let all_pids: std::collections::HashSet<&str> =
             patterns.iter().map(|p| p.id.as_str()).collect();
@@ -374,15 +351,15 @@ pub fn build_bundle_from_patterns(
                 .cloned()
                 .unwrap_or_default();
             if !calls.is_empty() || !excl_calls.is_empty() {
-                v.push((
-                    pid.to_string(),
-                    Vec::new(),
-                    calls,
-                    excl_calls,
-                    fn_re,
-                    excl_nodes,
-                    excl_fnames,
-                ));
+                v.push(AutoFilterEntry {
+                    pattern_id: pid.to_string(),
+                    required_types: Vec::new(),
+                    forbidden_types: excl_calls,
+                    required_calls: calls,
+                    source_type: fn_re,
+                    required_taint_flows: excl_nodes,
+                    forbidden_taint_flows: excl_fnames,
+                });
             }
         }
         v

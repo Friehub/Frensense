@@ -14,8 +14,6 @@
 use rustc_hash::FxHashMap;
 use tree_sitter::Node;
 
-use crate::data_flow::TaintOrigin;
-
 /// Where to find the handler argument in a registration call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HandlerPosition {
@@ -198,7 +196,7 @@ fn extract_registration(
     let obj_name = &source[object.start_byte()..object.end_byte()];
 
     // Check if receiver is a known router variable
-    if !ROUTER_NAMES.iter().any(|r| obj_name == *r) {
+    if !ROUTER_NAMES.contains(&obj_name) {
         return None;
     }
 

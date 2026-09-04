@@ -161,18 +161,6 @@ fn extract_var_name(node: Node<'_>, source: &str) -> String {
     }
 }
 
-fn extract_receiver_name(node: Node<'_>, source: &str) -> String {
-    match node.kind() {
-        "identifier" | "field_identifier" | "property_identifier" => {
-            source[node.start_byte()..node.end_byte()].to_string()
-        }
-        "member_expression" => source[node.start_byte()..node.end_byte()]
-            .trim()
-            .to_string(),
-        _ => String::new(),
-    }
-}
-
 fn extract_callee_name(node: Node<'_>, source: &str) -> String {
     match node.kind() {
         "identifier" | "field_identifier" => source[node.start_byte()..node.end_byte()].to_string(),

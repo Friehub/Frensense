@@ -149,7 +149,7 @@ pub fn train_per_pattern_calibration(
             // Compute raw feature score
             let mut best = 0.0f64;
             for train in &train_pos_owned {
-                let sim = compute_calibration_features(fp, &train);
+                let sim = compute_calibration_features(fp, train);
                 if sim > best {
                     best = sim;
                 }

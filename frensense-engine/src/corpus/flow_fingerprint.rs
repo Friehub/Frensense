@@ -59,7 +59,7 @@ pub fn extract_flow_paths(body: Node<'_>, source: &str) -> Vec<u64> {
 
 /// Returns a map of variable name → source motif name for variables
 /// assigned from a recognized source.
-fn collect_tainted_vars<'a>(
+fn collect_tainted_vars(
     node: Node<'_>,
     source: &str,
     lookup: &FxHashMap<String, &'static str>,

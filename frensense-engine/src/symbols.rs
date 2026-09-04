@@ -62,7 +62,7 @@ impl SymbolRegistry {
     }
 
     #[cfg(feature = "full-analysis")]
-    pub fn merge(&mut self, mut other: SymbolRegistry) {
+    pub fn merge(&mut self, other: SymbolRegistry) {
         self.graph.merge(other.graph);
         // The node indices in other.file_index are no longer valid because `merge` created new nodes.
         // We actually don't strictly need file_index to be perfectly merged for cross_file taint resolution,

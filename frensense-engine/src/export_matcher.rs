@@ -91,24 +91,20 @@ pub fn classify_exported_handler(
     let mut export_node: Option<Node> = None;
     let mut is_default = false;
     let mut current = fn_node;
-    loop {
-        if let Some(parent) = current.parent() {
-            if parent.kind() == "export_statement" {
-                export_node = Some(parent);
-                for i in 0..parent.child_count() {
-                    if let Some(child) = parent.child(i) {
-                        if child.kind() == "default" {
-                            is_default = true;
-                            break;
-                        }
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "export_statement" {
+            export_node = Some(parent);
+            for i in 0..parent.child_count() {
+                if let Some(child) = parent.child(i) {
+                    if child.kind() == "default" {
+                        is_default = true;
+                        break;
                     }
                 }
-                break;
             }
-            current = parent;
-        } else {
             break;
         }
+        current = parent;
     }
 
     let export_node = export_node?;

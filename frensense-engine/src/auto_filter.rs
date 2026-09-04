@@ -4,6 +4,18 @@ use crate::corpus::bundle::BundlePattern;
 use crate::corpus::semantic::SemanticFilter;
 use std::collections::HashMap;
 
+/// A single auto-derived filter entry for one pattern.
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
+pub struct AutoFilterEntry {
+    pub pattern_id: String,
+    pub required_types: Vec<String>,
+    pub forbidden_types: Vec<String>,
+    pub required_calls: Vec<String>,
+    pub source_type: String,
+    pub required_taint_flows: Vec<String>,
+    pub forbidden_taint_flows: Vec<String>,
+}
+
 /// Auto-derived filter suggestions, keyed by pattern id.
 #[derive(Debug, Clone, Default)]
 pub struct AutoFilterStats {
@@ -90,7 +102,6 @@ pub fn compute_auto_filters(
         // Only exclude very safe structural exclusions (nodes NOT in positives)
         let excl_nodes: Vec<String> = neg_node_set
             .difference(&pos_node_set)
-            .cloned()
             // Extra guard: don't exclude common JS structural tokens that appear
             // legitimately in any real function body.
             .filter(|tok| {
@@ -99,6 +110,7 @@ pub fn compute_auto_filters(
                     "return" | "if" | "const" | "let" | "var" | "async" | "await"
                 )
             })
+            .cloned()
             .collect();
         if !excl_nodes.is_empty() {
             excludes_node_type.insert(p.id.clone(), excl_nodes);

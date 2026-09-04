@@ -600,7 +600,7 @@ impl CorpusSourceSinkRegistry {
         // 3. Suffix match: last segment of a dotted call matches a known short sink
         if let Some(last_seg) = expr.rsplit('.').next() {
             // Strip any trailing call punctuation
-            let clean = last_seg.trim_end_matches(|c: char| c == '(' || c == ')');
+            let clean = last_seg.trim_end_matches(['(', ')']);
             if let Some((cat, _)) = self.sink_names.get(clean) {
                 return Some(*cat);
             }

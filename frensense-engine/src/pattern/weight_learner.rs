@@ -115,14 +115,14 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         &target.config_literal_hashes,
     );
 
-    let cf_order_sim =
-        if candidate.control_flow_sequence_hash == 0 && target.control_flow_sequence_hash == 0 {
-            1.0
-        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
-            1.0
-        } else {
-            0.0
-        };
+    let cf_order_sim = if candidate.control_flow_sequence_hash == 0
+        && target.control_flow_sequence_hash == 0
+        || candidate.control_flow_sequence_hash == target.control_flow_sequence_hash
+    {
+        1.0
+    } else {
+        0.0
+    };
 
     let arg_type_sim =
         if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
@@ -253,11 +253,7 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
         for i in 0..pos_fps.len() {
             for j in i + 1..pos_fps.len() {
                 let feats = compute_features(&pos_fps[i], &pos_fps[j]);
-                by_category
-                    .entry(cat.clone())
-                    .or_default()
-                    .0
-                    .push(feats.clone());
+                by_category.entry(cat.clone()).or_default().0.push(feats);
                 global_pos.push(feats);
             }
         }
@@ -266,11 +262,7 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
         for pos in pos_fps {
             for neg in neg_fps {
                 let feats = compute_features(pos, neg);
-                by_category
-                    .entry(cat.clone())
-                    .or_default()
-                    .1
-                    .push(feats.clone());
+                by_category.entry(cat.clone()).or_default().1.push(feats);
                 global_neg.push(feats);
             }
         }

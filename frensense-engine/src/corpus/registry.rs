@@ -23,7 +23,7 @@ pub struct PatternMatch {
     pub impact: Option<String>,
     pub improvement: Option<String>,
     /// Detailed per-dimension breakdown of why this match scored as it did.
-    /// Always `Some` for corpus matches; `None` for rule-based matches.
+    /// Always `Some` for corpus matches.
     pub matched_evidence: Option<MatchEvidence>,
     pub cwe: Option<String>,
     pub cvss: Option<f32>,
@@ -96,7 +96,7 @@ impl PatternRegistry {
 
     pub fn load_corpus(&mut self, corpus_dir: &Path) -> crate::Result<usize> {
         let patterns = load_corpus(corpus_dir)
-            .map_err(|e| crate::FrensenseError::Engine(e))?
+            .map_err(crate::FrensenseError::Engine)?
             .0;
         let count = patterns.len();
         self.source_sink = build_registry_from_dir(corpus_dir);
@@ -171,8 +171,8 @@ impl PatternRegistry {
 
     #[cfg(feature = "serialize")]
     pub fn load_from_bundle(&mut self, bytes: &[u8]) -> crate::Result<usize> {
-        let loaded = crate::corpus::bundle::load_bundle(bytes)
-            .map_err(|e| crate::FrensenseError::Engine(e))?;
+        let loaded =
+            crate::corpus::bundle::load_bundle(bytes).map_err(crate::FrensenseError::Engine)?;
         let count = loaded.patterns.len();
 
         self.patterns = loaded
@@ -213,11 +213,11 @@ impl PatternRegistry {
             let mut excludes_node_type = std::collections::HashMap::new();
             let mut excludes_function_name = std::collections::HashMap::new();
             for entry in loaded.auto_filter_stats {
-                let pid = entry.0;
-                let calls = entry.2;
-                let excl_calls = entry.3;
-                let excl_nodes = entry.5;
-                let excl_fnames = entry.6;
+                let pid = entry.pattern_id;
+                let calls = entry.required_calls;
+                let excl_calls = entry.forbidden_types;
+                let excl_nodes = entry.required_taint_flows;
+                let excl_fnames = entry.forbidden_taint_flows;
                 if !calls.is_empty() {
                     contains_call_to.insert(pid.clone(), calls);
                 }
@@ -354,10 +354,10 @@ impl PatternRegistry {
             return;
         }
         let num_hashes = 120;
-        // Standard LSH: bands=40, rows=3.  Gives ~95%+ recall for J≥0.4
-        // while filtering out most J<0.2 false positives.
+        // LSH tuning: bands=40, rows=12. Threshold = (1/40)^(1/12) ≈ 0.71.
+        // This filters candidates to ~30-70 per function.
         let num_bands = 40;
-        let rows_per_band = 3;
+        let rows_per_band = 12;
 
         // Structural LSH (existing)
         let mut struct_index = LSHIndex::new(num_bands, rows_per_band);
@@ -459,7 +459,7 @@ impl PatternRegistry {
             let needs_flows = self.patterns.iter().any(|p| {
                 p.semantic_filter
                     .as_ref()
-                    .map_or(false, |f| !f.required_taint_flows.is_empty())
+                    .is_some_and(|f| !f.required_taint_flows.is_empty())
             });
             if needs_flows {
                 Some(crate::corpus::data_flow_extractor::extract_data_flows(
@@ -480,7 +480,7 @@ impl PatternRegistry {
                 let n = cursor.node();
                 if n.kind() == "member_expression" || n.kind() == "subscript_expression" {
                     let text = &src[n.start_byte()..n.end_byte()];
-                    for &pattern in crate::corpus::loader::TAINT_SOURCE_PATTERNS {
+                    for pattern in crate::corpus::source_sink::always_register_source_patterns() {
                         if text.contains(pattern) {
                             let origin = crate::corpus::loader::taint_source_origin(pattern);
                             seen_origins.push(origin.clone());
@@ -776,11 +776,7 @@ pub fn learn_semantic_markers(
         for fp in &pattern.positives {
             for call in &fp.raw_call_names {
                 // Use the last segment (method name) for generalization
-                let seg = call
-                    .rsplit(|c: char| c == '.' || c == ':')
-                    .next()
-                    .unwrap_or(call)
-                    .to_string();
+                let seg = call.rsplit(['.', ':']).next().unwrap_or(call).to_string();
                 let entry = api_to_cats.entry(seg).or_default();
                 *entry.entry(cat.clone()).or_insert(0) += 1;
             }

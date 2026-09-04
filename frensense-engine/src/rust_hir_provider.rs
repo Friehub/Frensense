@@ -20,8 +20,8 @@
 //!
 //! Cost: building the HIR runs `cargo metadata` and type-checks the workspace
 //! on demand. That is why this provider is opt-in (non-default feature, the
-//! `--use-compiler` flag) and why the legacy Rust heuristics are only deleted
-//! from the pipeline once this provider is active.
+//! `--use-compiler` flag) and why it remains optional until the corpus engine
+//! needs richer type-level facts.
 
 use std::path::Path;
 use std::sync::Arc;

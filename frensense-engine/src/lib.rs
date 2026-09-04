@@ -16,21 +16,21 @@
     clippy::needless_pass_by_value
 )]
 
-pub mod ast_distance;
-pub mod auto_filter;
+pub(crate) mod ast_distance;
+pub(crate) mod auto_filter;
 pub mod cfg;
 pub mod context;
 pub mod corpus;
 pub mod data_flow;
-pub mod decorator;
+pub(crate) mod decorator;
 pub mod deps;
-pub mod export_matcher;
+pub(crate) mod export_matcher;
 pub mod fingerprint;
 pub mod function_role;
 #[cfg(feature = "full-analysis")]
 pub mod graph;
 pub mod import_resolver;
-pub mod lang;
+pub(crate) mod lang;
 pub mod minhash;
 #[cfg(feature = "oxc")]
 pub mod oxc_provider;
@@ -39,13 +39,13 @@ pub mod pattern;
 pub mod per_pattern_calibration;
 #[cfg(feature = "full-analysis")]
 pub mod profile;
-pub mod route_registry;
+pub(crate) mod route_registry;
 #[cfg(feature = "rust-hir")]
 pub mod rust_hir_provider;
 pub mod semantic;
 pub mod symbols;
-#[cfg(feature = "full-analysis")]
-pub mod temporal;
+
+pub use decorator::classify_param_decorator;
 
 use rustc_hash::FxHashMap;
 use std::path::Path;
@@ -156,7 +156,7 @@ pub fn analyze_file(
     let graph = symbols.graph().clone();
 
     #[cfg(feature = "full-analysis")]
-    let temporal_events = graph::extract_temporal_events(root, source, file_path, None);
+    let temporal_events = graph::extract_temporal_events(root, source, file_path);
 
     Ok(AnalysisResult {
         language: language.to_string(),

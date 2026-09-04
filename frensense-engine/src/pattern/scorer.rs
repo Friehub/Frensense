@@ -49,11 +49,11 @@ pub struct ScorerConfig {
     pub neg_penalty_weight: f64,
     /// Minimum ngram similarity before AST edit distance is computed.
     pub ast_ngram_min_threshold: f64,
-    /// Weight of base match score in rule-based blend.
+    /// Weight of base match score in corpus contrastive scoring.
     pub base_score_weight: f64,
-    /// Weight of structural score in rule-based blend.
+    /// Weight of structural score in corpus contrastive scoring.
     pub structural_score_weight: f64,
-    /// Weight of profile boost in rule-based blend.
+    /// Weight of profile boost in corpus contrastive scoring.
     pub profile_boost_weight: f64,
     /// Default profile boost when no learned value exists.
     pub default_profile_boost: f64,
@@ -67,7 +67,8 @@ pub struct ScorerConfig {
     pub lsh_num_hashes: usize,
     /// Number of LSH bands. Default: 32.
     pub lsh_bands: usize,
-    /// Rows per LSH band. Default: 4.
+    /// Rows per LSH band. Default: 8. Higher = tighter threshold (fewer candidates).
+    /// Threshold = (1/bands)^(1/rows_per_band). With 32 bands, 8 rows → 0.66.
     pub lsh_rows_per_band: usize,
 
     // --- Fingerprinting ---
@@ -114,7 +115,7 @@ impl Default for ScorerConfig {
 
             lsh_num_hashes: 128,
             lsh_bands: 32,
-            lsh_rows_per_band: 4,
+            lsh_rows_per_band: 8,
 
             ngram_windows: vec![3, 5, 8],
             cf_max_depth: 10,
@@ -130,7 +131,6 @@ impl Default for ScorerConfig {
 }
 
 // Keep the old constants as defaults for backward compatibility
-const EMPTY_SIMILARITY_DEFAULT: f64 = 0.5;
 const CROSS_LINGUAL_PENALTY: f32 = 0.20;
 const SEMANTIC_ZERO_PENALTY: f64 = 0.30;
 const SEMANTIC_MATCH_BOOST: f64 = 2.0;
@@ -144,7 +144,6 @@ const AST_NGRAM_MIN_THRESHOLD: f64 = 0.25;
 const BASE_SCORE_WEIGHT: f64 = 0.4;
 const STRUCTURAL_SCORE_WEIGHT: f64 = 0.3;
 const PROFILE_BOOST_WEIGHT: f64 = 0.3;
-const DEFAULT_PROFILE_BOOST: f64 = 0.5;
 const KIND_DIVERSITY_SATURATION: f64 = 10.0;
 const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
 
@@ -157,14 +156,14 @@ pub fn weighted_jaccard(
     b: &rustc_hash::FxHashMap<u64, f32>,
 ) -> f64 {
     if a.is_empty() && b.is_empty() {
-        return EMPTY_SIMILARITY_DEFAULT;
+        return 0.0;
     }
     let mut intersection = 0.0f64;
     let mut union = 0.0f64;
     let all_keys: rustc_hash::FxHashSet<_> = a.keys().chain(b.keys()).collect();
     for key in all_keys {
-        let wa = f64::from(a.get(&key).copied().unwrap_or(0.0));
-        let wb = f64::from(b.get(&key).copied().unwrap_or(0.0));
+        let wa = f64::from(a.get(key).copied().unwrap_or(0.0));
+        let wb = f64::from(b.get(key).copied().unwrap_or(0.0));
         intersection += wa.min(wb);
         union += wa.max(wb);
     }
@@ -269,7 +268,7 @@ impl PatternScorer {
                 let key = &pattern.kind;
                 p.get(key).copied()
             })
-            .unwrap_or(DEFAULT_PROFILE_BOOST);
+            .unwrap_or(0.0);
 
         base_score * BASE_SCORE_WEIGHT
             + structural_score * STRUCTURAL_SCORE_WEIGHT
@@ -686,104 +685,10 @@ impl PatternScorer {
         candidate: &FunctionFingerprint,
         target: &FunctionFingerprint,
         _is_positive: bool,
-        ngram_sim_threshold: f64,
+        _ngram_sim_threshold: f64,
         weights: &[f64; 15],
     ) -> f64 {
-        let jaccard = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
-        let jaccard_sorted = |a: &_, b: &_| minhash::jaccard_similarity_sorted(a, b);
-
-        let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
-            || target.weighted_ngram_hashes.is_empty()
-        {
-            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
-        } else {
-            weighted_jaccard(
-                &candidate.weighted_ngram_hashes,
-                &target.weighted_ngram_hashes,
-            )
-        };
-
-        let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
-
-        let ast_sim = if !candidate.skeleton_hashes.is_empty() && !target.skeleton_hashes.is_empty()
-        {
-            1.0 - crate::ast_distance::tree_edit_distance(
-                &candidate.skeleton_hashes,
-                &target.skeleton_hashes,
-            )
-        } else {
-            jaccard(&candidate.structural_markers, &target.structural_markers)
-        };
-
-        let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
-        // API sim: max of full-name and segment Jaccard for cross-variant matching
-        let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-        let api_sim_seg =
-            if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
-                jaccard(&candidate.api_call_segments, &target.api_call_segments)
-            } else {
-                0.0
-            };
-        let api_sim = api_sim_full.max(api_sim_seg);
-        let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
-        let flow_sim = jaccard(
-            &candidate.data_flow_path_hashes,
-            &target.data_flow_path_hashes,
-        );
-        let tainted_api_sim =
-            if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
-                1.0 // Both have no tainted calls — they agree; treat as neutral match.
-            } else {
-                jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
-            };
-
-        let config_sim = jaccard(
-            &candidate.config_literal_hashes,
-            &target.config_literal_hashes,
-        );
-        let cf_order_sim = if candidate.control_flow_sequence_hash == 0
-            && target.control_flow_sequence_hash == 0
-        {
-            1.0
-        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
-            1.0
-        } else {
-            0.0
-        };
-
-        let arg_type_sim = if !candidate.argument_call_types.is_empty()
-            && !target.argument_call_types.is_empty()
-        {
-            jaccard(&candidate.argument_call_types, &target.argument_call_types)
-        } else {
-            0.0
-        };
-        let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
-            && !target.literal_pattern_hashes.is_empty()
-        {
-            jaccard(
-                &candidate.literal_pattern_hashes,
-                &target.literal_pattern_hashes,
-            )
-        } else {
-            0.0
-        };
-
-        ngram_sim * weights[0]
-            + ast_sim * weights[1]
-            + jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams) * weights[2]
-            + jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams) * weights[3]
-            + type_usage_overlap(candidate, target) * weights[4]
-            + semantic_sim * weights[5]
-            + cf_sim * weights[6]
-            + api_sim * weights[7]
-            + tainted_api_sim * weights[8]
-            + motif_sim * weights[9]
-            + flow_sim * weights[10]
-            + config_sim * weights[11]
-            + cf_order_sim * weights[12]
-            + arg_type_sim * weights[13]
-            + literal_concat_sim * weights[14]
+        Self::raw_dimensions(candidate, target, !_is_positive).weighted_score(weights)
     }
 
     pub fn similarity_to_positive(
@@ -883,8 +788,24 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_negative: bool,
     ) -> RawDimensions {
-        let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
-        let jaccard_sorted = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
+        let jaccard = |a: &[u64], b: &[u64]| -> f64 {
+            if a.is_empty() && b.is_empty() {
+                return 0.5; // Both empty — neutral
+            }
+            if a.is_empty() || b.is_empty() {
+                return 0.0;
+            }
+            minhash::jaccard_similarity_sorted(a, b)
+        };
+        let jaccard_sorted = |a: &[u64], b: &[u64]| -> f64 {
+            if a.is_empty() && b.is_empty() {
+                return 0.5; // Both empty — neutral
+            }
+            if a.is_empty() || b.is_empty() {
+                return 0.0;
+            }
+            minhash::jaccard_similarity_sorted(a, b)
+        };
 
         let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
             || target.weighted_ngram_hashes.is_empty()
@@ -949,9 +870,8 @@ impl PatternScorer {
         // 0.0 if they differ. This penalizes check→delete vs delete→check.
         let cf_order_sim = if candidate.control_flow_sequence_hash == 0
             && target.control_flow_sequence_hash == 0
+            || candidate.control_flow_sequence_hash == target.control_flow_sequence_hash
         {
-            1.0 // Both empty — no ordering signal, treat as neutral
-        } else if candidate.control_flow_sequence_hash == target.control_flow_sequence_hash {
             1.0
         } else {
             0.0
@@ -1016,7 +936,7 @@ pub type DimCache = rustc_hash::FxHashMap<u64, RawDimensions>;
 
 /// Intermediate raw-dimension values used internally by evidence computation.
 #[derive(Clone, Copy, Default)]
-pub(crate) struct RawDimensions {
+pub struct RawDimensions {
     ngram_sim: f64,
     ast_sim: f64,
     signature_sim: f64,
@@ -1056,7 +976,25 @@ impl RawDimensions {
 
 pub(crate) fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
     if a.type_usages.is_empty() && b.type_usages.is_empty() {
-        return EMPTY_SIMILARITY_DEFAULT;
+        return 0.0;
+    }
+    if a.type_usages.is_empty() || b.type_usages.is_empty() {
+        return 0.0;
+    }
+    // Quick check: if either has only one type, just check containment
+    if a.type_usages.len() == 1 {
+        return if b.type_usages.contains(&a.type_usages[0]) {
+            1.0
+        } else {
+            0.0
+        };
+    }
+    if b.type_usages.len() == 1 {
+        return if a.type_usages.contains(&b.type_usages[0]) {
+            1.0
+        } else {
+            0.0
+        };
     }
     let set_a: rustc_hash::FxHashSet<_> = a.type_usages.iter().collect();
     let set_b: rustc_hash::FxHashSet<_> = b.type_usages.iter().collect();

@@ -71,7 +71,7 @@ pub fn seed_from_corpus_match(
         } else if source_sink.is_source_type(clean_type) {
             Some(TaintOrigin::UserInput)
         } else if let Some(decorator_origin) =
-            frensense_engine::decorator::classify_param_decorator(param, source)
+            frensense_engine::classify_param_decorator(param, source)
         {
             Some(decorator_origin)
         } else {
