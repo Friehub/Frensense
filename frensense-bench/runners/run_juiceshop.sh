@@ -65,6 +65,7 @@ for threshold in 0.20 0.30 0.40 0.50 0.60 0.70; do
         "$FRENSENSE_BIN" "$DATASET_DIR" \
             --threshold "$threshold" \
             --json \
+            --use-compiler \
             > "$json_file" \
             2> "$timing_file" || true
 

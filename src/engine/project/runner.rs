@@ -457,6 +457,47 @@ fn run_corpus_scan(
     let use_compiler = engine.use_compiler;
     let source_sink_arc = std::sync::Arc::new(registry.source_sink_registry().clone());
 
+    // Pass 2 for CLI: Quick heuristic for return-value taint
+    let mut local_tainted_vars: rustc_hash::FxHashMap<String, Vec<String>> =
+        rustc_hash::FxHashMap::default();
+    for (file_path, (_tree, _content, ops)) in file_trees {
+        let mut file_vars = Vec::new();
+        for op in ops {
+            if let crate::semantics::data_flow::normalization::SemanticOp::Call {
+                function_name,
+                range,
+                ..
+            } = op
+            {
+                let lower = function_name.to_lowercase();
+                if source_sink_arc.is_source_pattern(function_name)
+                    || lower.ends_with(".find")
+                    || lower.ends_with(".findone")
+                    || lower.ends_with(".findall")
+                    || lower.ends_with(".query")
+                    || lower.ends_with(".execute")
+                {
+                    for binding_op in ops {
+                        if let crate::semantics::data_flow::normalization::SemanticOp::Binding {
+                            name: b_name,
+                            value_range,
+                        } = binding_op
+                        {
+                            if value_range.start_byte <= range.start_byte
+                                && value_range.end_byte >= range.end_byte
+                            {
+                                file_vars.push(b_name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !file_vars.is_empty() {
+            local_tainted_vars.insert(file_path.clone(), file_vars);
+        }
+    }
+
     let all_fps: Vec<(
         frensense_engine::fingerprint::FunctionFingerprint,
         tree_sitter::Node<'_>,
@@ -718,6 +759,7 @@ fn run_corpus_scan(
                                             sink_content,
                                             confidence as f32,
                                             registry.source_sink_registry(),
+                                            local_tainted_vars.get(&snap_i.path.to_string_lossy().to_string()).map(|v| v.as_slice()),
                                         );
                                         if (adj as f64) < confidence {
                                             confidence = adj as f64;

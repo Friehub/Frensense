@@ -16,7 +16,7 @@ set -e
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 REPO_ROOT="$(cd "${BASE_DIR}/.." && pwd)"
 
-FRENSENSE_BIN="${REPO_ROOT}/target/debug/frensense"
+FRENSENSE_BIN="${REPO_ROOT}/target/release/frensense"
 
 # Benchmark dataset — synthetic NodeGoat-derived fixtures (committed in the repo)
 DATASET_DIR="${BASE_DIR}/datasets/nodegoat"

@@ -197,7 +197,10 @@ fn extract_sink_var_from_ast(root: tree_sitter::Node, source: &str, sink_byte: u
                     if c.goto_first_child() {
                         loop {
                             let child = c.node();
-                            if child.kind() == "identifier" {
+                            if matches!(
+                                child.kind(),
+                                "identifier" | "member_expression" | "field_expression"
+                            ) {
                                 return source[child.start_byte()..child.end_byte()].to_string();
                             }
                             if !c.goto_next_sibling() {

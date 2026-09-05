@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.2] - 2026-09-05
 
 ### Added
+- **CLI Taint Pass**: Injected the Return-Value Taint Propagation heuristic directly into the CLI's file scanning loop (`runner.rs`), allowing the CLI to correctly trace variables populated from database queries.
 - **Return-Value Taint Propagation**: `frensense-engine` now supports tracking taint from function return values inter-procedurally. Added `SemanticOp::Binding` and `SemanticOp::Call` to `SemanticExtractor`, correlated them in `analyze_project` Pass 2, and threaded a `local_tainted_vars` map down to the dataflow engine (`adjust_confidence`, `is_real_source`).
 - **Language-Agnostic AST Extraction**: Deduplicated `extract_rust` and `extract_typescript` into a unified `extract_generic` AST walker in `normalization.rs`.
 - **CWE Mapping**: Added a `cwe()` method to `SinkCategory` in `source_sink.rs`.
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Logging**: Swapped `eprintln!` for `tracing::debug!` in `minhash.rs` and added the `tracing` dependency to `Cargo.toml`.
 
 ### Fixed
+- **AST Sink Extraction Bug**: Fixed `extract_sink_var_from_ast` in `confidence.rs` to support `member_expression` and `field_expression` as sink arguments (e.g. `req.query.id`), which was previously dropping valid dataflow traces.
 - **Dead Parameter Wired**: The `window_size` parameter in `fingerprint.rs` is now correctly wired to the multi-scale ngram logic.
 
 ## [0.5.1] - 2026-09-03

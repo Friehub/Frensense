@@ -68,6 +68,7 @@ pub struct AnalysisResult {
     pub source: String,
     pub functions: Vec<fingerprint::FunctionFingerprint>,
     pub symbols: symbols::SymbolRegistry,
+    pub semantic_ops: Vec<crate::data_flow::normalization::SemanticOp>,
     pub import_map: import_resolver::ImportMap,
     pub route_registry: route_registry::HandlerRegistry,
     #[cfg(feature = "full-analysis")]
@@ -80,6 +81,8 @@ pub struct AnalysisResult {
 #[derive(Debug, Clone)]
 pub struct ProjectAnalysis {
     pub files: FxHashMap<String, AnalysisResult>,
+    pub local_tainted_vars: rustc_hash::FxHashMap<String, Vec<String>>,
+
     pub project_registry: route_registry::HandlerRegistry,
     #[cfg(feature = "full-analysis")]
     pub profile: Option<profile::ProjectProfile>,
@@ -158,12 +161,16 @@ pub fn analyze_file(
     #[cfg(feature = "full-analysis")]
     let temporal_events = graph::extract_temporal_events(root, source, file_path);
 
+    let semantic_ops =
+        crate::data_flow::normalization::SemanticExtractor::extract(root, source, ext);
+
     Ok(AnalysisResult {
         language: language.to_string(),
         file_path: file_path.to_string_lossy().to_string(),
         source: source.to_string(),
         functions,
         symbols,
+        semantic_ops,
         import_map,
         route_registry,
         #[cfg(feature = "full-analysis")]
@@ -279,8 +286,72 @@ pub fn analyze_project(
         }
     }
 
+    let mut local_tainted_vars: rustc_hash::FxHashMap<String, Vec<String>> =
+        rustc_hash::FxHashMap::default();
+
+    // Pass 2: Return-Value Taint Propagation
+    // 1. Identify all functions that return taint (e.g. DbQuery)
+    let mut taint_returning_functions = rustc_hash::FxHashSet::default();
+    for res in results.values() {
+        for func in &res.functions {
+            let role =
+                crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
+            if matches!(role, crate::function_role::FunctionRole::DbQuery) {
+                taint_returning_functions.insert(func.function_name.clone());
+            }
+        }
+    }
+
+    // 2. Map call sites to bindings
+    for (file_path, res) in &results {
+        for op in &res.semantic_ops {
+            if let crate::data_flow::normalization::SemanticOp::Call {
+                function_name,
+                range,
+                ..
+            } = op
+            {
+                if taint_returning_functions.contains(function_name) {
+                    // Find a binding that encompasses this call
+                    for other_op in &res.semantic_ops {
+                        match other_op {
+                            crate::data_flow::normalization::SemanticOp::Binding {
+                                name,
+                                value_range,
+                            } => {
+                                if value_range.start_byte <= range.start_byte
+                                    && value_range.end_byte >= range.end_byte
+                                {
+                                    local_tainted_vars
+                                        .entry(file_path.clone())
+                                        .or_default()
+                                        .push(name.clone());
+                                }
+                            }
+                            crate::data_flow::normalization::SemanticOp::Assignment {
+                                target,
+                                value_range,
+                            } => {
+                                if value_range.start_byte <= range.start_byte
+                                    && value_range.end_byte >= range.end_byte
+                                {
+                                    local_tainted_vars
+                                        .entry(file_path.clone())
+                                        .or_default()
+                                        .push(target.clone());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Ok(ProjectAnalysis {
         files: results,
+        local_tainted_vars,
         project_registry,
         #[cfg(feature = "full-analysis")]
         profile: if all_fingerprints.is_empty() {
