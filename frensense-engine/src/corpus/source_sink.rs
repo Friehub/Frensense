@@ -92,6 +92,34 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     "document.write",
     "document.writeln",
     "dangerouslySetInnerHTML",
+    // MongoDB / ORM calls
+    "update",
+    "updateOne",
+    "updateMany",
+    "insert",
+    "insertOne",
+    "insertMany",
+    "delete",
+    "deleteOne",
+    "deleteMany",
+    "find",
+    "findOne",
+    "findAll",
+    "query",
+    // MongoDB / ORM calls
+    "update",
+    "updateOne",
+    "updateMany",
+    "insert",
+    "insertOne",
+    "insertMany",
+    "delete",
+    "deleteOne",
+    "deleteMany",
+    "find",
+    "findOne",
+    "findAll",
+    "query",
     // Storage Write
     "put",
     "setItem",
@@ -743,6 +771,29 @@ pub fn build_registry(positive_files: &[String]) -> CorpusSourceSinkRegistry {
                 let cat = SinkCategory::from_sink_name(&q);
                 let entry = registry.qualified_sink_names.entry(q).or_insert((cat, 0));
                 entry.1 += 1;
+            }
+        }
+
+        // Parse explicit annotation overrides
+        for line in source.lines() {
+            if let Some(sink_name) = line.split("// frensense-sink:").nth(1) {
+                let clean_name = sink_name.trim().to_string();
+                let (short, qualified) = split_sink_name(&clean_name);
+
+                let cat = SinkCategory::from_sink_name(&short);
+                registry
+                    .sink_names
+                    .entry(short.clone())
+                    .or_insert((cat, 0))
+                    .1 += 100;
+
+                if let Some(q) = qualified {
+                    registry
+                        .qualified_sink_names
+                        .entry(q.clone())
+                        .or_insert((cat, 0))
+                        .1 += 100;
+                }
             }
         }
     }

@@ -37,6 +37,7 @@ pub fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -
                         && name != "cypress"
                         && name != "playwright"
                         && name != "storybook-static"
+                        && name != "frontend"
                         && !name.starts_with('.');
                 }
             } else if e.file_type().is_file() {

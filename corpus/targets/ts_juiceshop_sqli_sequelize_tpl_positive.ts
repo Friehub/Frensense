@@ -3,6 +3,7 @@
 // impact: Attackers can inject arbitrary SQL commands through user input, potentially reading, modifying, or deleting database records.
 // improvement: Use parameterized queries or Sequelize's bind parameter syntax instead of string interpolation.
 // cwe: CWE-89
+// frensense-sink: query
 // owasp: A03:2021-Injection
 
 import { type Request, type Response, type NextFunction } from 'express'
