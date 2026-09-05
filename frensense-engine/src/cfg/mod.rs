@@ -2,8 +2,7 @@
 
 pub mod def_use;
 
-use rustc_hash::FxHashMap;
-use std::collections::HashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,7 +21,7 @@ pub struct BasicBlock<'a> {
     pub end_byte: usize,
     pub kind: String,
     pub nodes: Vec<Node<'a>>,
-    pub dominators: HashSet<usize>,
+    pub dominators: FxHashSet<usize>,
     pub successors: Vec<(usize, CFEdgeKind)>,
     pub predecessors: Vec<usize>,
 }
@@ -81,7 +80,7 @@ impl<'a> ControlFlowGraph<'a> {
         if from >= self.blocks.len() || to >= self.blocks.len() {
             return false;
         }
-        let mut visited = HashSet::new();
+        let mut visited = FxHashSet::default();
         let mut stack = vec![from];
         visited.insert(from);
         while let Some(block_id) = stack.pop() {
@@ -158,7 +157,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
         end_byte: root.end_byte(),
         kind: "entry".to_string(),
         nodes: vec![root],
-        dominators: HashSet::new(),
+        dominators: FxHashSet::default(),
         successors: Vec::new(),
         predecessors: Vec::new(),
     });
@@ -188,7 +187,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "branch".to_string(),
                     nodes: vec![node],
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: vec![(merge_block, CFEdgeKind::Branch)],
                     predecessors: vec![current_block],
                 });
@@ -204,7 +203,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "merge".to_string(),
                     nodes: Vec::new(),
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: Vec::new(),
                     predecessors: vec![branch_block, current_block],
                 });
@@ -230,7 +229,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "loop_body".to_string(),
                     nodes: vec![node],
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: vec![
                         (loop_body, CFEdgeKind::BackEdge),
                         (after_loop, CFEdgeKind::Unconditional),
@@ -246,7 +245,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "after_loop".to_string(),
                     nodes: Vec::new(),
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: Vec::new(),
                     predecessors: vec![loop_body],
                 });
@@ -264,7 +263,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "try_entry".to_string(),
                     nodes: vec![node],
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: Vec::new(),
                     predecessors: vec![current_block],
                 });
@@ -277,7 +276,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "catch".to_string(),
                     nodes: Vec::new(),
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: vec![(try_merge, CFEdgeKind::Unconditional)],
                     predecessors: Vec::new(),
                 });
@@ -287,7 +286,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "finally".to_string(),
                     nodes: Vec::new(),
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: vec![(try_merge, CFEdgeKind::Unconditional)],
                     predecessors: Vec::new(),
                 });
@@ -297,7 +296,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: node.end_byte(),
                     kind: "try_merge".to_string(),
                     nodes: Vec::new(),
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: Vec::new(),
                     predecessors: Vec::new(),
                 });
@@ -329,7 +328,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                         end_byte: node.end_byte(),
                         kind: "catch_exit".to_string(),
                         nodes: Vec::new(),
-                        dominators: HashSet::new(),
+                        dominators: FxHashSet::default(),
                         successors: vec![(finally_b, CFEdgeKind::Unconditional)],
                         predecessors: vec![catch_b],
                     });
@@ -377,7 +376,7 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, _ext: &str) -> ControlFlow
                     end_byte: root.end_byte(),
                     kind: "exit".to_string(),
                     nodes: Vec::new(),
-                    dominators: HashSet::new(),
+                    dominators: FxHashSet::default(),
                     successors: Vec::new(),
                     predecessors: vec![current_block],
                 });
@@ -478,7 +477,7 @@ fn split_statement_blocks(cfg: &mut ControlFlowGraph) {
                         end_byte: stmt.end_byte(),
                         kind: "statement".to_string(),
                         nodes: vec![*stmt],
-                        dominators: HashSet::new(),
+                        dominators: FxHashSet::default(),
                         successors: Vec::new(),
                         predecessors: Vec::new(),
                     };
@@ -538,14 +537,14 @@ fn split_statement_blocks(cfg: &mut ControlFlowGraph) {
 }
 
 pub struct CFGWalkResult {
-    pub reachable: HashSet<usize>,
+    pub reachable: FxHashSet<usize>,
     pub back_edges: Vec<(usize, usize)>,
 }
 
 pub fn walk_reachable(cfg: &ControlFlowGraph, from: usize) -> CFGWalkResult {
-    let mut reachable = HashSet::new();
+    let mut reachable = FxHashSet::default();
     let mut back_edges = Vec::new();
-    let mut visited = HashSet::new();
+    let mut visited = FxHashSet::default();
     let mut stack = vec![from];
     visited.insert(from);
 
@@ -578,7 +577,7 @@ pub fn compute_dominators(cfg: &mut ControlFlowGraph) {
     }
     cfg.blocks[cfg.entry].dominators.insert(cfg.entry);
 
-    let all_blocks: HashSet<usize> = (0..n).collect();
+    let all_blocks: FxHashSet<usize> = (0..n).collect();
     for i in 0..n {
         if i != cfg.entry {
             cfg.blocks[i].dominators.clone_from(&all_blocks);
@@ -589,7 +588,7 @@ pub fn compute_dominators(cfg: &mut ControlFlowGraph) {
     while changed {
         changed = false;
         for i in 1..n {
-            let mut new_doms: HashSet<usize> = (0..n).collect();
+            let mut new_doms: FxHashSet<usize> = (0..n).collect();
             for pred in cfg.blocks[i].predecessors.clone() {
                 new_doms = new_doms
                     .intersection(&cfg.blocks[pred].dominators)
@@ -619,8 +618,8 @@ pub fn immediate_dominator(cfg: &ControlFlowGraph, block_id: usize) -> Option<us
     if idom == block_id { None } else { Some(idom) }
 }
 
-pub fn dominance_frontier(cfg: &ControlFlowGraph, block_id: usize) -> HashSet<usize> {
-    let mut frontier = HashSet::new();
+pub fn dominance_frontier(cfg: &ControlFlowGraph, block_id: usize) -> FxHashSet<usize> {
+    let mut frontier = FxHashSet::default();
     let block = &cfg.blocks[block_id];
     for &(succ, _) in &block.successors {
         if let Some(idom) = immediate_dominator(cfg, block_id) {
@@ -662,15 +661,66 @@ pub fn has_auth_guard_dominator(cfg: &ControlFlowGraph, sink_block: usize, sourc
     false
 }
 
-pub fn block_looks_like_auth_guard(block: &BasicBlock, source: &str) -> bool {
-    if block.start_byte >= source.len() || block.end_byte > source.len() {
+/// Known auth-related identifier patterns. Only matched against AST identifier
+/// and call nodes — not raw text — so comments cannot trigger false positives.
+const AUTH_GUARD_PATTERNS: &[&str] = &[
+    "authenticate",
+    "authorize",
+    "isAuthenticated",
+    "checkAuth",
+    "verifyToken",
+    "requireAuth",
+    "requireLogin",
+    "ensureAuthenticated",
+    "session.user",
+    "req.user",
+    "401",
+    "403",
+    "Unauthorized",
+    "Forbidden",
+];
+
+/// Determine whether a CFG basic block looks like an authentication or
+/// authorization guard.
+///
+/// Requires **both** conditions:
+///   1. The block contains a structural early-exit node (`return_statement`,
+///      `throw_statement`, or their Rust/expression-oriented equivalents).
+///   2. At least one non-comment, non-string AST node in the block contains
+///      a substring from [`AUTH_GUARD_PATTERNS`].
+///
+/// Unlike the previous implementation, this does not match raw block text —
+/// it restricts matching to tree-sitter AST node kinds, which excludes
+/// comments and string literal contents from triggering the guard.
+pub fn block_looks_like_auth_guard(block: &BasicBlock<'_>, source: &str) -> bool {
+    // Condition 1: block must contain a structural early-exit.
+    let has_early_exit = block.nodes.iter().any(|n| {
+        matches!(
+            n.kind(),
+            "return_statement"
+                | "return_expression"
+                | "throw_statement"
+                | "throw_expression"
+                | "break_statement"
+        )
+    });
+    if !has_early_exit {
         return false;
     }
-    let block_text = &source[block.start_byte..block.end_byte];
-    (block_text.contains("session") || block_text.contains("auth") || block_text.contains("token"))
-        && (block_text.contains("401")
-            || block_text.contains("403")
-            || block_text.contains("return"))
+
+    // Condition 2: at least one non-comment, non-string node matches an
+    // auth guard pattern. We skip `comment`, `string`, `string_fragment`,
+    // and `template_string` nodes to avoid matching on comments or string
+    // contents that happen to contain "auth".
+    block.nodes.iter().any(|n| {
+        !matches!(
+            n.kind(),
+            "comment" | "string" | "string_fragment" | "template_string" | "raw_string_literal"
+        ) && {
+            let text = &source[n.start_byte()..n.end_byte()];
+            AUTH_GUARD_PATTERNS.iter().any(|p| text.contains(p))
+        }
+    })
 }
 
 pub fn block_for_byte(cfg: &ControlFlowGraph, byte: usize) -> Option<usize> {

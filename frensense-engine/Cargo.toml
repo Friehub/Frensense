@@ -12,6 +12,7 @@ rust-version = "1.88"
 name = "frensense_engine"
 
 [dependencies]
+tracing = "0.1"
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }

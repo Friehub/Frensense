@@ -61,6 +61,11 @@ pub struct PatternRegistry {
     source_sink: CorpusSourceSinkRegistry,
     /// Configurable scoring parameters.
     pub scorer_config: ScorerConfig,
+    /// Pattern freshness tracking: maps pattern_id → (match_count, verified_count).
+    /// Used to down-weight patterns that match many functions but rarely verify taint.
+    pattern_freshness: FxHashMap<String, (u64, u64)>,
+    /// Global freshness decay factor (0.0-1.0). Lower values penalize stale patterns more.
+    freshness_decay: f64,
 }
 
 impl PatternRegistry {
@@ -81,6 +86,8 @@ impl PatternRegistry {
             learned_semantic_markers: std::collections::HashMap::new(),
             source_sink: CorpusSourceSinkRegistry::default(),
             scorer_config: ScorerConfig::default(),
+            pattern_freshness: FxHashMap::default(),
+            freshness_decay: 0.9,
         }
     }
 
@@ -92,6 +99,58 @@ impl PatternRegistry {
     /// Get a reference to the current scorer configuration.
     pub fn scorer_config(&self) -> &ScorerConfig {
         &self.scorer_config
+    }
+
+    /// Update pattern freshness after a corpus match.
+    /// `verified` indicates whether the match was verified by taint analysis.
+    pub fn update_pattern_freshness(&mut self, pattern_id: &str, verified: bool) {
+        let entry = self
+            .pattern_freshness
+            .entry(pattern_id.to_string())
+            .or_insert((0, 0));
+        entry.0 += 1; // increment match count
+        if verified {
+            entry.1 += 1; // increment verified count
+        }
+    }
+
+    /// Get freshness score for a pattern (0.0 to 1.0).
+    /// Higher scores indicate fresher/more reliable patterns.
+    /// Patterns with high match count but low verification rate get lower scores.
+    pub fn pattern_freshness_score(&self, pattern_id: &str) -> f64 {
+        if let Some(&(matches, verified)) = self.pattern_freshness.get(pattern_id) {
+            if matches == 0 {
+                return 1.0; // New pattern, assume fresh
+            }
+            // Freshness = base_score * verification_rate * match_penalty
+            // Start with a base score to avoid penalizing new patterns too aggressively
+            let base_score = 0.8; // 80% base score for all patterns
+            let verification_bonus = verified as f64 / matches as f64 * 0.2; // up to 20% bonus for verification
+            let match_penalty = (self.freshness_decay).powf(matches as f64 / 20.0); // slower decay
+            (base_score + verification_bonus) * match_penalty
+        } else {
+            1.0 // Unknown pattern, assume fresh
+        }
+    }
+
+    /// Set the freshness decay factor (0.0-1.0).
+    /// Lower values penalize stale patterns more aggressively.
+    pub fn set_freshness_decay(&mut self, decay: f64) {
+        self.freshness_decay = decay.clamp(0.1, 1.0);
+    }
+
+    /// Get top N stale patterns (lowest freshness scores) for debugging.
+    pub fn stale_patterns(&self, n: usize) -> Vec<(String, f64, u64, u64)> {
+        let mut patterns: Vec<_> = self
+            .pattern_freshness
+            .iter()
+            .map(|(id, &(matches, verified))| {
+                let score = self.pattern_freshness_score(id);
+                (id.clone(), score, matches, verified)
+            })
+            .collect();
+        patterns.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        patterns.into_iter().take(n).collect()
     }
 
     pub fn load_corpus(&mut self, corpus_dir: &Path) -> crate::Result<usize> {
@@ -329,6 +388,20 @@ impl PatternRegistry {
         self.patterns.len()
     }
 
+    /// Batch-update pattern freshness after a scan completes.
+    /// `verified_patterns` is the set of pattern IDs that passed taint verification.
+    /// All matched patterns not in this set are recorded as unverified matches.
+    pub fn update_freshness_batch(
+        &mut self,
+        matched_patterns: &[String],
+        verified_patterns: &std::collections::HashSet<String>,
+    ) {
+        for pattern_id in matched_patterns {
+            let verified = verified_patterns.contains(pattern_id);
+            self.update_pattern_freshness(pattern_id, verified);
+        }
+    }
+
     pub fn set_threshold_override(&mut self, category: String, threshold: f64) {
         self.threshold_overrides.insert(category, threshold);
     }
@@ -400,17 +473,18 @@ impl PatternRegistry {
     ) -> Vec<PatternMatch> {
         let t0 = std::time::Instant::now();
         // Query both LSH tables (structural + API-call)
-        let struct_candidates: std::collections::HashSet<usize> =
-            if let Some(ref lsh) = self.lsh_index {
-                let sig = minhash_signature(&fp.structural_markers, crate::minhash::DEFAULT_NUM_HASHES);
-                lsh.query(&sig)
-                    .iter()
-                    .map(|&id| id as usize)
-                    .filter(|&id| id < self.patterns.len())
-                    .collect()
-            } else {
-                (0..self.patterns.len()).collect()
-            };
+        let struct_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) =
+            self.lsh_index
+        {
+            let sig = minhash_signature(&fp.structural_markers, crate::minhash::DEFAULT_NUM_HASHES);
+            lsh.query(&sig)
+                .iter()
+                .map(|&id| id as usize)
+                .filter(|&id| id < self.patterns.len())
+                .collect()
+        } else {
+            (0..self.patterns.len()).collect()
+        };
         let api_candidates: std::collections::HashSet<usize> =
             if let Some(ref lsh) = self.lsh_index_api {
                 let sig = if !fp.api_call_segments.is_empty() {
@@ -695,6 +769,11 @@ impl PatternRegistry {
             best_score,
             self.pattern_calibration.get(&pattern.id),
         );
+
+        // Apply freshness penalty: down-weight patterns that match many functions
+        // but rarely verify taint. This reduces false positives from stale patterns.
+        let freshness_score = self.pattern_freshness_score(&pattern.id);
+        let best_score = best_score * freshness_score;
 
         let best_score = if let Some((tm, origin)) = taint_metrics {
             let mut multiplier: f64 = 1.0;

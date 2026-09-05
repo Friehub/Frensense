@@ -14,11 +14,30 @@ pub const DEFAULT_BANDS: usize = 40;
 /// Threshold = (1/bands)^(1/rows_per_band) = (1/40)^(1/12) ≈ 0.71.
 pub const DEFAULT_ROWS_PER_BAND: usize = 12;
 
-fn sha1_hash(value: u64, seed: u64) -> u64 {
-    let mut hasher = FxHasher::default();
-    value.hash(&mut hasher);
-    seed.hash(&mut hasher);
-    hasher.finish()
+/// Compute a single MinHash row hash using a universal multiply-shift hash family.
+///
+/// Each row uses a unique pair `(a, b)` derived from `seed` as hash function
+/// `h_{a,b}(x) = (a * x + b) mod 2^64` where `a` is odd (required for the
+/// construction to be universal in the 2-universal sense per Dietzfelbinger 1997).
+///
+/// This is significantly better than using `FxHasher` as a seed-varying hash,
+/// since `FxHasher` is not a universal hash family and produces biased MinHash
+/// signatures.
+///
+/// NOTE: If `twox-hash` becomes available in the dependency tree, prefer
+/// `XxHash64::with_seed` as it has superior distribution properties. See
+/// TASK 2 in the implementation plan.
+#[inline]
+fn minhash_row_hash(value: u64, seed: u64) -> u64 {
+    // Generate two independent hash coefficients from the seed.
+    // The seed expansion uses a simple mixing step to avoid correlation
+    // between adjacent seeds.
+    let seed_a = seed.wrapping_mul(0x517c_c1b7_2722_0a95).wrapping_add(1);
+    let seed_b = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    // a must be odd for the construction to be universal. Force LSB = 1.
+    let a = seed_a | 1;
+    let b = seed_b;
+    value.wrapping_mul(a).wrapping_add(b)
 }
 
 pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
@@ -32,7 +51,7 @@ pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
     let mut signature = vec![u64::MAX; num_hashes];
     for &h in hashes {
         for (i, min_val) in signature.iter_mut().enumerate() {
-            let candidate = sha1_hash(h, i as u64);
+            let candidate = minhash_row_hash(h, i as u64);
             if candidate < *min_val {
                 *min_val = candidate;
             }
@@ -185,11 +204,11 @@ impl LSHIndex {
             }
         }
         if candidates.len() > 100 {
-            eprintln!(
-                "[LSH] query: {} bands matched, {} candidates from {} signatures",
+            tracing::debug!(
                 bands_matched,
-                candidates.len(),
-                signature.len()
+                candidates = candidates.len(),
+                signature_len = signature.len(),
+                "High number of LSH candidates found"
             );
         }
         candidates.into_iter().collect()

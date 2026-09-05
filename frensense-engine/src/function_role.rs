@@ -314,10 +314,7 @@ pub fn roles_are_incompatible(role_a: FunctionRole, role_b: FunctionRole) -> boo
     use FunctionRole::*;
     matches!(
         (role_a, role_b),
-        (HttpHandler, ShellExecutor)
-            | (ShellExecutor, HttpHandler)
-            | (HttpHandler, DbQuery)
-            | (DbQuery, HttpHandler)
+        (HttpHandler, ShellExecutor | DbQuery) | (ShellExecutor | DbQuery, HttpHandler)
     )
 }
 

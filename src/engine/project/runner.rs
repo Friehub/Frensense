@@ -803,6 +803,21 @@ fn run_corpus_scan(
 
     all_advisories.extend(new_advisories);
 
+    // Update pattern freshness based on scan results
+    // Track which patterns matched and which were taint-verified
+    let mut matched_patterns: Vec<String> = Vec::new();
+    let mut verified_patterns: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for advisory in all_advisories.iter() {
+        if advisory.rule_id.starts_with("CORPUS_") {
+            let pattern_id = advisory.rule_id["CORPUS_".len()..].to_lowercase();
+            matched_patterns.push(pattern_id.clone());
+            if advisory.tags.iter().any(|t| t == "taint-verified") {
+                verified_patterns.insert(pattern_id);
+            }
+        }
+    }
+    registry.update_freshness_batch(&matched_patterns, &verified_patterns);
+
     registry.source_sink_registry().clone()
 }
 

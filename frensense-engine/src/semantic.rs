@@ -23,7 +23,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::corpus::source_sink::{CorpusSourceSinkRegistry, SinkCategory};
 use crate::data_flow::TaintOrigin;
@@ -253,12 +253,30 @@ pub const PACKAGE_SINK_CATEGORIES: &[(&str, SinkCategory)] = &[
     ("fs-extra", SinkCategory::PathTraversal),
 ];
 
+/// O(1) lookup map built once from [`PACKAGE_SINK_CATEGORIES`].
+/// Avoids the previous O(n) linear scan on every call to [`package_sink_category`].
+static PACKAGE_SINK_MAP: std::sync::LazyLock<FxHashMap<&'static str, SinkCategory>> =
+    std::sync::LazyLock::new(|| {
+        PACKAGE_SINK_CATEGORIES
+            .iter()
+            .map(|&(k, v)| (k, v))
+            .collect()
+    });
+
+/// O(1) membership set built once from [`HTTP_FRAMEWORK_PACKAGES`].
+static HTTP_FRAMEWORK_SET: std::sync::LazyLock<FxHashSet<&'static str>> =
+    std::sync::LazyLock::new(|| HTTP_FRAMEWORK_PACKAGES.iter().copied().collect());
+
 /// Map a package name to the sink category of anything imported from it.
+/// O(1) lookup via [`PACKAGE_SINK_MAP`].
 pub(crate) fn package_sink_category(pkg: &str) -> Option<SinkCategory> {
-    PACKAGE_SINK_CATEGORIES
-        .iter()
-        .find(|(candidate, _)| *candidate == pkg)
-        .map(|&(_, category)| category)
+    PACKAGE_SINK_MAP.get(pkg).copied()
+}
+
+/// Returns true if the package name belongs to a known HTTP framework.
+/// O(1) lookup via [`HTTP_FRAMEWORK_SET`].
+pub(crate) fn is_http_framework_package(pkg: &str) -> bool {
+    HTTP_FRAMEWORK_SET.contains(pkg)
 }
 
 /// Extract the base type name from a possibly-parameterized annotation.
@@ -329,7 +347,7 @@ impl SemanticProvider for ImportMapProvider {
         if let Some(annotation) = type_annotation {
             let base = base_type_name(annotation);
             if let Some(package) = self.import_map.resolve(base)
-                && HTTP_FRAMEWORK_PACKAGES.contains(&package)
+                && is_http_framework_package(package)
             {
                 return Some(TaintOrigin::UserInput);
             }
@@ -370,7 +388,7 @@ impl SemanticProvider for ImportMapProvider {
             type_context
                 .import_map
                 .resolve(annotation)
-                .is_some_and(|package| HTTP_FRAMEWORK_PACKAGES.contains(&package))
+                .is_some_and(is_http_framework_package)
         });
         if type_confirmed {
             return true;

@@ -509,11 +509,11 @@ impl<'a> CrossFileVerifier<'a> {
                 }
 
                 // Merge all case states
-                if let Some(first) = case_states.first() {
-                    self.defs = first.clone();
-                }
-                for state in &case_states[1..] {
-                    self.defs.merge_union(state);
+                if !case_states.is_empty() {
+                    self.defs = case_states[0].clone();
+                    for state in &case_states[1..] {
+                        self.defs.merge_union(state);
+                    }
                 }
 
                 return CrossFileResult {
@@ -896,7 +896,30 @@ impl<'a> CrossFileVerifier<'a> {
     /// May panic if internal assertions fail.
     /// Check if a node is tainted (variable reference or member expression).
     fn is_node_tainted(&self, node: Node) -> bool {
+        self.is_node_tainted_inner(node)
+    }
+
+    fn is_node_tainted_inner(&self, node: Node) -> bool {
         match node.kind() {
+            "conditional_expression" | "ternary_expression" => {
+                // Iterate all children (skip operators ? and :)
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        // Skip operator tokens
+                        if !matches!(child.kind(), "?" | ":" | "?:" | "if" | "else" | ";" | ",") {
+                            if self.is_node_tainted(child) {
+                                return true;
+                            }
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
             "identifier" => {
                 let name = &self.source[node.start_byte()..node.end_byte()];
                 // Check reaching-definitions first (more precise), then fall back to registry
@@ -1102,6 +1125,41 @@ impl<'a> CrossFileVerifier<'a> {
                 }
                 false
             }
+            // Coalesce expressions (?? and ??=): tainted if either side is tainted
+            "coalesce_expression" | "coalesce_assignment_expression" => {
+                if let Some(left) = node.child_by_field_name("left") {
+                    if self.is_node_tainted(left) {
+                        return true;
+                    }
+                }
+                if let Some(right) = node.child_by_field_name("right") {
+                    if self.is_node_tainted(right) {
+                        return true;
+                    }
+                }
+                // Fallback: try positional children (lhs, rhs)
+                // In tree-sitter-typescript: child(0)=lhs, child(2)=rhs
+                if node.child_count() >= 3 {
+                    if let Some(lhs) = node.child(0) {
+                        if self.is_node_tainted(lhs) {
+                            return true;
+                        }
+                    }
+                    if let Some(rhs) = node.child(2) {
+                        if self.is_node_tainted(rhs) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            // Optional chain expressions (?.): tainted if the object is tainted
+            "optional_chain_expression" => {
+                if let Some(object) = node.child_by_field_name("object") {
+                    return self.is_node_tainted(object);
+                }
+                false
+            }
             // Object literals: tainted if any property value is tainted
             "object" | "object_pattern" => {
                 let mut cursor = node.walk();
@@ -1162,6 +1220,13 @@ impl<'a> CrossFileVerifier<'a> {
                 }
                 false
             }
+            // TypeScript type assertions (as Cast, <Type>expr): check the inner expression
+            "type_assertion" | "as_expression" | "satisfies_expression" => {
+                if let Some(expr) = node.child(0) {
+                    return self.is_node_tainted(expr);
+                }
+                false
+            }
             // Unary expressions (e.g., !tainted): check operand
             "unary_expression" => {
                 if let Some(operand) = node.child(0) {
@@ -1170,8 +1235,12 @@ impl<'a> CrossFileVerifier<'a> {
                 false
             }
             // Conditional expressions: tainted if either branch is tainted
-            "conditional_expression" => {
-                if let Some(consequent) = node.child_by_field_name("consequence") {
+            "conditional_expression" | "ternary_expression" => {
+                // Try standard field names first
+                if let Some(consequent) = node
+                    .child_by_field_name("consequence")
+                    .or_else(|| node.child_by_field_name("consequent"))
+                {
                     if self.is_node_tainted(consequent) {
                         return true;
                     }
@@ -1179,6 +1248,24 @@ impl<'a> CrossFileVerifier<'a> {
                 if let Some(alternate) = node.child_by_field_name("alternative") {
                     if self.is_node_tainted(alternate) {
                         return true;
+                    }
+                }
+                // Fallback: iterate all children (skip operators ? and :)
+                // conditional_expression children: condition ? consequence : alternative
+                // But field names may vary between grammars, so just check all non-operator children
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        let child = cursor.node();
+                        // Skip operator tokens
+                        if !matches!(child.kind(), "?" | ":" | "?:" | "if" | "else" | ";" | ",") {
+                            if self.is_node_tainted(child) {
+                                return true;
+                            }
+                        }
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
                     }
                 }
                 false

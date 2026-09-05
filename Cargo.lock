@@ -770,6 +770,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.19",
  "toml 0.8.23",
+ "tracing",
  "tree-sitter",
  "tree-sitter-html",
  "tree-sitter-javascript",

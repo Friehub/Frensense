@@ -69,7 +69,12 @@ impl SemanticExtractor {
         }
     }
 
-    fn extract_rust(root: Node, source: &str, ops: &mut Vec<SemanticOp>) {
+    /// Shared extraction logic for all supported languages.
+    ///
+    /// The AST node kinds used here (`call_expression`, `assignment_expression`,
+    /// `let_declaration`, `lexical_declaration`, `variable_declaration`) are
+    /// identical in the tree-sitter grammars for both Rust and TypeScript/JavaScript.
+    fn extract_generic(root: Node, source: &str, ops: &mut Vec<SemanticOp>) {
         let mut cursor = root.walk();
         loop {
             let node = cursor.node();
@@ -104,7 +109,16 @@ impl SemanticExtractor {
                         range: node.into(),
                     });
                 }
+                // Rust: `let x = …`
                 "let_declaration" => {
+                    if let Some(value) = node.child_by_field_name("value") {
+                        if let Some(pattern) = node.child_by_field_name("pattern") {
+                            Self::extract_bindings(pattern, source, value, ops);
+                        }
+                    }
+                }
+                // JS/TS: `let x = …` / `const x = …` / `var x = …`
+                "lexical_declaration" | "variable_declaration" => {
                     if let Some(value) = node.child_by_field_name("value") {
                         if let Some(pattern) = node.child_by_field_name("pattern") {
                             Self::extract_bindings(pattern, source, value, ops);
@@ -141,75 +155,11 @@ impl SemanticExtractor {
         }
     }
 
+    fn extract_rust(root: Node, source: &str, ops: &mut Vec<SemanticOp>) {
+        Self::extract_generic(root, source, ops);
+    }
+
     fn extract_typescript(root: Node, source: &str, ops: &mut Vec<SemanticOp>) {
-        let mut cursor = root.walk();
-        loop {
-            let node = cursor.node();
-            let kind = node.kind();
-
-            match kind {
-                "call_expression" => {
-                    let func = node.child_by_field_name("function");
-                    let args_node = node.child_by_field_name("arguments");
-                    let name = func
-                        .map(|f| source[f.start_byte()..f.end_byte()].to_string())
-                        .unwrap_or_default();
-                    let args = args_node
-                        .map(|a| {
-                            let mut cursor = a.walk();
-                            let mut result = Vec::new();
-                            loop {
-                                let child = cursor.node();
-                                if child.kind() != "comment" {
-                                    result.push(Range::from(child));
-                                }
-                                if !cursor.goto_next_sibling() {
-                                    break;
-                                }
-                            }
-                            result
-                        })
-                        .unwrap_or_default();
-                    ops.push(SemanticOp::Call {
-                        function_name: name,
-                        args,
-                        range: node.into(),
-                    });
-                }
-                "lexical_declaration" | "variable_declaration" => {
-                    if let Some(value) = node.child_by_field_name("value") {
-                        if let Some(pattern) = node.child_by_field_name("pattern") {
-                            Self::extract_bindings(pattern, source, value, ops);
-                        }
-                    }
-                }
-                "assignment_expression" => {
-                    if let (Some(target), Some(value)) = (
-                        node.child_by_field_name("left"),
-                        node.child_by_field_name("right"),
-                    ) {
-                        let target_name =
-                            source[target.start_byte()..target.end_byte()].to_string();
-                        ops.push(SemanticOp::Assignment {
-                            target: target_name,
-                            value_range: value.into(),
-                        });
-                    }
-                }
-                _ => {}
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            loop {
-                if cursor.goto_next_sibling() {
-                    break;
-                }
-                if !cursor.goto_parent() {
-                    return;
-                }
-            }
-        }
+        Self::extract_generic(root, source, ops);
     }
 }

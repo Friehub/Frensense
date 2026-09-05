@@ -773,24 +773,34 @@ fn extract_tainted_recursive(
     }
 }
 
-/// Check if a subtree contains any identifier that matches a parameter name.
-fn has_param_ref(node: Node<'_>, _source: &str, _param_names: &[String]) -> bool {
-    // Simplify: any identifier in a call argument is treated as potentially tainted.
-    // Pure literals (strings, numbers, booleans, null) are not.
-    // This catches exec(cmd), exec(toUrl), exec(result.value) without needing
-    // full data flow — any variable reference COULD carry user input.
+/// Check if a subtree contains a reference to one of the function's parameters.
+///
+/// Only identifiers that directly match a parameter name (or whose root
+/// object in a member/subscript chain matches) are treated as tainted.
+/// Constants, literals, and unrelated identifiers are excluded.
+fn has_param_ref(node: Node<'_>, source: &str, param_names: &[String]) -> bool {
     match node.kind() {
-        "identifier" => true,
-        "member_expression" | "subscript_expression" => {
-            // Property access like query.to or obj[key] — always tainted
-            true
+        "identifier" => {
+            // Only tainted if this identifier matches a declared parameter name.
+            let name = &source[node.start_byte()..node.end_byte()];
+            param_names.iter().any(|p| p == name)
         }
-        "string" | "string_fragment" | "number" | "true" | "false" | "null" => false,
+        "member_expression" | "field_expression" | "subscript_expression" => {
+            // e.g. `req.body.id` or `req["body"]` — tainted only when the root
+            // object is a parameter. Walk up to find the leftmost identifier.
+            if let Some(root) = extract_root_object(node, source) {
+                param_names.iter().any(|p| p == root)
+            } else {
+                false
+            }
+        }
+        // Pure literals are never tainted.
+        "string" | "string_fragment" | "number" | "true" | "false" | "null" | "undefined" => false,
         _ => {
             let mut cursor = node.walk();
             if cursor.goto_first_child() {
                 loop {
-                    if has_param_ref(cursor.node(), _source, _param_names) {
+                    if has_param_ref(cursor.node(), source, param_names) {
                         return true;
                     }
                     if !cursor.goto_next_sibling() {
@@ -800,6 +810,22 @@ fn has_param_ref(node: Node<'_>, _source: &str, _param_names: &[String]) -> bool
             }
             false
         }
+    }
+}
+
+/// Extract the root identifier of a member/subscript chain.
+/// For `req.body.id`, returns `"req"`.
+/// For `obj[key]`, returns `"obj"`.
+fn extract_root_object<'a>(node: Node<'_>, source: &'a str) -> Option<&'a str> {
+    let obj = node
+        .child_by_field_name("object")
+        .or_else(|| node.child_by_field_name("value"))?;
+    match obj.kind() {
+        "identifier" => Some(&source[obj.start_byte()..obj.end_byte()]),
+        "member_expression" | "field_expression" | "subscript_expression" => {
+            extract_root_object(obj, source)
+        }
+        _ => None,
     }
 }
 
@@ -1046,7 +1072,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
     source_code: &str,
     path: &Path,
     fingerprints: &mut Vec<(FunctionFingerprint, Node<'a>)>,
-    _window_size: usize,
+    window_size: usize,
 ) {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let language = crate::parser::ext_to_language(ext).to_string();
@@ -1093,9 +1119,9 @@ pub fn extract_fingerprints_with_nodes<'a>(
             let name_segments = split_name_segments(&function_name);
 
             // Multi-scale n-grams: combine window sizes 3, 5, and 8
-            let mut multi_scale_hashes = token_ngrams_positional(&tokens, 3);
-            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 5));
-            multi_scale_hashes.extend(token_ngrams_positional(&tokens, 8));
+            let mut multi_scale_hashes = token_ngrams_positional(&tokens, window_size);
+            multi_scale_hashes.extend(token_ngrams_positional(&tokens, window_size + 2));
+            multi_scale_hashes.extend(token_ngrams_positional(&tokens, window_size + 5));
 
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);

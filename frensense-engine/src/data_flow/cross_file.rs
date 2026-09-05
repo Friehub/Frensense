@@ -4,8 +4,8 @@ use crate::data_flow::TaintOrigin;
 #[cfg(feature = "full-analysis")]
 use crate::graph::{EdgeKind, SemanticGraph};
 use crate::symbols::Symbol;
-use rustc_hash::FxHashMap;
-use std::collections::{HashSet, VecDeque};
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::VecDeque;
 
 /// Maximum propagation depth through the call graph for transitive taint.
 /// A depth of 5 covers typical layered architectures (handler → service → service → repository → DB).
@@ -26,7 +26,9 @@ pub struct CrossFileTaintResolver {
     call_graph: FxHashMap<String, Vec<String>>,
     reverse_call_graph: FxHashMap<String, Vec<String>>,
     module_map: FxHashMap<String, Vec<String>>,
-    exposed_taint: FxHashMap<(String, String), TaintOrigin>,
+    /// Key: `"{file_path}:{symbol_name}"` — O(1) lookup.
+    /// Previously keyed by `(symbol, file)` tuple which required O(n) scan in `find_taint_source`.
+    exposed_taint: FxHashMap<String, TaintOrigin>,
 }
 
 impl CrossFileTaintResolver {
@@ -67,8 +69,9 @@ impl CrossFileTaintResolver {
         file_path: &str,
         origin: TaintOrigin,
     ) {
+        // Key is "{file_path}:{symbol_key}" for O(1) lookup in find_taint_source.
         self.exposed_taint
-            .insert((symbol_key.to_string(), file_path.to_string()), origin);
+            .insert(format!("{file_path}:{symbol_key}"), origin);
     }
 
     /// Propagate taint forward through the call graph.
@@ -81,14 +84,15 @@ impl CrossFileTaintResolver {
     /// BFS forward from each registered source up to `PROPAGATE_MAX_DEPTH`.
     /// Call this once after all initial `register_exposed_taint` calls.
     pub fn propagate_taint(&mut self) {
+        // exposed_taint is now keyed by "{file}:{symbol}" directly — no reconstruction needed.
         let seeds: Vec<(String, TaintOrigin)> = self
             .exposed_taint
             .iter()
-            .map(|((sym, file), origin)| (format!("{file}:{sym}"), origin.clone()))
+            .map(|(key, origin)| (key.clone(), origin.clone()))
             .collect();
 
         for (seed_key, origin) in &seeds {
-            let mut visited = HashSet::new();
+            let mut visited = FxHashSet::default();
             let mut queue = VecDeque::new();
             queue.push_back((seed_key.clone(), 0));
             visited.insert(seed_key.clone());
@@ -102,13 +106,10 @@ impl CrossFileTaintResolver {
                     for callee in callees {
                         if visited.insert(callee.clone()) {
                             // Register the intermediate function as a taint source
-                            if let Some(idx) = callee.find(':') {
-                                let file = &callee[..idx];
-                                let symbol = &callee[idx + 1..];
-                                self.exposed_taint
-                                    .entry((symbol.to_string(), file.to_string()))
-                                    .or_insert_with(|| origin.clone());
-                            }
+                            // using the flat "{file}:{symbol}" key format.
+                            self.exposed_taint
+                                .entry(callee.clone())
+                                .or_insert_with(|| origin.clone());
                             queue.push_back((callee.clone(), depth + 1));
                         }
                     }
@@ -125,7 +126,7 @@ impl CrossFileTaintResolver {
     ) -> Vec<CrossFileTaint> {
         let sink_key = format!("{sink_file}:{sink_symbol}");
         let mut results = Vec::new();
-        let mut visited = HashSet::new();
+        let mut visited = FxHashSet::default();
         let mut queue = VecDeque::new();
         queue.push_back((sink_key.clone(), 0));
         visited.insert(sink_key.clone());
@@ -173,13 +174,10 @@ impl CrossFileTaintResolver {
     }
 
     fn find_taint_source(&self, key: &str) -> Option<(TaintOrigin, String)> {
-        for ((sym_key, file_path), origin) in &self.exposed_taint {
-            let full_key = format!("{file_path}:{sym_key}");
-            if full_key == key {
-                return Some((origin.clone(), key.to_string()));
-            }
-        }
-        None
+        // O(1) direct lookup — the key is stored as "{file_path}:{symbol_name}".
+        self.exposed_taint
+            .get(key)
+            .map(|origin| (origin.clone(), key.to_string()))
     }
 
     pub fn all_taint_paths(&self, max_depth: usize) -> Vec<CrossFileTaint> {
@@ -274,9 +272,7 @@ mod tests {
         // After propagation: intermediate is transitively seeded
         resolver.propagate_taint();
         assert!(
-            resolver
-                .exposed_taint
-                .contains_key(&("intermediate".to_string(), "a.rs".to_string())),
+            resolver.exposed_taint.contains_key("a.rs:intermediate"),
             "propagate_taint should register intermediate as a taint source"
         );
 
@@ -323,16 +319,12 @@ mod tests {
         // f1-f5 should be seeded, f6 should not (depth 6 > PROPAGATE_MAX_DEPTH=5)
         for i in 1..=5 {
             assert!(
-                resolver
-                    .exposed_taint
-                    .contains_key(&(format!("f{i}"), "a.rs".to_string())),
+                resolver.exposed_taint.contains_key(&format!("a.rs:f{i}")),
                 "f{i} should be seeded within propagation depth"
             );
         }
         assert!(
-            !resolver
-                .exposed_taint
-                .contains_key(&("f6".to_string(), "a.rs".to_string())),
+            !resolver.exposed_taint.contains_key("a.rs:f6"),
             "f6 beyond PROPAGATE_MAX_DEPTH should not be seeded"
         );
     }

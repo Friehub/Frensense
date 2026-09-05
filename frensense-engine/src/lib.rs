@@ -252,9 +252,11 @@ pub fn analyze_project(
                 ) {
                     let taints = resolver.resolve_taint(&func.function_name, &res.file_path, 10);
                     if !taints.is_empty() {
-                        // If cross-file taint reached this sink, hash the api call names to simulate the structural taint
+                        // If cross-file taint reached this sink, hash the api call names to
+                        // simulate the structural taint. Use FxHasher (not DefaultHasher)
+                        // for deterministic output across Rust versions.
                         for api in &func.raw_call_names {
-                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                            let mut hasher = rustc_hash::FxHasher::default();
                             std::hash::Hash::hash(api, &mut hasher);
                             func.tainted_api_calls
                                 .push(std::hash::Hasher::finish(&hasher));

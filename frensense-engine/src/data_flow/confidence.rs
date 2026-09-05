@@ -78,12 +78,12 @@ impl TaintConfidenceAdjuster {
         let cfg = build_cfg(root, source, ext);
         let def_use = compute_def_use(&cfg, source);
 
-        let var_name = extract_sink_var(sink_content);
+        let sink_byte = find_line_byte(source, sink_line);
+
+        let var_name = extract_sink_var_from_ast(root, source, sink_byte);
         if var_name.is_empty() {
             return original_confidence;
         }
-
-        let sink_byte = find_line_byte(source, sink_line);
 
         let candidates: Vec<usize> = def_use
             .uses
@@ -167,22 +167,32 @@ fn trace_hops_to_source(
     None
 }
 
-fn extract_sink_var(content: &str) -> String {
-    if let Some(paren_idx) = content.find('(') {
-        let args = &content[paren_idx + 1..];
-        if let Some(close_paren) = args.rfind(')') {
-            let inner = &args[..close_paren];
-            for part in inner.split(',') {
-                let trimmed = part.trim();
-                if !trimmed.is_empty()
-                    && !trimmed.starts_with('"')
-                    && !trimmed.starts_with('\'')
-                    && !trimmed.starts_with('&')
-                    && !trimmed.contains(' ')
-                    && !trimmed.contains('.')
-                {
-                    return trimmed.to_string();
+fn extract_sink_var_from_ast(root: tree_sitter::Node, source: &str, sink_byte: usize) -> String {
+    // Find the call expression at or near sink_byte
+    if let Some(call_node) = root.descendant_for_byte_range(sink_byte, sink_byte + 10) {
+        let mut cur = call_node;
+        loop {
+            if cur.kind() == "call_expression" {
+                // Get the first argument
+                if let Some(args) = cur.child_by_field_name("arguments") {
+                    let mut c = args.walk();
+                    if c.goto_first_child() {
+                        loop {
+                            let child = c.node();
+                            if child.kind() == "identifier" {
+                                return source[child.start_byte()..child.end_byte()].to_string();
+                            }
+                            if !c.goto_next_sibling() {
+                                break;
+                            }
+                        }
+                    }
                 }
+                break;
+            }
+            match cur.parent() {
+                Some(p) => cur = p,
+                None => break,
             }
         }
     }

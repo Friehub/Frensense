@@ -383,6 +383,25 @@ pub enum SinkCategory {
 }
 
 impl SinkCategory {
+    /// Returns the Common Weakness Enumeration (CWE) ID for this sink category.
+    pub fn cwe(&self) -> u32 {
+        match self {
+            Self::CodeExecution => 94,    // Improper Control of Generation of Code
+            Self::SqlInjection => 89,     // SQL Injection
+            Self::NoSqlInjection => 943, // Improper Neutralization of Special Elements in Data Query Logic
+            Self::CommandInjection => 78, // OS Command Injection
+            Self::PathTraversal => 22,   // Path Traversal
+            Self::Ssrf => 918,           // Server-Side Request Forgery
+            Self::OpenRedirect => 601,   // URL Redirection to Untrusted Site
+            Self::Xss => 79,             // Cross-site Scripting
+            Self::StorageWrite => 200, // Exposure of Sensitive Information to an Unauthorized Actor
+            Self::LogLeak => 532,      // Insertion of Sensitive Information into Log File
+            Self::ResponseLeak => 200, // Exposure of Sensitive Information
+            Self::CredentialLeak => 798, // Use of Hard-coded Credentials
+            Self::Unknown => 0,        // Unknown/Uncategorized
+        }
+    }
+
     pub fn from_sink_name(sink: &str) -> Self {
         let s = sink.to_lowercase();
         if s.contains("eval") || s.contains("exec") && !s.contains("execsync") {
