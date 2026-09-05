@@ -55,6 +55,7 @@ impl TaintConfidenceAdjuster {
         sink_content: &str,
         original_confidence: f32,
         registry: &CorpusSourceSinkRegistry,
+        local_tainted_vars: Option<&[String]>,
     ) -> f32 {
         let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
         let lang_name = crate::parser::ext_to_language(ext);
@@ -109,7 +110,15 @@ impl TaintConfidenceAdjuster {
         // to a floor multiplier rather than crushed to 35%.
         let mut min_hops: Option<usize> = None;
         for &use_idx in &candidates {
-            if let Some(hops) = trace_hops_to_source(&def_use, use_idx, source, root, registry, 0) {
+            if let Some(hops) = trace_hops_to_source(
+                &def_use,
+                use_idx,
+                source,
+                root,
+                registry,
+                local_tainted_vars,
+                0,
+            ) {
                 min_hops = Some(min_hops.map_or(hops, |m| m.min(hops)));
             }
         }
@@ -131,18 +140,21 @@ impl TaintConfidenceAdjuster {
 /// source can be reached within `MAX_HOPS`.
 #[allow(clippy::too_many_arguments)]
 fn trace_hops_to_source(
-    def_use: &DefUseChain,
+    def_use: &crate::cfg::def_use::DefUseChain,
     use_idx: usize,
     source: &str,
     root: tree_sitter::Node,
     registry: &CorpusSourceSinkRegistry,
+    local_tainted_vars: Option<&[String]>,
     depth: usize,
 ) -> Option<usize> {
     if depth > MAX_HOPS {
         return None;
     }
+
+    // Check all definitions that reach this use.
     for def in def_use.defs_reaching(use_idx) {
-        if is_real_source(def, source, root, registry) {
+        if is_real_source(def, source, root, registry, local_tainted_vars) {
             return Some(depth);
         }
         // This def derives from an RHS expression referencing other variable(s)
@@ -156,9 +168,15 @@ fn trace_hops_to_source(
                 && rhs_use.start_byte >= def.start_byte
                 && rhs_use.end_byte <= def.end_byte + SINK_USE_WINDOW_BYTES
             {
-                if let Some(hops) =
-                    trace_hops_to_source(def_use, rhs_use_idx, source, root, registry, depth + 1)
-                {
+                if let Some(hops) = trace_hops_to_source(
+                    def_use,
+                    rhs_use_idx,
+                    source,
+                    root,
+                    registry,
+                    local_tainted_vars,
+                    depth + 1,
+                ) {
                     return Some(hops);
                 }
             }
@@ -217,6 +235,7 @@ fn is_real_source(
     source: &str,
     root: tree_sitter::Node,
     registry: &CorpusSourceSinkRegistry,
+    local_tainted_vars: Option<&[String]>,
 ) -> bool {
     let mut start = def.start_byte.saturating_sub(SOURCE_CONTEXT_PREFIX_BYTES);
     while start > 0 && !source.is_char_boundary(start) {
@@ -230,6 +249,12 @@ fn is_real_source(
 
     if registry.is_source_pattern(context) {
         return true;
+    }
+
+    if let Some(local_vars) = local_tainted_vars {
+        if local_vars.contains(&def.name) {
+            return true;
+        }
     }
 
     if let Some(type_name) = resolve_declared_type(def, root, source) {

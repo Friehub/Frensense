@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-09-05
+
+### Added
+- **Return-Value Taint Propagation**: `frensense-engine` now supports tracking taint from function return values inter-procedurally. Added `SemanticOp::Binding` and `SemanticOp::Call` to `SemanticExtractor`, correlated them in `analyze_project` Pass 2, and threaded a `local_tainted_vars` map down to the dataflow engine (`adjust_confidence`, `is_real_source`).
+- **Language-Agnostic AST Extraction**: Deduplicated `extract_rust` and `extract_typescript` into a unified `extract_generic` AST walker in `normalization.rs`.
+- **CWE Mapping**: Added a `cwe()` method to `SinkCategory` in `source_sink.rs`.
+
+### Changed
+- **Structural AST Matching over Text Matching**: Overhauled `has_param_ref` in `fingerprint.rs`, `block_looks_like_auth_guard` in `cfg/mod.rs`, and `extract_sink_var` in `confidence.rs` to use strict tree-sitter AST queries instead of fragile text matching.
+- **Universal Multiply-Shift Hashing**: Replaced biased MinHash hashers with a universal multiply-shift hash family, and swapped `DefaultHasher` for `FxHasher` in `lib.rs` for deterministic fingerprints.
+- **$O(1)$ LazyLock Maps**: Introduced `LazyLock` for `PACKAGE_SINK_MAP` and `HTTP_FRAMEWORK_SET` in `semantic.rs` to avoid redundant allocations.
+- **Flattened Taint Resolver Keys**: `CrossFileTaintResolver` now uses a flattened `"file:symbol"` string key for $O(1)$ lookups.
+- **FxHashSet Rollout**: Mass-replaced `std::collections::HashSet` with `rustc_hash::FxHashSet` in `cfg/mod.rs` and `cross_file.rs`.
+- **Logging**: Swapped `eprintln!` for `tracing::debug!` in `minhash.rs` and added the `tracing` dependency to `Cargo.toml`.
+
+### Fixed
+- **Dead Parameter Wired**: The `window_size` parameter in `fingerprint.rs` is now correctly wired to the multi-scale ngram logic.
+
 ## [0.5.1] - 2026-09-03
 
 ### Added
