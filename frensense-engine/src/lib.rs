@@ -191,6 +191,7 @@ pub fn analyze_file(
 /// and per-file analysis results.
 ///
 /// # Errors
+#[allow(clippy::missing_panics_doc)]
 /// Returns an error if any file fails to parse.
 pub fn analyze_project(
     files: impl IntoIterator<Item = (String, String)>,

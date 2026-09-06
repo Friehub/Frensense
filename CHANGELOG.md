@@ -6,7 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.2] - 2026-09-05
 
+
 ### Added
+- **Codebase Deduplication**: Unified the AST traversals in `loader.rs` and `source_sink.rs`, eliminating hundreds of lines of redundant algorithmic logic.
+- **Unified Math Ops**: Extracted Jaccard intersection and scoring evaluation formulas into single shared helpers in `minhash.rs`.
+- **Corpus Extension**: Added `ts_juiceshop_idor_update_positive.ts` and `ts_n_plus_one_query` targets to expand the Juiceshop benchmark suite.
+- **Documentation**: Moved all top-level documentation `.md` files to the `docs/` folder to clean up the repository root.
+
+
 - **CLI Taint Pass**: Injected the Return-Value Taint Propagation heuristic directly into the CLI's file scanning loop (`runner.rs`), allowing the CLI to correctly trace variables populated from database queries.
 - **Return-Value Taint Propagation**: `frensense-engine` now supports tracking taint from function return values inter-procedurally. Added `SemanticOp::Binding` and `SemanticOp::Call` to `SemanticExtractor`, correlated them in `analyze_project` Pass 2, and threaded a `local_tainted_vars` map down to the dataflow engine (`adjust_confidence`, `is_real_source`).
 - **Language-Agnostic AST Extraction**: Deduplicated `extract_rust` and `extract_typescript` into a unified `extract_generic` AST walker in `normalization.rs`.
