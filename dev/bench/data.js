@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788713863973,
+  "lastUpdate": 1788716147195,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -2441,6 +2441,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/c3fd273b66ef2d99156eb059a52107399f6256e2"
         },
         "date": 1788713862567,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 36,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 36,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 27,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 27,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 27,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 27,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": false,
+          "id": "82fcb0cf217649d7c6cb9805569446401b646fb1",
+          "message": "Revise benchmark section and update dates (#70)\n\nUpdated benchmark results and adjusted formatting in README.",
+          "timestamp": "2026-09-06T17:30:33Z",
+          "tree_id": "fe9aba95cb59a2bd74576525512f325a336084d7",
+          "url": "https://github.com/Friehub/Frensense/commit/82fcb0cf217649d7c6cb9805569446401b646fb1"
+        },
+        "date": 1788716146493,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
