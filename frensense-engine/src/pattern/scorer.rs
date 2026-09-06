@@ -148,7 +148,7 @@ const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
 pub struct PatternScorer;
 
 /// M1: Weighted Jaccard — IDF-weighted intersection / union.
-pub fn weighted_jaccard(
+pub fn weighted_overlap_coefficient(
     a: &rustc_hash::FxHashMap<u64, f32>,
     b: &rustc_hash::FxHashMap<u64, f32>,
 ) -> f64 {
@@ -156,18 +156,25 @@ pub fn weighted_jaccard(
         return 0.0;
     }
     let mut intersection = 0.0f64;
-    let mut union = 0.0f64;
-    let all_keys: rustc_hash::FxHashSet<_> = a.keys().chain(b.keys()).collect();
-    for key in all_keys {
-        let wa = f64::from(a.get(key).copied().unwrap_or(0.0));
-        let wb = f64::from(b.get(key).copied().unwrap_or(0.0));
-        intersection += wa.min(wb);
-        union += wa.max(wb);
+    let mut sum_a = 0.0f64;
+    let mut sum_b = 0.0f64;
+
+    for (k, wa) in a.iter() {
+        let wa_f = f64::from(*wa);
+        sum_a += wa_f;
+        if let Some(&wb) = b.get(k) {
+            intersection += wa_f.min(f64::from(wb));
+        }
     }
-    if union == 0.0 {
+    for wb in b.values() {
+        sum_b += f64::from(*wb);
+    }
+
+    let min_sum = sum_a.min(sum_b);
+    if min_sum == 0.0 {
         0.0
     } else {
-        intersection / union
+        intersection / min_sum
     }
 }
 
@@ -684,37 +691,37 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_negative: bool,
     ) -> RawDimensions {
-        let jaccard = |a: &[u64], b: &[u64]| -> f64 {
+        let overlap = |a: &[u64], b: &[u64]| -> f64 {
             if a.is_empty() && b.is_empty() {
                 return 0.5; // Both empty — neutral
             }
             if a.is_empty() || b.is_empty() {
                 return 0.0;
             }
-            minhash::jaccard_similarity_sorted(a, b)
+            minhash::overlap_coefficient_sorted(a, b)
         };
-        let jaccard_sorted = |a: &[u64], b: &[u64]| -> f64 {
+        let overlap_sorted = |a: &[u64], b: &[u64]| -> f64 {
             if a.is_empty() && b.is_empty() {
                 return 0.5; // Both empty — neutral
             }
             if a.is_empty() || b.is_empty() {
                 return 0.0;
             }
-            minhash::jaccard_similarity_sorted(a, b)
+            minhash::overlap_coefficient_sorted(a, b)
         };
 
         let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
             || target.weighted_ngram_hashes.is_empty()
         {
-            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
+            overlap(&candidate.ngram_hashes, &target.ngram_hashes)
         } else {
-            weighted_jaccard(
+            weighted_overlap_coefficient(
                 &candidate.weighted_ngram_hashes,
                 &target.weighted_ngram_hashes,
             )
         };
 
-        let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
+        let semantic_sim = overlap(&candidate.semantic_markers, &target.semantic_markers);
 
         // Tree-edit distance is O(n²) LCS — skip when ngram is too low for
         // a perfect AST match to meaningfully move the weighted score.
@@ -727,21 +734,21 @@ impl PatternScorer {
                 &target.skeleton_hashes,
             )
         } else {
-            jaccard(&candidate.structural_markers, &target.structural_markers)
+            overlap(&candidate.structural_markers, &target.structural_markers)
         };
 
-        let signature_sim = jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams);
+        let signature_sim = overlap_sorted(&candidate.signature_ngrams, &target.signature_ngrams);
         let param_type_sim =
-            jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
+            overlap_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
         let type_usage_sim = type_usage_overlap(candidate, target);
-        let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
+        let cf_sim = overlap(&candidate.control_flow_hashes, &target.control_flow_hashes);
         // Fix: api_sim uses max of full-name Jaccard and segment Jaccard.
         // Full names are too specific (models.sequelize.query ≠ sequelize.query),
         // segments capture the method name (query) for cross-variant matching.
-        let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
+        let api_sim_full = overlap(&candidate.api_calls, &target.api_calls);
         let api_sim_seg =
             if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
-                jaccard(&candidate.api_call_segments, &target.api_call_segments)
+                overlap(&candidate.api_call_segments, &target.api_call_segments)
             } else {
                 0.0
             };
@@ -780,9 +787,9 @@ impl PatternScorer {
             if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
                 1.0 // Both have no tainted calls — they agree; neutral match.
             } else {
-                jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+                overlap(&candidate.tainted_api_calls, &target.tainted_api_calls)
             };
-        let config_sim = jaccard(
+        let config_sim = overlap(
             &candidate.config_literal_hashes,
             &target.config_literal_hashes,
         );
@@ -802,14 +809,14 @@ impl PatternScorer {
         let arg_type_sim = if !candidate.argument_call_types.is_empty()
             && !target.argument_call_types.is_empty()
         {
-            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+            overlap(&candidate.argument_call_types, &target.argument_call_types)
         } else {
             0.0
         };
         let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
             && !target.literal_pattern_hashes.is_empty()
         {
-            jaccard(
+            overlap(
                 &candidate.literal_pattern_hashes,
                 &target.literal_pattern_hashes,
             )
