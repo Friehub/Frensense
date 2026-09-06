@@ -4,7 +4,7 @@ import os
 import json
 import time
 
-GENSENSE_BIN = "./target/release/gensense"
+FRENSENSE_BIN = "./target/release/frensense"
 
 def generate_ts(depth):
     path = f"bench_samples/taint_{depth}.ts"
@@ -25,7 +25,7 @@ def generate_ts(depth):
 
 def run_test(path):
     start = time.time()
-    result = subprocess.run([GENSENSE_BIN, path, "--json"], capture_output=True, text=True)
+    result = subprocess.run([FRENSENSE_BIN, path, "--json"], capture_output=True, text=True)
     end = time.time()
     
     if result.returncode != 0:
@@ -45,7 +45,7 @@ def main():
     os.makedirs("bench_samples", exist_ok=True)
     depths = [1, 2, 5, 10, 20, 50] # Start smaller
     
-    print("# GenSense Taint Depth Benchmark")
+    print("# FrenSense Taint Depth Benchmark")
     print("| Depth | Detected | Time (s) |")
     print("| :--- | :--- | :--- |")
     

@@ -5,55 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [Unreleased] — v0.4.0 (planned)
-
-### [0.3.1] - 2026-05-26
-
-### Added
-- **SPG Phase 6a — Semantic Program Graph exposed in context**: `&SemanticGraph` available to all rule types via `AuditOptions.graph` / `GenSenseContext.graph`. Enables cross-cutting queries that span file boundaries.
-- **SPG Phase 6b — Taint edges materialized in graph**: After each file audit, taint-related advisories are recorded as `TaintFlow` edges in the `SemanticGraph`. Accessible via `graph.taint_flows` and `graph.name_index`.
-- **SPG Phase 6c — Algebraic flow combinators**: 6 new `FlowConstraint` variants (`AllOf`, `AnyOf`, `Not`, `Across`, `Without`, `Chain`) with `FlowEvaluator` recursive tree-walk evaluator. Compound rule queries from YAML DSL fields (`across_boundary`, `all_of`, `any_of`, `not`, `without_constraint`, `without_exclusion`).
-- **6 tuning parameters exposed**: `--max-source-lines`, `--ngram-window`, `--min-ngram-count`, `--taint-conf-inter`, `--taint-conf-intra`, `--taint-max-depth` CLI flags with setters and default values on `Engine`.
-- **`LongFile` configurable threshold**: `LongFile::new(max_lines)` replaces unit struct; `remove_rule`/`add_rule` plumbing for dynamic rule replacement.
-- **N-gram fingerprint window configurable**: `extract_fingerprints(window_size)` via `AuditOptions`.
-- **Taint confidence configurable**: Reads from `self.context` instead of hardcoded `0.80` / `0.90`.
-- **Default taint max depth configurable**: Reads from `self.context` instead of hardcoded `5`.
-- **CSA delegation suppression test**: `body_may_delegate_via` now tested — functions delegating to `safeParse`/`validate`/`verify`/`check`/`assert` are correctly excluded from findings.
-- **Rule quality pipeline**: Every rule now carries a `precision` tier (`very-high | high | medium | low`), letting users choose a rule suite via `--suite {default|extended|all}`.
-- **`--suite` CLI flag**: `gensense --suite default path/` filters to high-confidence findings only.
-- **Native TypeScript rule `TS_TAUTOLOGICAL_ASSERT`**: Detects `expect(x).toBe(x)`, `expect(true).toBeTruthy()`, `expect(null).toBeNull()`.
-- **`temporal` feature flag**: Gates `TemporalAnalyzer`, `TemporalConfig`, and all temporal compilation/execution paths.
-- **RUST_LOCK_SLEEP temporal rule**: Detects `lock()` followed by `sleep()` in the same scope.
-- **CSA test coverage**: All 5 CSA rules (RUST + 4 TS) now have positive/negative corpus fixtures and `run_test()` functions. `SOL_*` rules removed.
-- **CLI defaults to `.`**: `gensense` with no path argument now scans the current directory.
-- **Full `--help` rewrite**: All 19 CLI flags documented in categorized sections (Analysis, Confidence & Tuning, Output, Development) with 8 examples.
-- **README rewritten**: Simplified from 357→250 lines, v0.3.1 features, deduplicated suppression section.
-
-### Changed
-- **`perform_parallel_audit` signature**: `&SymbolRegistry` → `&mut SymbolRegistry` to support graph mutation during audit.
-- **Precision assigned to all 75 rules**: 6 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 65 YAML rules tiered by confidence score.
-- **Consolidated single-binaries into unified crate**: `cargo install gensense` now produces both `gensense` and `gensense-mcp` binaries.
-- **MCP filter params**: Added `language` (file extension) and `rules` (rule_id set) filters to `gensense_audit` tool.
-- **Clippy pedantic compliance**: All ~35 `clippy::pedantic` violations fixed.
-- **Temporal analyzer moved to dedicated folder**: `src/temporal/` consolidates temporal code.
-- **License headers**: MIT license on all 13 previously unattributed files. Solidity rules changed to MIT.
-- **GAP_ANALYSIS.md**: Phase 2a/2c marked complete. Updated Summary table.
-
-### Fixed
-- **MCP tests**: 36/36 pass including `test_mcp_language_filter`, `test_mcp_rules_filter`.
-- **Binary file crash**: `collect_files` filters to supported extensions, preventing UTF-8 panic.
-- **Package.json**: Removed non-existent `index.js` from `files` array.
-
-### Removed
-- **14 style/noise YAML rules**: Self-audit findings dropped from 186 to 69.
-- **10 Solidity rules and feature**: Dead code — `solidity` feature removed, no tree-sitter support.
-- **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md` superseded by `GAP_ANALYSIS.md`.
-
 ### [0.3.0] - 2026-05-21
 
 ### Changed (Breaking)
-- **Rust API: `GenSenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.
-- **Rust API: `GenSenseRule::new_remediation`**: Added a mandatory `import: Option<String>` parameter to support auto-injection of missing imports during patching.
+- **Rust API: `FrensenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.
+- **Rust API: `FrensenseRule::new_remediation`**: Added a mandatory `import: Option<String>` parameter to support auto-injection of missing imports during patching.
 - **Rust API: `CoreRuleIr::query`**: Always returns the compiled query string; removed `use_query` guard. All YAML node-kind rules now participate in the combined query.
 - **Data Model: `Advisory`**: Added mandatory fields `proposed_import`, `enclosing_symbol`, `confidence`, and `fingerprint` for higher fidelity result tracking.
 - **Edition Upgrade**: The project now requires **Rust 2024 Edition**.
@@ -61,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Schema Contract Validation**: New `ProjectFlowConstraint::SchemaContract` variant with `SchemaType`/`SchemaExtract` enums. Flattened DSL fields (`source_ext`, `source_pattern`, `source_file_glob`, `schema_type`, `schema_glob`, `schema_extract`) on `ProjectCoreRule`. Block-aware Prisma extractor replaces fragile line-based parser. Standard DB rules in `cross-layer-contracts.yml`.
-- **MCP Server Binary**: `gensense-mcp` — full JSON-RPC 2.0 over stdin/stdout. Tool `gensense_audit` returns `{clean, advisories, auto_fixed, requires_human}` with `severity_threshold` filtering and optional `fix_auto`. 35 integration tests (34 pass, 1 ignored in debug mode).
+- **MCP Server Binary**: `frensense-mcp` — full JSON-RPC 2.0 over stdin/stdout. Tool `frensense_audit` returns `{clean, advisories, auto_fixed, requires_human}` with `severity_threshold` filtering and optional `fix_auto`. 35 integration tests (34 pass, 1 ignored in debug mode).
 - **Field-Path Taint Propagation**: `TaintRegistry::get_any_field_origin` detects whole-object leaks when only specific fields are tainted. `resolve_taint` now falls back to field-taint check for identifiers.
 - **Combined Tree-Sitter Query**: Single AST traversal per language merges all rule queries into one multi-pattern query. Capture names encode rule IDs (`@{rule_id}.node`). `HashSet<(rule_idx, node_id)>` dedup prevents redundant `check()` calls. Eliminates O(F × R × T) scaling.
 - **Cached `run_content` Init**: Only calls `initialize_auditor_and_config` on first invocation (~243ms saved per subsequent call).
@@ -108,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-05-13
 
 ### Added
-- **Multi-File Scanning (GenSense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
+- **Multi-File Scanning (Frensense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
 - **Graph-First Semantic Engine**: Migrated to a global symbol graph for high-precision inter-procedural taint analysis across files.
 - **Multi-Pass Audit Loop**: Implemented a sophisticated audit pipeline that performs local AST checks followed by cross-file project-level enforcement.
 - **Cross-File Project Rules**: Full support for `MustHaveGuard`, `MustBeInternal`, and `CrossFileTaintFree` rules.

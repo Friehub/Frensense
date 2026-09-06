@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-//! Gensense Engine Benchmarks
+//! Frensense Engine Benchmarks
 //!
 //! Concrete, realistic benchmarks across every major engine subsystem.
 //! Each benchmark uses code that resembles actual production patterns —
@@ -15,18 +15,18 @@
 //!   open target/criterion/report/index.html
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use gensense::engine::auditor::GenSenseAuditor;
-use gensense::semantics::{Symbol, SymbolKind, SymbolRegistry};
-use gensense::{Engine, FileId};
+use frensense::engine::auditor::FrensenseAuditor;
+use frensense::semantics::{Symbol, SymbolKind, SymbolRegistry};
+use frensense::{Engine, FileId};
 use std::fmt::Write;
 use std::path::Path;
 use std::time::Duration;
 
-/// If `GENSENSE_BENCH_QUICK` is set to `1` or `true`, override each benchmark
+/// If `FRENSENSE_BENCH_QUICK` is set to `1` or `true`, override each benchmark
 /// group with a minimal sample count and short measurement window so CI runs
 /// finish in seconds instead of minutes.
 fn apply_quick_mode(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
-    if std::env::var("GENSENSE_BENCH_QUICK")
+    if std::env::var("FRENSENSE_BENCH_QUICK")
         .ok()
         .is_some_and(|v| v == "1" || v == "true")
     {
@@ -418,8 +418,8 @@ fn bench_rule_compilation(c: &mut Criterion) {
 
     group.bench_function("compile_all_builtin_rules", |b| {
         b.iter(|| {
-            let (rules, project_rules) = GenSenseAuditor::default_rules();
-            black_box((rules, project_rules))
+            let auditor = FrensenseAuditor::default_auditor();
+            black_box(auditor)
         });
     });
 
@@ -492,7 +492,7 @@ fn bench_symbol_registry(c: &mut Criterion) {
 // (200 files × 10 advisories each = 2,000 fingerprints) this matters.
 
 fn bench_fingerprinting(c: &mut Criterion) {
-    use gensense::Advisory;
+    use frensense::Advisory;
 
     let mut group = c.benchmark_group("fingerprinting");
     apply_quick_mode(&mut group);
@@ -501,7 +501,7 @@ fn bench_fingerprinting(c: &mut Criterion) {
         rule_id: "TS_ASYNC_FOR_EACH".into(),
         file_id: FileId(42),
         file_path: "packages/api/modules/order/services/order-service.ts".into(),
-        severity: gensense::Severity::Critical,
+        severity: frensense::Severity::Critical,
         observation: "async forEach in a service method".into(),
         impact: "Errors are silently swallowed".into(),
         improvement: "Use for...of".into(),
@@ -518,6 +518,12 @@ fn bench_fingerprinting(c: &mut Criterion) {
         auto_fixable: false,
         requires_human: false,
         tags: vec!["async".into(), "service".into()],
+        taint_branch_ratio: Some(0.0),
+        has_validation_name: None,
+        match_evidence: None,
+        cwe: None,
+        cvss: None,
+        owasp: None,
     };
 
     // Measure identity() — used on every baseline comparison
@@ -533,159 +539,13 @@ fn bench_fingerprinting(c: &mut Criterion) {
     group.finish();
 }
 
-// ── Group 7: Schema Contract Checker ─────────────────────────────────────────
-// The SchemaContractChecker walks source files and validates against
-// extracted Prisma schema sets. Measures extractor + checker together.
-
-#[allow(clippy::too_many_lines)]
-fn bench_schema_contract(c: &mut Criterion) {
-    use gensense::rules::schema_contract::prisma_extractor::PrismaExtractor;
-    use std::fs;
-    use tempfile::tempdir;
-
-    let mut group = c.benchmark_group("schema_contract");
-    group.sample_size(30);
-    apply_quick_mode(&mut group);
-
-    // Build a realistic Prisma schema (20 models, ~8 fields each)
-    let dir = tempdir().unwrap();
-    let schema_dir = dir.path().join("prisma").join("schema");
-    fs::create_dir_all(&schema_dir).unwrap();
-
-    let models = [
-        (
-            "user",
-            vec![
-                "id",
-                "email",
-                "passwordHash",
-                "role",
-                "createdAt",
-                "updatedAt",
-            ],
-        ),
-        (
-            "order",
-            vec![
-                "id",
-                "userId",
-                "subtotal",
-                "status",
-                "paymentMethod",
-                "createdAt",
-            ],
-        ),
-        (
-            "orderLine",
-            vec!["id", "packageId", "variantId", "quantity", "price"],
-        ),
-        (
-            "orderPackage",
-            vec!["id", "orderId", "sellerId", "status", "trackingCode"],
-        ),
-        (
-            "product",
-            vec!["id", "sellerId", "slug", "title", "description", "status"],
-        ),
-        (
-            "productVariant",
-            vec!["id", "productId", "sku", "price", "stock"],
-        ),
-        ("cart", vec!["id", "userId", "sessionId", "createdAt"]),
-        (
-            "cartItem",
-            vec!["id", "cartId", "variantId", "quantity", "priceSnapshot"],
-        ),
-        (
-            "payment",
-            vec!["id", "orderId", "method", "status", "amount", "reference"],
-        ),
-        (
-            "wallet",
-            vec!["id", "userId", "balance", "currency", "updatedAt"],
-        ),
-        (
-            "ledgerEntry",
-            vec!["id", "walletId", "type", "amount", "orderId", "createdAt"],
-        ),
-        (
-            "seller",
-            vec!["id", "userId", "storeName", "status", "commissionRate"],
-        ),
-        (
-            "commission",
-            vec!["id", "agentId", "orderId", "amount", "status"],
-        ),
-        (
-            "dispute",
-            vec!["id", "orderId", "buyerId", "sellerId", "reason", "status"],
-        ),
-        (
-            "coupon",
-            vec!["id", "sellerId", "code", "discount", "type", "expiresAt"],
-        ),
-        (
-            "review",
-            vec!["id", "productId", "buyerId", "rating", "body", "status"],
-        ),
-        (
-            "notification",
-            vec!["id", "userId", "type", "payload", "read", "createdAt"],
-        ),
-        (
-            "address",
-            vec!["id", "userId", "street", "city", "state", "country"],
-        ),
-        (
-            "stockLevel",
-            vec!["id", "variantId", "warehouseId", "quantity", "reserved"],
-        ),
-        (
-            "stockReservation",
-            vec!["id", "variantId", "orderId", "quantity", "status"],
-        ),
-    ];
-
-    let mut schema_content = String::new();
-    for (name, fields) in &models {
-        let pascal = pascal_case(name);
-        writeln!(schema_content, "model {pascal} {{").unwrap();
-        for field in fields {
-            writeln!(schema_content, "  {field} String").unwrap();
-        }
-        schema_content.push_str("}\n\n");
-    }
-    fs::write(schema_dir.join("schema.prisma"), &schema_content).unwrap();
-
-    let schema_glob = glob::Pattern::new("**/*.prisma").unwrap();
-    let root = dir.path().to_path_buf();
-
-    group.bench_function("extract_model_names_20_models", |b| {
-        b.iter(|| PrismaExtractor::extract_model_names(black_box(&schema_glob), black_box(&root)));
-    });
-
-    group.bench_function("extract_field_names_20_models", |b| {
-        b.iter(|| PrismaExtractor::extract_field_names(black_box(&schema_glob), black_box(&root)));
-    });
-
-    group.finish();
-}
-
-fn pascal_case(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
-}
-
 // ── Group 8: N-gram Post-Processing (Jaccard Similarity) ─────────────────────
 // Measures post_process_ngrams at increasing fingerprint counts.
 // This is O(n²) pairwise comparison — watch for quadratic degradation.
 // Particularly important before v0.4.0 when the style-baseline adds more features.
 
 fn bench_post_process_ngrams(c: &mut Criterion) {
-    use rustc_hash::FxHasher;
+    use rustc_hash::{FxHashSet, FxHasher};
     use std::hash::{Hash, Hasher};
 
     let mut group = c.benchmark_group("post_process_ngrams");
@@ -721,15 +581,28 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
                 hashes.insert(h.finish());
             }
 
-            fingerprints.push(gensense::FunctionFingerprint {
+            fingerprints.push(frensense::FunctionFingerprint {
                 file_path: format!("src/service_{}.rs", i / 10),
                 function_name: format!("fn_{i}"),
                 line: i * 12 + 1,
-                ngram_hashes: hashes,
+                language: "rust".to_string(),
+                ngram_hashes: hashes.clone(),
+                signature_ngrams: FxHashSet::default(),
+                param_type_ngrams: FxHashSet::default(),
+                name_segments: Vec::new(),
+                structural_markers: FxHashSet::default(),
+                type_usages: Vec::new(),
+                comment_density: 0.0,
+                weighted_ngram_hashes: rustc_hash::FxHashMap::default(),
+                semantic_markers: FxHashSet::default(),
+                skeleton: Vec::new(),
+                control_flow_hashes: FxHashSet::default(),
+                api_calls: FxHashSet::default(),
+                property_accesses: FxHashSet::default(),
             });
         }
 
-        let sources = gensense::SourceRegistry::new();
+        let sources = frensense::SourceRegistry::new();
 
         group.bench_with_input(
             BenchmarkId::new("pairwise_comparison", fp_count),
@@ -750,7 +623,7 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
 
 criterion_group!(throughput, bench_scan_throughput, bench_project_scale);
 
-criterion_group!(analysis, bench_taint_depth, bench_schema_contract);
+criterion_group!(analysis, bench_taint_depth);
 
 criterion_group!(
     engine_internals,

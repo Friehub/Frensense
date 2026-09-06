@@ -2,24 +2,24 @@
 
 ## Node.js Programmatic API
 
-The Node.js API provides a class-based interface to the GenSense engine via a native NAPI-RS binding. No Rust toolchain is required at runtime.
+The Node.js API provides a class-based interface to the Frensense engine via a native NAPI-RS binding. No Rust toolchain is required at runtime.
 
 ### Installation
 
 ```bash
-npm install @friehub/gensense
+npm install @friehub/frensense
 ```
 
 ---
 
-### Class: `GenSense`
+### Class: `Frensense`
 
 The primary entry point for the diagnostic engine.
 
 #### Constructor
 
 ```typescript
-new GenSense(options?: GenSenseOptions)
+new Frensense(options?: FrensenseOptions)
 ```
 
 **Parameters**
@@ -32,13 +32,13 @@ new GenSense(options?: GenSenseOptions)
 **Example**
 
 ```javascript
-const { GenSense } = require('@friehub/gensense');
+const { Frensense } = require('@friehub/frensense');
 
 // All rules active
-const engine = new GenSense();
+const engine = new Frensense();
 
 // Security and reliability rules only, in production mode
-const engine = new GenSense({
+const engine = new Frensense({
   environment: 'production',
   tags: ['security', 'reliability']
 });
@@ -69,9 +69,9 @@ auditContent(filePath: string, content: string): Advisory[]
 
 ```javascript
 const fs = require('fs');
-const { GenSense } = require('@friehub/gensense');
+const { Frensense } = require('@friehub/frensense');
 
-const engine = new GenSense({ tags: ['security'] });
+const engine = new Frensense({ tags: ['security'] });
 const source = fs.readFileSync('src/server.ts', 'utf-8');
 const findings = engine.auditContent('src/server.ts', source);
 
@@ -124,7 +124,7 @@ interface Advisory {
   ruleId:      string;   // e.g. "RUST_ASYNC_MUTEX_DEADLOCK"
   severity:    string;   // "Critical" | "Warning" | "Info"
   observation: string;   // What was found (specific to this instance)
-  impact:      string;   // Why it matters — concrete technical consequence
+  impact:      string;   // Why it matters (concrete technical consequence)
   improvement: string;   // What to do about it
   line:        number;   // 1-indexed line number
   column:      number;   // 1-indexed column number
@@ -142,17 +142,18 @@ The Rust library exposes the engine directly for use in build tools, custom CLI 
 
 ```toml
 [dependencies]
-gensense = "0.1.7"
+frensense = "0.5.0"
+frensense-engine = "0.5.0"
 ```
 
 ### Single File Audit
 
 ```rust
-use gensense::{Engine, GenSenseAuditor};
+use frensense::{Engine, FrensenseAuditor};
 use std::path::Path;
 
-fn main() -> gensense::Result<()> {
-    let auditor = GenSenseAuditor::default_auditor();
+fn main() -> frensense::Result<()> {
+    let auditor = FrensenseAuditor::default_auditor();
     let engine = Engine::new(auditor);
 
     let source = std::fs::read_to_string("src/main.rs")?;
@@ -165,7 +166,7 @@ fn main() -> gensense::Result<()> {
         );
     }
 
-    if advisories.iter().any(|a| a.severity == gensense::Severity::Critical) {
+    if advisories.iter().any(|a| a.severity == frensense::Severity::Critical) {
         std::process::exit(1);
     }
 
@@ -176,11 +177,11 @@ fn main() -> gensense::Result<()> {
 ### Project-Wide Audit
 
 ```rust
-use gensense::{Engine, GenSenseAuditor};
+use frensense::{Engine, FrensenseAuditor};
 use std::path::Path;
 
-fn main() -> gensense::Result<()> {
-    let auditor = GenSenseAuditor::default_auditor();
+fn main() -> frensense::Result<()> {
+    let auditor = FrensenseAuditor::default_auditor();
     let mut engine = Engine::new(auditor);
 
     // Activate optional tags
@@ -201,62 +202,71 @@ fn main() -> gensense::Result<()> {
 ### Synopsis
 
 ```
-gensense <path> [options]
-gensense test-rule <rule.yml> [options]
-gensense --list-rules
-gensense --debug <file>
-gensense --generate-docs
-gensense --version
+frensense <path> [options]
+frensense <corpus_path> --build-bundle [--build-bundle-output <out.frc>]
+frensense --learn <positive_file> <negative_file> --learn-output <bundle.frc>
+frensense --version
 ```
 
 ### Analysis Options
 
 | Flag | Description |
 | :--- | :--- |
-| `--severity <level>` | Filter findings by severity: `critical`, `warning`, or `info` |
-| `--tag <name>` | Enable an optional diagnostic tag (can be specified multiple times) |
-| `--strict` | Exit with code 1 if any findings match the active filter |
-| `--json` | Output findings as a JSON array |
-| `--sarif` | Output findings in SARIF v2.1.0 format |
-| `--fix` | Apply automated remediations where available |
-| `--diff` | Preview proposed fixes as a unified diff |
+| `--suite <name>` | Defines the rule suite to run: `default` (near-zero FP), `extended`, or `all`. |
+| `--severity <level>` | Filter findings by severity: `critical`, `warning`, or `info`. |
+| `--tag <name>` | Enable an optional diagnostic tag (can be specified multiple times). |
+| `--language <ext>` | Filter analysis to a specific file extension (e.g., `ts`, `rs`). |
+| `--strict` | Exit with code 1 if any findings match the active filter. |
+| `--json` | Output findings as a JSON array. |
+| `--sarif` | Output findings in SARIF v2.1.0 format. |
+| `--fix [<scope>]` | Apply automated remediations where available (`style`, `security`, `all`). |
+| `--diff [<scope>]` | Preview proposed fixes as a unified diff. |
+| `--diff-only` | Only output the diff, silencing all other stdout (useful for CI formatters). |
+| `--build-bundle` | Compiles a custom `.frc` bundle from the specified corpus directory path. |
+| `--build-bundle-output <path>` | Path to save the compiled bundle (default: `frensense-corpus.frc`). |
 
-### Custom Rule Options
+### Confidence & Taint Thresholds
 
 | Flag | Description |
 | :--- | :--- |
-| `--rules-dir <path>` | Load additional YAML rules from the specified directory |
-| `--no-builtin-rules` | Disable all embedded rules (run only user-supplied rules) |
+| `--confidence <tier>` | Set minimum confidence: `high` (0.85), `medium` (0.60), `low` (0.30), `any` (0.0). |
+| `--min-confidence <float>` | Set a raw float confidence threshold (e.g., `0.75`). |
+| `--threshold <float>` | Layer 1 structural match threshold (default: `0.15`). |
+| `--jaccard-threshold <float>` | Set the AST Jaccard similarity threshold for fingerprinting. |
+| `--taint-max-depth <int>` | Maximum depth for cross-function taint tracing (default: `5`). |
 
-### Utility Commands
+### Overrides & Baselines
 
-| Command | Description |
+| Flag | Description |
 | :--- | :--- |
-| `--list-rules` | Print all active rules in a formatted catalog |
-| `--generate-docs` | Write a `RULES.md` catalog file to the current directory |
-| `--debug <file>` | Print the tree-sitter AST of a file (useful when writing rules) |
-| `--version` | Print the engine version and enabled feature flags |
+| `--disable-rule <id>` | Ignore all findings for a specific rule ID. |
+| `--override-severity <ID>:<level>` | Change a rule's severity dynamically (e.g. `CORPUS_TS_XSS:critical`). |
+| `--emit-baseline <path>` | Save all current findings to a baseline file to ignore them in the future. |
+| `--compare-baseline <path>` | Suppress any findings that exist in the specified baseline file. |
 
-### Rule Testing
+---
+
+## Live Learning (`--learn`)
+
+Frensense does not require you to recompile the engine to teach it a new vulnerability pattern. You can dynamically learn a new bug directly from the command line using the `--learn` flag.
+
+### How it Works
+
+Simply provide a code snippet containing the vulnerability (Positive), and a snippet containing the safe/remediated code (Negative). Frensense will calculate the structural AST fingerprints and generate a custom `.frc` bundle on the fly.
 
 ```bash
-gensense test-rule <rule.yml> \
-  --fixture <file> \
-  --expect-finding <RULE_ID> \
-  --expect-line <N>
+# Teach Frensense a new structural bug
+frensense --learn ./buggy_auth.ts ./safe_auth.ts --learn-output custom_corpus.frc
+
+# Scan your project using your custom learned corpus
+frensense ./src --corpus ./custom_corpus.frc
 ```
 
-| Flag | Description |
-| :--- | :--- |
-| `--fixture <file>` | The source file to run the rule against |
-| `--expect-finding <id>` | Assert that a finding with this rule ID is produced |
-| `--expect-line <n>` | Assert that the finding appears at this line number |
-
-Exits 0 on pass, 1 on fail. Use in CI to verify rules before deploying them.
+This allows security engineers to write a bug reproduction and instantly scale its detection across thousands of repositories without ever writing a YAML rule.
 
 ### Exit Codes
 
 | Code | Meaning |
 | :--- | :--- |
-| `0` | Success — no findings, or findings present but `--strict` not set |
-| `1` | Findings produced and `--strict` is set, or `test-rule` failed |
+| `0` | Success (no findings, or findings present but `--strict` not set) |
+| `1` | Findings produced and `--strict` is set, or an error occurred |

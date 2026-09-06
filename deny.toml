@@ -1,4 +1,7 @@
 [advisories]
+ignore = [
+    "RUSTSEC-2025-0141", # bincode is unmaintained, but v1.3.3 is considered complete by authors
+]
 unmaintained = "workspace"
 yanked = "warn"
 
@@ -17,6 +20,9 @@ allow = [
   "BSD-2-Clause",
   "ISC",
   "MPL-2.0",
-  "Unicode-3.0"
+  "Unicode-3.0",
+  "BSL-1.0",
+  "Zlib",
+  "Apache-2.0 WITH LLVM-exception"
 ]
 confidence-threshold = 0.8

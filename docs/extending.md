@@ -1,22 +1,22 @@
 # Writing Custom Rules
 
-GenSense is designed so that any developer can add new rules without modifying the engine or recompiling from source. Rules are declarative YAML files that the engine discovers and loads at runtime.
+Frensense is designed so that any developer can add new rules without modifying the engine or recompiling from source. Rules are declarative YAML files that the engine discovers and loads at runtime.
 
 ---
 
 ## How Rule Loading Works
 
-GenSense uses a two-tier loading system:
+Frensense uses a two-tier loading system:
 
 | Tier | Source | Who controls it |
 | :--- | :--- | :--- |
-| **Embedded rules** | Baked into the binary at compile time | GenSense core team |
+| **Embedded rules** | Baked into the binary at compile time | Frensense core team |
 | **User rules** | Read from disk at runtime, no recompile needed | You |
 
 At startup, the engine reads user rules from:
 
-1. **`.gensense/rules/`** in the project root — rules committed alongside your code
-2. **`~/.gensense/rules/`** — global rules that apply to every project on your machine
+1. **`.frensense/rules/`** in the project root — rules committed alongside your code
+2. **`~/.frensense/rules/`** — global rules that apply to every project on your machine
 3. **`--rules-dir <path>`** — any additional path you pass on the command line
 
 All rule sets are merged into one pipeline. If a user rule has the same `id` as an embedded rule, the user rule wins (override semantics).
@@ -25,7 +25,7 @@ All rule sets are merged into one pipeline. If a user rule has the same `id` as 
 
 ## Writing a YAML Rule
 
-Create a `.yml` file in `.gensense/rules/` with this structure:
+Create a `.yml` file in `.frensense/rules/` with this structure:
 
 ```yaml
 # Optional: declare the YAML format version (defaults to 0.3.0 if absent)
@@ -55,7 +55,7 @@ rules:
     ...
 ```
 
-If omitted, the engine assumes the latest version (currently **0.3.1**). If an unknown version is specified, a warning is logged but processing continues. This ensures forward compatibility as the format evolves.
+If omitted, the engine assumes the latest version (currently **0.3.0**). If an unknown version is specified, a warning is logged but processing continues. This ensures forward compatibility as the format evolves.
 
 ---
 
@@ -80,26 +80,15 @@ If omitted, the engine assumes the latest version (currently **0.3.1**). If an u
 | `impact` | Yes | The concrete technical consequence if this is not addressed. |
 | `improvement` | Yes | A specific, actionable suggestion. |
 | `temporal` | No | Temporal ordering block. See [Temporal Rules](#temporal-rules) below. |
-| `body_must_contain` | No | Regex. For function rules: body must match this pattern. Fires if NOT found (inverted check). |
-| `body_may_delegate_via` | No | Regex. If the function body contains a call matching this, the finding is suppressed (acknowledges delegation to a validator). |
-| `across_boundary` | No | Start of an `Across` constraint. See [Algebraic Flow Combinators](#algebraic-flow-combinators). |
-| `all_of` | No | List of sub-constraints. Fires only if all sub-constraints match. |
-| `any_of` | No | List of sub-constraints. Fires if any sub-constraint matches. |
-| `not` | No | Negation of a sub-constraint. Fires if the sub-constraint does NOT match. |
-| `without_constraint` | No | Primary constraint. Fires only when primary matches but exclusion does not. |
-| `without_exclusion` | No | Exclusion constraint paired with `without_constraint`. |
-| `chain_source` | No | Source constraint for chain detection. |
-| `chain_through` | No | Intermediate constraint for chain detection. |
-| `chain_sink` | No | Terminal constraint for chain detection. |
 
 ---
 
 ## Finding the Right `on_node` Value
 
-Run `gensense --debug <file>` to dump the full tree-sitter AST of any file. Find the node kind that wraps the pattern you want to detect.
+Run `frensense --debug <file>` to dump the full tree-sitter AST of any file. Find the node kind that wraps the pattern you want to detect.
 
 ```bash
-gensense --debug src/main.rs
+frensense --debug src/main.rs
 ```
 
 Common node kinds:
@@ -130,7 +119,7 @@ on_node: "[ (function_declaration) (arrow_function) (method_definition) ] @node"
 Before deploying a rule to your project, verify it with the `test-rule` command:
 
 ```bash
-gensense test-rule .gensense/rules/my_rules.yml \
+frensense test-rule .frensense/rules/my_rules.yml \
   --fixture tests/samples/bad_code.rs \
   --expect-finding MYCO_NO_PRINTLN \
   --expect-line 5
@@ -153,8 +142,8 @@ You should always write two fixture files:
 Run the test against both:
 
 ```bash
-gensense test-rule .gensense/rules/my_rules.yml --fixture bad_code.rs --expect-finding MYCO_NO_PRINTLN
-gensense test-rule .gensense/rules/my_rules.yml --fixture good_code.rs  # expects no findings
+frensense test-rule .frensense/rules/my_rules.yml --fixture bad_code.rs --expect-finding MYCO_NO_PRINTLN
+frensense test-rule .frensense/rules/my_rules.yml --fixture good_code.rs  # expects no findings
 ```
 
 ---
@@ -213,91 +202,6 @@ rules:
 ```
 
 Both `source_pattern` and `sink_pattern` must be specified together. The engine traces variable assignments between the source variable name and the sink call within the same function scope.
-
----
-
-## CSA Rules (Contextual Structural Analysis)
-
-CSA rules reason about function **bodies** — they check that a function contains required validation logic or delegates to a known validator.
-
-```yaml
-rules:
-  - id: "MYCO_VALIDATE_OR_THROW"
-    category: "reliability"
-    target_ext: "ts"
-    on_node: "function_declaration"
-    body_must_contain: "return\\s+(false|null|undefined)|throw|Error"
-    body_may_delegate_via: "safeParse|validate|verify|check|assert"
-    observation: "Function '{{name}}' has no rejection or delegation path."
-    impact: "Callers cannot distinguish success from failure."
-    improvement: "Add a return of false/null/undefined, throw an Error, or delegate to a known validator."
-    severity: Warning
-```
-
-- `body_must_contain`: The function body must contain at least one match of this regex. If not found, the rule fires.
-- `body_may_delegate_via`: If the function body contains a call matching this regex, the finding is **suppressed** — delegation to a validator is treated as sufficient.
-
-Both fields operate on the function's enclosing symbol scope. The rule fires once per function.
-
----
-
-## Algebraic Flow Combinators
-
-v0.3.1 introduces **algebraic flow combinators** — compound constraints that compose taint, temporal, scope, and cross-file checks into a single rule. No Datalog or query language needed.
-
-### Available Combinators
-
-| Combinator | YAML Field | Description |
-| :--- | :--- | :--- |
-| `AllOf` | `all_of` | All sub-constraints must match |
-| `AnyOf` | `any_of` | At least one sub-constraint must match |
-| `Not` | `not` | Sub-constraint must NOT match |
-| `Across` | `across_boundary` | Constraint evaluated across a boundary (e.g., cross-function) |
-| `Without` | `without_constraint` + `without_exclusion` | Primary matches but exclusion does not |
-| `Chain` | `chain_source` + `chain_through` + `chain_sink` | Source → Through → Sink must all match in sequence |
-
-### Example: Cross-Function Taint with Exclusion
-
-```yaml
-rules:
-  - id: "MYCO_TAINT_WITH_SAFE_SINK"
-    category: "security"
-    target_ext: "ts"
-    on_node: "[ (function_declaration) (arrow_function) ] @node"
-    across_boundary: true
-    source_pattern: "user|input|body"
-    sink_pattern: "query|execute"
-    without_constraint:
-      sink_pattern: "querySafe|executeSafe"
-    observation: "User input flows to a database query without going through a safe wrapper."
-    impact: "SQL injection risk."
-    improvement: "Use a parameterized query or safe query builder."
-    severity: Critical
-```
-
-### Example: Chain Detection
-
-```yaml
-rules:
-  - id: "MYCO_CHAIN_VIOLATION"
-    category: "reliability"
-    target_ext: "rs"
-    on_node: "function_item"
-    chain_source:
-      source_pattern: "untrusted"
-    chain_through:
-      temporal:
-        sequence: ["validate", "transform"]
-        behavior: must_follow
-    chain_sink:
-      sink_pattern: "execute|run"
-    observation: "Untrusted data flows through validation then transformation to execution."
-    impact: "Validation may be bypassed if order is not enforced."
-    improvement: "Ensure validation occurs before transformation."
-    severity: Warning
-```
-
-Combinators are evaluated by `FlowEvaluator::evaluate()` which performs a recursive tree-walk over the constraint tree.
 
 ---
 
@@ -419,11 +323,11 @@ project_rules:
 
 ## Project Configuration
 
-Create `.gensense/config.yml` in your project root to configure engine behavior without CLI flags:
+Create `.frensense/config.yml` in your project root to configure engine behavior without CLI flags:
 
 ```yaml
 version: 1
-rules_dir: .gensense/rules/
+rules_dir: .frensense/rules/
 
 # Disable specific embedded rules for this project
 disabled_rules:
@@ -442,7 +346,7 @@ severity_override:
 To run exclusively your own rules and suppress all embedded defaults:
 
 ```bash
-gensense . --rules-dir .gensense/rules/ --no-builtin-rules
+frensense . --rules-dir .frensense/rules/ --no-builtin-rules
 ```
 
 This is useful for organizations that want full control over which rules are active and prefer to curate their own ruleset from scratch.

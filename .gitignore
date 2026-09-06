@@ -1,41 +1,32 @@
 # Rust
 target/
-Cargo.lock
 
 # Node.js
 node_modules/
-package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Other
-demo.cast
-*.cast
-
-# NAPI-RS / Build Artifacts
+# Build artifacts (NAPI)
 *.node
-gensense
-gensense.exe
-gensense.d.ts
-.env
+frensense
+frensense.exe
+frensense.d.ts
+frensense.js
 index.js
 index.d.ts
-bin/gensense.js
 
-# Diagnostics & Logs
-*.log
-bom.json
-test-*.js
+# Frensense caches
+.frensense/
+.gensense/
+docs/.vitepress/dist
+docs/.vitepress/cache
 
 # OS / IDE
 .DS_Store
 .vscode/
 .idea/
 *.swp
-/TODO.md
-/future_improvements.md
-/RULES.md
 
 # Fuzzing
 fuzz/corpus
@@ -44,41 +35,40 @@ fuzz/target
 
 # Benchmarking
 bench_samples/
-correctness_samples/
+frensense-bench/datasets/juiceshop/
+frensense-bench/datasets/nodegoat/
+frensense-bench/datasets/synthetic/
+frensense-bench/results/
 __pycache__/
 scripts/__pycache__/
 perf.data
 perf.data.old
 
-# Documentation build
-docs/.vitepress/dist/
+# Generated / report files
+clippy_errors*.txt
+clippy_report.txt
+debug_registry.txt
+self_audit_report.json
+historical-scan-*.csv
+bom.json
+RULES.md
+future_improvements.md
+TODO.md
+*.log
 
-# VSCode extension build
-editors/vscode/out/
+# Other
+*.cast
+test-*.js
 
-# Development scratch files
-scratch/
-tests/fixtures/scratch/
+# Large files
+*.zip
+*.db
+frensense-corpus.frc
+scripts/harvest_streaming/raw/
+corpus/ground_truth/
+corpus/baselines/
+tests/benchmarks/samples/
 
-# Temporary / Local Artifacts
-*.json
-*.txt
-*.md
-!README.md
-!CHANGELOG.md
-!BENCHMARK.md
-!V0_3_1_ISSUES.md
-!V0_3_1_REPORT.md
-!GAP_ANALYSIS.md
-!GENSENSE_PAPER.md
-!CAPABILITIES.md
-!V0_4_0_PROJECT_MEMORY.md
-!friehub-gensense-article.md
-!docs/**/*.md
-!src/**/*.md
-!tests/**/*.md
-/tests/assets/rules_baseline.md
-
-# Debug / scratch tests
-tests/list_files_test.rs
-*.csv
+# Secrets
+.env
+corpus/archived/

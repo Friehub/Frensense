@@ -1,0 +1,14 @@
+id = "ts_unauthenticated_db_write"
+name = "Unauthenticated Database Write"
+description = "Writing user-provided data directly to a datastore without any auth or ownership check."
+severity = "Critical"
+impact = "Any user can overwrite or corrupt data belonging to other users, leading to full cross-account IDOR."
+improvement = "Call a central auth resolver and verify the user's ID matches the record owner before writing to the database."
+tags = ["security", "idor", "auth"]
+
+[expected_context]
+environment = "Unknown"
+sensitivity = "Medium"
+frameworks = []
+
+

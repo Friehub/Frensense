@@ -1,20 +1,20 @@
 #!/bin/bash
-# GenSense Benchmark Script
+# FrenSense Benchmark Script
 # Part of the Stabilization Phase (DISCIPLINE.md Priority 3)
 
 set -e
 
 # Ensure binary is built
-cargo build --release --features cli
+cargo build --release
 
-BINARY="./target/release/gensense"
+BINARY="./target/release/frensense"
 SAMPLES=(
     "src"
     "tests/samples"
     "tests/benchmarks/samples"
 )
 
-echo "### GenSense Performance Benchmark ###"
+echo "### FrenSense Performance Benchmark ###"
 echo "Date: $(date)"
 echo "OS: $(uname -a)"
 echo ""

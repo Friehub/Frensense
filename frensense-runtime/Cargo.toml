@@ -1,0 +1,29 @@
+[package]
+name = "frensense-runtime"
+version = "0.1.0"
+authors = ["Friehub Developers"]
+edition = "2024"
+description = "Frensense Runtime — corpus-driven runtime verification layer that confirms or refutes static findings"
+license = "MIT"
+repository = "https://github.com/Friehub/frensense"
+rust-version = "1.88"
+
+[[bin]]
+name = "frensense-runtime"
+path = "src/main.rs"
+
+[dependencies]
+frensense = { path = "..", version = "0.5.0" }
+frensense-engine = { path = "../frensense-engine", version = "0.5.0" }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "cookies"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+base64 = "0.22"
+urlencoding = "2"
+regex = "1"
+tree-sitter = "0.23"

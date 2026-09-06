@@ -1,0 +1,5 @@
+id = "TS_SSRF_FETCH"
+severity = "Warning"
+observation = "Corpus pattern: Ts Ssrf Fetch."
+impact = "Function shape matches a known violation pattern."
+improvement = "Review against corpus example."

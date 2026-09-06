@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# GenSense Local Integrity Check (CI Simulation)
+# Frensense Local Integrity Check (CI Simulation)
 # This script validates both the Rust engine and Node.js native bindings.
 
 RED='\033[0;31m'
@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}==================================================${NC}"
-echo -e "${BLUE}        GenSense Local Integrity Pipeline          ${NC}"
+echo -e "${BLUE}        Frensense Local Integrity Pipeline          ${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
 # 1. Rust Quality Checks
@@ -39,5 +39,5 @@ npm test
 echo -e "${GREEN}✓ Node.js integration tests passed${NC}"
 
 echo -e "\n${GREEN}==================================================${NC}"
-echo -e "${GREEN}      ALL CHECKS PASSED: GenSense is Stable       ${NC}"
+echo -e "${GREEN}      ALL CHECKS PASSED: Frensense is Stable       ${NC}"
 echo -e "${GREEN}==================================================${NC}"

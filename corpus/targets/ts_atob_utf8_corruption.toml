@@ -1,0 +1,14 @@
+id = "ts_atob_utf8_corruption"
+name = "Base64 UTF-8 Corruption via atob"
+description = "Using `atob()` directly on base64 content expecting UTF-8, which corrupts non-ASCII characters."
+severity = "High"
+impact = "Any file containing multi-byte UTF-8 characters (emoji, non-English text) comes back mangled since atob decodes to Latin-1."
+improvement = "Use TextDecoder to decode the Uint8Array representation of the base64 string."
+tags = ["bug", "encoding", "data-corruption"]
+
+[expected_context]
+environment = "Unknown"
+sensitivity = "Unknown"
+frameworks = []
+
+

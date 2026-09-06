@@ -1,16 +1,16 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: "GenSense",
-  description: "Experimental Semantic Diagnostic Engine for Rust, TypeScript, and Solidity.",
+  title: "Frensense",
+  description: "Compositional Taint Analysis Engine for Rust, TypeScript, and more.",
   cleanUrls: true,
-  base: '/gensense/',
+  base: '/frensense/',
   themeConfig: {
     logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide' },
       { text: 'API', link: '/api' },
-      { text: 'Rules', link: '/rules' },
+      { text: 'Corpus', link: '/corpus' },
       { text: 'MCP', link: '/mcp' },
       { text: 'Editor', link: '/editor' },
       { text: 'Changelog', link: '/changelog' },
@@ -27,16 +27,21 @@ export default defineConfig({
         text: 'Reference',
         items: [
           { text: 'API Reference', link: '/api' },
-          { text: 'Rule Catalog', link: '/rules' },
-          { text: 'Rule Authoring & Schemas', link: '/authoring' },
+          { text: 'The Corpus (.frc)', link: '/corpus' },
         ]
       },
       {
         text: 'Integration',
         items: [
           { text: 'Editor Integration', link: '/editor' },
-          { text: 'Extending GenSense', link: '/extending' },
+          { text: 'Extending Frensense', link: '/extending' },
           { text: 'MCP Server', link: '/mcp' },
+        ]
+      },
+      {
+        text: 'About',
+        items: [
+          { text: 'References & Acknowledgments', link: '/references' },
         ]
       },
       {
@@ -47,7 +52,7 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Friehub/gensense' }
+      { icon: 'github', link: 'https://github.com/Friehub/frensense' }
     ],
     footer: {
       message: 'Released under the MIT License.',
