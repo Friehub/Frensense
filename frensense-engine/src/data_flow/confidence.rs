@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::path::Path;
+use std::collections::{HashSet, VecDeque};
 
 use crate::cfg::build_cfg;
 use crate::cfg::def_use::DefUseChain;
@@ -9,7 +10,10 @@ use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 
 /// Maximum number of definition hops we trace backward before giving up.
 /// Beyond this the value is treated as unresolvable.
-const MAX_HOPS: usize = 3;
+/// Maximum states to visit during backward data-flow trace.
+const MAX_STATES: usize = 10_000;
+/// Safety ceiling on backward depth, prevents path explosion.
+const MAX_DEPTH: usize = 100;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Confidence-adjustment constants
@@ -123,7 +127,6 @@ impl TaintConfidenceAdjuster {
                 root,
                 registry,
                 local_tainted_vars,
-                0,
             ) {
                 min_hops = Some(min_hops.map_or(hops, |m| m.min(hops)));
             }
@@ -147,43 +150,44 @@ impl TaintConfidenceAdjuster {
 #[allow(clippy::too_many_arguments)]
 fn trace_hops_to_source(
     def_use: &crate::cfg::def_use::DefUseChain,
-    use_idx: usize,
+    start_use_idx: usize,
     source: &str,
     root: tree_sitter::Node,
     registry: &CorpusSourceSinkRegistry,
     local_tainted_vars: Option<&[String]>,
-    depth: usize,
 ) -> Option<usize> {
-    if depth > MAX_HOPS {
-        return None;
-    }
-
-    // Check all definitions that reach this use.
-    for def in def_use.defs_reaching(use_idx) {
-        if is_real_source(def, source, root, registry, local_tainted_vars) {
-            return Some(depth);
+    let mut queue = VecDeque::new();
+    let mut visited = HashSet::new();
+    
+    // queue elements: (use_idx, current_depth)
+    queue.push_back((start_use_idx, 0));
+    visited.insert(start_use_idx);
+    
+    let mut states_visited = 0;
+    
+    while let Some((use_idx, depth)) = queue.pop_front() {
+        if depth >= MAX_DEPTH || states_visited >= MAX_STATES {
+            continue;
         }
-        // This def derives from an RHS expression referencing other variable(s)
-        // (e.g. `let data = sanitize(raw)`). The def's own span is just the
-        // bound name, so the references it depends on live in the same block,
-        // immediately after the def, within a bounded window. Follow those
-        // references a level deeper to unwind the chain.
-        for (rhs_use_idx, rhs_use) in def_use.uses.iter().enumerate() {
-            if rhs_use.block_id == def.block_id
-                && rhs_use.name != def.name
-                && rhs_use.start_byte >= def.start_byte
-                && rhs_use.end_byte <= def.end_byte + SINK_USE_WINDOW_BYTES
-            {
-                if let Some(hops) = trace_hops_to_source(
-                    def_use,
-                    rhs_use_idx,
-                    source,
-                    root,
-                    registry,
-                    local_tainted_vars,
-                    depth + 1,
-                ) {
-                    return Some(hops);
+        states_visited += 1;
+        
+        // Check all definitions that reach this use.
+        for def in def_use.defs_reaching(use_idx) {
+            if is_real_source(def, source, root, registry, local_tainted_vars) {
+                return Some(depth);
+            }
+            
+            // This def derives from an RHS expression referencing other variable(s)
+            for (rhs_use_idx, rhs_use) in def_use.uses.iter().enumerate() {
+                if rhs_use.block_id == def.block_id
+                    && rhs_use.name != def.name
+                    && rhs_use.start_byte >= def.start_byte
+                    && rhs_use.end_byte <= def.end_byte + SINK_USE_WINDOW_BYTES
+                {
+                    if !visited.contains(&rhs_use_idx) {
+                        visited.insert(rhs_use_idx);
+                        queue.push_back((rhs_use_idx, depth + 1));
+                    }
                 }
             }
         }
