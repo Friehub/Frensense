@@ -1,4 +1,4 @@
-<div align="center">
+<div align="left">
   <h1>Frensense</h1>
   <p><strong>A deterministic, corpus-driven security and diagnostic engine for Rust, TypeScript, and JavaScript.</strong></p>
 </div>
@@ -278,14 +278,29 @@ cargo run --bin corpus-quality -- corpus/targets/
 # Includes per-tier breakdown showing how many patterns need work.
 ```
 
-### Latest Benchmark (NodeGoat, July 2026)
-
+### Latest Benchmark (Sep 2026)
+### Benchmark (NodeGoat, threshold 0.40)
 | Metric | Before | After |
 |--------|--------|-------|
-| Findings at 0.5 threshold | 62 | **4** |
-| False positive rate | 76% | **50%** |
-| Hand-crafted filters | ~150 | **0** (all auto-learned) |
-| Scan time (113 functions) | ~48s | **~43s** |
+| TP | 24 | 22 |
+| FP | 252 | 22 |
+| FN | 6 | 8 |
+| Recall | 0.800 | 0.733 |
+| F1 | 0.157 | 0.595 |
+| Wall time | 1:36 | 0:41 |
+
+91% FP reduction with only 2 TPs lost. F1 improved 3.8x. Scan time reduced 58%.
+
+### The Juice Shop benchmark results (v0.5.0 engine) with the corrected ground truth and new corpus files:
+
+|Threshold | True Positives (TP) | False Positives (FP) |	False Negatives (FN) |	Precision	Recall |
+| ---------| --------------------|----------------------|----------------------|-------------------|
+| 0.20	| 3	| 64 |	20 |	0.0448 |	0.1304 |
+| 0.30 |	3	| 58 |	20 |	0.0492 |	0.1304 |
+| 0.40 |	2 |	52 |	21 |	0.0370 |	0.0870 |
+| 0.50 |	1 |	50 |	22 |	0.0196 |	0.0435 |
+| 0.70 |	1 |	47 |	22 |	0.0208 |	0.0435 |
+
 
 ## License
 
