@@ -15,7 +15,7 @@ license = "MIT"
 categories = ["development-tools::static-analysis", "security"]
 keywords = ["static-analysis", "linter", "security", "code-quality"]
 publish = true
-rust-version = "1.88"
+rust-version = "1.95"
 
 [lib]
 name = "frensense"

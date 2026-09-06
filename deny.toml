@@ -20,6 +20,9 @@ allow = [
   "BSD-2-Clause",
   "ISC",
   "MPL-2.0",
-  "Unicode-3.0"
+  "Unicode-3.0",
+  "BSL-1.0",
+  "Zlib",
+  "Apache-2.0 WITH LLVM-exception"
 ]
 confidence-threshold = 0.8

@@ -57,8 +57,8 @@ jobs:
       - name: Lint (Clippy)
         run: cargo clippy --all-features -- 
 
-      - name: Install MSRV 1.88
-        uses: dtolnay/rust-toolchain@1.88.0
+      - name: Install MSRV 1.95
+        uses: dtolnay/rust-toolchain@1.95.0
       - name: cargo check with MSRV
         run: cargo check --all-features
       - name: Restore stable toolchain

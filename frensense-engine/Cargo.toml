@@ -6,7 +6,7 @@ edition = "2024"
 description = "Frensense engine core — structural code analysis primitives (fingerprints, profiles, semantic graph, taint, temporal events)"
 license = "MIT"
 repository = "https://github.com/Friehub/frensense"
-rust-version = "1.88"
+rust-version = "1.95"
 
 [lib]
 name = "frensense_engine"
