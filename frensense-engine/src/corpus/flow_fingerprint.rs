@@ -39,18 +39,29 @@ impl FlowPath {
 ///
 /// This is O(n²) in the number of assignments × calls, which is fine for
 /// function bodies (n < 200 in practice).
-pub fn extract_flow_paths(body: Node<'_>, source: &str) -> Vec<u64> {
+pub fn extract_flow_paths(
+    body: Node<'_>,
+    source: &str,
+    import_map: Option<&crate::import_resolver::ImportMap>,
+) -> Vec<u64> {
     let lookup = &*MOTIF_LOOKUP;
 
     // Step 1: collect all identifiers that are assigned from a source motif
-    let tainted_vars = collect_tainted_vars(body, source, lookup);
+    let tainted_vars = collect_tainted_vars(body, source, lookup, import_map);
     if tainted_vars.is_empty() {
         return Vec::new();
     }
 
     // Step 2: find sink calls that use tainted variables as arguments
     let mut path_hashes = FxHashSet::default();
-    find_sink_paths(body, source, &tainted_vars, lookup, &mut path_hashes);
+    find_sink_paths(
+        body,
+        source,
+        &tainted_vars,
+        lookup,
+        import_map,
+        &mut path_hashes,
+    );
 
     let mut vec: Vec<u64> = path_hashes.into_iter().collect();
     vec.sort_unstable();
@@ -63,9 +74,10 @@ fn collect_tainted_vars(
     node: Node<'_>,
     source: &str,
     lookup: &FxHashMap<String, &'static str>,
+    import_map: Option<&crate::import_resolver::ImportMap>,
 ) -> FxHashMap<String, &'static str> {
     let mut tainted: FxHashMap<String, &'static str> = FxHashMap::default();
-    collect_tainted_recursive(node, source, lookup, &mut tainted);
+    collect_tainted_recursive(node, source, lookup, import_map, &mut tainted);
     tainted
 }
 
@@ -73,6 +85,7 @@ fn collect_tainted_recursive(
     node: Node<'_>,
     source: &str,
     lookup: &FxHashMap<String, &'static str>,
+    import_map: Option<&crate::import_resolver::ImportMap>,
     tainted: &mut FxHashMap<String, &'static str>,
 ) {
     let kind = node.kind();
@@ -93,6 +106,12 @@ fn collect_tainted_recursive(
             // req.body ..."` must NOT mark `msg` tainted.
             if rhs_references_source(value_node, source, lookup) {
                 tainted.insert(var_name.to_string(), "UserInputSource");
+            } else if let Some(cat) = rhs_is_sink_call(value_node, source, lookup, import_map) {
+                if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
+                    || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
+                {
+                    tainted.insert(var_name.to_string(), "DatabaseSource");
+                }
             }
         }
     }
@@ -100,12 +119,69 @@ fn collect_tainted_recursive(
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            collect_tainted_recursive(cursor.node(), source, lookup, tainted);
+            collect_tainted_recursive(cursor.node(), source, lookup, import_map, tainted);
             if !cursor.goto_next_sibling() {
                 break;
             }
         }
     }
+}
+
+/// Helper to determine if a node is a call expression to a known sink.
+fn rhs_is_sink_call(
+    node: Node<'_>,
+    source: &str,
+    lookup: &FxHashMap<String, &'static str>,
+    import_map: Option<&crate::import_resolver::ImportMap>,
+) -> Option<crate::corpus::source_sink::SinkCategory> {
+    if node.kind() == "call_expression" {
+        if let Some(func) = node.child_by_field_name("function") {
+            let call_name = &source[func.start_byte()..func.end_byte()];
+
+            // Resolve to motif
+            let sink_motif = lookup.get(call_name).copied().or_else(|| {
+                call_name
+                    .rfind("::")
+                    .or_else(|| call_name.rfind('.'))
+                    .and_then(|p| lookup.get(&call_name[p + 1..]).copied())
+            });
+
+            if let Some(m) = sink_motif {
+                if m == "SqlSink" {
+                    return Some(crate::corpus::source_sink::SinkCategory::SqlInjection);
+                } else if m == "NoSqlSink" {
+                    return Some(crate::corpus::source_sink::SinkCategory::NoSqlInjection);
+                }
+            }
+
+            // Fallback: check if the receiver comes from a known package sink category
+            if let Some(imap) = import_map {
+                if let Some(receiver) = call_name.split('.').next() {
+                    if let Some(pkg) = imap.resolve(receiver) {
+                        if let Some(cat) = crate::semantic::package_sink_category(pkg) {
+                            return Some(cat);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check if it's an await expression wrapping a call
+    if node.kind() == "await_expression" {
+        let mut cursor = node.walk();
+        if cursor.goto_first_child() {
+            loop {
+                if let Some(cat) = rhs_is_sink_call(cursor.node(), source, lookup, import_map) {
+                    return Some(cat);
+                }
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Returns true if the RHS subtree contains a node whose full text is a known
@@ -216,25 +292,54 @@ fn args_reference_var(node: Node<'_>, source: &str, name: &str) -> bool {
     false
 }
 
-/// Walk calls in the body. For each call, check if any argument uses a
-/// tainted variable. If so, emit a path hash.
 fn find_sink_paths(
     node: Node<'_>,
     source: &str,
     tainted: &FxHashMap<String, &'static str>,
     lookup: &FxHashMap<String, &'static str>,
+    import_map: Option<&crate::import_resolver::ImportMap>,
     out: &mut FxHashSet<u64>,
 ) {
     if node.kind() == "call_expression" {
         if let Some(func) = node.child_by_field_name("function") {
             let call_name = &source[func.start_byte()..func.end_byte()];
             // Resolve to motif
-            let sink_motif = lookup.get(call_name).copied().or_else(|| {
+            let mut sink_motif = lookup.get(call_name).copied().or_else(|| {
                 call_name
                     .rfind("::")
                     .or_else(|| call_name.rfind('.'))
                     .and_then(|p| lookup.get(&call_name[p + 1..]).copied())
             });
+
+            // Fallback: check if the receiver comes from a known package sink category
+            if sink_motif.is_none() {
+                if let Some(imap) = import_map {
+                    if let Some(receiver) = call_name.split('.').next() {
+                        if let Some(pkg) = imap.resolve(receiver) {
+                            if let Some(cat) = crate::semantic::package_sink_category(pkg) {
+                                sink_motif = match cat {
+                                    crate::corpus::source_sink::SinkCategory::SqlInjection => {
+                                        Some("SqlSink")
+                                    }
+                                    crate::corpus::source_sink::SinkCategory::NoSqlInjection => {
+                                        Some("NoSqlSink")
+                                    }
+                                    crate::corpus::source_sink::SinkCategory::CommandInjection => {
+                                        Some("CommandExecutionSink")
+                                    }
+                                    crate::corpus::source_sink::SinkCategory::Ssrf => {
+                                        Some("SsrfSink")
+                                    }
+                                    crate::corpus::source_sink::SinkCategory::PathTraversal => {
+                                        Some("FsSink")
+                                    }
+                                    _ => None,
+                                };
+                            }
+                        }
+                    }
+                }
+            }
 
             if let Some(sink_motif) = sink_motif {
                 // Check arguments for tainted variables by AST reference, not
@@ -258,7 +363,7 @@ fn find_sink_paths(
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            find_sink_paths(cursor.node(), source, tainted, lookup, out);
+            find_sink_paths(cursor.node(), source, tainted, lookup, import_map, out);
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -281,7 +386,7 @@ mod tests {
     fn tainted_vars(code: &str) -> FxHashMap<String, &'static str> {
         let tree = parse_ts(code);
         let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
-        collect_tainted_vars(tree.root_node(), code, lookup)
+        collect_tainted_vars(tree.root_node(), code, lookup, None)
     }
 
     #[test]
@@ -328,10 +433,10 @@ function handler() {
         let code = "function handler() { let cmd = req.body.command; exec(\"cmd was executed\"); }";
         let tree = parse_ts(code);
         let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
-        let tainted = collect_tainted_vars(tree.root_node(), code, lookup);
+        let tainted = collect_tainted_vars(tree.root_node(), code, lookup, None);
         assert_eq!(tainted.get("cmd"), Some(&"UserInputSource"));
         let mut hashes = FxHashSet::default();
-        find_sink_paths(tree.root_node(), code, &tainted, lookup, &mut hashes);
+        find_sink_paths(tree.root_node(), code, &tainted, lookup, None, &mut hashes);
         assert!(
             hashes.is_empty(),
             "string-literal arg must not produce a flow path, got {hashes:?}"
@@ -343,9 +448,9 @@ function handler() {
         let code = "function handler() { let cmd = req.body.command; exec(cmd); }";
         let tree = parse_ts(code);
         let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
-        let tainted = collect_tainted_vars(tree.root_node(), code, lookup);
+        let tainted = collect_tainted_vars(tree.root_node(), code, lookup, None);
         let mut hashes = FxHashSet::default();
-        find_sink_paths(tree.root_node(), code, &tainted, lookup, &mut hashes);
+        find_sink_paths(tree.root_node(), code, &tainted, lookup, None, &mut hashes);
         assert_eq!(
             hashes.len(),
             1,

@@ -934,7 +934,7 @@ mod tests {
             skeleton: Vec::new(),
             skeleton_hashes: Vec::new(),
             control_flow_hashes: Vec::new(),
-            control_flow_sequence_hash: 0,
+            control_flow_sequence: Vec::new(),
             api_calls: Vec::new(),
             api_call_segments: Vec::new(),
             property_accesses: Vec::new(),

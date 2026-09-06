@@ -1,25 +1,28 @@
 // [frensense]
-// observation: User input is directly passed as a MongoDB query selector without sanitization or casting.
-// impact: Attackers can pass NoSQL query operators (like $ne) to manipulate the query, potentially updating unauthorized records.
-// improvement: Cast input to string/ObjectId or use a validation schema to ensure it is not an object.
+// observation: User input is directly passed as the query object in a database update operation without type validation, allowing NoSQL injection.
+// impact: An attacker can supply a query operator like {$ne: null} to bypass single-document constraints and update unintended records.
+// improvement: Validate or cast user input to a string/ObjectId before passing it to database queries.
 // cwe: CWE-943
+// cvss: 8.5
+// owasp: A03:2021
 // frensense-sink: update
-// owasp: A03:2021-Injection
 
 import { type Request, type Response, type NextFunction } from 'express'
-import * as db from '../data/mongodb'
+import { MongoClient } from 'mongodb'
 
-export function updateProductReviews () {
+const client = new MongoClient('mongodb://localhost:27017')
+const db = client.db('test')
+
+export function updateRecords() {
   return (req: Request, res: Response, next: NextFunction) => {
-    db.reviewsCollection.update(
+    db.collection('reviews').update(
       { _id: req.body.id },
       { $set: { message: req.body.message } },
       { multi: true }
-    ).then(
-      (result: any) => {
-        res.json(result)
-      }, (err: unknown) => {
-        res.status(500).json(err)
-      })
+    ).then((result: any) => {
+      res.json(result)
+    }).catch((err: Error) => {
+      res.status(500).json(err)
+    })
   }
 }

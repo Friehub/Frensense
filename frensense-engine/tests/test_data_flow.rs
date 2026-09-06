@@ -3,9 +3,7 @@ use tree_sitter::Parser;
 
 #[test]
 fn test_extracted_flows() {
-    let source =
-        fs::read_to_string("../corpus/targets/ts_race_condition_read_check_write_positive.ts")
-            .unwrap();
+    let source = fs::read_to_string("../corpus/targets/ts_n_plus_one_query_positive.ts").unwrap();
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())

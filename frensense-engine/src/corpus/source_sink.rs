@@ -743,12 +743,11 @@ impl CorpusSourceSinkRegistry {
 /// Walks each file's AST to extract:
 /// - Parameter type annotations → source types
 /// - Call expression callee names → sink names
-pub fn build_registry(positive_files: &[String]) -> CorpusSourceSinkRegistry {
+pub fn build_registry(positive_files: &[(String, String)]) -> CorpusSourceSinkRegistry {
     let mut registry = CorpusSourceSinkRegistry::default();
 
-    for source in positive_files {
-        let file_sources = extract_sources_from_source(source);
-        let file_sinks = extract_sinks_from_source(source);
+    for (source, ext) in positive_files {
+        let (file_sources, file_sinks) = extract_sources_and_sinks(source, ext);
 
         // Count each type/sink once per file (not once per function)
         // to avoid over-counting multi-function positive files
@@ -862,7 +861,12 @@ pub fn build_registry_from_dir(corpus_dir: &Path) -> CorpusSourceSinkRegistry {
             };
             if name.contains("_positive.") {
                 if let Ok(source) = std::fs::read_to_string(&path) {
-                    positive_files.push(source);
+                    let ext = path
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("ts")
+                        .to_string();
+                    positive_files.push((source, ext));
                 }
             }
         }
@@ -871,90 +875,59 @@ pub fn build_registry_from_dir(corpus_dir: &Path) -> CorpusSourceSinkRegistry {
     build_registry(&positive_files)
 }
 
-/// Extract source types from a source file by walking parameter type annotations.
-fn extract_sources_from_source(source: &str) -> Vec<String> {
-    let mut types = Vec::new();
-    let mut parser = tree_sitter::Parser::new();
-
-    let lang_name = if source.contains("fn ") {
-        "rust"
-    } else {
-        "typescript"
-    };
-
-    let lang = crate::parser::ParserRegistry::get_language_by_name(lang_name).ok();
-    let Some(lang) = lang else { return types };
-    parser.set_language(&lang).ok();
-    let Some(tree) = parser.parse(source, None) else {
-        return types;
-    };
-
-    extract_param_types(tree.root_node(), source, &mut types);
-    types
-}
-
-/// Extract sink function names from a source file by walking call expressions.
-fn extract_sinks_from_source(source: &str) -> Vec<String> {
+fn extract_sources_and_sinks(source: &str, ext_hint: &str) -> (Vec<String>, Vec<String>) {
+    let mut sources = Vec::new();
     let mut sinks = Vec::new();
     let mut parser = tree_sitter::Parser::new();
-
-    let lang_name = if source.contains("fn ") {
-        "rust"
-    } else {
-        "typescript"
-    };
-
+    let lang_name = crate::parser::ext_to_language(ext_hint);
     let lang = crate::parser::ParserRegistry::get_language_by_name(lang_name).ok();
-    let Some(lang) = lang else { return sinks };
+    let Some(lang) = lang else {
+        return (sources, sinks);
+    };
     parser.set_language(&lang).ok();
     let Some(tree) = parser.parse(source, None) else {
-        return sinks;
+        return (sources, sinks);
     };
-
-    extract_call_names(tree.root_node(), source, &mut sinks);
-    // Also extract object property names that are MongoDB/NoSQL operators
-    extract_property_sinks(tree.root_node(), source, &mut sinks);
-    sinks
+    extract_sources_and_sinks_recursive(tree.root_node(), source, &mut sources, &mut sinks);
+    (sources, sinks)
 }
 
-/// Extract object property names that are MongoDB/NoSQL operators.
-/// These are used as sinks when their values contain user input.
-/// Example: `{ $where: \`...\`, $regex: \`...\` }`
-fn extract_property_sinks(node: Node, source: &str, sinks: &mut Vec<String>) {
-    if node.kind() == "pair" {
+fn extract_sources_and_sinks_recursive(
+    node: Node,
+    source: &str,
+    sources: &mut Vec<String>,
+    sinks: &mut Vec<String>,
+) {
+    let kind = node.kind();
+    if kind == "pair" {
         if let Some(key) = node.child_by_field_name("key") {
             let key_name = &source[key.start_byte()..key.end_byte()];
-            // MongoDB operators start with $ and are known sinks
             if key_name.starts_with('$') {
                 sinks.push(key_name.to_string());
             }
         }
     }
-
-    // Recurse
-    let mut cursor = node.walk();
-    if cursor.goto_first_child() {
-        loop {
-            extract_property_sinks(cursor.node(), source, sinks);
-            if !cursor.goto_next_sibling() {
-                break;
+    if kind == "call_expression" {
+        if let Some(callee) = node
+            .child_by_field_name("function")
+            .or_else(|| node.child_by_field_name("callee"))
+            .or_else(|| node.child(0))
+        {
+            let full = source[callee.start_byte()..callee.end_byte()].to_string();
+            if !full.is_empty() {
+                sinks.push(full);
             }
         }
     }
-}
-
-/// Recursively extract type annotations from function parameters.
-fn extract_param_types(node: Node, source: &str, types: &mut Vec<String>) {
     let is_fn = matches!(
-        node.kind(),
-        "function_definition"     // TS
-        | "function_declaration"  // TS
-        | "arrow_function"        // TS
-        | "method_definition"     // TS
-        | "function_item"         // Rust
-        | "function_signature_item" // Rust
+        kind,
+        "function_definition"
+            | "function_declaration"
+            | "arrow_function"
+            | "method_definition"
+            | "function_item"
+            | "function_signature_item"
     );
-
     if is_fn {
         if let Some(params) = node
             .child_by_field_name("parameters")
@@ -965,63 +938,29 @@ fn extract_param_types(node: Node, source: &str, types: &mut Vec<String>) {
                 if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
                     continue;
                 }
-                extract_type_from_param(param, source, types);
-            }
-        }
-    }
-
-    // Recurse
-    let mut cursor = node.walk();
-    if cursor.goto_first_child() {
-        loop {
-            extract_param_types(cursor.node(), source, types);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-    }
-}
-
-/// Extract the type annotation from a single parameter node.
-fn extract_type_from_param(param: Node, source: &str, types: &mut Vec<String>) {
-    let mut cursor = param.walk();
-    for child in param.children(&mut cursor) {
-        match child.kind() {
-            "type_annotation" | "type_identifier" | "scoped_type_identifier" | "generic_type" => {
-                let ty = source[child.start_byte()..child.end_byte()].trim();
-                if !ty.is_empty() {
-                    let clean = ty.trim_start_matches(':').trim();
-                    types.push(clean.to_string());
+                let mut p_cursor = param.walk();
+                for child in param.children(&mut p_cursor) {
+                    match child.kind() {
+                        "type_annotation"
+                        | "type_identifier"
+                        | "scoped_type_identifier"
+                        | "generic_type" => {
+                            let ty = source[child.start_byte()..child.end_byte()].trim();
+                            if !ty.is_empty() {
+                                let clean = ty.trim_start_matches(':').trim();
+                                sources.push(clean.to_string());
+                            }
+                        }
+                        _ => {}
+                    }
                 }
             }
-            _ => {}
         }
     }
-}
-
-/// Recursively extract function call names from the AST.
-/// Pushes both the full qualified expression and the short method name so the
-/// registry can do both exact and suffix matching.
-fn extract_call_names(node: Node, source: &str, sinks: &mut Vec<String>) {
-    if node.kind() == "call_expression" {
-        if let Some(callee) = node
-            .child_by_field_name("function")
-            .or_else(|| node.child_by_field_name("callee"))
-            .or_else(|| node.child(0))
-        {
-            // Push the full expression text as-is so qualified_sink_names gets it
-            let full = source[callee.start_byte()..callee.end_byte()].to_string();
-            if !full.is_empty() {
-                sinks.push(full);
-            }
-        }
-    }
-
-    // Recurse
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            extract_call_names(cursor.node(), source, sinks);
+            extract_sources_and_sinks_recursive(cursor.node(), source, sources, sinks);
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -1070,7 +1009,7 @@ mod tests {
     #[test]
     fn test_extract_sources_typescript() {
         let source = "function handler(req: Request, body: Json<User>) { }";
-        let types = extract_sources_from_source(source);
+        let (types, _) = extract_sources_and_sinks(source, "ts");
         assert!(
             types.contains(&"Request".to_string()),
             "should find Request type"
@@ -1090,7 +1029,8 @@ mod tests {
             .unwrap();
         let tree = parser.parse(source, None).unwrap();
         let mut types = Vec::new();
-        extract_param_types(tree.root_node(), source, &mut types);
+        let (extracted, _) = extract_sources_and_sinks(source, "rs");
+        types.extend(extracted);
         assert!(
             !types.is_empty(),
             "should find at least one type, got: {types:?}"
@@ -1100,7 +1040,7 @@ mod tests {
     #[test]
     fn test_extract_sinks_typescript() {
         let source = "function handler() { exec(cmd); eval(code); }";
-        let sinks = extract_sinks_from_source(source);
+        let (_, sinks) = extract_sources_and_sinks(source, "ts");
         assert!(sinks.contains(&"exec".to_string()), "should find exec sink");
         assert!(sinks.contains(&"eval".to_string()), "should find eval sink");
     }
@@ -1108,7 +1048,7 @@ mod tests {
     #[test]
     fn test_extract_sinks_member_expression() {
         let source = "function handler() { console.log(msg); document.write(html); }";
-        let sinks = extract_sinks_from_source(source);
+        let (_, sinks) = extract_sources_and_sinks(source, "ts");
         assert!(
             sinks.iter().any(|s| s.contains("console.log")),
             "should find console.log"
@@ -1142,8 +1082,14 @@ mod tests {
     #[test]
     fn test_build_registry() {
         let files = vec![
-            "function handler(req: Request) { exec(req.query); }".to_string(),
-            "function process(input: Request) { exec(input.data); }".to_string(),
+            (
+                "function handler(req: Request) { exec(req.query); }".to_string(),
+                "ts".to_string(),
+            ),
+            (
+                "function process(input: Request) { exec(input.data); }".to_string(),
+                "ts".to_string(),
+            ),
         ];
         let registry = build_registry(&files);
         assert!(

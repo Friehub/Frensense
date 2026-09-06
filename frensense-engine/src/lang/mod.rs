@@ -10,6 +10,7 @@ pub enum Language {
     JavaScript,
     C,
     Python,
+    Go,
     #[allow(dead_code)]
     Html,
 }

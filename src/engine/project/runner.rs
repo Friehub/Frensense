@@ -515,12 +515,18 @@ fn run_corpus_scan(
 
             tracing::trace!(file = %snap.path.display(), "extracting fingerprints");
 
+            let import_map = frensense_engine::import_resolver::ImportMap::build_from_tree(
+                &snap.content,
+                snap.tree.root_node(),
+            );
+
             frensense_engine::fingerprint::extract_fingerprints_with_nodes(
                 snap.tree.root_node(),
                 &snap.content,
                 &snap.path,
                 &mut fps,
                 ngram_window_size,
+                Some(&import_map),
             );
             if start_time.elapsed().as_millis() > 500 {
                 tracing::warn!(
@@ -1770,6 +1776,7 @@ impl Engine {
                 &snap.path,
                 &mut fps,
                 self.ngram_window_size,
+                None,
             );
             all_fingerprints.extend(fps);
         }

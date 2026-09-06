@@ -60,18 +60,10 @@ pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
     signature
 }
 
-pub fn jaccard_similarity_sorted(a: &[u64], b: &[u64]) -> f64 {
-    if a.is_empty() && b.is_empty() {
-        return 0.5;
-    }
-    if a.is_empty() || b.is_empty() {
-        return 0.0;
-    }
-
+pub fn intersect_sorted(a: &[u64], b: &[u64]) -> usize {
     let mut i = 0;
     let mut j = 0;
     let mut intersection = 0;
-
     while i < a.len() && j < b.len() {
         if a[i] < b[j] {
             i += 1;
@@ -83,7 +75,17 @@ pub fn jaccard_similarity_sorted(a: &[u64], b: &[u64]) -> f64 {
             j += 1;
         }
     }
+    intersection
+}
 
+pub fn jaccard_similarity_sorted(a: &[u64], b: &[u64]) -> f64 {
+    if a.is_empty() && b.is_empty() {
+        return 0.5;
+    }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let intersection = intersect_sorted(a, b);
     let union = a.len() + b.len() - intersection;
     intersection as f64 / union as f64
 }
@@ -95,23 +97,7 @@ pub fn overlap_coefficient_sorted(a: &[u64], b: &[u64]) -> f64 {
     if a.is_empty() || b.is_empty() {
         return 0.0;
     }
-
-    let mut i = 0;
-    let mut j = 0;
-    let mut intersection = 0;
-
-    while i < a.len() && j < b.len() {
-        if a[i] < b[j] {
-            i += 1;
-        } else if a[i] > b[j] {
-            j += 1;
-        } else {
-            intersection += 1;
-            i += 1;
-            j += 1;
-        }
-    }
-
+    let intersection = intersect_sorted(a, b);
     let min_len = std::cmp::min(a.len(), b.len());
     intersection as f64 / min_len as f64
 }

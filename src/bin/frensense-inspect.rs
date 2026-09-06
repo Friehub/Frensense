@@ -247,7 +247,7 @@ fn main() {
             if !fp.config_literal_hashes.is_empty() {
                 dim_counts[11] += 1;
             }
-            if fp.control_flow_sequence_hash != 0 {
+            if !fp.control_flow_sequence.is_empty() {
                 dim_counts[12] += 1;
             }
             if !fp.argument_call_types.is_empty() {

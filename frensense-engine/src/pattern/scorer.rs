@@ -137,9 +137,6 @@ const SEMANTIC_MATCH_BOOST: f64 = 2.0;
 const NOISE_GATE_MODERATE_SIGNAL: f64 = 0.15;
 const NOISE_GATE_STRONG_SIGNAL: f64 = 0.4;
 const NOISE_GATE_MIN_MODERATE_DIMS: usize = 2;
-const MIN_BEST_POSITIVE_SCORE: f64 = 0.1;
-const NEG_PENALTY_FLOOR: f64 = 0.1;
-const NEG_PENALTY_WEIGHT: f64 = 0.3;
 const AST_NGRAM_MIN_THRESHOLD: f64 = 0.25;
 const BASE_SCORE_WEIGHT: f64 = 0.4;
 const STRUCTURAL_SCORE_WEIGHT: f64 = 0.3;
@@ -174,7 +171,32 @@ pub fn weighted_jaccard(
     }
 }
 
-/// M8: Cross-lingual transfer penalty.
+/// Longest Common Subsequence (LCS) similarity metric.
+pub fn lcs_similarity(a: &[u64], b: &[u64]) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let n = a.len();
+    let m = b.len();
+    let mut dp = vec![0; m + 1];
+
+    for i in 1..=n {
+        let mut prev = 0;
+        for j in 1..=m {
+            let temp = dp[j];
+            if a[i - 1] == b[j - 1] {
+                dp[j] = prev + 1;
+            } else {
+                dp[j] = dp[j].max(dp[j - 1]);
+            }
+            prev = temp;
+        }
+    }
+
+    let lcs_len = dp[m] as f64;
+    let max_len = n.max(m) as f64;
+    lcs_len / max_len
+}
 /// If pattern language differs from candidate language, apply penalty.
 /// Cross-language matching is useful for catching similar bug patterns across languages,
 /// but should be heavily penalized to avoid false positives.
@@ -203,6 +225,36 @@ pub struct ScoredPattern {
 }
 
 impl PatternScorer {
+    fn compute_context_penalty(
+        expected_context: Option<&crate::context::FileContext>,
+        actual_context: Option<&crate::context::FileContext>,
+    ) -> f64 {
+        match (expected_context, actual_context) {
+            (Some(exp), Some(act)) => {
+                let mut penalty = 1.0;
+                if exp.sensitivity == crate::context::DataSensitivity::High
+                    && act.sensitivity != crate::context::DataSensitivity::High
+                {
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
+                }
+                if exp.environment == crate::context::Environment::RouteHandler
+                    && (act.environment == crate::context::Environment::Test
+                        || act.environment == crate::context::Environment::Utility)
+                {
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
+                }
+                if act.environment == crate::context::Environment::RouteHandler
+                    && exp.environment != crate::context::Environment::RouteHandler
+                    && exp.environment != crate::context::Environment::Unknown
+                {
+                    penalty *= CONTEXT_MISMATCH_PENALTY;
+                }
+                penalty
+            }
+            _ => 1.0,
+        }
+    }
+
     pub fn score_matches(patterns: &[(&PatternNode, Vec<MatchResult>)]) -> Vec<ScoredPattern> {
         let mut scored = Vec::new();
 
@@ -284,102 +336,17 @@ impl PatternScorer {
         ngram_sim_threshold: f64,
         weights: &[f64; 15],
     ) -> f64 {
-        let mut best_pos_score = 0.0f64;
-
-        // 1. Find the best matching positive with API-call gating.
-        //    If both pattern and candidate have API calls but share NONE,
-        //    skip that positive entirely — structural match is coincidental.
-        for positive in positives {
-            // API-call gate: zero API overlap = skip (not a real match)
-            // Fall back to motif overlap if literal API calls don't match.
-            if !positive.api_calls.is_empty() && !candidate.api_calls.is_empty() {
-                let has_overlap = positive
-                    .api_calls
-                    .iter()
-                    .any(|h| candidate.api_calls.contains(h));
-                if !has_overlap {
-                    let motif_overlap = !candidate.motif_hashes.is_empty()
-                        && !positive.motif_hashes.is_empty()
-                        && positive
-                            .motif_hashes
-                            .iter()
-                            .any(|h| candidate.motif_hashes.contains(h));
-                    if !motif_overlap {
-                        continue;
-                    }
-                }
-            }
-
-            let sim_pos =
-                Self::compute_similarity(candidate, positive, true, ngram_sim_threshold, weights);
-            let semantic_multiplier = if positive.semantic_markers.is_empty() {
-                1.0
-            } else if minhash::jaccard_similarity_sorted(
-                &candidate.semantic_markers,
-                &positive.semantic_markers,
-            ) == 0.0
-            {
-                SEMANTIC_ZERO_PENALTY
-            } else {
-                SEMANTIC_MATCH_BOOST
-            };
-            let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
-
-            let pos_score = sim_pos * f64::from(transfer) * semantic_multiplier;
-            if pos_score > best_pos_score {
-                best_pos_score = pos_score;
-            }
-        }
-
-        // Fast path: if the best positive score is already too low to meet any reasonable threshold, return early
-        // We know the minimum threshold is 0.5 usually, but even if it's 0.2, if best_pos_score < MIN_BEST_POSITIVE_SCORE, we skip
-        if best_pos_score < MIN_BEST_POSITIVE_SCORE {
-            return best_pos_score;
-        }
-
-        // 2. Find the highest negative similarity (the worst penalty)
-        let mut max_neg_sim = 0.0f64;
-        for negative in negatives {
-            let sim_neg =
-                Self::compute_similarity(candidate, negative, false, ngram_sim_threshold, weights);
-            if sim_neg > max_neg_sim {
-                max_neg_sim = sim_neg;
-            }
-        }
-
-        // 3. Context Featurization Penalty
-        let context_multiplier = match (expected_context, actual_context) {
-            (Some(exp), Some(act)) => {
-                let mut penalty = 1.0;
-                if exp.sensitivity == crate::context::DataSensitivity::High
-                    && act.sensitivity != crate::context::DataSensitivity::High
-                {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
-                }
-                if exp.environment == crate::context::Environment::RouteHandler
-                    && (act.environment == crate::context::Environment::Test
-                        || act.environment == crate::context::Environment::Utility)
-                {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
-                }
-                if act.environment == crate::context::Environment::RouteHandler
-                    && exp.environment != crate::context::Environment::RouteHandler
-                    && exp.environment != crate::context::Environment::Unknown
-                {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
-                }
-                penalty
-            }
-            _ => 1.0,
-        };
-
-        let neg_penalty = if max_neg_sim >= best_pos_score {
-            (1.0 - max_neg_sim).max(NEG_PENALTY_FLOOR)
-        } else {
-            1.0 - (max_neg_sim * NEG_PENALTY_WEIGHT)
-        };
-
-        best_pos_score * neg_penalty * context_multiplier
+        let (score, _) = Self::score_against_corpus_with_evidence_impl(
+            candidate,
+            positives,
+            negatives,
+            expected_context,
+            actual_context,
+            ngram_sim_threshold,
+            weights,
+            None,
+        );
+        score
     }
 
     /// Score a candidate against corpus and return both the final score and
@@ -468,7 +435,15 @@ impl PatternScorer {
                     .iter()
                     .any(|h| candidate.api_calls.contains(h));
                 if !has_overlap {
-                    continue;
+                    let motif_overlap = !candidate.motif_hashes.is_empty()
+                        && !positive.motif_hashes.is_empty()
+                        && positive
+                            .motif_hashes
+                            .iter()
+                            .any(|h| candidate.motif_hashes.contains(h));
+                    if !motif_overlap {
+                        continue;
+                    }
                 }
             }
 
@@ -488,7 +463,9 @@ impl PatternScorer {
                 SEMANTIC_MATCH_BOOST
             };
             let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
-            let pos_score = dim.weighted_score(weights) * f64::from(transfer) * sem_mult;
+            let pos_score = dim.apply_semantic_override(dim.weighted_score(weights))
+                * f64::from(transfer)
+                * sem_mult;
 
             if pos_score > best_pos_score {
                 best_pos_score = pos_score;
@@ -650,33 +627,10 @@ impl PatternScorer {
         // sums in the 0.3–0.6 range). Using max_signal or a blended score
         // would shift the distribution, making the sigmoid extrapolate
         // incorrectly (squashing everything to ~1.0).
-        let weighted_score = best_dim.weighted_score(weights);
+        let weighted_score = best_dim.apply_semantic_override(best_dim.weighted_score(weights));
         let final_score = if gate { weighted_score } else { 0.0 };
 
-        let context_multiplier = match (expected_context, actual_context) {
-            (Some(exp), Some(act)) => {
-                let mut penalty = 1.0;
-                if exp.sensitivity == crate::context::DataSensitivity::High
-                    && act.sensitivity != crate::context::DataSensitivity::High
-                {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
-                }
-                if exp.environment == crate::context::Environment::RouteHandler
-                    && (act.environment == crate::context::Environment::Test
-                        || act.environment == crate::context::Environment::Utility)
-                {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
-                }
-                if act.environment == crate::context::Environment::RouteHandler
-                    && exp.environment != crate::context::Environment::RouteHandler
-                    && exp.environment != crate::context::Environment::Unknown
-                {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
-                }
-                penalty
-            }
-            _ => 1.0,
-        };
+        let context_multiplier = Self::compute_context_penalty(expected_context, actual_context);
 
         (final_score * context_multiplier, evidence)
     }
@@ -688,7 +642,13 @@ impl PatternScorer {
         _ngram_sim_threshold: f64,
         weights: &[f64; 15],
     ) -> f64 {
-        Self::raw_dimensions(candidate, target, !_is_positive).weighted_score(weights)
+        let dim = Self::raw_dimensions(candidate, target, !_is_positive);
+        let score = dim.weighted_score(weights);
+        if _is_positive {
+            dim.apply_semantic_override(score)
+        } else {
+            score
+        }
     }
 
     pub fn similarity_to_positive(
@@ -713,74 +673,10 @@ impl PatternScorer {
         negatives: &[FunctionFingerprint],
         weights: &[f64; 15],
     ) -> MatchEvidence {
-        let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
-
-        // Find the best-matching positive and record per-dimension values
-        let mut best_positive_index = 0usize;
-        let mut best_dim: Option<RawDimensions> = None;
-        let mut best_pos_score = 0.0f64;
-
-        for (i, positive) in positives.iter().enumerate() {
-            let dim = Self::raw_dimensions(candidate, positive, false);
-            let semantic_multiplier = if positive.semantic_markers.is_empty() {
-                1.0
-            } else if jaccard(&candidate.semantic_markers, &positive.semantic_markers) == 0.0 {
-                SEMANTIC_ZERO_PENALTY
-            } else {
-                SEMANTIC_MATCH_BOOST
-            };
-            let transfer = crate::pattern::scorer::cross_lingual_penalty(
-                &positive.language,
-                &candidate.language,
-            );
-            let pos_score = dim.weighted_score(weights) * f64::from(transfer) * semantic_multiplier;
-            if pos_score > best_pos_score {
-                best_pos_score = pos_score;
-                best_positive_index = i;
-                best_dim = Some(dim);
-            }
-        }
-
-        let dim = best_dim.unwrap_or_else(|| Self::raw_dimensions(candidate, &positives[0], false));
-
-        // Compute negative similarity
-        let mut max_neg_sim = 0.0f64;
-        for negative in negatives {
-            let neg_dim = Self::raw_dimensions(candidate, negative, true);
-            let neg_score = neg_dim.weighted_score(weights);
-            if neg_score > max_neg_sim {
-                max_neg_sim = neg_score;
-            }
-        }
-
-        let flow_sim_val = jaccard(
-            &candidate.data_flow_path_hashes,
-            &positives[best_positive_index].data_flow_path_hashes,
-        );
-
-        MatchEvidence {
-            ngram_sim: dim.ngram_sim,
-            ast_sim: dim.ast_sim,
-            signature_sim: dim.signature_sim,
-            control_flow_sim: dim.cf_sim,
-            api_sim: dim.api_sim,
-            motif_sim: dim.motif_sim,
-            flow_sim: if flow_sim_val > 0.0 {
-                Some(flow_sim_val)
-            } else {
-                None
-            },
-            semantic_sim: dim.semantic_sim,
-            negative_sim: max_neg_sim,
-            matched_calls: Vec::new(),
-            missing_calls: Vec::new(),
-            matched_motifs: Vec::new(),
-            has_taint_path: !candidate.data_flow_path_hashes.is_empty()
-                && positives
-                    .iter()
-                    .any(|p| !p.data_flow_path_hashes.is_empty()),
-            best_positive_index,
-        }
+        Self::score_against_corpus_with_evidence_impl(
+            candidate, positives, negatives, None, None, 0.0, weights, None,
+        )
+        .1
     }
 
     pub(crate) fn raw_dimensions(
@@ -850,8 +746,33 @@ impl PatternScorer {
                 0.0
             };
         let api_sim = api_sim_full.max(api_sim_seg);
-        let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
-        let flow_sim = jaccard(
+
+        let containment = |candidate: &[u64], target: &[u64]| -> f64 {
+            if target.is_empty() {
+                return 0.5;
+            }
+            if candidate.is_empty() {
+                return 0.0;
+            }
+            let mut i = 0;
+            let mut j = 0;
+            let mut intersection = 0;
+            while i < candidate.len() && j < target.len() {
+                if candidate[i] == target[j] {
+                    intersection += 1;
+                    i += 1;
+                    j += 1;
+                } else if candidate[i] < target[j] {
+                    i += 1;
+                } else {
+                    j += 1;
+                }
+            }
+            (intersection as f64) / (target.len() as f64)
+        };
+
+        let motif_sim = containment(&candidate.motif_hashes, &target.motif_hashes);
+        let flow_sim = containment(
             &candidate.data_flow_path_hashes,
             &target.data_flow_path_hashes,
         );
@@ -865,16 +786,16 @@ impl PatternScorer {
             &candidate.config_literal_hashes,
             &target.config_literal_hashes,
         );
-        // Control flow ordering: exact match on the sequence hash.
-        // Returns 1.0 if both sequences match (or both are empty/zero),
-        // 0.0 if they differ. This penalizes check→delete vs delete→check.
-        let cf_order_sim = if candidate.control_flow_sequence_hash == 0
-            && target.control_flow_sequence_hash == 0
-            || candidate.control_flow_sequence_hash == target.control_flow_sequence_hash
+        // Control flow ordering: LCS match on the sequence
+        let cf_order_sim = if candidate.control_flow_sequence.is_empty()
+            && target.control_flow_sequence.is_empty()
         {
             1.0
         } else {
-            0.0
+            crate::pattern::scorer::lcs_similarity(
+                &candidate.control_flow_sequence,
+                &target.control_flow_sequence,
+            )
         };
 
         // New dimensions: argument call types and string literal patterns
@@ -972,6 +893,23 @@ impl RawDimensions {
             + self.arg_type_sim * w[13]
             + self.literal_concat_sim * w[14]
     }
+
+    pub fn apply_semantic_override(&self, base_score: f64) -> f64 {
+        // DATAFLOW-DOMINANT OVERRIDE
+        // If the semantic dataflow matches extremely well (motif + flow > 0.8),
+        // we bypass AST dilution (e.g. from massive boilerplate like challengeUtils)
+        // and guarantee a high baseline score.
+        if self.flow_sim > 0.8 && self.motif_sim > 0.8 {
+            return base_score.max(0.85);
+        }
+
+        // Secondary override: if it's a perfect literal API match but AST is buried
+        if self.api_sim > 0.9 && self.flow_sim > 0.5 {
+            return base_score.max(0.75);
+        }
+
+        base_score
+    }
 }
 
 pub(crate) fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
@@ -1029,6 +967,7 @@ mod tests {
             std::path::Path::new(path),
             &mut fps,
             5,
+            None,
         );
         fps.into_iter()
             .next()

@@ -35,7 +35,7 @@ pub struct FunctionFingerprint {
     /// Separate from control_flow_hashes (which uses Jaccard on a set) so the
     /// scorer can apply an exact-match penalty when ordering differs.
     #[cfg_attr(feature = "serialize", serde(default))]
-    pub control_flow_sequence_hash: u64,
+    pub control_flow_sequence: Vec<u64>,
     /// API calls: hashes of the full callee expression used in the body.
     /// E.g., hash of `"child_process.exec"`.
     /// Used for AST-aware semantic matching and IDF weighting.
@@ -341,15 +341,16 @@ fn extract_control_flow(node: Node<'_>, source: &str) -> Vec<u64> {
 /// Extract the ordered control-flow sequence as a single hash.
 /// Used by the scorer to penalize order mismatches (e.g. check→delete vs
 /// delete→check) that Jaccard on the full control_flow_hashes set dilutes.
-fn extract_cf_sequence_hash(node: Node<'_>, source: &str) -> u64 {
+fn extract_cf_sequence(node: Node<'_>, source: &str) -> Vec<u64> {
     let ordered = collect_cf_sequence(node, source);
-    if ordered.is_empty() {
-        return 0;
-    }
-    let mut seq_h = FxHasher::default();
-    "cf_sequence".hash(&mut seq_h);
-    ordered.hash(&mut seq_h);
-    seq_h.finish()
+    ordered
+        .into_iter()
+        .map(|s| {
+            let mut h = FxHasher::default();
+            s.hash(&mut h);
+            h.finish()
+        })
+        .collect()
 }
 
 /// Collect control-flow event names in document order (pre-order traversal).
@@ -359,9 +360,8 @@ fn collect_cf_sequence(node: Node<'_>, source: &str) -> Vec<String> {
     events
 }
 
-fn collect_cf_seq_recursive(node: Node<'_>, _source: &str, events: &mut Vec<String>) {
-    let kind = node.kind();
-    let event = match kind {
+fn get_control_flow_event(kind: &str) -> Option<&'static str> {
+    match kind {
         "if_expression"
         | "if_statement"
         | "match_expression"
@@ -375,8 +375,11 @@ fn collect_cf_seq_recursive(node: Node<'_>, _source: &str, events: &mut Vec<Stri
         "try_expression" | "try_statement" => Some("try"),
         "catch_clause" | "catch_block" => Some("catch"),
         _ => None,
-    };
-    if let Some(e) = event {
+    }
+}
+
+fn collect_cf_seq_recursive(node: Node<'_>, _source: &str, events: &mut Vec<String>) {
+    if let Some(e) = get_control_flow_event(node.kind()) {
         events.push(e.to_string());
     }
     let mut cursor = node.walk();
@@ -396,35 +399,10 @@ fn extract_cf_recursive(
     path: &mut Vec<String>,
     hashes: &mut FxHashSet<u64>,
 ) {
-    let kind = node.kind();
-
-    // Record control flow nodes (normalized to canonical forms)
-    match kind {
-        "if_expression"
-        | "if_statement"
-        | "match_expression"
-        | "match_statement"
-        | "switch_statement"
-        | "switch_expression"
-        | "conditional_expression" => {
-            path.push("branch".to_string());
-        }
-        "loop_expression" | "while_expression" | "for_expression" => {
-            path.push("loop".to_string());
-        }
-        "return_expression" | "return_statement" => {
-            path.push("return".to_string());
-        }
-        "break_expression" => {
-            path.push("break".to_string());
-        }
-        "try_expression" | "try_statement" => {
-            path.push("try".to_string());
-        }
-        "catch_clause" | "catch_block" => {
-            path.push("catch".to_string());
-        }
-        _ => {}
+    let mut pushed = false;
+    if let Some(event) = get_control_flow_event(node.kind()) {
+        path.push(event.to_string());
+        pushed = true;
     }
 
     // Hash the path so far for each depth level
@@ -447,98 +425,13 @@ fn extract_cf_recursive(
     }
 
     // Pop path when leaving control flow nodes
-    match kind {
-        "if_expression"
-        | "if_statement"
-        | "match_expression"
-        | "match_statement"
-        | "switch_statement"
-        | "switch_expression"
-        | "conditional_expression"
-        | "loop_expression"
-        | "while_expression"
-        | "for_expression"
-        | "return_expression"
-        | "return_statement"
-        | "break_expression"
-        | "try_expression"
-        | "try_statement"
-        | "catch_clause"
-        | "catch_block" => {
-            path.pop();
-        }
-        _ => {}
+    if pushed {
+        path.pop();
     }
 }
 
 /// Extract API calls from function body using AST traversal.
 /// This replaces text-based keyword matching with actual call expression detection.
-fn extract_api_calls(node: Node<'_>, source: &str) -> (Vec<u64>, Vec<u64>) {
-    let mut calls = FxHashSet::default();
-    let mut segments = FxHashSet::default();
-    extract_calls_recursive(node, source, &mut calls, &mut segments);
-    let mut calls_vec: Vec<u64> = calls.into_iter().collect();
-    calls_vec.sort_unstable();
-    let mut seg_vec: Vec<u64> = segments.into_iter().collect();
-    seg_vec.sort_unstable();
-    (calls_vec, seg_vec)
-}
-
-fn extract_calls_recursive(
-    node: Node<'_>,
-    source: &str,
-    calls: &mut FxHashSet<u64>,
-    segments: &mut FxHashSet<u64>,
-) {
-    let kind = node.kind();
-
-    // Match call expressions and extract the function name
-    if kind == "call_expression" {
-        if let Some(func) = node.child_by_field_name("function") {
-            let name = &source[func.start_byte()..func.end_byte()];
-
-            // Full-form hash goes into `calls` (used for IDF)
-            let mut h = FxHasher::default();
-            name.hash(&mut h);
-            calls.insert(h.finish());
-
-            // Last-segment hash goes into `segments` (kept separate to avoid IDF inflation)
-            if let Some(dot_pos) = name.rfind('.') {
-                let method = &name[dot_pos + 1..];
-                let mut h2 = FxHasher::default();
-                method.hash(&mut h2);
-                segments.insert(h2.finish());
-            }
-        }
-    }
-
-    // Also capture macro invocations (Rust)
-    if kind == "macro_invocation" {
-        if let Some(name_node) = node.child_by_field_name("name") {
-            let name = &source[name_node.start_byte()..name_node.end_byte()];
-            let mut h = FxHasher::default();
-            format!("macro_{name}").hash(&mut h);
-            calls.insert(h.finish());
-        }
-    }
-
-    // Recurse
-    let mut cursor = node.walk();
-    if cursor.goto_first_child() {
-        loop {
-            let child = cursor.node();
-            extract_calls_recursive(child, source, calls, segments);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-    }
-}
-
-/// Extract argument call types: hashes of (function_segment, arg_position, arg_kind)
-/// for each call expression. Captures whether calls receive string literals,
-/// binary expressions (concat), template strings, objects, identifiers, etc.
-/// Enables distinguishing `query(concat_string, obj)` from `query(literal, obj)`.
 fn extract_argument_call_types(node: Node<'_>, source: &str) -> Vec<u64> {
     let mut arg_types = rustc_hash::FxHashSet::default();
     extract_arg_types_recursive(node, source, &mut arg_types);
@@ -877,6 +770,13 @@ fn collect_raw_calls_recursive(node: Node<'_>, source: &str, names: &mut Vec<Str
         if let Some(func) = node.child_by_field_name("function") {
             names.push(source[func.start_byte()..func.end_byte()].to_string());
         }
+    } else if node.kind() == "macro_invocation" {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            names.push(format!(
+                "macro_{}",
+                &source[name_node.start_byte()..name_node.end_byte()]
+            ));
+        }
     }
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
@@ -1073,6 +973,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
     path: &Path,
     fingerprints: &mut Vec<(FunctionFingerprint, Node<'a>)>,
     window_size: usize,
+    import_map: Option<&crate::import_resolver::ImportMap>,
 ) {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let language = crate::parser::ext_to_language(ext).to_string();
@@ -1125,8 +1026,29 @@ pub fn extract_fingerprints_with_nodes<'a>(
 
             // AST-aware features
             let control_flow = extract_control_flow(body, source_code);
-            let cf_sequence_hash = extract_cf_sequence_hash(body, source_code);
-            let (api_calls, api_call_segments) = extract_api_calls(body, source_code);
+            let control_flow_sequence = extract_cf_sequence(body, source_code);
+            let raw_call_names = collect_raw_call_names(body, source_code);
+            let mut api_calls_set = FxHashSet::default();
+            let mut api_call_segments_set = FxHashSet::default();
+            for name in &raw_call_names {
+                let is_macro = name.starts_with("macro_");
+                let mut h = FxHasher::default();
+                name.hash(&mut h);
+                api_calls_set.insert(h.finish());
+                if !is_macro {
+                    if let Some(dot_pos) = name.rfind('.') {
+                        let method = &name[dot_pos + 1..];
+                        let mut h2 = FxHasher::default();
+                        method.hash(&mut h2);
+                        api_call_segments_set.insert(h2.finish());
+                    }
+                }
+            }
+            let mut api_calls: Vec<u64> = api_calls_set.into_iter().collect();
+            api_calls.sort_unstable();
+            let mut api_call_segments: Vec<u64> = api_call_segments_set.into_iter().collect();
+            api_call_segments.sort_unstable();
+
             let property_accesses = extract_property_accesses(body, source_code);
             let semantic_markers = extract_semantic_markers(
                 body,
@@ -1166,11 +1088,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 })
                 .unwrap_or_default();
             let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names);
-            let raw_call_names = collect_raw_call_names(body, source_code);
             let motif_hashes =
                 extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
             let data_flow_path_hashes =
-                crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code);
+                crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code, import_map);
             let argument_call_types = extract_argument_call_types(body, source_code);
             let literal_pattern_hashes = extract_literal_patterns(body, source_code);
 
@@ -1218,7 +1139,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 skeleton,
                 skeleton_hashes,
                 control_flow_hashes: control_flow,
-                control_flow_sequence_hash: cf_sequence_hash,
+                control_flow_sequence,
                 api_calls,
                 api_call_segments,
                 property_accesses,
@@ -1262,8 +1183,16 @@ pub fn extract_fingerprints(
     path: &Path,
     fingerprints: &mut Vec<FunctionFingerprint>,
     window_size: usize,
+    import_map: Option<&crate::import_resolver::ImportMap>,
 ) {
     let mut with_nodes = Vec::new();
-    extract_fingerprints_with_nodes(root, source_code, path, &mut with_nodes, window_size);
+    extract_fingerprints_with_nodes(
+        root,
+        source_code,
+        path,
+        &mut with_nodes,
+        window_size,
+        import_map,
+    );
     fingerprints.extend(with_nodes.into_iter().map(|(fp, _)| fp));
 }

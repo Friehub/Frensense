@@ -31,12 +31,12 @@ pub type FeatureVec = [f64; 15];
 // M1-M15 mutation variants.
 // See docs/SCORING_DIMENSIONS.md for analysis.
 pub(crate) const DEFAULT_WEIGHTS: FeatureVec = [
-    0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,
+    0.08, 0.10, 0.08, 0.04, 0.03, 0.10, 0.10, 0.10, 0.14, 0.12, 0.16, 0.03, 0.02, 0.04, 0.04,
 ];
 
 /// Minimum number of positive + negative pairs required to train a per-category
 /// weight vector.  Below this threshold the fallback is returned.
-const MIN_TRAINING_PAIRS: usize = 20;
+const MIN_TRAINING_PAIRS: usize = 5;
 
 const LEARNING_RATE: f64 = 0.1;
 const ITERATIONS: usize = 200;
@@ -115,14 +115,15 @@ fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprin
         &target.config_literal_hashes,
     );
 
-    let cf_order_sim = if candidate.control_flow_sequence_hash == 0
-        && target.control_flow_sequence_hash == 0
-        || candidate.control_flow_sequence_hash == target.control_flow_sequence_hash
-    {
-        1.0
-    } else {
-        0.0
-    };
+    let cf_order_sim =
+        if candidate.control_flow_sequence.is_empty() && target.control_flow_sequence.is_empty() {
+            1.0
+        } else {
+            crate::pattern::scorer::lcs_similarity(
+                &candidate.control_flow_sequence,
+                &target.control_flow_sequence,
+            )
+        };
 
     let arg_type_sim =
         if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {

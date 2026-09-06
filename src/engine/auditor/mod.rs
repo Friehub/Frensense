@@ -256,6 +256,7 @@ impl FrensenseAuditor {
             opts.path,
             &mut fingerprints,
             opts.ngram_window_size,
+            None,
         );
 
         Ok(ScanResult {

@@ -11,6 +11,7 @@ const LANGUAGE_EXTENSIONS: &[(&[&str], &[&str])] = &[
     (&["typescript", "ts"], &["ts", "tsx"]),
     (&["javascript", "js"], &["js", "jsx"]),
     (&["python", "py"], &["py", "pyi"]),
+    (&["go"], &["go"]),
     (&["yaml", "yml"], &["yml", "yaml"]),
     (&["html"], &["html", "htm"]),
 ];
@@ -22,6 +23,7 @@ pub fn ext_to_language(ext: &str) -> &'static str {
         "ts" | "tsx" => "typescript",
         "js" | "jsx" => "javascript",
         "py" | "pyi" => "python",
+        "go" => "go",
         "yml" | "yaml" => "yaml",
         "html" | "htm" => "html",
         _ => "unknown",
@@ -39,6 +41,7 @@ pub fn is_supported(path: &Path) -> bool {
             | "jsx"
             | "py"
             | "pyi"
+            | "go"
             | "yml"
             | "yaml"
             | "json"
@@ -219,6 +222,7 @@ impl ParserRegistry {
             "js" | "jsx" => Ok(tree_sitter_javascript::LANGUAGE.into()),
             #[cfg(feature = "python")]
             "py" | "pyi" => Ok(tree_sitter_python::LANGUAGE.into()),
+            "go" => Ok(tree_sitter_go::LANGUAGE.into()),
             #[cfg(feature = "html")]
             "html" | "htm" => Ok(tree_sitter_html::LANGUAGE.into()),
             "yml" | "yaml" => Err(FrensenseError::Config(format!(
@@ -237,6 +241,7 @@ impl ParserRegistry {
             "typescript" | "ts" => Self::get_language(Path::new("x.tsx")),
             "javascript" | "js" => Self::get_language(Path::new("x.js")),
             "python" | "py" => Self::get_language(Path::new("x.py")),
+            "go" => Self::get_language(Path::new("x.go")),
             "yaml" | "yml" => Self::get_language(Path::new("x.yaml")),
             "html" => Self::get_language(Path::new("x.html")),
             _ => Err(FrensenseError::Config(format!(

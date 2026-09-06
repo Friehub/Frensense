@@ -87,7 +87,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         };
 
         let mut fps = Vec::new();
-        extract_fingerprints(tree.root_node(), &source, &path, &mut fps, 5);
+        extract_fingerprints(tree.root_node(), &source, &path, &mut fps, 5, None);
 
         if fps.is_empty() {
             continue;
@@ -546,6 +546,7 @@ mod tests {
             js_path,
             &mut js_fps,
             5,
+            None,
         );
         eprintln!("\nJuice Shop login.ts: {} fingerprints", js_fps.len());
         let has_sqli = js_fps.iter().any(|fp| fp.api_calls.contains(&sqli_hash));
@@ -599,6 +600,7 @@ mod tests {
             js_path,
             &mut js_fps,
             5,
+            None,
         );
 
         // Find the handler at line 32 (the vulnerable one)

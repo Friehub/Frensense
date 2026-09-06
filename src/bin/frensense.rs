@@ -222,6 +222,7 @@ fn main() -> Result<()> {
                         p,
                         &mut fps,
                         wsize,
+                        None,
                     );
                     all_fingerprints.extend(fps);
                 }

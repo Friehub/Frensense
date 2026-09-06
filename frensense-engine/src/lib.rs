@@ -145,7 +145,14 @@ pub fn analyze_file(
     let mut functions = Vec::new();
     let parser_registry = parser::ParserRegistry;
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    fingerprint::extract_fingerprints(root, source, file_path, &mut functions, 5);
+    fingerprint::extract_fingerprints(
+        root,
+        source,
+        file_path,
+        &mut functions,
+        5,
+        Some(&import_map),
+    );
 
     let mut symbols = symbols::SymbolRegistry::new();
     if let Some(sym_query) = parser_registry.get_symbol_query_by_ext(ext) {
