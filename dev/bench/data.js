@@ -1,6 +1,6 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779764440541,
-  "repoUrl": "https://github.com/Friehub/gensense",
+  "lastUpdate": 1788712079207,
+  "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Gensense Engine Benchmarks": [
       {
@@ -2342,6 +2342,82 @@ window.BENCHMARK_DATA = {
             "value": 33206929.25,
             "range": "150185.89473366737",
             "unit": "ns"
+          }
+        ]
+      }
+    ],
+    "Benchmark": [
+      {
+        "commit": {
+          "author": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "committer": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "distinct": true,
+          "id": "3c2603d8095ce8f51bbd9eb1d9b7982fa49b6aae",
+          "message": "Merge v0.4.0-tasks into main",
+          "timestamp": "2026-09-06T17:22:39+01:00",
+          "tree_id": "9d2702de0a8fc1ba189ba3073a58c0fa1429a234",
+          "url": "https://github.com/Friehub/Frensense/commit/3c2603d8095ce8f51bbd9eb1d9b7982fa49b6aae"
+        },
+        "date": 1788712078277,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 38,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 36,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 36,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 27,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 27,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 27,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 27,
+            "unit": "advisories"
           }
         ]
       }
