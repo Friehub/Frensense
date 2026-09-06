@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-#[cfg(feature = "remediation")]
-use crate::{Advisory, GenSenseError, Result};
-#[cfg(feature = "remediation")]
+use crate::{Advisory, FrensenseError, Result};
 use diff;
-#[cfg(feature = "remediation")]
 use pathdiff;
-#[cfg(feature = "remediation")]
 use std::fmt::Write;
-#[cfg(feature = "remediation")]
 use std::fs;
-#[cfg(feature = "remediation")]
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "remediation")]
 pub struct PatchManager {
     root_dir: PathBuf,
 }
 
-#[cfg(feature = "remediation")]
 impl PatchManager {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         Self {
@@ -27,6 +19,9 @@ impl PatchManager {
     }
 
     /// Resolves a logical import path (potentially containing {{root}})
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// to a relative path from the current file.
     fn resolve_import_path(&self, from_file: &Path, import_stmt: &str) -> String {
         if !import_stmt.contains("{{root}}") {
@@ -75,6 +70,9 @@ impl PatchManager {
     /// Generates a unified diff for an advisory's proposed replacement.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the diff generation fails.
     pub fn generate_diff(&self, advisory: &Advisory, file_path: &Path) -> Result<String> {
         let Some(proposed) = &advisory.proposed_replacement else {
@@ -111,6 +109,9 @@ impl PatchManager {
     /// Applies all advisories to a file atomically using Shadow Writing.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if file reading, patching, or renaming fails.
     pub fn apply_fixes(&self, advisories: &[&Advisory], file_path: &Path) -> Result<()> {
         if advisories.is_empty() {
@@ -118,14 +119,16 @@ impl PatchManager {
         }
 
         let absolute_path = self.root_dir.join(file_path);
-        let content = fs::read_to_string(&absolute_path)
-            .map_err(|e| GenSenseError::Config(format!("Failed to read file for patching: {e}")))?;
+        let content = fs::read_to_string(&absolute_path).map_err(|e| {
+            FrensenseError::Config(format!("Failed to read file for patching: {e}"))
+        })?;
 
         // Sort advisories back-to-front by start_byte to ensure offset stability
         let mut sorted_advisories = advisories.to_vec();
         sorted_advisories.sort_by_key(|b| std::cmp::Reverse(b.start_byte));
 
         let mut updated_content = content.clone();
+        let import_re = regex::Regex::new(r"(?m)^import\s+.*").ok();
 
         for advisory in sorted_advisories {
             let Some(proposed) = &advisory.proposed_replacement else {
@@ -139,7 +142,7 @@ impl PatchManager {
                 || end > updated_content.len()
                 || updated_content[start..end] != advisory.original_content
             {
-                return Err(GenSenseError::Config(format!(
+                return Err(FrensenseError::Config(format!(
                     "Patch failed for {}: Context mismatch at byte {}. Expected '{}', found '{}'",
                     file_path.display(),
                     start,
@@ -165,7 +168,7 @@ impl PatchManager {
                 let import_stmt = self.resolve_import_path(file_path, import_template);
                 if !updated_content.contains(&import_stmt) {
                     let mut insertion_offset = 0;
-                    if let Ok(re) = regex::Regex::new(r"(?m)^import\s+.*")
+                    if let Some(re) = &import_re
                         && let Some(last_match) = re.find_iter(&updated_content).last()
                         && let Some(line_end) = updated_content[last_match.end()..].find('\n')
                     {
@@ -193,12 +196,13 @@ impl PatchManager {
 
         let tmp_path = absolute_path.with_extension("patch_tmp");
         fs::write(&tmp_path, updated_content).map_err(|e| {
-            GenSenseError::Config(format!("Failed to write temporary patch file: {e}"))
+            FrensenseError::Config(format!("Failed to write temporary patch file: {e}"))
         })?;
 
         // 3. Atomic rename (on Unix, this is atomic).
-        fs::rename(&tmp_path, &absolute_path)
-            .map_err(|e| GenSenseError::Config(format!("Failed to apply patch atomically: {e}")))?;
+        fs::rename(&tmp_path, &absolute_path).map_err(|e| {
+            FrensenseError::Config(format!("Failed to apply patch atomically: {e}"))
+        })?;
 
         Ok(())
     }
@@ -206,6 +210,9 @@ impl PatchManager {
     /// Applies a single advisory to a file atomically using Shadow Writing.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if file reading, patching, or renaming fails.
     pub fn apply_fix(&self, advisory: &Advisory, file_path: &Path) -> Result<()> {
         self.apply_fixes(&[advisory], file_path)

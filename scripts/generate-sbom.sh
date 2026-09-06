@@ -1,5 +1,5 @@
 #!/bin/bash
-# GenSense SBOM Generator (Bootstrap Version)
+# Frensense SBOM Generator (Bootstrap Version)
 
 VERSION=$(grep '^version =' Cargo.toml | head -n 1 | cut -d '"' -f 2)
 NAME=$(grep '^name =' Cargo.toml | head -n 1 | cut -d '"' -f 2)

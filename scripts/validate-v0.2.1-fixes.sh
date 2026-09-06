@@ -1,11 +1,11 @@
 #!/bin/bash
-# GenSense v0.2.1 Validation Script
+# Frensense v0.2.1 Validation Script
 # Validates all 3 fixes: W1, W2, W3
 
 set -e
 
 echo "======================================"
-echo "GenSense v0.2.1 Fix Validation"
+echo "Frensense v0.2.1 Fix Validation"
 echo "======================================"
 echo ""
 

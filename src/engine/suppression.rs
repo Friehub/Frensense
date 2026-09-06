@@ -33,8 +33,8 @@ pub fn is_suppressed(
 
     // 2. Inline suppression
     let start_row = node.start_position().row;
-    let target = format!("gensense-ignore: {rule_id}");
-    let target_all = "gensense-ignore: all";
+    let target = format!("frensense-ignore: {rule_id}");
+    let target_all = "frensense-ignore: all";
 
     let search_start = start_row.saturating_sub(2);
     let mut current_row = 0;

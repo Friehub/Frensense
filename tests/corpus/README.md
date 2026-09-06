@@ -11,7 +11,7 @@ corpus/targets/          ← hand-crafted source files
 corpus/baselines/targets.json  ← expected advisories
 ```
 
-**CI runs**: `gensense corpus/targets --json --compare-baseline corpus/baselines/targets.json`
+**CI runs**: `frensense corpus/targets --json --compare-baseline corpus/baselines/targets.json`
 
 12 files (6 rules × positive/negative). The baseline contains 4 findings — only the positive variants that currently fire. Negative variants exist to document "should stay silent."
 
@@ -28,7 +28,7 @@ corpus/baselines/tokio-1.52.3.json  ← 680 findings, 14 rules
 Not CI-gated (requires `/tmp/tokio` at the same path). Used for manual drift analysis:
 ```bash
 # After engine changes, compare against the reference
-gensense /tmp/tokio/tokio --json --compare-baseline corpus/baselines/tokio-1.52.3.json
+frensense /tmp/tokio/tokio --json --compare-baseline corpus/baselines/tokio-1.52.3.json
 ```
 
 ## How Matching Works
@@ -46,7 +46,7 @@ When the engine intentionally changes behavior (new rule, rule relaxation, FP fi
 
 ```bash
 # Regenerate targets baseline
-cargo build && ./target/debug/gensense corpus/targets \
+cargo build && ./target/debug/frensense corpus/targets \
   --json --emit-baseline corpus/baselines/targets.json
 # Manually verify the diff:
 git diff corpus/baselines/targets.json
@@ -69,7 +69,7 @@ Commit the updated baseline alongside the engine change so CI stays green.
 ### Adding a real-repo baseline
 
 1. Clone the repo to a stable path (e.g., `/tmp/tokio`)
-2. Run `gensense <path> --json --emit-baseline corpus/baselines/<repo>-<version>.json`
+2. Run `frensense <path> --json --emit-baseline corpus/baselines/<repo>-<version>.json`
 3. Document: version, scan date, command used, environment
 4. Commit
 
@@ -113,7 +113,7 @@ Defined in `.github/workflows/ci.yml` in the `test-rust` job. Runs after the CLI
 ```yaml
 - name: Baseline Regression Check
   run: |
-    binary="./target/debug/gensense"
+    binary="./target/debug/frensense"
     echo "Checking baseline comparison against corpus targets..."
     "$binary" tests/corpus/targets --json --compare-baseline tests/corpus/baselines/targets.json
     echo "Baseline regression check passed"

@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-use super::GenSenseAuditor;
-use crate::{GenSenseError, Result, parser::ParserRegistry, semantics::SymbolRegistry};
+use super::FrensenseAuditor;
+use crate::{FrensenseError, Result, parser::ParserRegistry, semantics::SymbolRegistry};
 use std::path::Path;
 use tree_sitter::{Node, Query, QueryCursor};
 
-impl GenSenseAuditor {
+impl FrensenseAuditor {
     /// Discovers symbols in a given file.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the tree-sitter query fails to compile.
     pub fn discover_symbols(
         &self,
@@ -22,7 +25,7 @@ impl GenSenseAuditor {
             return Ok(Vec::new());
         };
         let query =
-            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| FrensenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -90,12 +93,24 @@ impl GenSenseAuditor {
             }
         }
         symbols.sort_by(|a, b| a.line.cmp(&b.line).then(a.column.cmp(&b.column)));
+
+        // Post-processing: discover `this.method = () => {}` patterns that
+        // tree-sitter queries can't capture (assignment_expression, not
+        // variable_declarator).
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        if matches!(ext, "js" | "jsx" | "ts" | "tsx") {
+            self.discover_this_method_assignments(tree, content, file_id, &path_str, &mut symbols);
+        }
+
         Ok(symbols)
     }
 
     /// Scans for call edges in a given file.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the tree-sitter query fails to compile.
     pub fn scan_for_edges(
         &self,
@@ -108,7 +123,7 @@ impl GenSenseAuditor {
             return Ok(Vec::new());
         };
         let query =
-            Query::new(language, query_str).map_err(|e| GenSenseError::Config(e.to_string()))?;
+            Query::new(language, query_str).map_err(|e| FrensenseError::Config(e.to_string()))?;
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
@@ -125,14 +140,46 @@ impl GenSenseAuditor {
                     _ => continue,
                 };
 
-                if let Some(func) = self.find_enclosing_function(call_node)
-                    && let Some(name_node) = func.child_by_field_name("name")
-                {
-                    let caller_name = match name_node.utf8_text(content.as_bytes()) {
-                        Ok(s) if !s.is_empty() => s,
-                        _ => continue,
+                if let Some(func) = self.find_enclosing_function(call_node) {
+                    // Get the enclosing function's name. For `this.method = () => {}`,
+                    // the enclosing function is the parent function declaration, and
+                    // the method name comes from the assignment left-hand side.
+                    let caller_name = if let Some(name_node) = func.child_by_field_name("name") {
+                        match name_node.utf8_text(content.as_bytes()) {
+                            Ok(s) if !s.is_empty() => s.to_string(),
+                            _ => continue,
+                        }
+                    } else if func.kind() == "arrow_function" {
+                        // Arrow function without a name — try to find the
+                        // assignment parent: `this.methodName = () => {}`
+                        if let Some(parent) = func.parent() {
+                            if parent.kind() == "assignment_expression" {
+                                if let Some(left) = parent.child_by_field_name("left") {
+                                    if left.kind() == "member_expression" {
+                                        if let Some(prop) = left.child_by_field_name("property") {
+                                            match prop.utf8_text(content.as_bytes()) {
+                                                Ok(s) if !s.is_empty() => s.to_string(),
+                                                _ => continue,
+                                            }
+                                        } else {
+                                            continue;
+                                        }
+                                    } else {
+                                        continue;
+                                    }
+                                } else {
+                                    continue;
+                                }
+                            } else {
+                                continue;
+                            }
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
                     };
-                    edges.push((caller_name.to_string(), call_name.to_string()));
+                    edges.push((caller_name, call_name.to_string()));
                 }
             }
         }
@@ -142,6 +189,9 @@ impl GenSenseAuditor {
     /// Discovers events in a given file and links them to the registry.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// This method currently returns `Ok(())` but is marked as `Result` for consistency.
     pub fn discover_events(
         &self,
@@ -231,14 +281,98 @@ impl GenSenseAuditor {
         let mut current = node;
         while let Some(parent) = current.parent() {
             match parent.kind() {
-                "function_item"
-                | "function_declaration"
-                | "arrow_function"
-                | "method_definition" => return Some(parent),
-                _ => current = parent,
+                "function_item" | "function_declaration" | "method_definition" => {
+                    return Some(parent);
+                }
+                // Arrow functions without a name — skip and keep looking for
+                // the enclosing named function (e.g. `this.method = () => {}`
+                // inside `function UserDAO(db) { ... }`).
+                "arrow_function" => {
+                    if parent.child_by_field_name("name").is_some() {
+                        return Some(parent);
+                    }
+                }
+                _ => {}
             }
+            current = parent;
         }
         None
+    }
+
+    /// Discover `this.method = () => {}` patterns in JS/TS files.
+    ///
+    /// These are `expression_statement > assignment_expression` nodes where
+    /// the left side is `this.identifier` and the right side is a function.
+    /// Tree-sitter queries can't capture this pattern (it's not a
+    /// `variable_declarator`), so we walk the AST post-query.
+    fn discover_this_method_assignments(
+        &self,
+        tree: &tree_sitter::Tree,
+        content: &str,
+        file_id: crate::FileId,
+        path_str: &str,
+        symbols: &mut Vec<crate::semantics::Symbol>,
+    ) {
+        let mut stack = vec![tree.root_node()];
+        while let Some(node) = stack.pop() {
+            // Match: expression_statement > assignment_expression
+            if node.kind() == "expression_statement" {
+                if let Some(expr) = node.child_by_field_name("expression") {
+                    if expr.kind() == "assignment_expression" {
+                        if let Some(left) = expr.child_by_field_name("left") {
+                            if let Some(right) = expr.child_by_field_name("right") {
+                                // Check left side is `this.method_name`
+                                if left.kind() == "member_expression" {
+                                    if let Some(object) = left.child_by_field_name("object") {
+                                        if object.kind() == "identifier" {
+                                            let obj_name =
+                                                &content[object.start_byte()..object.end_byte()];
+                                            if obj_name == "this" {
+                                                if let Some(prop) =
+                                                    left.child_by_field_name("property")
+                                                {
+                                                    let method_name = &content
+                                                        [prop.start_byte()..prop.end_byte()];
+                                                    // Check right side is a function
+                                                    if matches!(
+                                                        right.kind(),
+                                                        "arrow_function" | "function"
+                                                    ) {
+                                                        symbols.push(
+                                                            crate::semantics::Symbol {
+                                                                name: method_name.to_string(),
+                                                                kind: crate::semantics::SymbolKind::Function,
+                                                                start_byte: expr.start_byte(),
+                                                                end_byte: expr.end_byte(),
+                                                                line: expr.start_position().row + 1,
+                                                                end_line: expr.end_position().row + 1,
+                                                                column: prop.start_position().column + 1,
+                                                                file_path: path_str.to_string(),
+                                                                file_id,
+                                                            },
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Recurse into children
+            let mut cursor = node.walk();
+            if cursor.goto_first_child() {
+                loop {
+                    stack.push(cursor.node());
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     #[must_use]

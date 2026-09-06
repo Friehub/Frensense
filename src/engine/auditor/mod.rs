@@ -1,27 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-pub mod common;
 pub mod discovery;
 pub mod events;
-pub mod project_auditor;
-pub mod rules;
-pub mod user_rules;
-
-pub use project_auditor::ProjectAuditor;
 
 use glob::Pattern;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::RwLock;
 use tree_sitter::{Language, Node, Query, QueryCursor, Tree};
 
-#[cfg(feature = "fingerprinting")]
-use super::fingerprint::{FunctionFingerprint, extract_fingerprints};
 use super::suppression::{SuppressConfig, is_suppressed};
 use crate::{
-    Advisory, FileId, GenSenseContext, GenSenseError, GenSenseRule, Result, TaintCache,
+    Advisory, FileId, FrensenseContext, FrensenseError, FrensenseRule, Result, TaintCache,
     parser::ParserRegistry, semantics::SymbolRegistry,
 };
+#[cfg(feature = "fingerprinting")]
+use frensense_engine::fingerprint::{FunctionFingerprint, extract_fingerprints};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct ScanResult {
@@ -30,11 +24,11 @@ pub struct ScanResult {
     pub fingerprints: Vec<FunctionFingerprint>,
 }
 
-pub struct GenSenseAuditor {
-    rules: Vec<Box<dyn GenSenseRule>>,
+pub struct FrensenseAuditor {
+    rules: Vec<Box<dyn FrensenseRule>>,
     suppressions: Vec<(String, Pattern)>,
     rule_index: HashMap<String, usize>,
-    combined_queries: RefCell<HashMap<String, Option<Query>>>,
+    combined_queries: std::sync::RwLock<HashMap<String, Option<Query>>>,
 }
 
 pub struct AuditOptions<'a> {
@@ -45,7 +39,7 @@ pub struct AuditOptions<'a> {
     pub semantic_ops: &'a [crate::semantics::data_flow::normalization::SemanticOp],
     pub symbols: &'a SymbolRegistry,
     pub graph: &'a crate::semantics::graph::SemanticGraph,
-    pub file_trees: &'a std::collections::HashMap<
+    pub file_trees: &'a rustc_hash::FxHashMap<
         String,
         (
             tree_sitter::Tree,
@@ -56,26 +50,26 @@ pub struct AuditOptions<'a> {
     pub category_filter: &'a HashSet<String>,
     pub tag_filter: &'a HashSet<String>,
     pub suite: crate::Suite,
-    pub env: crate::GenSenseEnvironment,
+    pub env: crate::FrensenseEnvironment,
     pub severity_filter: Option<crate::Severity>,
     pub ngram_window_size: usize,
-    pub taint_confidence_interprocedural: f32,
-    pub taint_confidence_intraprocedural: f32,
+    pub taint_confidence_interprocedural: f64,
+    pub taint_confidence_intraprocedural: f64,
     pub default_taint_max_depth: usize,
 }
 
-impl GenSenseAuditor {
+impl FrensenseAuditor {
     #[must_use]
-    pub fn new(rules: Vec<Box<dyn GenSenseRule>>) -> Self {
+    pub fn new(rules: Vec<Box<dyn FrensenseRule>>) -> Self {
         Self {
             rule_index: Self::build_rule_index(&rules),
             rules,
             suppressions: Vec::new(),
-            combined_queries: RefCell::new(HashMap::new()),
+            combined_queries: RwLock::new(HashMap::new()),
         }
     }
 
-    fn build_rule_index(rules: &[Box<dyn GenSenseRule>]) -> HashMap<String, usize> {
+    fn build_rule_index(rules: &[Box<dyn FrensenseRule>]) -> HashMap<String, usize> {
         let mut idx = HashMap::new();
         for (i, r) in rules.iter().enumerate() {
             idx.insert(r.id().to_string(), i);
@@ -85,8 +79,7 @@ impl GenSenseAuditor {
 
     #[must_use]
     pub fn default_auditor() -> Self {
-        let (rules, _) = Self::default_rules();
-        Self::new(rules)
+        Self::new(Vec::new())
     }
 
     pub fn set_suppressions(&mut self, config: SuppressConfig) {
@@ -98,33 +91,41 @@ impl GenSenseAuditor {
     }
 
     #[must_use]
-    pub fn rules(&self) -> &[Box<dyn GenSenseRule>] {
+    pub fn suppressions(&self) -> &[(String, Pattern)] {
+        &self.suppressions
+    }
+
+    #[must_use]
+    pub fn rules(&self) -> &[Box<dyn FrensenseRule>] {
         &self.rules
     }
 
-    pub fn set_rules(&mut self, rules: Vec<Box<dyn GenSenseRule>>) {
+    pub fn set_rules(&mut self, rules: Vec<Box<dyn FrensenseRule>>) {
         self.rule_index = Self::build_rule_index(&rules);
         self.rules = rules;
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
-    pub fn add_rules(&mut self, extra: Vec<Box<dyn GenSenseRule>>) {
+    pub fn add_rules(&mut self, extra: Vec<Box<dyn FrensenseRule>>) {
         for r in &extra {
             self.rule_index.insert(r.id().to_string(), self.rules.len());
         }
         self.rules.extend(extra);
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
     pub fn retain_rules<F>(&mut self, mut f: F)
     where
-        F: FnMut(&Box<dyn GenSenseRule>) -> bool,
+        F: FnMut(&Box<dyn FrensenseRule>) -> bool,
     {
         self.rules.retain(&mut f);
         self.rule_index = Self::build_rule_index(&self.rules);
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Remove the first rule with the given ID. Returns `true` if removed.
     pub fn remove_rule(&mut self, id: &str) -> bool {
         let before = self.rules.len();
@@ -132,17 +133,46 @@ impl GenSenseAuditor {
         let removed = self.rules.len() < before;
         if removed {
             self.rule_index = Self::build_rule_index(&self.rules);
-            self.combined_queries.borrow_mut().clear();
+            self.combined_queries.write().unwrap().clear();
         }
         removed
     }
 
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Append a single rule.
-    pub fn add_rule(&mut self, rule: Box<dyn GenSenseRule>) {
+    pub fn add_rule(&mut self, rule: Box<dyn FrensenseRule>) {
         self.rule_index
             .insert(rule.id().to_string(), self.rules.len());
         self.rules.push(rule);
-        self.combined_queries.borrow_mut().clear();
+        self.combined_queries.write().unwrap().clear();
+    }
+
+    fn is_rule_enabled(
+        rule: &dyn FrensenseRule,
+        category_filter: &std::collections::HashSet<String>,
+        tag_filter: &std::collections::HashSet<String>,
+        suite: crate::Suite,
+        _env: crate::FrensenseEnvironment,
+        severity_filter: Option<crate::Severity>,
+    ) -> bool {
+        let meta = rule.metadata();
+        if !category_filter.is_empty() && !category_filter.contains(meta.category.as_ref()) {
+            return false;
+        }
+        if !tag_filter.is_empty() && !meta.tags.iter().any(|t| tag_filter.contains(t.as_ref())) {
+            return false;
+        }
+        if !meta.meets_suite(suite) {
+            return false;
+        }
+        if let Some(threshold) = severity_filter
+            && !meta.severity.meets_threshold(threshold)
+        {
+            return false;
+        }
+        true
     }
 
     /// Performs a security audit on a single file.
@@ -159,6 +189,9 @@ impl GenSenseAuditor {
     /// ```
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Currently this method always returns `Ok`, but it is marked as `Result` for potential future error conditions.
     pub fn audit(&self, opts: &AuditOptions<'_>) -> Result<ScanResult> {
         let mut advisories = Vec::new();
@@ -176,23 +209,9 @@ impl GenSenseAuditor {
         // Phase 2: walk-tree fallback for any rules without queries
         if self.has_walk_rules(ext) {
             let taint_cache = TaintCache::default();
-            let context = GenSenseContext {
-                file_id: opts.file_id,
-                file_path: opts.path,
-                source_code: opts.content,
-                tree: opts.tree,
-                symbols: opts.symbols,
-                graph: opts.graph,
-                semantic_ops: opts.semantic_ops,
-                taint_cache: &taint_cache,
-                file_trees: opts.file_trees,
-                taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
-                taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
-                default_taint_max_depth: opts.default_taint_max_depth,
-                ngram_window_size: opts.ngram_window_size,
-            };
+            let context = Self::build_context(opts, &taint_cache);
             for rule in &self.rules {
-                if !self.is_rule_enabled(
+                if !Self::is_rule_enabled(
                     rule.as_ref(),
                     opts.category_filter,
                     opts.tag_filter,
@@ -215,23 +234,9 @@ impl GenSenseAuditor {
 
         // Phase 3: file-level checks (max_file_lines, etc.)
         let taint_cache = TaintCache::default();
-        let file_context = GenSenseContext {
-            file_id: opts.file_id,
-            file_path: opts.path,
-            source_code: opts.content,
-            tree: opts.tree,
-            symbols: opts.symbols,
-            graph: opts.graph,
-            semantic_ops: opts.semantic_ops,
-            taint_cache: &taint_cache,
-            file_trees: opts.file_trees,
-            taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
-            taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
-            default_taint_max_depth: opts.default_taint_max_depth,
-            ngram_window_size: opts.ngram_window_size,
-        };
+        let file_context = Self::build_context(opts, &taint_cache);
         for rule in &self.rules {
-            if !self.is_rule_enabled(
+            if !Self::is_rule_enabled(
                 rule.as_ref(),
                 opts.category_filter,
                 opts.tag_filter,
@@ -251,6 +256,7 @@ impl GenSenseAuditor {
             opts.path,
             &mut fingerprints,
             opts.ngram_window_size,
+            None,
         );
 
         Ok(ScanResult {
@@ -258,6 +264,28 @@ impl GenSenseAuditor {
             #[cfg(feature = "fingerprinting")]
             fingerprints,
         })
+    }
+
+    fn build_context<'a>(
+        opts: &'a AuditOptions<'_>,
+        taint_cache: &'a TaintCache,
+    ) -> FrensenseContext<'a> {
+        FrensenseContext {
+            file_id: opts.file_id,
+            file_path: opts.path,
+            source_code: opts.content,
+            tree: opts.tree,
+            symbols: opts.symbols,
+            graph: opts.graph,
+            semantic_ops: opts.semantic_ops,
+            taint_cache,
+            file_trees: opts.file_trees,
+            file_context: frensense_engine::context::FileContext::extract(opts.path, opts.content),
+            taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
+            taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
+            default_taint_max_depth: opts.default_taint_max_depth,
+            ngram_window_size: opts.ngram_window_size,
+        }
     }
 
     fn run_combined_query(
@@ -270,37 +298,21 @@ impl GenSenseAuditor {
             return;
         };
 
-        // Phase 1: ensure combined query is built (mutable borrow)
         {
-            let mut cache = self.combined_queries.borrow_mut();
+            let mut cache = self.combined_queries.write().unwrap();
             if !cache.contains_key(ext) {
                 let q = self.build_combined_query(ext, &language);
                 cache.insert(ext.to_string(), q);
             }
         }
 
-        // Phase 2: immutable borrow to use the query (Ref stays alive for whole traversal)
-        let cache = self.combined_queries.borrow();
+        let cache = self.combined_queries.read().unwrap();
         let Some(combined_query) = cache.get(ext).and_then(|q| q.as_ref()) else {
             return;
         };
 
         let taint_cache = TaintCache::default();
-        let context = GenSenseContext {
-            file_id: opts.file_id,
-            file_path: opts.path,
-            source_code: opts.content,
-            tree: opts.tree,
-            symbols: opts.symbols,
-            graph: opts.graph,
-            semantic_ops: opts.semantic_ops,
-            taint_cache: &taint_cache,
-            file_trees: opts.file_trees,
-            taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
-            taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
-            default_taint_max_depth: opts.default_taint_max_depth,
-            ngram_window_size: opts.ngram_window_size,
-        };
+        let context = Self::build_context(opts, &taint_cache);
 
         let capture_names = combined_query.capture_names();
         let mut cursor = QueryCursor::new();
@@ -329,7 +341,7 @@ impl GenSenseAuditor {
                 };
                 let rule = &self.rules[rule_idx];
 
-                if !self.is_rule_enabled(
+                if !Self::is_rule_enabled(
                     rule.as_ref(),
                     opts.category_filter,
                     opts.tag_filter,
@@ -391,8 +403,8 @@ impl GenSenseAuditor {
     fn walk_tree<'a>(
         &self,
         root: Node<'a>,
-        rule: &dyn GenSenseRule,
-        context: &GenSenseContext<'a>,
+        rule: &dyn FrensenseRule,
+        context: &FrensenseContext<'a>,
         out: &mut Vec<Advisory>,
     ) {
         let mut cursor = root.walk();
@@ -427,6 +439,9 @@ impl GenSenseAuditor {
     /// Parses source code into a tree-sitter tree.
     ///
     /// # Errors
+    ///
+    /// # Panics
+    /// May panic if internal assertions fail.
     /// Returns an error if the language is not supported or if the parser fails to initialize.
     pub fn parse_source(&self, path: &Path, content: &str) -> crate::Result<(Language, Tree)> {
         let language = ParserRegistry::get_language(path)?;
@@ -434,7 +449,7 @@ impl GenSenseAuditor {
         parser.set_language(&language)?;
         let tree = parser
             .parse(content, None)
-            .ok_or_else(|| GenSenseError::ParseFailure(path.display().to_string()))?;
+            .ok_or_else(|| FrensenseError::ParseFailure(path.display().to_string()))?;
         Ok((language, tree))
     }
 }

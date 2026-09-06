@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 
+pub mod builder;
 pub mod cache;
 pub mod config;
+pub mod files;
 pub mod helpers;
+pub mod runner;
 
-use crate::engine::auditor::{AuditOptions, GenSenseAuditor, ScanResult};
-use crate::engine::suppression::SuppressConfig;
-use crate::parser::ParserRegistry;
-use crate::semantics::symbols::SymbolRegistry;
-use crate::{Advisory, FileId, GenSenseEnvironment, ProjectRule, Result, SourceRegistry};
+use crate::engine::auditor::FrensenseAuditor;
+use crate::{FileId, FrensenseEnvironment, SourceRegistry};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
+use std::path::PathBuf;
 
 /// Detailed internal snapshot of a file's analysis artifacts.
 pub struct FileSnapshot {
@@ -25,17 +24,13 @@ pub struct FileSnapshot {
 }
 
 pub struct Engine {
-    auditor: GenSenseAuditor,
-    project_rules: Vec<Box<dyn ProjectRule>>,
+    auditor: FrensenseAuditor,
     source_registry: SourceRegistry,
-    min_confidence: f32,
-    environment: GenSenseEnvironment,
+    min_confidence: f64,
+    environment: FrensenseEnvironment,
     enabled_categories: HashSet<String>,
     enabled_tags: HashSet<String>,
     suite: crate::Suite,
-    extra_rule_dirs: Vec<PathBuf>,
-    no_builtin_rules: bool,
-    isolate_rules: bool,
     severity_filter: Option<crate::Severity>,
     language_filter: Option<Vec<&'static str>>,
     file_cache: cache::FileCache,
@@ -43,35 +38,67 @@ pub struct Engine {
 
     // Tunable parameters
     jaccard_threshold: f64,
-    confidence_boost_rate: f32,
-    confidence_boost_max: f32,
+    confidence_boost_rate: f64,
+    confidence_boost_max: f64,
+    taint_unconfirmed_penalty: f64,
+    high_branch_ratio_threshold: f64,
+    high_branch_ratio_suppression_factor: f64,
     max_source_lines: Option<usize>,
     ngram_window_size: usize,
     min_ngram_count: usize,
-    taint_confidence_interprocedural: f32,
-    taint_confidence_intraprocedural: f32,
+    taint_confidence_interprocedural: f64,
+    taint_confidence_intraprocedural: f64,
     default_taint_max_depth: usize,
 
     // CLI-driven rule overrides (merged with config file)
     disabled_rule_ids: Vec<String>,
     severity_overrides: HashMap<String, crate::Severity>,
+
+    #[cfg(feature = "fingerprinting")]
+    profile: Option<frensense_engine::profile::ProjectProfile>,
+    #[cfg(feature = "fingerprinting")]
+    profile_threshold: f64,
+
+    corpus_dir: Option<PathBuf>,
+    corpus_threshold: f64,
+    threshold_overrides: Vec<(String, f64)>,
+    corpus_bundle: Option<&'static [u8]>,
+    baseline_path: Option<PathBuf>,
+    extra_taint_rule_dirs: Vec<PathBuf>,
+    pub check_deps: bool,
+    pub use_data_flow: bool,
+    pub use_taint_only: bool,
+    pub use_compiler: bool,
+    pub ngram_sim_threshold: f64,
+    calibration: Option<crate::engine::confidence_calibration::CalibrationParams>,
+    per_category_calibration:
+        Option<crate::engine::per_category_calibration::PerCategoryCalibration>,
+
+    // Scorer configuration (CLI-overridable)
+    scorer_cross_lingual_penalty: Option<f32>,
+    scorer_semantic_zero_penalty: Option<f64>,
+    scorer_semantic_match_boost: Option<f64>,
+    scorer_noise_gate_moderate: Option<f64>,
+    scorer_noise_gate_strong: Option<f64>,
+    scorer_neg_penalty_floor: Option<f64>,
+    scorer_neg_penalty_weight: Option<f64>,
+    scorer_context_mismatch_penalty: Option<f64>,
+
+    // Full scorer config (built from individual fields + defaults)
+    pub scorer_config: frensense_engine::pattern::scorer::ScorerConfig,
 }
 
 impl Engine {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            auditor: GenSenseAuditor::new(Vec::new()),
-            project_rules: Vec::new(),
+            auditor: FrensenseAuditor::new(Vec::new()),
             source_registry: SourceRegistry::new(),
             min_confidence: 0.1,
-            environment: GenSenseEnvironment::Development,
+            environment: FrensenseEnvironment::Development,
             enabled_categories: HashSet::new(),
             enabled_tags: HashSet::new(),
             suite: crate::Suite::All,
-            extra_rule_dirs: Vec::new(),
-            no_builtin_rules: false,
-            isolate_rules: false,
             severity_filter: None,
             language_filter: None,
             file_cache: cache::FileCache::default(),
@@ -79,6 +106,10 @@ impl Engine {
             jaccard_threshold: 0.8,
             confidence_boost_rate: 0.10,
             confidence_boost_max: 0.30,
+            taint_unconfirmed_penalty: crate::engine::composition::TAINT_UNCONFIRMED_PENALTY,
+            high_branch_ratio_threshold: crate::engine::composition::HIGH_BRANCH_RATIO_THRESHOLD,
+            high_branch_ratio_suppression_factor:
+                crate::engine::composition::HIGH_BRANCH_RATIO_SUPPRESSION_FACTOR,
             max_source_lines: None,
             ngram_window_size: 5,
             min_ngram_count: 3,
@@ -87,688 +118,218 @@ impl Engine {
             default_taint_max_depth: 5,
             disabled_rule_ids: Vec::new(),
             severity_overrides: HashMap::new(),
+            #[cfg(feature = "fingerprinting")]
+            profile: None,
+            #[cfg(feature = "fingerprinting")]
+            profile_threshold: 0.7,
+            corpus_dir: None,
+            corpus_threshold: 0.40,
+            threshold_overrides: Vec::new(),
+            corpus_bundle: None,
+            baseline_path: None,
+            extra_taint_rule_dirs: Vec::new(),
+            check_deps: false,
+            use_data_flow: false,
+            use_taint_only: false,
+            ngram_sim_threshold: 0.05,
+            calibration: None,
+            per_category_calibration: None,
+            use_compiler: false,
+            scorer_cross_lingual_penalty: None,
+            scorer_semantic_zero_penalty: None,
+            scorer_semantic_match_boost: None,
+            scorer_noise_gate_moderate: None,
+            scorer_noise_gate_strong: None,
+            scorer_neg_penalty_floor: None,
+            scorer_neg_penalty_weight: None,
+            scorer_context_mismatch_penalty: None,
+            scorer_config: frensense_engine::pattern::scorer::ScorerConfig::default(),
         }
     }
 
-    pub const fn set_jaccard_threshold(&mut self, val: f64) {
-        self.jaccard_threshold = val;
+    pub fn set_corpus_dir(&mut self, dir: std::path::PathBuf) {
+        self.corpus_dir = Some(dir);
     }
 
-    pub const fn set_confidence_boost_rate(&mut self, val: f32) {
-        self.confidence_boost_rate = val;
+    pub fn set_corpus_threshold(&mut self, threshold: f64) {
+        self.corpus_threshold = threshold;
     }
 
-    pub const fn set_confidence_boost_max(&mut self, val: f32) {
-        self.confidence_boost_max = val;
+    pub fn set_threshold_overrides(&mut self, overrides: Vec<(String, f64)>) {
+        self.threshold_overrides = overrides;
     }
 
-    pub const fn set_max_source_lines(&mut self, val: usize) {
-        self.max_source_lines = Some(val);
+    pub fn set_corpus_bundle(&mut self, bundle: &'static [u8]) {
+        self.corpus_bundle = Some(bundle);
     }
 
-    pub const fn set_ngram_window_size(&mut self, val: usize) {
-        self.ngram_window_size = val;
-    }
-
-    pub const fn set_min_ngram_count(&mut self, val: usize) {
-        self.min_ngram_count = val;
-    }
-
-    pub const fn set_taint_confidence_interprocedural(&mut self, val: f32) {
-        self.taint_confidence_interprocedural = val;
-    }
-
-    pub const fn set_taint_confidence_intraprocedural(&mut self, val: f32) {
-        self.taint_confidence_intraprocedural = val;
-    }
-
-    pub const fn set_default_taint_max_depth(&mut self, val: usize) {
-        self.default_taint_max_depth = val;
-    }
-
-    pub fn add_disabled_rule(&mut self, rule_id: &str) {
-        self.disabled_rule_ids.push(rule_id.to_string());
-    }
-
-    pub fn add_severity_override(&mut self, rule_id: &str, severity: crate::Severity) {
-        self.severity_overrides
-            .insert(rule_id.to_string(), severity);
-    }
-
-    pub const fn set_min_confidence(&mut self, val: f32) {
-        self.min_confidence = val;
-    }
-
-    pub const fn set_environment(&mut self, env: GenSenseEnvironment) {
-        self.environment = env;
-    }
-
-    pub fn set_rules(&mut self, rules: Vec<Box<dyn crate::GenSenseRule>>) {
-        self.auditor.set_rules(rules);
-    }
-
+    /// blake3 hash of the corpus bundle, used for cache invalidation.
     #[must_use]
-    pub const fn auditor(&self) -> &crate::GenSenseAuditor {
-        &self.auditor
+    pub fn corpus_bundle_hash(&self) -> Option<String> {
+        self.corpus_bundle
+            .map(|b| blake3::hash(b).to_hex().to_string())
     }
 
-    #[must_use]
-    pub fn project_rules(&self) -> &[Box<dyn crate::ProjectRule>] {
-        &self.project_rules
+    pub fn set_baseline_path(&mut self, path: std::path::PathBuf) {
+        self.baseline_path = Some(path);
     }
 
-    #[must_use]
-    pub fn list_rules(&self) -> Vec<(String, String, String)> {
-        let mut rules = Vec::new();
-        for r in self.auditor.rules() {
-            let meta = r.metadata();
-            rules.push((
-                meta.id.to_string(),
-                meta.name.to_string(),
-                format!("{:?}", meta.severity),
-            ));
+    pub fn set_check_deps(&mut self, check: bool) {
+        self.check_deps = check;
+    }
+
+    pub fn set_extra_taint_rule_dirs(&mut self, dirs: Vec<PathBuf>) {
+        self.extra_taint_rule_dirs = dirs;
+    }
+
+    pub fn set_use_data_flow(&mut self, enable: bool) {
+        self.use_data_flow = enable;
+    }
+
+    pub fn set_use_taint_only(&mut self, enable: bool) {
+        self.use_taint_only = enable;
+        if enable {
+            self.use_data_flow = true;
         }
-        for r in &self.project_rules {
-            let meta = r.metadata();
-            rules.push((
-                meta.id.to_string(),
-                meta.name.to_string(),
-                format!("{:?}", meta.severity),
-            ));
+    }
+
+    /// Use the type-checked semantic providers (`OxcProvider` for TS/JS,
+    /// `RustHirProvider` for Rust) instead of the tree-sitter name heuristics.
+    /// The compiler path is opt-in because it needs `cargo metadata` and a
+    /// type-check of the analysed workspace.
+    pub fn set_use_compiler(&mut self, enable: bool) {
+        self.use_compiler = enable;
+    }
+
+    pub fn set_ngram_sim_threshold(&mut self, threshold: f64) {
+        self.ngram_sim_threshold = threshold;
+    }
+
+    // Scorer configuration setters
+    pub fn set_scorer_cross_lingual_penalty(&mut self, val: f32) {
+        self.scorer_cross_lingual_penalty = Some(val);
+    }
+    pub fn set_scorer_semantic_zero_penalty(&mut self, val: f64) {
+        self.scorer_semantic_zero_penalty = Some(val);
+    }
+    pub fn set_scorer_semantic_match_boost(&mut self, val: f64) {
+        self.scorer_semantic_match_boost = Some(val);
+    }
+    pub fn set_scorer_noise_gate_moderate(&mut self, val: f64) {
+        self.scorer_noise_gate_moderate = Some(val);
+    }
+    pub fn set_scorer_noise_gate_strong(&mut self, val: f64) {
+        self.scorer_noise_gate_strong = Some(val);
+    }
+    pub fn set_scorer_neg_penalty_floor(&mut self, val: f64) {
+        self.scorer_neg_penalty_floor = Some(val);
+    }
+    pub fn set_scorer_neg_penalty_weight(&mut self, val: f64) {
+        self.scorer_neg_penalty_weight = Some(val);
+    }
+    pub fn set_scorer_context_mismatch_penalty(&mut self, val: f64) {
+        self.scorer_context_mismatch_penalty = Some(val);
+    }
+
+    /// Build the full ScorerConfig from individual CLI fields + defaults.
+    /// Call this after all setter methods and before running the engine.
+    pub fn build_scorer_config(&mut self) {
+        let mut config = frensense_engine::pattern::scorer::ScorerConfig::default();
+        if let Some(v) = self.scorer_cross_lingual_penalty {
+            config.cross_lingual_penalty = v;
         }
-        rules
-    }
-
-    pub fn enable_tag(&mut self, tag: &str) {
-        self.enabled_tags.insert(tag.to_string());
-    }
-
-    pub fn enable_category(&mut self, category: &str) {
-        self.enabled_categories.insert(category.to_string());
-    }
-
-    pub fn add_rule_dir<P: Into<PathBuf>>(&mut self, path: P) {
-        self.extra_rule_dirs.push(path.into());
-    }
-
-    pub const fn set_no_builtin_rules(&mut self, val: bool) {
-        self.no_builtin_rules = val;
-    }
-
-    pub const fn set_isolate_rules(&mut self, val: bool) {
-        self.isolate_rules = val;
-    }
-
-    pub const fn set_severity_filter(&mut self, severity: Option<crate::Severity>) {
-        self.severity_filter = severity;
-    }
-
-    pub fn set_language_filter(&mut self, extensions: &[&'static str]) {
-        self.language_filter = Some(extensions.to_vec());
-    }
-
-    pub fn set_suite(&mut self, suite: crate::Suite) {
-        self.suite = suite;
-    }
-
-    /// Runs the project auditor on the given root directory.
-    ///
-    /// # Errors
-    /// Returns an error if the directory cannot be read, if configuration fails to load,
-    /// or if rule execution encounters a fatal error.
-    pub fn run(&mut self, root: &Path) -> Result<Vec<Advisory>> {
-        let (advisories, _) = self.run_detailed(root)?;
-        Ok(advisories)
-    }
-
-    /// Runs the auditor on a specific set of files (diff-only mode).
-    ///
-    /// Unlike `run()` which scans all files in a directory tree, this method
-    /// processes only the given files. Useful with `--diff-only` to only audit
-    /// changed files.
-    ///
-    /// # Errors
-    /// Returns an error if file reading, parsing, or auditing fails.
-    pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
-        let _config = self.initialize_auditor_and_config(root);
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
-
-        let mut snapshots = Vec::new();
-        for p in files {
-            if let Some(ref allowed) = self.language_filter {
-                let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
-                if !allowed.contains(&ext) {
-                    continue;
-                }
-            }
-            let content = match std::fs::read_to_string(p) {
-                Ok(c) => c,
-                Err(e) => {
-                    self.file_cache.remove(p);
-                    tracing::warn!("cannot read {}: {e}", p.display());
-                    continue;
-                }
-            };
-            if self.file_cache.is_unchanged(p, &content) {
-                continue;
-            }
-            let id = self.source_registry.register(p, content.clone());
-            let (language, tree) = match self.auditor.parse_source(p, &content) {
-                Ok(v) => v,
-                Err(e) => {
-                    self.file_cache.remove(p);
-                    tracing::warn!("cannot parse {}: {e}", p.display());
-                    continue;
-                }
-            };
-            let symbols = self
-                .auditor
-                .discover_symbols(p, id, &content, &language, &tree)?;
-            let edges = self.auditor.scan_for_edges(p, &content, &language, &tree)?;
-            let semantic_ops = self.auditor.extract_semantic_ops(p, &content, &tree);
-            self.file_cache.update(p, &content);
-            snapshots.push(FileSnapshot {
-                id,
-                path: p.clone(),
-                content,
-                tree,
-                symbols,
-                edges,
-                semantic_ops,
-            });
+        if let Some(v) = self.scorer_semantic_zero_penalty {
+            config.semantic_zero_penalty = v;
         }
-
-        let mut symbols = SymbolRegistry::new();
-        let mut file_ids = Vec::new();
-        let mut snapshot_map = HashMap::new();
-        let mut file_trees = HashMap::new();
-
-        for snap in &snapshots {
-            file_ids.push((snap.id, snap.path.clone()));
-            snapshot_map.insert(snap.id, snap);
-            for sym in snap.symbols.clone() {
-                symbols.insert(sym);
-            }
-            file_trees.insert(
-                snap.path.to_string_lossy().to_string(),
-                (
-                    snap.tree.clone(),
-                    snap.content.clone(),
-                    snap.semantic_ops.clone(),
-                ),
-            );
+        if let Some(v) = self.scorer_semantic_match_boost {
+            config.semantic_match_boost = v;
         }
+        if let Some(v) = self.scorer_noise_gate_moderate {
+            config.noise_gate_moderate_signal = v;
+        }
+        if let Some(v) = self.scorer_noise_gate_strong {
+            config.noise_gate_strong_signal = v;
+        }
+        if let Some(v) = self.scorer_neg_penalty_floor {
+            config.neg_penalty_floor = v;
+        }
+        if let Some(v) = self.scorer_neg_penalty_weight {
+            config.neg_penalty_weight = v;
+        }
+        if let Some(v) = self.scorer_context_mismatch_penalty {
+            config.context_mismatch_penalty = v;
+        }
+        self.scorer_config = config;
+    }
 
-        for snap in &snapshots {
-            for (caller, callee) in &snap.edges {
-                symbols.add_call_edge(&snap.path, caller, callee);
+    pub fn set_taint_verified_boost(&mut self, val: f64) {
+        self.scorer_config.taint_verified_boost = val;
+    }
+    pub fn set_cross_file_taint_boost(&mut self, val: f64) {
+        self.scorer_config.cross_file_taint_boost = val;
+    }
+    pub fn set_taint_boost_cap(&mut self, val: f64) {
+        self.scorer_config.taint_boost_cap = val;
+    }
+    pub fn set_score_suppression_floor(&mut self, val: f64) {
+        self.scorer_config.score_suppression_floor = val;
+    }
+    pub fn set_lsh_num_hashes(&mut self, val: usize) {
+        self.scorer_config.lsh_num_hashes = val;
+    }
+    pub fn set_lsh_bands(&mut self, val: usize) {
+        self.scorer_config.lsh_bands = val;
+    }
+    pub fn set_lsh_rows_per_band(&mut self, val: usize) {
+        self.scorer_config.lsh_rows_per_band = val;
+    }
+    pub fn set_ngram_windows(&mut self, val: Vec<usize>) {
+        self.scorer_config.ngram_windows = val;
+    }
+    pub fn set_cf_max_depth(&mut self, val: usize) {
+        self.scorer_config.cf_max_depth = val;
+    }
+
+    pub fn load_calibration(&mut self) {
+        use crate::engine::confidence_calibration::load_calibration;
+        use crate::engine::per_category_calibration::load_per_category_calibration;
+        use std::path::Path;
+
+        // Try to load per-category calibration first
+        let per_cat_paths = [
+            Path::new("per_category_calibration.json"),
+            Path::new(".frensense/per_category_calibration.json"),
+        ];
+
+        for path in &per_cat_paths {
+            if let Some(params) = load_per_category_calibration(path)
+                && params.global.n_samples > 0
+                && params.global.accuracy > 0.0
+            {
+                self.per_category_calibration = Some(params);
+                return;
             }
         }
 
-        for snap in &snapshots {
-            self.auditor
-                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
-        }
+        // Fall back to global calibration
+        let paths = [
+            Path::new("calibration.json"),
+            Path::new(".frensense/calibration.json"),
+        ];
 
-        let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
-
-        self.boost_overlap_confidence(&mut all_advisories);
-
-        self.file_cache.save(root, self.language_filter.as_deref());
-        Ok(all_advisories)
-    }
-
-    /// Runs the audit on a single virtual file with the given content.
-    ///
-    /// # Errors
-    /// Returns an error if parsing or auditing fails.
-    pub fn run_content(&mut self, path: &Path, content: &str) -> Result<Vec<Advisory>> {
-        let config = if self.auditor.rules().is_empty() && !self.isolate_rules {
-            self.initialize_auditor_and_config(Path::new("."))
-        } else {
-            config::load_config(Path::new("."))
-        };
-        let id = self.source_registry.register(path, content.to_string());
-        let (language, tree) = self.auditor.parse_source(path, content)?;
-        let symbols = self
-            .auditor
-            .discover_symbols(path, id, content, &language, &tree)?;
-        let semantic_ops = self.auditor.extract_semantic_ops(path, content, &tree);
-
-        let mut file_trees = HashMap::new();
-        file_trees.insert(
-            path.to_string_lossy().to_string(),
-            (tree.clone(), content.to_string(), semantic_ops.clone()),
-        );
-
-        let mut registry = SymbolRegistry::new();
-        for sym in symbols {
-            registry.insert(sym);
-        }
-        self.auditor
-            .discover_events(path, content, &tree, &mut registry)?;
-
-        let opts = AuditOptions {
-            file_id: id,
-            path,
-            content,
-            tree: &tree,
-            semantic_ops: &semantic_ops,
-            symbols: &registry,
-            graph: registry.graph(),
-            file_trees: &file_trees,
-            category_filter: &self.enabled_categories,
-            tag_filter: &self.enabled_tags,
-            suite: self.suite,
-            env: self.environment,
-            severity_filter: self.severity_filter,
-            ngram_window_size: self.ngram_window_size,
-            taint_confidence_interprocedural: self.taint_confidence_interprocedural,
-            taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
-            default_taint_max_depth: self.default_taint_max_depth,
-        };
-
-        let result = self.auditor.audit(&opts)?;
-        let mut advisories = result.advisories;
-
-        for rule in &self.project_rules {
-            let project_advisories = rule.check_project(&registry, &self.source_registry);
-            for a in project_advisories {
-                if a.confidence >= self.min_confidence {
-                    advisories.push(a);
-                }
-            }
-        }
-
-        // Merge config + CLI severity overrides (CLI wins)
-        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
-        for (rule_id, sev) in &self.severity_overrides {
-            merged_overrides.insert(rule_id.clone(), *sev);
-        }
-        for adv in &mut advisories {
-            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
-                adv.severity = *sev;
-            }
-        }
-
-        // Cross-rule confidence boost
-        self.boost_overlap_confidence(&mut advisories);
-
-        Ok(advisories)
-    }
-
-    /// Boosts confidence when multiple rules fire on the same file+line.
-    /// Uses `confidence_boost_rate` per overlapping rule (cap `confidence_boost_max`, max 1.0).
-    fn boost_overlap_confidence(&self, advisories: &mut [Advisory]) {
-        let overlap_counts: HashMap<(u32, u32), usize> = {
-            let mut counts: HashMap<(u32, u32), HashSet<&str>> = HashMap::new();
-            for adv in &*advisories {
-                counts
-                    .entry((adv.file_id.0, adv.line))
-                    .or_default()
-                    .insert(&adv.rule_id);
-            }
-            counts.into_iter().map(|(k, v)| (k, v.len())).collect()
-        };
-
-        for adv in advisories {
-            if let Some(&count) = overlap_counts.get(&(adv.file_id.0, adv.line)) {
-                let extra = count.saturating_sub(1);
-                #[allow(clippy::cast_precision_loss)]
-                let boost =
-                    (extra as f32 * self.confidence_boost_rate).min(self.confidence_boost_max);
-                adv.confidence = (adv.confidence + boost).min(1.0);
+        for path in &paths {
+            if let Some(params) = load_calibration(path)
+                && params.n_samples > 0
+                && params.accuracy > 0.0
+            {
+                self.calibration = Some(params);
+                return;
             }
         }
     }
 
-    /// Runs a detailed audit, returning both advisories and the assembled symbol registry.
-    ///
-    /// # Errors
-    /// Returns an error if file reading or parsing fails.
-    pub fn run_detailed(&mut self, root: &Path) -> Result<(Vec<Advisory>, SymbolRegistry)> {
-        if !root.exists() {
-            return Err(crate::GenSenseError::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("path does not exist: {}", root.display()),
-            )));
-        }
-        self.file_cache = cache::FileCache::load(root, self.language_filter.as_deref());
-        self.cache_root = Some(root.to_path_buf());
-
-        let config = self.initialize_auditor_and_config(root);
-        let snapshots = self.collect_and_snapshot_files(root)?;
-
-        let mut symbols = SymbolRegistry::new();
-        let mut file_ids = Vec::new();
-        let mut snapshot_map = HashMap::new();
-
-        for snap in &snapshots {
-            file_ids.push((snap.id, snap.path.clone()));
-            snapshot_map.insert(snap.id, snap);
-            for sym in snap.symbols.clone() {
-                symbols.insert(sym);
-            }
-        }
-
-        for snap in &snapshots {
-            for (caller, callee) in &snap.edges {
-                symbols.add_call_edge(&snap.path, caller, callee);
-            }
-        }
-
-        for snap in &snapshots {
-            self.auditor
-                .discover_events(&snap.path, &snap.content, &snap.tree, &mut symbols)?;
-        }
-
-        let mut file_trees = HashMap::new();
-        for snap in &snapshots {
-            let path_str = snap.path.to_string_lossy().to_string();
-            file_trees.insert(
-                path_str,
-                (
-                    snap.tree.clone(),
-                    snap.content.clone(),
-                    snap.semantic_ops.clone(),
-                ),
-            );
-        }
-
-        let mut all_advisories =
-            self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
-
-        for rule in &self.project_rules {
-            let project_advisories = rule.check_project(&symbols, &self.source_registry);
-            for a in project_advisories {
-                if a.confidence >= self.min_confidence {
-                    all_advisories.push(a);
-                }
-            }
-        }
-
-        // Merge config + CLI severity overrides (CLI wins)
-        let mut merged_overrides = config.severity_override.clone().unwrap_or_default();
-        for (rule_id, sev) in &self.severity_overrides {
-            merged_overrides.insert(rule_id.clone(), *sev);
-        }
-        for adv in &mut all_advisories {
-            if let Some(sev) = merged_overrides.get(&adv.rule_id) {
-                adv.severity = *sev;
-            }
-        }
-
-        self.boost_overlap_confidence(&mut all_advisories);
-
-        self.file_cache.save(root, self.language_filter.as_deref());
-        Ok((all_advisories, symbols))
-    }
-
-    fn initialize_auditor_and_config(&mut self, root: &Path) -> config::GenSenseConfig {
-        let config = config::load_config(root);
-
-        if !self.isolate_rules {
-            let mut dirs = self.extra_rule_dirs.clone();
-            if let Some(config_rules_dir) = &config.rules_dir {
-                dirs.push(PathBuf::from(config_rules_dir));
-            }
-            let (rules, project_rules) =
-                GenSenseAuditor::build_rule_set(root, &dirs, self.no_builtin_rules);
-            self.auditor.set_rules(rules);
-            self.project_rules = project_rules;
-
-            let mut disabled_set: HashSet<&str> = HashSet::new();
-            if let Some(disabled) = &config.disabled_rules {
-                for id in disabled {
-                    disabled_set.insert(id.as_str());
-                }
-            }
-            for id in &self.disabled_rule_ids {
-                disabled_set.insert(id.as_str());
-            }
-            if !disabled_set.is_empty() {
-                self.auditor
-                    .retain_rules(|r| !disabled_set.contains(r.id()));
-                self.project_rules
-                    .retain(|r| !disabled_set.contains(r.metadata().id.as_ref()));
-            }
-
-            if let Some(max_lines) = self.max_source_lines {
-                self.auditor.remove_rule("FILE_TOO_LONG");
-                self.auditor
-                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
-                        max_lines,
-                    )));
-            }
-        } else if !self.extra_rule_dirs.is_empty() {
-            let (user_rules, user_project_rules) =
-                crate::engine::auditor::user_rules::load_user_rules(root, &self.extra_rule_dirs);
-            self.auditor.add_rules(user_rules);
-            self.project_rules.extend(user_project_rules);
-
-            if let Some(max_lines) = self.max_source_lines {
-                self.auditor.remove_rule("FILE_TOO_LONG");
-                self.auditor
-                    .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
-                        max_lines,
-                    )));
-            }
-        } else if let Some(max_lines) = self.max_source_lines {
-            self.auditor.remove_rule("FILE_TOO_LONG");
-            self.auditor
-                .add_rule(Box::new(crate::rules::global::file_length::LongFile::new(
-                    max_lines,
-                )));
-        }
-
-        let suppress_file = root.join(".gensense-suppress.yml");
-        if suppress_file.exists()
-            && let Ok(content) = std::fs::read_to_string(suppress_file)
-            && let Ok(supp_config) = serde_yaml::from_str::<SuppressConfig>(&content)
-        {
-            self.auditor.set_suppressions(supp_config);
-        }
-        config
-    }
-
-    fn collect_and_snapshot_files(&mut self, root: &Path) -> Result<Vec<FileSnapshot>> {
-        let files = Self::collect_files(root, self.language_filter.as_ref());
-        let mut snapshots = Vec::new();
-        for p in files {
-            let content = match std::fs::read_to_string(&p) {
-                Ok(c) => c,
-                Err(e) => {
-                    self.file_cache.remove(&p);
-                    return Err(crate::GenSenseError::Io(e));
-                }
-            };
-            let id = self.source_registry.register(&p, content.clone());
-            let auditor = &self.auditor;
-            if self.file_cache.is_unchanged(&p, &content) {
-                // Cache hit: skip heavy symbol/edge work but still parse tree
-                // so Phases 1-3 (combined-query, walk-tree, file-level) can run.
-                if let Ok((_language, tree)) = auditor.parse_source(&p, &content) {
-                    snapshots.push(FileSnapshot {
-                        id,
-                        path: p,
-                        content,
-                        tree,
-                        symbols: Vec::new(),
-                        edges: Vec::new(),
-                        semantic_ops: Vec::new(),
-                    });
-                }
-                continue;
-            }
-            match auditor.parse_source(&p, &content) {
-                Ok((language, tree)) => {
-                    let symbols = auditor.discover_symbols(&p, id, &content, &language, &tree);
-                    let edges = auditor.scan_for_edges(&p, &content, &language, &tree);
-                    let semantic_ops = auditor.extract_semantic_ops(&p, &content, &tree);
-                    if let (Ok(symbols), Ok(edges)) = (symbols, edges) {
-                        self.file_cache.update(&p, &content);
-                        snapshots.push(FileSnapshot {
-                            id,
-                            path: p,
-                            content,
-                            tree,
-                            symbols,
-                            edges,
-                            semantic_ops,
-                        });
-                    } else {
-                        self.file_cache.remove(&p);
-                        return Err(crate::GenSenseError::Io(std::io::Error::other(
-                            "symbol or edge discovery failed",
-                        )));
-                    }
-                }
-                Err(e) => {
-                    self.file_cache.remove(&p);
-                    return Err(e);
-                }
-            }
-        }
-        Ok(snapshots)
-    }
-
-    fn perform_parallel_audit(
-        &self,
-        file_ids: &[(FileId, PathBuf)],
-        snapshot_map: &HashMap<FileId, &FileSnapshot>,
-        symbols: &mut SymbolRegistry,
-        file_trees: &HashMap<
-            String,
-            (
-                tree_sitter::Tree,
-                String,
-                Vec<crate::semantics::data_flow::normalization::SemanticOp>,
-            ),
-        >,
-    ) -> Result<Vec<Advisory>> {
-        let results: Result<Vec<ScanResult>> = file_ids
-            .iter()
-            .map(|(id, p)| {
-                let snap = snapshot_map.get(id).ok_or_else(|| {
-                    crate::GenSenseError::Engine(format!(
-                        "Missing snapshot for file ID {} at path {}",
-                        id.0,
-                        p.display()
-                    ))
-                })?;
-                let opts = AuditOptions {
-                    file_id: *id,
-                    path: p,
-                    content: &snap.content,
-                    tree: &snap.tree,
-                    semantic_ops: &snap.semantic_ops,
-                    symbols,
-                    graph: symbols.graph(),
-                    file_trees,
-                    category_filter: &self.enabled_categories,
-                    tag_filter: &self.enabled_tags,
-                    suite: self.suite,
-                    env: self.environment,
-                    severity_filter: self.severity_filter,
-                    ngram_window_size: self.ngram_window_size,
-                    taint_confidence_interprocedural: self.taint_confidence_interprocedural,
-                    taint_confidence_intraprocedural: self.taint_confidence_intraprocedural,
-                    default_taint_max_depth: self.default_taint_max_depth,
-                };
-                let result = self.auditor.audit(&opts)?;
-
-                let advisories = result.advisories;
-
-                // Record taint flows in the graph for cross-cutting queries.
-                // Materialize edges for each taint-related advisory.
-                for adv in &advisories {
-                    if let Some(ref sym) = adv.enclosing_symbol {
-                        let graph = symbols.graph_mut();
-                        graph.record_taint_flow(crate::semantics::graph::TaintFlowRecord {
-                            function_name: sym.clone(),
-                            file_path: adv.file_path.clone(),
-                            source_pattern: String::new(),
-                            sink_pattern: String::new(),
-                            rule_id: adv.rule_id.clone(),
-                        });
-                    }
-                }
-
-                Ok(ScanResult {
-                    advisories,
-                    #[cfg(feature = "fingerprinting")]
-                    fingerprints: result.fingerprints,
-                })
-            })
-            .collect();
-
-        let mut all_advisories = Vec::new();
-        for result in results? {
-            for a in result.advisories {
-                if a.confidence >= self.min_confidence {
-                    all_advisories.push(a);
-                }
-            }
-        }
-        Ok(all_advisories)
-    }
-
-    fn collect_files(root: &Path, language_filter: Option<&Vec<&'static str>>) -> Vec<PathBuf> {
-        if root.is_file() {
-            return vec![root.to_path_buf()];
-        }
-        WalkDir::new(root)
-            .into_iter()
-            .filter_entry(|e| {
-                if e.file_type().is_dir() {
-                    let name = e.file_name().to_string_lossy();
-                    if e.path() != root {
-                        return name != "target"
-                            && name != "node_modules"
-                            && !name.starts_with('.');
-                    }
-                }
-                true
-            })
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.file_type().is_file())
-            .map(|e| e.path().to_path_buf())
-            .filter(|p| ParserRegistry::is_supported(p))
-            .filter(|p| {
-                if let Some(allowed) = language_filter {
-                    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
-                    allowed.contains(&ext)
-                } else {
-                    true
-                }
-            })
-            .collect()
-    }
-}
-
-pub struct ProjectAuditor {
-    rules: Vec<Box<dyn ProjectRule>>,
-}
-
-impl ProjectAuditor {
-    #[must_use]
-    pub fn new(rules: Vec<Box<dyn ProjectRule>>) -> Self {
-        Self { rules }
-    }
-
-    #[must_use]
-    pub fn run(
-        &self,
-        symbols: &SymbolRegistry,
-        sources: &SourceRegistry,
-        _env: GenSenseEnvironment,
-    ) -> Vec<Advisory> {
-        let mut advisories = Vec::new();
-        for rule in &self.rules {
-            advisories.extend(rule.check_project(symbols, sources));
-        }
-        advisories
+    pub fn calibration(&self) -> Option<&crate::engine::confidence_calibration::CalibrationParams> {
+        self.calibration.as_ref()
     }
 }
 

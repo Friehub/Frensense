@@ -10,4 +10,4 @@ lint = "clippy --all-features -- -W clippy::pedantic -D warnings"
 
 # Build the native .node addon for Node.js consumption.
 # Requires: `npm install -g @napi-rs/cli`
-# Usage: napi build --cargo-cwd gensense-node
+# Usage: napi build --cargo-cwd frensense-node

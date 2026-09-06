@@ -2,12 +2,12 @@
 
 pub mod consistency;
 pub mod data_flow;
-pub mod graph;
-pub mod reachability;
-pub mod registry;
-pub mod symbols;
+pub mod provider;
+pub mod simple_taint;
 
 pub use data_flow::{DataFlowAnalyzer, TaintRegistry};
-pub use graph::{EdgeKind, SemanticGraph};
-pub use reachability::ReachabilityChecker;
-pub use symbols::{Symbol, SymbolKind, SymbolRegistry};
+
+pub use frensense_engine::graph;
+pub use frensense_engine::graph::{EdgeKind, SemanticGraph};
+pub use frensense_engine::symbols;
+pub use frensense_engine::symbols::{Symbol, SymbolKind, SymbolRegistry};
