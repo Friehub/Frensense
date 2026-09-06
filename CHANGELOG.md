@@ -4,19 +4,173 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [0.3.2] - 2026-05-23
+## [0.5.2] - 2026-09-05
+
 
 ### Added
+- **Codebase Deduplication**: Unified the AST traversals in `loader.rs` and `source_sink.rs`, eliminating hundreds of lines of redundant algorithmic logic.
+- **Unified Math Ops**: Extracted Jaccard intersection and scoring evaluation formulas into single shared helpers in `minhash.rs`.
+- **Corpus Extension**: Added `ts_juiceshop_idor_update_positive.ts` and `ts_n_plus_one_query` targets to expand the Juiceshop benchmark suite.
+- **Documentation**: Moved all top-level documentation `.md` files to the `docs/` folder to clean up the repository root.
+
+
+- **CLI Taint Pass**: Injected the Return-Value Taint Propagation heuristic directly into the CLI's file scanning loop (`runner.rs`), allowing the CLI to correctly trace variables populated from database queries.
+- **Return-Value Taint Propagation**: `frensense-engine` now supports tracking taint from function return values inter-procedurally. Added `SemanticOp::Binding` and `SemanticOp::Call` to `SemanticExtractor`, correlated them in `analyze_project` Pass 2, and threaded a `local_tainted_vars` map down to the dataflow engine (`adjust_confidence`, `is_real_source`).
+- **Language-Agnostic AST Extraction**: Deduplicated `extract_rust` and `extract_typescript` into a unified `extract_generic` AST walker in `normalization.rs`.
+- **CWE Mapping**: Added a `cwe()` method to `SinkCategory` in `source_sink.rs`.
+
+### Changed
+- **Structural AST Matching over Text Matching**: Overhauled `has_param_ref` in `fingerprint.rs`, `block_looks_like_auth_guard` in `cfg/mod.rs`, and `extract_sink_var` in `confidence.rs` to use strict tree-sitter AST queries instead of fragile text matching.
+- **Universal Multiply-Shift Hashing**: Replaced biased MinHash hashers with a universal multiply-shift hash family, and swapped `DefaultHasher` for `FxHasher` in `lib.rs` for deterministic fingerprints.
+- **$O(1)$ LazyLock Maps**: Introduced `LazyLock` for `PACKAGE_SINK_MAP` and `HTTP_FRAMEWORK_SET` in `semantic.rs` to avoid redundant allocations.
+- **Flattened Taint Resolver Keys**: `CrossFileTaintResolver` now uses a flattened `"file:symbol"` string key for $O(1)$ lookups.
+- **FxHashSet Rollout**: Mass-replaced `std::collections::HashSet` with `rustc_hash::FxHashSet` in `cfg/mod.rs` and `cross_file.rs`.
+- **Logging**: Swapped `eprintln!` for `tracing::debug!` in `minhash.rs` and added the `tracing` dependency to `Cargo.toml`.
+
+### Fixed
+- **AST Sink Extraction Bug**: Fixed `extract_sink_var_from_ast` in `confidence.rs` to support `member_expression` and `field_expression` as sink arguments (e.g. `req.query.id`), which was previously dropping valid dataflow traces.
+- **Dead Parameter Wired**: The `window_size` parameter in `fingerprint.rs` is now correctly wired to the multi-scale ngram logic.
+
+## [0.5.1] - 2026-09-03
+
+### Added
+- **Minimum-score gate**: Skip corpus matches where ngram AND signature similarity are both near-zero (<0.05). Prevents calibration sigmoid from boosting noise into high-confidence false positives. Generic API matches like `console.log` alone are insufficient for a finding.
+- **Compiler-aware sink registry**: `CorpusSourceSinkRegistry::new(use_compiler: bool)` — when `use_compiler=true`, uses a reduced 95-item sink list (vs 168 full list) covering only truly dangerous bare calls, framework-specific sinks, and MongoDB operators. OXC module resolution handles generic sinks like `query`, `readFile`, `fetch`.
+- **`npm audit` / `cargo audit` subprocess integration**: Vulnerability detection now tries `npm audit --json` and `cargo audit --json` before falling back to hardcoded lists. Requires tools to be installed; gracefully degrades if unavailable.
+- **LanguageProvider trait methods**: Added `known_sink_names()`, `known_source_patterns()`, `resolve_receiver_module()` to `SemanticProvider` trait with default impls. `OxcProvider` implements using `PACKAGE_SINK_CATEGORIES` + global function sinks. `ImportMapProvider` uses hardcoded fallbacks.
+- **Module-based sink classification**: `check_call_for_sink()` now calls `provider.resolve_receiver_module(fn_name_full)` and passes resolved module to `classify_sink()` — enables OXC module-based classification for calls like `db.query()`.
+
+### Changed
+- **`PACKAGE_SINK_CATEGORIES` made `pub`**: Was `const`, now `pub const` so `oxc_provider.rs` can reference it.
+- **`source_patterns` on `CorpusSourceSinkRegistry`**: Initialized from `always_register_source_patterns()`, merged via `merge()`, checked via `is_source_pattern()`. `confidence.rs:is_real_source()` now uses `registry.is_source_pattern()` instead of hardcoded `TAINT_SOURCE_PATTERNS`.
+- **`.gitignore` fixed**: Removed `Cargo.lock` (binary project should track it), added `frensense-bench/datasets/synthetic/`, `frensense-bench/datasets/nodegoat/`, `frensense-bench/results/`.
+- **Stale TOML files removed**: Deleted 12 unused `.toml` corpus metadata files.
+
+### Fixed
+- **Vulnerable dependency JSON parser**: Fixed trim order bug in `extract_npm_deps_for_vuln_check` where `trim_matches('"')` was applied before `trim_matches(',')`.
+
+### Benchmark (NodeGoat, threshold 0.40)
+| Metric | Before | After |
+|--------|--------|-------|
+| TP | 24 | 22 |
+| FP | 252 | 22 |
+| FN | 6 | 8 |
+| Recall | 0.800 | 0.733 |
+| F1 | 0.157 | 0.595 |
+| Wall time | 1:36 | 0:41 |
+
+91% FP reduction with only 2 TPs lost. F1 improved 3.8x. Scan time reduced 58%.
+
+## [0.5.0-optimize] - 2026-08-26
+
+### Added
+- **Rayon parallelism**: `PatternRegistry::scan_function` scoring loop parallelized via `rayon::par_iter()`. Pre-computes `extracted_flows` and `TaintMetrics` once before parallel section; each candidate gets its own `dim_cache`. Extracted `score_candidate()` helper method for parallel dispatch.
+- **thiserror for FrensenseError**: `FrensenseError` now derives `thiserror::Error`, removing ~30 lines of manual `Display`/`Error` impls. Added `From<std::io::Error>` and `From<tree_sitter::LanguageError>` conversions.
+- **FxHashMap for all hot paths**: Converted `HashMap` → `FxHashMap` in `TaintRegistry`, `DataFlowEngine`, `CrossFileTaintResolver`, `AliasTracker`, `ControlFlowGraph`, `DefUseChains`, `RouteRegistry`, `ImportResolver`, `ProjectAnalysis`. Uses `rustc_hash` (already a dependency) for 3-5x faster lookups.
+
+### Changed
+- **Corpus API error types**: `load_corpus`, `load_corpus_dirs`, `load_from_bundle` now return `crate::Result<usize>` (was `Result<usize, String>`).
+- **Deduplicated `extract_fingerprints`**: `extract_fingerprints` now delegates to `extract_fingerprints_with_nodes` and discards nodes (was ~180 lines of duplication).
+- **Fixed `to_uppercase()` duplication**: `fingerprint.rs:654-672` — compute `arg_upper` once instead of calling `.to_uppercase()` 6x on same string.
+- **Shannon entropy optimization**: Replaced `HashMap<char, i32>` + `.chars().count()` with fixed-size `[u32; 128]` byte array in `data_flow/entropy.rs`.
+- **Removed dead code**: Deleted `semantic_patterns/` module (6 files: `auth_guard_dominator`, `csrf_missing_token`, `hardcoded_credentials`, `helpers`, `idor_missing_ownership`, `registry`), `findings/semantic_patterns.rs`, `findings/temporal_violation.rs`. Removed NO-OP modules from `registered_modules()`. Removed dead functions: `extract_imports`, `count_lines`, `common_prefix`, `similarity_score`, `approximate_jaccard`, `hash_ngrams`, `compute_ast_distance`, `has_controller_decorator`, `extract_controller_prefix`, `extract_route_path_from_file`. Removed hardcoded 18-name taint check in `interprocedural.rs` → delegates to `registry.has_any_tainted()`. Removed duplicate `classify_param_origin()` in `corpus_seeder.rs` → delegates to canonical impl.
+- **Fixed evaluate.py**: Changed `data.get("findings", [])` → `data.get("findings", data.get("advisorys", []))` to read correct JSON key.
+- **Benchmark results updated**: NodeGoat v0.5.0 metrics regenerated with optimized binary.
+
+### Performance
+- **87% faster on NodeGoat**: Wall time 29.0s → 3.8s at threshold 0.40 (113 functions, 572 patterns).
+- **No accuracy regression**: F1=0.7164, TP=24, FP=13, FN=6 (identical to pre-optimization).
+
+## [0.5.0-tasks] - 2026-07-24
+
+### Added
+- **CWE/CVSS/OWASP injection**: `[frensense]` comment block now supports `cwe:`, `cvss:`, `owasp:`, `severity:`, `runtime_probe:` fields. Parsed by `parse_frensense_block()`, stored on `AdvisoryText` and surfaced in JSON/SARIF output. SARIF emits CWE as `relationships` array per SARIF 2.1 §3.49.10.
+- **Corpus quality scoring tool**: `cargo run --bin corpus-quality -- corpus/targets/` scores each pattern pair 0-100 based on structural quality heuristics, with tier-specific requirement checks (positives, negatives, cvss, runtime_probe, owasp, exploit_scenario, reference).
+- **Five corpus tiers**: Documented in `FRENSENSE_CORPUS_GUIDE.md` with specific requirements per tier (Tier 1: 7 positives, 4 negatives, cvss, runtime_probe; Tier 2-5: graduated requirements).
+- **Per-pattern `contains_call_to` learning**: Auto-filter now learns calls present in positives but absent from negatives, catching distinctive APIs like `fetch`, `exec`, `redirect` that category-level exclusivity checks miss.
+- **Bidirectional context penalty**: Score now penalizes non-RouteHandler patterns matching RouteHandler files (config patterns on route files get 50% penalty).
+- **Content-based route handler detection**: `FileContext::extract` now detects route handlers by code structure (20+ heuristics: `(req, res)` parameters, `app.get(`, `router.post(`, `res.json()`, `res.redirect()`) — works for any directory convention.
+- **Qualified call names**: `extract_call_targets` now emits both full qualified names (`res.redirect`) and short names (`redirect`), enabling finer-grained auto-filter constraints.
+- **High-quality corpus pairs**: Added `ts_cmdi_exec_shell` (CWE-78), `ts_open_redirect` (CWE-601), `ts_cmdi_exec_direct` (CWE-78), `ts_ssrf_fetch_direct` (CWE-918), `ts_sqli_concat_direct` (CWE-89), `ts_xss_reflected_response` (CWE-79) — all with proper `[frensense]` blocks, real imports, typed handlers, multiple functions, explicit taint sources, and Tier 1-compliant counts (7+ positives, 4+ negatives).
+- **Corpus restructuring**: Files reorganized into subdirectories (`route-handlers/`, `config/`, `middleware/`, `utility/`, `test/`, `mock/`) enabling `FileContext`-based environment detection.
+- **Motif abstraction layer**: 10 sink/source motif groups (CommandExecutionSink, SqlSink, HttpOutboundSink, etc.) mapped to canonical names. Patterns trained on `exec()` now automatically match `spawn()`, `Command::new()`.
+- **Data-flow path fingerprints**: `data_flow_path_hashes` captures abstract source→sink chains (e.g., `UserInputSource → taint_flow → CommandExecutionSink`) invariant to variable renaming.
+- **Match evidence**: `MatchEvidence` struct with per-dimension breakdown (ngram, ast, cf, api, motif, flow, semantic, negative similarity) exposed in JSON/SARIF output and CLI reporter.
+- **Transformation-invariant fingerprints**: Token normalization, CF-path normalization (`if`/`switch`→`branch`), and skeleton normalization (`for`/`while`→`loop_node`) make fingerprints robust to common code mutations.
+- **Tainted API calls dimension**: `tainted_api_calls` separates calls where arguments are function parameters from constants, enabling the scorer to penalize untainted sinks.
+- **LSH multi-table**: Separate LSH tables for structural markers and API calls, with `hit_both` penalty when only one table produces a candidate.
+
+### Changed
+- **All hand-crafted semantic filters removed**: `load_semantic_filters()` returns empty HashMap. ~150 manually authored `contains_call_to`/`contains_import`/`function_name_regex` filters replaced by auto-learned constraints from `compute_auto_filters`.
+- **Auto-learner now learns 6 constraint types**: `contains_call_to`, `contains_import`, `excludes_call`, `excludes_node_type`, `excludes_function_name`, `function_name_regex` — all with frequency thresholds to prevent over-exclusion.
+- **Negative source files now read for auto-filter learning**: `get_negative_source()` concatenates all negative variants, enabling proper `excludes_call` and `excludes_node_type` learning.
+- **Bundle format v4**: Auto-filter stats expanded to 7-tuple (pid, imports, calls, excludes_call, fn_regex, excludes_nodes, excludes_fnames). Bundle version bumped to 4.
+- **No TOML**: All metadata goes in `[frensense]` comment blocks. TOML sidecar files deprecated.
+- **Context penalty bidirectional**: Previously only penalized RouteHandler→Test/Utility. Now also penalizes non-RouteHandler patterns on RouteHandler files.
+- **Corpus quality guide**: Full guide with CWE mapping table (40+ entries), template patterns, mutation guidelines, and tier requirements.
+
+### Fixed
+- **58→4 findings on NodeGoat**: 93% FP reduction after auto-filter constraints enabled with proper negative source learning.
+- **FileCache invalidation**: Cache now invalidated when corpus bundle hash changes (new patterns fire on unchanged files).
+- **Sequential file I/O → parallel**: `collect_files_impl` now reads + parses files in parallel via `par_iter()`.
+- **std::HashMap → FxHashMap**: All hot-path maps (snapshot_map, file_trees) replaced with FxHashMap for 3-5x faster lookups.
+- **eprintln! → tracing::trace!/warn!/info!**: Hot-path debug output now uses tracing macros (zero-cost in production). DEBUG CROSS_FILE_TAINT calls removed.
+- **DependencyResolver deduplicated**: Created once per scan, shared between `run_corpus_scan` and `run_findings_modules`.
+- **apply_severity_overrides deduplicated**: Removed premature first call. Composition now sees all findings including corpus patterns.
+- **Pre-grouped identical fingerprints**: Eliminated the useless `thread_local! AST_CACHE`. Identical fingerprints scored once, advisories replicated.
+- **LSH bucket scaling**: Replaced fixed 32-slot `Vec<FxHashSet>` with per-band `HashMap<u64, Vec<u64>>`. Bucket capacity now scales with item count (essential for 45k target).
+- **Minhash loop transposed**: O(hashes × num_hashes) → O(hashes) by iterating over hashes once and updating all signature minimums.
+- **`type_usage_overlap`**: std::HashSet → FxHashSet (SipHash eliminated).
+
+## [0.5.0] - 2026-07-07
+
+> **Note:** Versions 0.3.1 and 0.4.0 were major internal architectural iterations and were not published to NPM/Crates.io. Their changes are rolled into the 0.5.0 release, but their specific changelogs are preserved below for historical tracking.
+
+### Added
+- **Multi-Layered Composition**: Frensense now operates via a Layer 1 structural fast-pass and a Layer 2 semantic verification pass. False positives are drastically culled via the new `verify_taint_flow` integration into the `PatternScorer`.
+- **Dependency-Aware Taint Analysis**: Project-level dependency resolution from `package.json` integrated into `CrossFileVerifier` to suppress false-positive sinks like native array/object methods (Safe-Base filtering).
+- **Harvested Real-World Vulnerabilities**: 6 new generalized vulnerability patterns derived directly from backend audit reports (e.g., Unauthenticated DB Writes, Hyphen Drop Regex, JWT Bypass).
+- **OWASP Juice Shop & NodeGoat Proven**: Scanner generalizes to find 77 true-positive vulnerabilities in the unseen OWASP Juice Shop repository and successfully flags 9 high-confidence `js_nosql_injection` and `js_swig_xss` zero-day equivalent bugs in NodeGoat.
+
+### Fixed
+- **Structural-First LSH Architecture Hardening**: Removed the highly restrictive lexical n-gram bottleneck (`ngram_sim_threshold`) and softened the negative-similarity penalty in `PatternScorer`. High-confidence structural hits now bypass variable-name mismatches.
+- **T-FIX-1 Composition Optimization**: Lowered the structural high-confidence threshold from 0.40 to 0.20 to retain inter-procedural vulnerable sinks that inherently fail intra-procedural taint-tracing, eliminating structural false-negatives.
+
+### Fixed
+- **Semantic Constraint Evaluation**: Fixed a severe logic bug where `contains_call_to` and `contains_node_type` were evaluated using `.any()` instead of `.all()`. This previously allowed patterns to bypass strict requirements, resulting in thousands of false positives.
+- **Corpus Negative Over-Penalization**: Fixed the corpus learning algorithm (`semantic.rs`) which artificially emptied semantic requirements if a negative example contained a required positive call (e.g., `fetch`). By relaxing the constraint wiping, the engine now correctly maintains strictly required API calls, eliminating false positives for SSRF, Path Traversal, and Open Redirect.
+
+### Changed
+- **Fully corpus-driven detection**: All detection is now driven by positive/negative example pairs. Removed hardcoded TOCTOU detector (`check_then_act.rs`), temporal rules TOML (empty), and taint-as-detection. Detection layers: corpus fingerprint match → taint verification → taint entropy → cross-function consistency.
+- **CorpusSourceSinkRegistry**: Sources and sinks are learned from corpus AST at load time. Replaces three inconsistent `framework_types` arrays and two duplicate `identify_sink()` functions.
+- **Temporal detection is corpus-driven**: `rust_temporal_lock_unlock`, `rust_temporal_lock_sleep`, `ts_temporal_open_close`, `ts_temporal_connect_disconnect` patterns replace hardcoded TOML rules.
+- **TOCTOU generalization**: `ts_toctou_typeorm`, `ts_toctou_sequelize` patterns extend detection beyond Prisma-only.
+- **Corpus suppression support**: `.frensense-suppress.yml` now applies to corpus findings.
+- **603 positive corpus patterns** (from 89 in v0.3.x). 1214 fingerprints. 3.0MB FRC bundle.
+
+### Removed
+- `check_then_act.rs` — hardcoded TOCTOU detector (replaced by corpus patterns)
+- `temporal_rules.toml` rules — replaced by corpus patterns (file retained as empty)
+- `ROADMAP.md` — superseded by tasks.md and SCALING_PLAN.md
+- Stale test references to `TAINT_CREDENTIAL_TO_LOG`, `TAINT_INPUT_TO_EXEC` (taint-as-detection removed)
+- Commodity detectors: `dead_branch.rs`, `unused_variable.rs`, `atomic_section.rs`, `secrets.rs` — Clippy/GitLeaks do them better
+- `reachability.rs` — only used by removed dead_branch detector
+
+## [0.4.0] - Unreleased / Internal
+
+## [0.3.1] - Unreleased / Internal
+
+### Added
+- **`taint_max_depth` Rule DSL field**: Rules can set `taint_max_depth: <N>` in YAML to control cross-function taint chain length per-rule. Falls back to 5 (existing default) when unset.
+- **Visited-set cycle detection in `resolve_call_taint`**: Prevents re-analysis and infinite recursion when the same callee is encountered multiple times during taint resolution. Tracks `(file_path, start_byte)` pairs per analysis.
+- **Match-arm and if-expression return propagation**: `find_returns()` now explicitly walks `match_expression` arms and `if_expression` consequence/alternative branches as potential return values, improving intra-procedural taint flow through conditional logic.
 - **Rule quality pipeline**: Every rule now carries a `precision` tier (`very-high | high | medium | low`), letting users choose a rule suite via `--suite {default|extended|all}`. `default` runs only `very-high` rules (battle-tested, near-zero false positives). `extended` adds `high` rules (well-tested, occasional FP). `all` runs every rule (current behavior, unchanged as default).
-- **`--suite` CLI flag**: `gensense --suite default path/` filters to high-confidence findings only. Backward compatible — existing invocations without `--suite` behave identically.
-- **Historical self-scan benchmark**: `scripts/historical-benchmark.sh` scans a target repo at every tagged version with the current gensense binary and outputs a CSV showing how advisory counts evolved over time. Documented in `BENCHMARK.md`.
+- **`--suite` CLI flag**: `frensense --suite default path/` filters to high-confidence findings only. Backward compatible — existing invocations without `--suite` behave identically.
+- **Historical self-scan benchmark**: `scripts/historical-benchmark.sh` scans a target repo at every tagged version with the current frensense binary and outputs a CSV showing how advisory counts evolved over time. Documented in `BENCHMARK.md`.
 
 ### Changed
-- **Precision assigned to all 75 rules**: 6 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 65 YAML rules tiered by confidence score (39 `very-high`, 10 `high`, 10 `medium`, 6 `low`). 25 `solidity`/`jumia` rules default to `low` (unvalidated).
-
-### Changed
-- **Consolidated single-binaries into unified crate**: `cargo install gensense` now produces both `gensense` (CLI) and `gensense-mcp` (MCP server) binaries. Removed separate `gensense-cli` and `gensense-mcp` workspace crates.
-- **MCP filter params**: Added `language` (file extension matching) and `rules` (rule_id set) parameters to `gensense_audit` tool, applied server-side via `filter_advisories` after scan.
+- **Consolidated single-binaries into unified crate**: `cargo install frensense` now produces both `frensense` (CLI) and `frensense-mcp` (MCP server) binaries. Removed separate `frensense-cli` and `frensense-mcp` workspace crates.
+- **MCP filter params**: Added `language` (file extension matching) and `rules` (rule_id set) parameters to `frensense_audit` tool, applied server-side via `filter_advisories` after scan.
 - **Clippy pedantic compliance**: All ~35 `clippy::pedantic` violations fixed. The four `-A` flags removed from CI and pre-commit hook.
 
 ### Added
@@ -32,40 +186,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **File extension**: `research/sparse_spectral_enginev2.rs` renamed to `.md`.
 - **Package.json**: Removed non-existent `index.js` from `files` array.
 
-### Changed (Breaking)
-- **Rust API: `GenSenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.
-- **Rust API: `GenSenseRule::new_remediation`**: Added a mandatory `import: Option<String>` parameter to support auto-injection of missing imports during patching.
-- **Rust API: `CoreRuleIr::query`**: Always returns the compiled query string; removed `use_query` guard. All YAML node-kind rules now participate in the combined query.
-- **Data Model: `Advisory`**: Added mandatory fields `proposed_import`, `enclosing_symbol`, `confidence`, and `fingerprint` for higher fidelity result tracking.
-- **Edition Upgrade**: The project now requires **Rust 2024 Edition**.
-- **Parallelism removed**: Rayon `into_par_iter()` replaced with `into_iter()` in snapshot collection and audit phases — eliminates futex deadlock class while maintaining adequate performance (~4.5s for 68 files).
-
 ### Added
-- **Schema Contract Validation**: New `ProjectFlowConstraint::SchemaContract` variant with `SchemaType`/`SchemaExtract` enums. Flattened DSL fields (`source_ext`, `source_pattern`, `source_file_glob`, `schema_type`, `schema_glob`, `schema_extract`) on `ProjectCoreRule`. Block-aware Prisma extractor replaces fragile line-based parser. Standard DB rules in `cross-layer-contracts.yml`.
-- **MCP Server Binary**: `gensense-mcp` — full JSON-RPC 2.0 over stdin/stdout. Tool `gensense_audit` returns `{clean, advisories, auto_fixed, requires_human}` with `severity_threshold` filtering and optional `fix_auto`. 35 integration tests (34 pass, 1 ignored in debug mode).
-- **Field-Path Taint Propagation**: `TaintRegistry::get_any_field_origin` detects whole-object leaks when only specific fields are tainted. `resolve_taint` now falls back to field-taint check for identifiers.
-- **Combined Tree-Sitter Query**: Single AST traversal per language merges all rule queries into one multi-pattern query. Capture names encode rule IDs (`@{rule_id}.node`). `HashSet<(rule_idx, node_id)>` dedup prevents redundant `check()` calls. Eliminates O(F × R × T) scaling.
-- **Cached `run_content` Init**: Only calls `initialize_auditor_and_config` on first invocation (~243ms saved per subsequent call).
-- **Schema Documentation**: `BENCHMARK.md` with criterion benchmark results.
-- **CI: Benchmark Dashboard**: `pages` job publishes criterion report via GitHub Pages.
-- **CI: `--force` install**: `cargo install cargo-hack --locked` and `cargo install cargo-machete --locked` use `--force` to handle cached binaries.
-- **Missing Tests**: `test_non_remediated_advisory_is_not_auto_fixable`, `test_requires_human_is_true_for_project_rule_advisories`, `test_prisma_extractor_handles_model_with_block_on_same_line`, `test_prisma_extractor_handles_multiple_schema_files`, `test_mcp_audit_response_contains_requires_human_field`, `test_mcp_audit_auto_fixed_is_zero_when_no_fixable_advisories`.
+- **Native TypeScript rule `TS_TAUTOLOGICAL_ASSERT`**: Detects `expect(x).toBe(x)`, `expect(true).toBeTruthy()`, `expect(null).toBeNull()` via AST walk. Registered under `#[cfg(feature = "typescript")]`. 7 test cases.
+- **`temporal` feature flag**: New Cargo feature gates `TemporalAnalyzer`, `TemporalConfig`, and all temporal compilation/execution paths. On by default. Allows `cargo build --no-default-features` to exclude temporal analysis.
+- **Feature ownership map**: `FEATURE_MAP.md` documents exactly which files each differentiator (temporal, schema_contract, mcp, csa) owns — no more guessing what lives where.
+- **Gap analysis → build plan**: `GAP_ANALYSIS.md` restructured into 6 priority-ordered phases (P0–P5) with tickable checkboxes, aligned to v0.4.0 plan.
 
-### Fixed
-- **MCP Null-ID Hang**: JSON-RPC `"id": null` no longer hangs — `RequestId` enum (`Absent | Null | Value`) with custom deserializer replaces `Option<Value>`.
-- **Sink/Source Matching**: `analyze_call` checks both short `fn_name` and full call expression text against sink/source regex — fixes `console.log(payload)` matching when semantic op extracts only `"log"`.
-- **Cross-Layer Contracts Regex**: Table pattern requires PascalCase (`'"?([A-Z][a-zA-Z0-9]+)"?'`), column pattern requires double-quoted camelCase — drastically reduces false positives.
-- **Prisma Extractor**: Block-aware state machine replaces line-based parser — correctly handles model/enum boundaries and same-line braces.
-- **`find_project_root`**: Prefers `std::env::current_dir()` unconditionally over fragile source-path marker-file heuristics.
-- **Governance Check**: `MISSING_SBOM` removed from automatic `run_detailed` — kept as `Engine::run_governance_checks()` opt-in helper.
-- **Build Artifacts in Git**: Purged 53 build artifact files from git history via `git filter-repo`.
-- **Benchmark Raw String**: Fixed `r#"..."#` delimiter clash in `engine_perf.rs`.
-- **`SymbolKind::Method` → `Struct`**: Updated deprecated `SymbolKind` variant in benchmarks.
-- **Baseline Resilience**: Resolved "Line-Drift" fragility where vertical code shifts would cause false positive regression failures.
-- **Engine: Extension Matching**: Fixed `applies_to` to correctly handle multi-extension strings (e.g., `ts|js|tsx|jsx`).
-- **Engine: Query Safety**: Implemented graceful skipping of language-incompatible Tree-sitter queries during cross-language scans.
-- **CLI: Descriptive Reporting**: Updated reporting to include regression/resolved summaries and net change metrics.
-- **JS/NAPI SRI Bridge**: Exposed semantic anchoring metadata to the Node.js API for consistent identity tracking.
+### Changed
+- **Temporal analyzer moved to dedicated folder**: `src/temporal/` consolidates `TemporalAnalyzer`, `TemporalConfig`, and handler delegation. Scattered call sites in `ir.rs` and `compiler.rs` reduced to 1-line delegations. Old `src/semantics/temporal.rs` removed.
+- **Precision assigned to all 60 rules**: 10 Rust hand-written rules set to `very-high`, 2 AI-pattern rules set to `high`, 48 YAML rules tiered by confidence score (39 `very-high`, 9 `high`).
+
+### Removed
+- **14 style/noise YAML rules**: Self-audit findings dropped from 186 to 69.
+- **10 Solidity rules and `solidity` feature**: Dead code — feature not compiled, no tree-sitter support. Includes 7 core, 2 security, 2 CSA rules.
+- **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md`.
 
 ## [0.2.2] - 2026-05-14
 
@@ -89,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-05-13
 
 ### Added
-- **Multi-File Scanning (GenSense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
+- **Multi-File Scanning (Frensense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
 - **Graph-First Semantic Engine**: Migrated to a global symbol graph for high-precision inter-procedural taint analysis across files.
 - **Multi-Pass Audit Loop**: Implemented a sophisticated audit pipeline that performs local AST checks followed by cross-file project-level enforcement.
 - **Cross-File Project Rules**: Full support for `MustHaveGuard`, `MustBeInternal`, and `CrossFileTaintFree` rules.

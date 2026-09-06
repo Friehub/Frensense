@@ -1,12 +1,16 @@
+[workspace]
+members = ["frensense-engine", "frensense-runtime"]
+resolver = "2"
+
 [package]
-name = "gensense"
-version = "0.3.1"
+name = "frensense"
+version = "0.5.0"
 authors = ["Friehub Developers"]
 edition = "2024"
-description = "GenSense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
-repository = "https://github.com/Friehub/gensense"
-homepage = "https://friehub.github.io/gensense/"
-documentation = "https://friehub.github.io/gensense/"
+description = "Frensense: High-performance semantic diagnostic engine for Rust, TypeScript, and Solidity."
+repository = "https://github.com/Friehub/frensense"
+homepage = "https://friehub.github.io/frensense/"
+documentation = "https://friehub.github.io/frensense/"
 license = "MIT"
 categories = ["development-tools::static-analysis", "security"]
 keywords = ["static-analysis", "linter", "security", "code-quality"]
@@ -14,46 +18,58 @@ publish = true
 rust-version = "1.88"
 
 [lib]
-name = "gensense"
+name = "frensense"
 
 [[bin]]
-name = "gensense"
-path = "src/bin/gensense.rs"
+name = "frensense"
+path = "src/bin/frensense.rs"
 
 [[bin]]
-name = "gensense-mcp"
-path = "src/bin/gensense-mcp.rs"
+name = "frensense-mcp"
+path = "src/bin/frensense-mcp.rs"
+
+[[bin]]
+name = "build-corpus-bundle"
+path = "src/bin/build-corpus-bundle.rs"
+
+[[bin]]
+name = "corpus-quality"
+path = "src/bin/corpus-quality.rs"
 
 [dependencies]
+frensense-engine = { path = "frensense-engine", version = "0.5.0", features = ["full-analysis"] }
 tree-sitter = "0.23"
 tree-sitter-rust = { version = "0.23", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
-tree-sitter-solidity = { version = "1.2", optional = true }
-tree-sitter-yaml = "0.7"
 tree-sitter-javascript = { version = "0.23", optional = true }
+tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-html = { version = "0.23", optional = true }
 thiserror = "1.0"
 tracing = { version = "0.1", features = ["attributes"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 regex = "1"
 walkdir = "2"
-diff = { version = "0.1", optional = true }
-include_dir = { version = "0.7", features = ["glob"] }
+diff = "0.1"
 glob = "0.3"
 petgraph = "0.6"
-dirs = "5.0"
 pathdiff = "0.2"
 rustc-hash = "1.1"
 blake3 = "1.5"
+toml = "0.8"
 
 [features]
-default = ["rust", "typescript", "fingerprinting", "remediation"]
+default = ["rust", "typescript", "fingerprinting", "temporal"]
 rust = ["dep:tree-sitter-rust"]
 typescript = ["dep:tree-sitter-typescript", "dep:tree-sitter-javascript"]
-solidity = ["dep:tree-sitter-solidity"]
-fingerprinting = []
-remediation = ["dep:diff"]
+python = ["frensense-engine/python", "dep:tree-sitter-python"]
+html = ["frensense-engine/html", "dep:tree-sitter-html"]
+fingerprinting = ["frensense-engine/serialize"]
+temporal = []
+rust-hir = ["frensense-engine/rust-hir"]
 
 [dev-dependencies]
 tempfile = "3"

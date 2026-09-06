@@ -1,0 +1,14 @@
+id = "ts_regex_filename_hyphen_drop"
+name = "Regex Hyphen Drop"
+description = "A regex extracting a filename uses `[^\\s-]+`, silently dropping valid hyphenated filenames."
+severity = "High"
+impact = "Generated multi-file output regularly loses entire files with no indication, as files like `error-codes.ts` fail to match the capture group."
+improvement = "Change the capture group to `([^\\s]+?)` to allow hyphens and underscores."
+tags = ["bug", "regex", "parsing"]
+
+[expected_context]
+environment = "Unknown"
+sensitivity = "Unknown"
+frameworks = []
+
+

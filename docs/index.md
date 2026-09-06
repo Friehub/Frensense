@@ -2,48 +2,45 @@
 layout: home
 
 hero:
-  name: "GenSense"
-  text: "Semantic Analysis Engine"
-  tagline: "Detect logical flaws, security risks, and AI-generated code patterns that conventional linters miss."
+  name: "Frensense"
+  text: "Compositional Taint Analysis Engine"
+  tagline: "Detect complex structural vulnerabilities and logic flaws without writing regex or YAML rules."
   actions:
     - theme: brand
-      text: "Get Started"
+      text: "Read the Guide"
       link: "/guide"
     - theme: alt
-      text: "Rule Catalog"
-      link: "/rules"
+      text: "The Corpus (.frc)"
+      link: "/corpus"
     - theme: alt
-      text: "Write Custom Rules"
-      link: "/extending"
+      text: "MCP Integration"
+      link: "/mcp"
 
 features:
-  - title: Semantic Diagnostics
-    details: Analyzes the Abstract Syntax Tree (AST) to identify logical flaws, security vulnerabilities, and architectural anti-patterns that compile cleanly but fail at runtime.
-  - title: AI Pattern Detection
-    details: Built to catch bugs that AI coding assistants introduce — placeholder panics, tautological assertions, silent error swallowing, and confidence theatre.
-  - title: Extensible Rule Engine
-    details: Ship custom YAML rules without recompiling. Drop a .yml file in .gensense/rules/ and the engine picks it up automatically at startup.
-  - title: Temporal Analysis
-    details: Detects event-ordering violations inside async functions — mutex locks held across await points, channels sent without releasing guards, and more.
+  - title: 100% Corpus-Driven
+    details: Frensense does not use hardcoded rules. It learns the shape of vulnerabilities from hundreds of positive and negative AST pairs compiled into a single .frc binary bundle.
+  - title: Multi-Layered Composition
+    details: Layer 1 runs a fast structural pass using multi-scale AST n-grams. Layer 2 executes a semantic verification pass, evaluating data-flow taint, entropy, and cross-file invariants.
+  - title: Reduced False Positives
+    details: If a structural match lacks a provable taint path from an untrusted Source to a vulnerable Sink, the finding is dynamically culled. It significantly reduces false positives, though edge cases remain in highly dynamic codebases.
   - title: Native Performance
-    details: Built in Rust with parallel rule execution via Rayon. Scans a 50-file project in under 5 seconds on standard hardware.
-  - title: CI/CD Ready
-    details: JSON, SARIF, and strict-mode output. Integrates with GitHub Actions, pre-commit hooks, and VS Code task runners with a single command.
+    details: Built in Rust. Single-pass AST parsing with tree-sitter allows for rapid scanning of codebases.
+  - title: Continuous Harvesting
+    details: The corpus is updated by harvesting real-world CVEs and PR fixes from open-source repositories using NVD streaming harvesters.
+  - title: AI Agent Native
+    details: Exposes the full engine to AI agents (like Claude or GPT-4) via the Model Context Protocol (MCP) frensense_audit tool.
 ---
 
-## Who Uses GenSense
+## Why Frensense?
 
-### Organizations with AI-Assisted Development
-Developers use GitHub Copilot, Claude, ChatGPT for code generation. GenSense catches AI-generated placeholder code, dead results, and tautological logic before they reach production.
+### The Problem with Linters
+Traditional linters rely on regex or handwritten AST rules (YAML/DSL). They are tedious to write, brittle to code formatting, and struggle to reason about multi-file data flow. This often leads to CI pipelines flooded with false positives.
 
-### Critical Infrastructure Teams
-Banking, healthcare, IoT systems cannot tolerate deadlocks and secret leaks. GenSense finds concurrency hazards and data leaks that traditional linters miss.
+### The Problem with SAST
+Standard Static Application Security Testing (SAST) tools trace data flow blindly. They can be computationally expensive, taking minutes or hours to run, and they often lack context about what makes a specific structural pattern vulnerable.
 
-### Platform & DevOps Teams
-Enforce architectural patterns across teams without source recompilation. Custom rules as YAML files, hot-loaded at startup.
-
-### Security Auditors
-Scan for hardcoded secrets and unsafe patterns. Generate SARIF compliance reports with GitHub integration.
+### The Frensense Approach
+Frensense fuses the two methodologies. It uses AST Fingerprinting to spot code that looks like a vulnerability (Layer 1), and then uses Deterministic Taint Verification to prove the vulnerability exists (Layer 2).
 
 ---
 
@@ -51,18 +48,14 @@ Scan for hardcoded secrets and unsafe patterns. Generate SARIF compliance report
 
 Does this describe your scenario?
 
-> "Our team uses Copilot for code generation, and we're worried about production issues."
+> "Our team uses Copilot for code generation, and we're worried about subtle logic bugs making it to production."
 
-✅ **GenSense is built for this**
+✅ **Frensense is built for this**
 
-> "We have strict typing but still get runtime deadlocks in async code."
+> "We want to catch Unauthenticated DB Writes across our microservices."
 
-✅ **GenSense will help**
+✅ **Frensense catches this natively without configuration**
 
-> "We want to enforce that all database queries use prepared statements."
+> "We want a tool to format our code and check for missing semicolons."
 
-✅ **Write a custom YAML rule**
-
-> "We have only synchronous Python code with no security risks."
-
-❌ **GenSense won't add value** (also doesn't support Python yet)
+❌ **Use Prettier or ESLint instead**

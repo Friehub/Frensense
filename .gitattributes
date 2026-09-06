@@ -1,0 +1,14 @@
+# GitHub Linguist Overrides
+
+# Exclude non-Rust test environments and corpus targets from repository language statistics
+# This ensures GitHub correctly identifies Frensense as a Rust project.
+corpus/** linguist-vendored
+test-ecommerce/** linguist-vendored
+test_cases/** linguist-vendored
+tests/** linguist-vendored
+research/** linguist-vendored
+bin/** linguist-vendored
+dist/** linguist-vendored
+
+# Documentation
+docs/** linguist-documentation

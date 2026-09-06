@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [0.3.0] - 2026-05-21
 
 ### Changed (Breaking)
-- **Rust API: `GenSenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.
-- **Rust API: `GenSenseRule::new_remediation`**: Added a mandatory `import: Option<String>` parameter to support auto-injection of missing imports during patching.
+- **Rust API: `FrensenseAuditor::audit`**: Consolidated 10+ arguments into a single, extensible `AuditOptions` struct. This simplifies the call site and future-proofs the audit pipeline.
+- **Rust API: `FrensenseRule::new_remediation`**: Added a mandatory `import: Option<String>` parameter to support auto-injection of missing imports during patching.
 - **Rust API: `CoreRuleIr::query`**: Always returns the compiled query string; removed `use_query` guard. All YAML node-kind rules now participate in the combined query.
 - **Data Model: `Advisory`**: Added mandatory fields `proposed_import`, `enclosing_symbol`, `confidence`, and `fingerprint` for higher fidelity result tracking.
 - **Edition Upgrade**: The project now requires **Rust 2024 Edition**.
@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Schema Contract Validation**: New `ProjectFlowConstraint::SchemaContract` variant with `SchemaType`/`SchemaExtract` enums. Flattened DSL fields (`source_ext`, `source_pattern`, `source_file_glob`, `schema_type`, `schema_glob`, `schema_extract`) on `ProjectCoreRule`. Block-aware Prisma extractor replaces fragile line-based parser. Standard DB rules in `cross-layer-contracts.yml`.
-- **MCP Server Binary**: `gensense-mcp` — full JSON-RPC 2.0 over stdin/stdout. Tool `gensense_audit` returns `{clean, advisories, auto_fixed, requires_human}` with `severity_threshold` filtering and optional `fix_auto`. 35 integration tests (34 pass, 1 ignored in debug mode).
+- **MCP Server Binary**: `frensense-mcp` — full JSON-RPC 2.0 over stdin/stdout. Tool `frensense_audit` returns `{clean, advisories, auto_fixed, requires_human}` with `severity_threshold` filtering and optional `fix_auto`. 35 integration tests (34 pass, 1 ignored in debug mode).
 - **Field-Path Taint Propagation**: `TaintRegistry::get_any_field_origin` detects whole-object leaks when only specific fields are tainted. `resolve_taint` now falls back to field-taint check for identifiers.
 - **Combined Tree-Sitter Query**: Single AST traversal per language merges all rule queries into one multi-pattern query. Capture names encode rule IDs (`@{rule_id}.node`). `HashSet<(rule_idx, node_id)>` dedup prevents redundant `check()` calls. Eliminates O(F × R × T) scaling.
 - **Cached `run_content` Init**: Only calls `initialize_auditor_and_config` on first invocation (~243ms saved per subsequent call).
@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-05-13
 
 ### Added
-- **Multi-File Scanning (GenSense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
+- **Multi-File Scanning (Frensense 2.0)**: Stabilized the core semantic architecture to support project-wide auditing.
 - **Graph-First Semantic Engine**: Migrated to a global symbol graph for high-precision inter-procedural taint analysis across files.
 - **Multi-Pass Audit Loop**: Implemented a sophisticated audit pipeline that performs local AST checks followed by cross-file project-level enforcement.
 - **Cross-File Project Rules**: Full support for `MustHaveGuard`, `MustBeInternal`, and `CrossFileTaintFree` rules.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use gensense::engine::Engine;
+use frensense::engine::Engine;
 use tempfile::tempdir;
 
 #[test]
@@ -43,7 +43,7 @@ fn test_inter_procedural_call_graph() {
     let get_input_idx = graph.find_nodes("get_input")[0];
 
     // Check main -> process
-    let main_neighbors = graph.neighbors_of(main_idx, gensense::semantics::graph::EdgeKind::Calls);
+    let main_neighbors = graph.neighbors_of(main_idx, frensense::semantics::graph::EdgeKind::Calls);
     assert!(
         main_neighbors.contains(&process_idx),
         "main should call process"
@@ -55,7 +55,7 @@ fn test_inter_procedural_call_graph() {
 
     // Check process -> danger
     let process_neighbors =
-        graph.neighbors_of(process_idx, gensense::semantics::graph::EdgeKind::Calls);
+        graph.neighbors_of(process_idx, frensense::semantics::graph::EdgeKind::Calls);
     assert!(
         process_neighbors.contains(&danger_idx),
         "process should call danger"

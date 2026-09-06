@@ -1,10 +1,10 @@
 # --- Build Stage ---
 FROM rust:1.88-slim-bookworm AS builder
 
-WORKDIR /usr/src/gensense
+WORKDIR /usr/src/frensense
 COPY . .
 
-# Build with optimizations — produces both gensense and gensense-mcp binaries
+# Build with optimizations — produces both frensense and frensense-mcp binaries
 RUN cargo build --release
 
 # --- Final Stage ---
@@ -16,8 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /usr/src/gensense/target/release/gensense /usr/local/bin/gensense
+COPY --from=builder /usr/src/frensense/target/release/frensense /usr/local/bin/frensense
 
 # Entrypoint
-ENTRYPOINT ["gensense"]
+ENTRYPOINT ["frensense"]
 CMD ["--help"]

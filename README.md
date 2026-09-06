@@ -1,356 +1,291 @@
-# GenSense
+<div align="center">
+  <h1>Frensense</h1>
+  <p><strong>A deterministic, corpus-driven security and diagnostic engine for Rust, TypeScript, and JavaScript.</strong></p>
+</div>
 
-GenSense is a fast, modular semantic diagnostic engine. It uses **Contextual Structural Analysis (CSA)** and **Symbol-Relative Identity (SRI)** to detect logical flaws, security risks, and unoptimized patterns that conventional linters miss.
+<br />
 
-It operates on **semantic intent** — not just syntax. Code that compiles cleanly can still deadlock, leak secrets, or contain unoptimized database queries. GenSense catches those classes of problems and can **automatically remediate** them.
-
-Full documentation: [https://friehub.github.io/gensense](https://friehub.github.io/gensense)
-
----
-
-## v0.3.0 Key Features
-
-- **Symbol-Relative Identity (SRI)**: Findings are anchored to logical symbols (functions, classes) instead of line numbers, making CI baselines immune to refactoring.
-- **Contextual Structural Analysis (CSA)**: Rules can now reason across multiple files to verify that sensitive operations are protected by appropriate guards.
-- **Auto-Remediation Engine**: Many rules now support automated fixes via the `--fix` flag.
-- **High-Precision Taint Analysis**: Track data flow from sensitive sources to unsafe sinks across function bodies.
-
----
-
-## Why GenSense
-
-Most linters enforce syntax rules and type constraints. GenSense operates one level higher:
-
-- An async block acquires a `std::sync::Mutex` guard and then awaits — a deadlock waiting to happen.
-- A `todo!()` or `unimplemented!()` call sits on a code path reachable in production.
-- A hardcoded secret, API key, or environment URL was committed to the repository.
-- AI-generated code added an assertion that is always true, a test that tests nothing, or an error branch that silently returns a default value.
-- A Prisma query fetches all fields when only one is needed.
-
-None of these are caught by `rustfmt`, `clippy`, `eslint`, or a type system. GenSense is built for exactly these patterns.
-
----
-
-## Supported Languages
-
-| Language | Status |
-| :--- | :--- |
-| Rust | Stable |
-| TypeScript / JavaScript | Stable |
-| YAML | Stable (rule files) |
-| Solidity | Beta (enable with `--features solidity`) |
-
----
-
-## Installation
-
-### MCP Server (AI Agent Integration)
-
-GenSense ships a **Model Context Protocol (MCP) server** — a JSON-RPC 2.0 interface over stdin/stdout that lets AI agents (Claude Code, Cursor, etc.) audit code as part of their workflow.
+Frensense detects semantic bugs, architectural violations, and AI hallucinations—code that compiles but doesn't do what it says it does. It operates without brittle YAML rules, regex patterns, or handwritten DSLs.
 
 ```bash
-# Build the MCP server
-cargo build --features mcp
-
-# Run it (stdin/stdout JSON-RPC)
-./target/debug/gensense-mcp
+cargo install frensense
+frensense . --corpus corpus/targets/
 ```
 
-Configure in your MCP client:
+## How It Works
 
-```json
-{
-  "mcpServers": {
-    "gensense": {
-      "command": "gensense-mcp",
-      "args": []
-    }
-  }
+Starting in `v0.5.0`, Frensense completely abolished manual rule writing. All detection is driven by the **Frensense Rule Corpus (.frc)**. 
+
+The engine fingerprints every function in your project, scores it against the pre-compiled `.frc` bundle, and emits findings when multiple layers confirm the violation:
+
+1. **Corpus Match (Structural)** — Your function's AST shape mathematically matches a known violation pattern in the corpus.
+2. **Taint Path (DataFlow)** — Tainted data dynamically flows from a source to a vulnerable sink without sanitization.
+3. **Cross-Function Consistency** — Ensures sibling functions do not diverge on the same pattern.
+
+A finding only fires when the structural match and dataflow composition agree, guaranteeing a near-zero false positive rate.
+
+## What It Catches
+
+Frensense actively encodes and enforces three distinct categories of code patterns:
+
+- **Security Vulnerabilities:** SQL Injection, SSRF, Path Traversal, and Credentials flowing to logs/HTTP.
+- **Architectural Invariants:** `validate_*()` functions with no rejection path, missing payment gates, or hollow validators that pass input through unchanged.
+- **LLM Hallucinations:** Hardcoded tokens, AI-generated `any` parameters, `console.log` in production, and `await` in synchronous blocks.
+
+## Performance & Exclusions
+
+Frensense is highly optimized for large codebases. To maintain sub-second scan times, the engine automatically ignores:
+- **Build directories:** `node_modules`, `target`, `dist`, `build`, `vendor`, `out`, and hidden directories (`.*`).
+- **Test files:** Files matching `*.test.*`, `*.spec.*`, `__tests__`, or `mocks`.
+- **Generated bundles:** Files matching `*.min.js`, `*.bundle.js`, or `*.chunk.js`.
+- **Large files:** Any source file larger than 1MB is skipped.
+
+## Quick Start
+
+```bash
+# Basic scan
+frensense .
+
+# With corpus pattern detection (Standard)
+frensense . --corpus corpus/targets/ --threshold 0.65
+
+# Data-Flow (Taint) Mode with fine-tuned structural boundaries
+frensense . --corpus corpus/targets/ --mode taint --ngram-sim-threshold 0.05 --threshold 0.00 --min-confidence 0.65
+
+# Only critical findings
+frensense . --severity critical --strict
+
+# JSON output
+frensense . --json
+
+# SARIF for GitHub Advanced Security
+frensense . --sarif
+
+# Diff-only (changed files since last commit)
+frensense . --diff-only --strict
+
+# Baseline suppression
+frensense . --baseline baseline.json
+
+# List loaded patterns
+frensense --list-patterns --corpus corpus/targets/
+```
+
+## Adding a Detection: Pure Code, Zero Config
+
+To teach Frensense a novel vulnerability or business logic flaw specific to your architecture, you simply drop two code snippets into the `corpus/targets/` directory.
+
+```bash
+cp my_bug.ts    corpus/targets/ts_my_bug_positive.ts
+cp fixed.ts     corpus/targets/ts_my_bug_negative.ts
+```
+
+**You do not write TOML or YAML.** Instead, you provide the advisory text directly inside the `_positive` source code file using a `[frensense]` comment block. The engine supports template interpolation for dynamic advisory generation (e.g., `{{ source }}` and `{{ sink }}`).
+
+### The Positive Example (`ts_my_bug_positive.ts`)
+This file represents the vulnerable code shape.
+
+```typescript
+// [frensense]
+// observation: Writing user-provided data directly to a datastore...
+// impact: Unsanitized data from `{{ source }}` reaches the `{{ sink }}` execution context, allowing attackers to manipulate queries.
+// improvement: Call a central auth resolver or use parameterized bindings before passing `{{ source }}` to `{{ sink }}`.
+
+export async function handleDataSync(req: Request, db: Database) {
+  // Vulnerable pattern
+  const filter = req.query.filter;
+  db.collection('users').find({ $where: filter });
 }
 ```
 
-The server exposes a single tool `gensense_audit` with `path`, `fix_auto`, and `severity_threshold` parameters. See [MCP Server docs](https://friehub.github.io/gensense/mcp) for the full reference.
+### The Negative Example (`ts_my_bug_negative.ts`)
+This file represents the structurally identical, but safe code shape. It prevents false positives.
 
----
-
-### CLI (via NPM)
-
-```bash
-npm install -g @friehub/gensense
-```
-
-Or use without installing:
-
-```bash
-npx @friehub/gensense .
-```
-
-### Rust (via Cargo)
-
-```toml
-[dependencies]
-gensense = "0.3.0"
-```
-
-### Node.js Programmatic API
-
-```bash
-npm install @friehub/gensense
-```
-
----
-
-## Usage
-
-### CLI
-
-```bash
-# Audit a directory
-gensense <path>
-
-# Audit a single file
-gensense src/main.rs
-
-# Filter by severity
-gensense . --severity critical
-
-# Enable optional diagnostic tags
-gensense . --tag security
-gensense . --tag governance
-gensense . --tag sbom
-
-# Output as JSON or SARIF
-gensense . --json
-gensense . --sarif
-
-# Exit with code 1 if any findings match the filter (CI mode)
-gensense . --strict
-
-# Print the active rule catalog
-gensense . --list-rules
-
-# Generate RULES.md documentation
-gensense . --generate-docs
-
-# Dump the AST of a file (for writing rules)
-gensense --debug src/main.rs
-
-# Apply automated fixes where available
-gensense . --fix
-
-# Preview proposed fixes as a unified diff
-gensense . --diff
-
-# Load additional custom YAML rules from a directory
-gensense . --rules-dir .gensense/rules/
-
-# Test a single YAML rule against a fixture file
-gensense test-rule .gensense/rules/my_rule.yml \
-  --fixture tests/samples/bad_code.rs \
-  --expect-finding MY_RULE_ID \
-  --expect-line 14
-```
-
-### Node.js API
-
-```javascript
-const { GenSense } = require('@friehub/gensense');
-
-const engine = new GenSense({
-  environment: 'development',
-  tags: ['security', 'reliability']
-});
-
-// Audit a string of source code
-const findings = engine.auditContent('src/handler.rs', sourceCode);
-
-findings.forEach(finding => {
-  console.log(`[${finding.severity}] ${finding.ruleId} at line ${finding.line}`);
-  console.log(`  Observation : ${finding.observation}`);
-  console.log(`  Impact      : ${finding.impact}`);
-  console.log(`  Improvement : ${finding.improvement}`);
-});
-
-// Audit an entire directory
-const projectFindings = engine.auditPath('./src');
-```
-
-### Rust Library API
-
-```rust
-use gensense::{Engine, GenSenseAuditor};
-use std::path::Path;
-
-fn main() -> gensense::Result<()> {
-    let auditor = GenSenseAuditor::default_auditor();
-    let mut engine = Engine::new(auditor);
-
-    let advisories = engine.run(Path::new("./src"))?;
-
-    for adv in &advisories {
-        println!("[{}] {} at {}:{}", adv.severity, adv.rule_id, adv.file_path, adv.line);
-        println!("  {}", adv.observation);
-    }
-
-    Ok(())
+```typescript
+export async function handleDataSync(req: Request, db: Database) {
+  // Safe pattern (properly sanitized/parameterized)
+  const filter = sanitize(req.query.filter);
+  db.collection('users').find({ $where: filter });
 }
 ```
 
----
-
-## Advisory Format
-
-Every finding follows a consistent structure:
-
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `rule_id` | `string` | Unique identifier for the rule that triggered |
-| `severity` | `string` | `Critical`, `Warning`, or `Info` |
-| `observation` | `string` | What was detected in this specific instance |
-| `impact` | `string` | Why it matters — concrete technical consequence |
-| `improvement` | `string` | Recommended corrective action |
-| `line` | `number` | Line number of the finding (1-indexed) |
-| `column` | `number` | Column number of the finding (1-indexed) |
-| `file_path` | `string` | Full path to the file that was analyzed |
-
----
-
-## Suppression
-
-### Inline Suppression
-
-Add an inline comment directly above the flagged line:
-
-```rust
-// gensense-ignore: RUST_UNWRAP_SAFETY
-let config = load_config().unwrap(); // Guaranteed to succeed — config is pre-validated
+Run the builder to compile your new custom `.frc` bundle:
+```bash
+frensense corpus/targets/ --build-bundle
 ```
+Frensense parses your comment block straight from the AST and bakes it into the `.frc` bundle.
 
-### File-Level Suppression
+## AI Agent Integration (MCP)
 
-Create a `.gensense-suppress.yml` file in your project root:
-
-```yaml
-suppressions:
-  - rule_id: RUST_STD_OUTPUT
-    path: src/bin/**
-  - rule_id: GLOBAL_TODO_PLACEHOLDER
-    path: docs/**
-```
-
----
-
-## Custom Rules
-
-GenSense is designed so that writing a new rule requires no Rust knowledge and no recompile.
-
-### Quick Start
+Frensense ships with native support for the **Model Context Protocol (MCP)**, allowing AI agents (like Claude or Antigravity) to interact with the engine.
 
 ```bash
-# Create the rules directory in your project
-mkdir -p .gensense/rules
+# Start the MCP server
+frensense-mcp
+```
+Agents can dynamically query the workspace, request taint path resolutions, and validate their own generated code against the corpus before committing changes.
 
-# Write a rule
-cat > .gensense/rules/my_rules.yml << 'EOF'
-rules:
-  - id: "MYCO_NO_PRINTLN"
-    domain: "maintainability"
-    target_ext: "rs"
-    on_node: "macro_invocation"
-    if_matches: "println!"
-    observation: "Direct println! usage detected."
-    impact: "All output must route through the company logger."
-    improvement: "Replace with log::info!() or tracing::info!()."
-    severity: Warning
-EOF
+## Citation
 
-# Test the rule against a fixture before deploying it
-gensense test-rule .gensense/rules/my_rules.yml \
-  --fixture src/main.rs \
-  --expect-finding MYCO_NO_PRINTLN
+The Frensense detection corpus is built from real-world vulnerability data:
 
-# Run with all rules merged (embedded + custom)
-gensense src/
+> Moonen, L., Vidziunas, L., & Bhandari, G. P. (2024). *CVEfixes: Automated Collection of Vulnerabilities and Their Fixes from Open-Source Software* (v1.0.8). 17th International Conference on Predictive Models and Data Analytics in Software Engineering (PROMISE), Athens, Greece. Zenodo. https://doi.org/10.5281/zenodo.13138703
+
+> Semgrep, Inc. (2024). *Semgrep Rules Repository*. GitHub. https://github.com/semgrep/semgrep-rules
+
+## Corpus Quality Guide
+
+The engine is only as good as its corpus. A pattern with a 3-line toy function
+(`function redirect(next) { res.redirect(next); }`) produces near-zero signal —
+no imports, no control flow, no taint source. Every Express route handler that
+calls `res.redirect` will match it. A good pattern has real imports, multiple
+functions, explicit taint sources, and a proper `[frensense]` comment block.
+
+### Good Positive Checklist
+
+```
+✓  Has a [frensense] block with observation/impact/improvement
+✓  Has at least one real import statement
+✓  Has 2–5 functions, not just one
+✓  Proper HTTP handler signature (req, res, ctx, c)
+✓  Taint source is explicit (req.body.X, c.Query("X"))
+✓  Sink call present (exec, query, fetch, res.redirect)
+✓  Typed parameters (not `req: any` everywhere)
+✓  Bug is inside a named function (not top-level)
 ```
 
-See [docs/extending.md](docs/extending.md) for the full YAML rule reference, temporal rules, and advanced patterns.
+### Good Negative Checklist
 
----
-
-## Semantic Discovery
-
-When GenSense scans a project it runs a four-pass pipeline before rule execution:
-
-1. **Symbol Discovery** — extracts all named functions, variables, types, and constants into a `SymbolRegistry`.
-2. **Call Edge Discovery** — maps function call relationships into a `SemanticGraph`.
-3. **Event Discovery** — builds a temporal event chain (lock, await, return, assignment) inside each function scope.
-4. **Rule Execution** — runs all rules in parallel (via Rayon). Each rule receives the AST node and the full semantic context.
-
-The `[INFO] Semantic Discovery: Indexed N symbols` line you see at runtime is output from this phase.
-
----
-
-## Suppression
-
-### Inline
-```rust
-// gensense-ignore: RULE_ID
+```
+✓  Has a // SAFE: comment explaining the fix
+✓  Same structure as positive (imports, functions, params) — only the fix differs
+✓  Uses the REAL fix, not a toy allowlist
+✓  Still has the same sink call — used safely
+✓  Does NOT simply delete the vulnerable call
 ```
 
-### Project-level (`.gensense-suppress.yml`)
-```yaml
-suppressions:
-  - rule_id: RUST_STD_OUTPUT
-    path: src/bin/**
+### All Metadata Goes in `[frensense]` — No TOML
+
+Frensense does NOT use TOML sidecar files. All per-pattern metadata belongs in
+the `[frensense]` comment block at the top of the positive file:
+
+```typescript
+// [frensense]
+// observation: User-controlled URL is passed to fetch() without host validation.
+// impact: Server can be used as a proxy to reach internal services.
+// improvement: Validate URL against an allowlist of permitted external hosts.
+// cwe: CWE-918
+// cvss: 8.8
+// owasp: A10:2021
+// runtime_probe: ssrf
+// tier: 1
 ```
 
----
+Supported fields: `observation`, `impact`, `improvement`, `cwe`, `cvss`, `owasp`,
+`severity`, `runtime_probe`, `tier`, `exploit_scenario`, `reference`.
 
-## CI Integration
+### Template: Good CMDI Pair
 
-```yaml
-# .github/workflows/audit.yml
-- name: Run GenSense
-  run: npx @friehub/gensense . --strict --severity critical
+**`ts_cmdi_exec_shell_positive.ts`:**
+```typescript
+// [frensense]
+// observation: User-controlled input from req.body.script is passed to exec()
+//              via shell string interpolation, allowing arbitrary command execution.
+// impact: An attacker can execute any OS command.
+// improvement: Replace exec() with execFile() and pass arguments as an array.
+// cwe: CWE-78
+
+import { exec } from "child_process";
+import express from "express";
+import { Router } from "express";
+
+const router = Router();
+
+async function resolveScript(scriptName: string): Promise<string> {
+    return `/scripts/${scriptName}`;
+}
+
+router.post("/api/jobs/run", async (req: express.Request, res: express.Response) => {
+    const { script, args } = req.body as { script: string; args: string };
+    const resolved = await resolveScript(script);
+    exec(`${resolved} ${args}`, (err, stdout, stderr) => {
+        if (err) return res.status(500).json({ error: stderr });
+        res.json({ output: stdout });
+    });
+});
+
+router.post("/api/admin/command", (req: express.Request, res: express.Response) => {
+    const cmd = req.body.cmd as string;
+    exec(cmd, (error, stdout) => {
+        res.json({ result: stdout, error: error?.message });
+    });
+});
+
+export default router;
 ```
 
-To gate on custom rules only:
-```yaml
-- name: Run custom rules
-  run: gensense . --rules-dir .gensense/rules/ --no-builtin-rules --strict
+**`ts_cmdi_exec_shell_negative.ts`** (fix: execFile + allowlist):
+```typescript
+// SAFE: Replaced exec() with execFile() — arguments passed as array.
+
+import { execFile } from "child_process";
+import express from "express";
+import { Router } from "express";
+
+const router = Router();
+const ALLOWED_SCRIPTS = new Set(["report", "backup", "health-check"]);
+const ALLOWED_ARGS_RE = /^[a-zA-Z0-9_\-\.]+$/;
+
+router.post("/api/jobs/run", async (req: express.Request, res: express.Response) => {
+    const { script, args } = req.body as { script: string; args: string };
+    if (!ALLOWED_SCRIPTS.has(script)) return res.status(403).json({ error: "Script not permitted" });
+    if (args && !ALLOWED_ARGS_RE.test(args)) return res.status(400).json({ error: "Invalid format" });
+    execFile(`/scripts/${script}`, args ? [args] : [], (err, stdout) => {
+        if (err) return res.status(500).json({ error: "Execution failed" });
+        res.json({ output: stdout });
+    });
+});
+
+router.post("/api/admin/command", (_req, res) => {
+    res.status(403).json({ error: "Direct command execution not permitted" });
+});
+
+export default router;
 ```
 
----
+See `FRENSENSE_CORPUS_GUIDE.md` for the full quality guide, CWE mapping table,
+mutation guidelines, and the Frensense Hub corpus exchange proposal.
 
-## Development
+## Documentation
+
+| Document | What it covers |
+|----------|---------------|
+| `docs/ARCHITECTURE.md` | Complete module map with every .rs file, key types, and design decisions |
+| `docs/AUTO_FILTER.md` | How the auto-filter learns 6 constraint types from corpus pairs |
+| `docs/CORPUS_CONVENTIONS.md` | Naming, tier requirements, multi-API variant creation |
+| `docs/SCORING_DIMENSIONS.md` | 11-dimensional similarity model, default weights, flow_sim generalization gap |
+| `docs/MATCH_EVIDENCE.md` | Per-dimension evidence breakdown — the equivalent of a compiler telling you which variable has a type error |
+| `FRENSENSE_CORPUS_GUIDE.md` | Five tiers, CWE mapping table, mutation guidelines |
+| `FRENSENSE_VS_LITERATURE.md` | Comparison against 227 academic studies from the 2025 systematic review |
+
+### Quality Scoring
 
 ```bash
-# Build the CLI binary
-cargo build --features cli
+# Score all corpus patterns (0-100). Run anytime to assess quality.
+cargo run --bin corpus-quality -- corpus/targets/
 
-# Build the native Node.js addon
-npm run build
-
-# Run all tests
-cargo test
-
-# Run with verbose output on the GenSense codebase itself
-./target/debug/gensense .
-
-# Dump AST for a file (use this to write rules)
-./target/debug/gensense --debug src/parser.rs
-
-# Generate the full rule catalog
-./target/debug/gensense . --generate-docs
+# Output: TSV sorted by score (lowest first). Patterns below 50 need rewrites.
+# Includes per-tier breakdown showing how many patterns need work.
 ```
 
----
+### Latest Benchmark (NodeGoat, July 2026)
 
-## Contributing
-
-Contributions are welcome. All rules must include `id`, `severity`, `observation`, `impact`, and `improvement`. Follow the advisory content guidelines in [docs/extending.md](docs/extending.md). Run `cargo test` and `cargo clippy` before opening a pull request.
-
----
+| Metric | Before | After |
+|--------|--------|-------|
+| Findings at 0.5 threshold | 62 | **4** |
+| False positive rate | 76% | **50%** |
+| Hand-crafted filters | ~150 | **0** (all auto-learned) |
+| Scan time (113 functions) | ~48s | **~43s** |
 
 ## License
 

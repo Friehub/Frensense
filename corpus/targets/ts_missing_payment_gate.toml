@@ -1,0 +1,14 @@
+id = "ts_missing_payment_gate"
+name = "Missing Rate Limit or Payment Gate"
+description = "An expensive operation (like an LLM call or heavy computation) is exposed without checking the user's tier or deducting credits."
+severity = "Critical"
+impact = "A free-tier customer can call the endpoint in a loop and get unlimited cloud compute or LLM generations for free, leading to financial exhaustion."
+improvement = "Add a tier check and a per-loop-iteration credit deduction before the expensive operations are invoked."
+tags = ["security", "billing", "rate-limiting"]
+
+[expected_context]
+environment = "Unknown"
+sensitivity = "Medium"
+frameworks = []
+
+

@@ -1,0 +1,237 @@
+# Semantic filters for corpus patterns
+#
+# These filters ensure patterns only match code that actually exhibits the bug
+# they're designed to detect. Without filters, fingerprint matching produces
+# false positives on structurally similar but semantically different code.
+#
+# Format:
+# [pattern_name]
+# contains_call_to = ["method1", "method2"]  # Must contain these calls
+# must_not_contain_call_to = ["forbidden"]   # Must NOT contain these calls
+# function_name_regex = "^pattern"           # Function name must match
+# contains_node_type = ["node_kind"]         # Must contain these AST nodes
+# must_not_contain_node_type = ["forbidden"] # Must NOT contain these nodes
+
+# CSA: Auth no rejection
+# Must be named authenticate_*, must contain JWT/token handling
+[rust_csa_auth_no_rejection]
+function_name_regex = "^authenticate"
+contains_call_to = ["decode", "verify", "token", "jwt", "exp"]
+
+# CSA: Find never empty
+# Must be named find_*, must return Option, must NOT simply return Some(literal)
+[rust_csa_find_never_empty]
+function_name_regex = "^find"
+must_not_contain_node_type = ["return_statement"]
+
+# CSA: Validate unconditional
+# Must be named validate_*, must contain validation logic
+[rust_csa_validate_unconditional]
+function_name_regex = "^validate"
+
+# CSA: Sanitize passthrough (Rust)
+[rust_csa_sanitize_passthrough]
+function_name_regex = "^sanitize"
+must_not_contain_call_to = [".replace", ".encode", "escape"]
+
+# CVE-2026-27572 No resource limit (Rust)
+# Must contain resource handling operations like downcast, push_child, get
+# This prevents trivial default functions from matching
+[rust_cvefixes_no_resource_limit_cve-2026-27572_headers]
+contains_call_to = ["downcast", "push_child", "get", "table"]
+
+[rust_cvefixes_no_resource_limit_cve-2026-27572_build]
+contains_call_to = ["build", "new", "push"]
+
+[rust_cvefixes_no_resource_limit_cve-2026-27572_configure_wasip2]
+contains_call_to = ["configure", "wasi"]
+
+[rust_cvefixes_no_resource_limit_cve-2026-27572_default]
+contains_call_to = ["default", "new"]
+
+# Promise chain without .catch()
+# Must have .then() call, must NOT have .catch() call
+[ts_llm_promise_catch]
+contains_call_to = [".then"]
+must_not_contain_call_to = [".catch", ".finally"]
+
+# Sanitizer function that just returns input unchanged
+# Must be a function named sanitize*, must NOT actually sanitize
+[ts_csa_sanitize_passthrough]
+function_name_regex = "^sanitize"
+must_not_contain_call_to = [".replace", ".encode", "encodeURIComponent", "URL"]
+
+# Console.log in production code
+# Must contain console.log call
+[ts_llm_console_log]
+contains_call_to = ["logger.info", "console.log"]
+must_not_contain_call_to = ["structuredLogger"]
+
+# Any parameter type usage
+# Must have a parameter with type annotation
+[ts_llm_any_parameter]
+contains_node_type = ["required_parameter", "optional_parameter", "type_annotation"]
+
+# Clone in loop (Rust)
+# Must be inside a loop, must contain .clone()
+[rust_clone_in_loop]
+contains_call_to = [".clone"]
+contains_node_type = ["loop_expression", "for_expression", "while_expression"]
+
+# Blocking I/O in async context
+# Must be async function, must contain blocking call
+[rust_async_blocking_io]
+contains_node_type = ["async_block", "async"]
+contains_call_to = ["std::fs", "std::io::read", "std::io::write", "File::open", "std::thread::sleep"]
+
+# Await in sync function (Rust)
+# Must NOT be async, must contain .await
+[rust_llm_await_in_sync]
+must_not_contain_node_type = ["async", "async_block"]
+contains_node_type = ["await_expression"]
+
+# Connection leak (Rust)
+# Must contain connection creation, must NOT close/drop
+[rust_connection_leak]
+contains_call_to = ["connect", "Connection::new", "pool.get"]
+must_not_contain_call_to = ["drop", "close"]
+
+# Network call in transaction (Rust)
+# Must contain begin_transaction/fetch, must NOT contain update_db (to differentiate negative)
+[rust_network_in_txn]
+contains_call_to = ["begin_transaction", "fetch"]
+must_not_contain_call_to = ["update_db"]
+
+# Mutate after response (Rust)
+# Must contain response send, must mutate after
+[rust_mutate_after_response]
+contains_call_to = ["send", "respond", "into_response"]
+
+# Transmute usage (Rust)
+# Must contain transmute call
+[rust_transmute]
+contains_call_to = ["transmute", "transmute_copy"]
+
+# Clone literal (Rust)
+# Must call clone on integer literal
+[rust_llm_clone_literal]
+contains_call_to = ["clone"]
+contains_node_type = ["integer_literal"]
+
+# Hardcoded secret (TypeScript)
+# Must contain string literal that looks like a secret
+[ts_hardcoded_secret]
+contains_node_type = ["string"]
+
+# Prototype pollution (TypeScript)
+# Must contain object property access from user input
+[ts_prototype_pollution]
+contains_call_to = ["__proto__", "constructor", "prototype"]
+
+# SQL injection (TypeScript)
+# Must contain SQL-like string concatenation
+[ts_sql_injection]
+contains_call_to = ["query", "execute", "raw"]
+contains_node_type = ["template_string", "binary_expression"]
+
+# Command injection (TypeScript)
+# Must contain exec/spawn/system call
+[ts_command_injection]
+contains_call_to = ["exec", "spawn", "system", "execSync", "spawnSync"]
+
+# SSRF (TypeScript)
+# Must contain HTTP client call with variable URL
+[ts_ssrf]
+contains_call_to = ["fetch", "axios", "request", "http.get", "https.get"]
+
+# Path traversal (TypeScript)
+# Must contain file path operations
+[ts_path_traversal]
+contains_call_to = ["readFile", "writeFile", "unlink", "stat", "access", "path.join"]
+
+# Open redirect (TypeScript)
+# Must contain redirect with variable
+[ts_open_redirect]
+contains_call_to = ["redirect", "location.href", "window.location"]
+
+# Cookie security (TypeScript)
+# Must set cookie without security flags
+[ts_cookie_security]
+contains_call_to = ["cookie", "setCookie", "document.cookie"]
+must_not_contain_node_type = ["object"]
+
+# Unconditional validation (TypeScript)
+# Must name function validate*, must NOT contain boolean false rejection logic
+[ts_csa_validate_unconditional]
+function_name_regex = "^validate"
+must_not_contain_node_type = ["false"]
+
+# CVE-2026-27702 Code Injection via eval()
+# The vulnerable code uses eval() to execute untrusted strings
+# Must contain eval call, must NOT be a test file or mock
+[typescript_cvefixes_code_injection_cve-2026-27702_runView]
+contains_call_to = ["eval"]
+
+# CVE-2026-27702 Code Injection - Empty Expression
+[typescript_cvefixes_code_injection_cve-2026-27702_isEmptyExpression]
+contains_call_to = ["eval"]
+
+# CVE-2026-27702 Code Injection - Migrate to Design View
+[typescript_cvefixes_code_injection_cve-2026-27702_migrateToDesignView]
+contains_call_to = ["eval"]
+
+# CVE-2026-27702 Code Injection - Migrate to In-Memory View
+[typescript_cvefixes_code_injection_cve-2026-27702_migrateToInMemoryView]
+contains_call_to = ["eval"]
+
+# CVE-2026-27702 Code Injection - Parse Filter Expression
+[typescript_cvefixes_code_injection_cve-2026-27702_parseFilterExpression]
+contains_call_to = ["eval"]
+
+# CVE-2026-27148 XSS - Storybook Dev Server
+# Must contain server/middleware setup patterns
+[typescript_cvefixes_xss_cve-2026-27148_storybookDevServer]
+contains_call_to = ["app.use", "server"]
+contains_node_type = ["await_expression"]
+
+# CVE-2026-27148 XSS - Get Access Control Middleware
+[typescript_cvefixes_xss_cve-2026-27148_getAccessControlMiddleware]
+contains_call_to = ["middleware", "header"]
+
+# CVE-2026-27148 XSS - Get Server Channel
+[typescript_cvefixes_xss_cve-2026-27148_getServerChannel]
+contains_call_to = ["channel", "server"]
+
+# CVE-2026-27148 XSS - Handle Connected
+[typescript_cvefixes_xss_cve-2026-27148_handleConnected]
+contains_call_to = ["handle", "connected"]
+
+# CVE-2026-27148 XSS - Main
+[typescript_cvefixes_xss_cve-2026-27148_main]
+contains_call_to = ["app", "server"]
+
+# Deserialization - JSON.parse without validation
+# Must contain JSON.parse call
+[ts_deserialization]
+contains_call_to = ["JSON.parse"]
+
+# Don't fire ts_unauthenticated_db_write on registration/reset handlers
+[ts_unauthenticated_db_write]
+must_not_match_function_name = [
+    "register", "signup", "createAccount",
+    "resetPassword", "forgotPassword",
+    "verify", "confirm"
+]
+# Don't fire in test files
+must_not_match_file_path_pattern = ["*.test.ts", "*.spec.ts", "__tests__/", "fixtures/"]
+
+# Don't fire ts_missing_payment_gate on health/status/webhook endpoints
+[ts_missing_payment_gate]
+must_not_match_function_name = [
+    "healthCheck", "handleWebhook", "getStatus",
+    "handleOptions", "preflight"
+]
+
+# Don't fire ts_race_condition_read_check_write in test helper utilities
+[ts_race_condition_read_check_write]
+must_not_match_file_path_pattern = ["*.test.ts", "*.spec.ts", "test-utils/"]
