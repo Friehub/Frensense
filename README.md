@@ -111,7 +111,7 @@ export async function handleDataSync(req: Request, db: Database) {
 
 Run the builder to compile your new custom `.frc` bundle:
 ```bash
-frensense corpus/targets/ --build-bundle
+frensense --build-bundle --corpus corpus/targets/
 ```
 Frensense parses your comment block straight from the AST and bakes it into the `.frc` bundle.
 
@@ -132,6 +132,17 @@ The Frensense detection corpus is built from real-world vulnerability data:
 > Moonen, L., Vidziunas, L., & Bhandari, G. P. (2024). *CVEfixes: Automated Collection of Vulnerabilities and Their Fixes from Open-Source Software* (v1.0.8). 17th International Conference on Predictive Models and Data Analytics in Software Engineering (PROMISE), Athens, Greece. Zenodo. https://doi.org/10.5281/zenodo.13138703
 
 > Semgrep, Inc. (2024). *Semgrep Rules Repository*. GitHub. https://github.com/semgrep/semgrep-rules
+
+## V0.5.0 Compiler Mode
+
+In v0.5.0, Frensense introduced **Compiler Mode**, which shifts from heuristic syntax parsing to exact semantic resolution. 
+By passing the `--use-compiler` flag, Frensense mounts full language servers during the scan:
+* **TypeScript/JavaScript**: Loads the lightning-fast Oxc compiler pipeline to resolve complex module aliases, scoped types, and cross-file dataflow.
+* **Rust**: Leverages the `rust-analyzer` hir (High-Level Intermediate Representation) for precise trait resolution, macro expansion, and dataflow integrity.
+
+```bash
+frensense src/ --use-compiler
+```
 
 ## Corpus Quality Guide
 
@@ -272,7 +283,7 @@ mutation guidelines, and the Frensense Hub corpus exchange proposal.
 
 ```bash
 # Score all corpus patterns (0-100). Run anytime to assess quality.
-cargo run --bin corpus-quality -- corpus/targets/
+corpus-quality corpus/targets/  # If installed via cargo, otherwise: cargo run --bin corpus-quality -- corpus/targets/
 
 # Output: TSV sorted by score (lowest first). Patterns below 50 need rewrites.
 # Includes per-tier breakdown showing how many patterns need work.
