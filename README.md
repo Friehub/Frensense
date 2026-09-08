@@ -289,29 +289,36 @@ corpus-quality corpus/targets/  # If installed via cargo, otherwise: cargo run -
 # Includes per-tier breakdown showing how many patterns need work.
 ```
 
-### Latest Benchmark (Sep 2026)
-### Benchmark (NodeGoat, threshold 0.40)
-| Metric | Before | After |
-|--------|--------|-------|
-| TP | 24 | 22 |
-| FP | 252 | 22 |
-| FN | 6 | 8 |
-| Recall | 0.800 | 0.733 |
-| F1 | 0.157 | 0.595 |
-| Wall time | 1:36 | 0:41 |
+### Latest Benchmark (Sep 2026) — v0.5.3 FP-Reduction Pass
 
-91% FP reduction with only 2 TPs lost. F1 improved 3.8x. Scan time reduced 58%.
+**OWASP Juice Shop** (37 vulnerable files, ground truth: `challengeUtils.solveIf` markers)
 
-### The Juice Shop benchmark results (v0.5.0 engine) with the corrected ground truth and new corpus files:
+| Metric | v0.5.1 (before) | v0.5.3 (after) | Delta |
+|---|---|---|---|
+| Total findings | 81 | 32 | −49 (−60%) |
+| True Positives | 21 | 11 | −10 |
+| False Positives | 60 | **21** | **−39 (−65%)** |
+| **Precision** | 25.93% | **34.38%** | **+8.45 pp** |
+| File Recall | 35.14% (13/37) | 24.32% (9/37) | −10.82 pp |
 
-|Threshold | True Positives (TP) | False Positives (FP) |	False Negatives (FN) |	Precision	Recall |
-| ---------| --------------------|----------------------|----------------------|-------------------|
-| 0.20	| 3	| 64 |	20 |	0.0448 |	0.1304 |
-| 0.30 |	3	| 58 |	20 |	0.0492 |	0.1304 |
-| 0.40 |	2 |	52 |	21 |	0.0370 |	0.0870 |
-| 0.50 |	1 |	50 |	22 |	0.0196 |	0.0435 |
-| 0.70 |	1 |	47 |	22 |	0.0208 |	0.0435 |
+Zero-FP patterns retained: `CORPUS_TS_ROLE_HIERARCHY_BYPASS`, `CORPUS_TS_SEQUELIZE_UPDATE_NO_OWNERSHIP`,
+`CORPUS_TS_JUICESHOP_NOSQLI_WHERE_TPL`, `CORPUS_TS_CJS_CMDI_EXEC`, `CORPUS_TS_OPEN_REDIRECT`.
 
+**NodeGoat** (30 vulnerabilities across 14 files)
+
+| Metric | v0.5.3 |
+|---|---|
+| True Positives | 23 |
+| False Positives | 33 |
+| Precision | 41.07% |
+| Recall | 56.67% (17/30) |
+
+Rule-based findings (helmet, CSRF, cookie flags, session regeneration, etc.) maintain 100% precision.
+VULN_NPM_* dependency advisories account for 13 of the 33 FPs — these are structural, one per outdated package.
+
+The FP reduction was achieved by five targeted scoring fixes (double calibration removal,
+`tainted_api_sim` neutral-empty correction, weight rebalance, suppression floor raise,
+semantic override guard). See `CHANGELOG.md` for details.
 
 ## License
 

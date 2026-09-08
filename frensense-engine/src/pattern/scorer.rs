@@ -123,7 +123,9 @@ impl Default for ScorerConfig {
             taint_verified_boost: 1.2,
             cross_file_taint_boost: 1.15,
             taint_boost_cap: 0.95,
-            score_suppression_floor: 0.20,
+            // Raised from 0.20: after fixing the double-calibration and tainted_api_sim=1.0
+            // bugs, raw scores in the 0.20-0.35 range are much more likely to be FPs.
+            score_suppression_floor: 0.35,
 
             category_weight_overrides: rustc_hash::FxHashMap::default(),
         }
@@ -777,8 +779,11 @@ impl PatternScorer {
             &target.data_flow_path_hashes,
         );
         let tainted_api_sim =
-            if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
-                1.0 // Both have no tainted calls — they agree; neutral match.
+            if candidate.tainted_api_calls.is_empty() || target.tainted_api_calls.is_empty() {
+                // No taint data on either side — no signal. Return 0.0 so this dimension
+                // does not contribute score when taint information is absent.
+                // (Previous: returned 1.0 for mutual-empty, injecting a free 0.30-weight boost.)
+                0.0
             } else {
                 jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
             };
@@ -899,12 +904,15 @@ impl RawDimensions {
         // If the semantic dataflow matches extremely well (motif + flow > 0.8),
         // we bypass AST dilution (e.g. from massive boilerplate like challengeUtils)
         // and guarantee a high baseline score.
-        if self.flow_sim > 0.8 && self.motif_sim > 0.8 {
+        // Guard: also require api_sim > 0.5 to prevent motif hash collisions
+        // on common patterns (forEach, map, filter) from pinning clean code to 0.85.
+        if self.flow_sim > 0.8 && self.motif_sim > 0.8 && self.api_sim > 0.5 {
             return base_score.max(0.85);
         }
 
-        // Secondary override: if it's a perfect literal API match but AST is buried
-        if self.api_sim > 0.9 && self.flow_sim > 0.5 {
+        // Secondary override: if it's a near-perfect literal API match with flow evidence.
+        // Tighten api_sim requirement from 0.9 to 0.95 to reduce partial-match FPs.
+        if self.api_sim > 0.95 && self.flow_sim > 0.5 {
             return base_score.max(0.75);
         }
 
@@ -912,7 +920,7 @@ impl RawDimensions {
     }
 }
 
-pub(crate) fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
+pub fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
     if a.type_usages.is_empty() && b.type_usages.is_empty() {
         return 0.0;
     }

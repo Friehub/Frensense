@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::corpus::loader::{CorpusPattern, load_corpus};
+use crate::corpus::pattern::CorpusPattern;
 use crate::corpus::source_sink::{CorpusSourceSinkRegistry, build_registry_from_dir};
 use crate::data_flow::taint_metrics::TaintMetrics;
 use crate::data_flow::{TaintOrigin, TaintRegistry};
@@ -153,75 +153,13 @@ impl PatternRegistry {
         patterns.into_iter().take(n).collect()
     }
 
-    pub fn load_corpus(&mut self, corpus_dir: &Path) -> crate::Result<usize> {
-        let patterns = load_corpus(corpus_dir)
-            .map_err(crate::FrensenseError::Engine)?
-            .0;
-        let count = patterns.len();
-        self.source_sink = build_registry_from_dir(corpus_dir);
-        self.patterns = patterns;
-        self.compute_and_apply_idf();
-        self.build_lsh_index();
-        Ok(count)
-    }
+    
 
-    pub fn load_corpus_dirs(&mut self, dirs: &[&Path]) -> crate::Result<usize> {
-        let mut all_patterns = Vec::new();
-        for dir in dirs {
-            match load_corpus(dir) {
-                Ok((patterns, _warnings)) => all_patterns.extend(patterns),
-                Err(ref e) => eprintln!("Corpus warning: skipping {}: {e}", dir.display()),
-            }
-        }
-        // Build source/sink registry from the first corpus dir (primary)
-        if let Some(&dir) = dirs.first() {
-            self.source_sink = build_registry_from_dir(dir);
-        }
-        let count = all_patterns.len();
-        self.patterns = all_patterns;
-        self.compute_and_apply_idf();
-        self.build_lsh_index();
-        // Compute auto-filter stats from loaded patterns (fallback when bundle unavailable)
-        if self.auto_filter_stats.is_none() {
-            self.compute_auto_filter_stats(dirs);
-        }
-        Ok(count)
-    }
+    
 
     /// Compute auto-derived semantic filter suggestions from corpus files.
     /// Only used as a fallback when the embedded bundle doesn't contain them.
-    fn compute_auto_filter_stats(&mut self, dirs: &[&Path]) {
-        use std::collections::HashMap;
-        let mut source_texts = HashMap::new();
-        for dir in dirs {
-            collect_source_texts(dir, &mut source_texts);
-        }
-        if source_texts.is_empty() {
-            return;
-        }
-        // Convert patterns to BundlePattern format for the auto-filter function
-        let bundle_patterns: Vec<crate::corpus::bundle::BundlePattern> = self
-            .patterns
-            .iter()
-            .map(|p| crate::corpus::bundle::BundlePattern {
-                id: p.id.clone(),
-                positives: p.positives.clone(),
-                negatives: p.negatives.clone(),
-                semantic_filter: p.semantic_filter.clone(),
-                observation: p.observation.clone(),
-                impact: p.impact.clone(),
-                improvement: p.improvement.clone(),
-                expected_context: p.expected_context.clone(),
-                cwe: p.cwe.clone(),
-                cvss: p.cvss,
-                owasp: p.owasp.clone(),
-                severity: p.severity.clone(),
-                runtime_probe: p.runtime_probe.clone(),
-            })
-            .collect();
-        let stats = crate::auto_filter::compute_auto_filters(&bundle_patterns, &source_texts);
-        self.auto_filter_stats = Some(stats);
-    }
+    
 
     /// Get the corpus-learned source/sink registry.
     pub fn source_sink_registry(&self) -> &CorpusSourceSinkRegistry {
@@ -264,13 +202,17 @@ impl PatternRegistry {
             self.category_weights = loaded.category_weights.into_iter().collect();
         }
 
+        if !loaded.pattern_calibration.is_empty() {
+            self.pattern_calibration = loaded.pattern_calibration.into_iter().map(|(k, a, b)| (k, (a, b))).collect();
+        }
+
         // Restore auto-derived filter suggestions from bundle
         // Bundle format: (pid, imports, calls, excl_calls, fn_re, excl_nodes, excl_fnames)
         if !loaded.auto_filter_stats.is_empty() {
             let mut contains_call_to = std::collections::HashMap::new();
-            let mut excludes_call = std::collections::HashMap::new();
-            let mut excludes_node_type = std::collections::HashMap::new();
-            let mut excludes_function_name = std::collections::HashMap::new();
+            let mut must_not_contain_call_to = std::collections::HashMap::new();
+            let mut must_not_contain_node_type = std::collections::HashMap::new();
+            let mut must_not_match_function_name = std::collections::HashMap::new();
             for entry in loaded.auto_filter_stats {
                 let pid = entry.pattern_id;
                 let calls = entry.required_calls;
@@ -278,24 +220,24 @@ impl PatternRegistry {
                 let excl_nodes = entry.required_taint_flows;
                 let excl_fnames = entry.forbidden_taint_flows;
                 if !calls.is_empty() {
-                    contains_call_to.insert(pid.clone(), calls);
+                    contains_call_to.insert(pid.clone(), calls.into_iter().collect());
                 }
                 if !excl_calls.is_empty() {
-                    excludes_call.insert(pid.clone(), excl_calls);
+                    must_not_contain_call_to.insert(pid.clone(), excl_calls.into_iter().collect());
                 }
                 if !excl_nodes.is_empty() {
-                    excludes_node_type.insert(pid.clone(), excl_nodes);
+                    must_not_contain_node_type.insert(pid.clone(), excl_nodes.into_iter().collect());
                 }
                 if !excl_fnames.is_empty() {
-                    excludes_function_name.insert(pid.clone(), excl_fnames);
+                    must_not_match_function_name.insert(pid.clone(), excl_fnames.into_iter().collect());
                 }
             }
             self.auto_filter_stats = Some(crate::auto_filter::AutoFilterStats {
                 contains_call_to,
-                excludes_call,
+                must_not_contain_call_to,
                 function_name_regex: std::collections::HashMap::new(),
-                excludes_node_type,
-                excludes_function_name,
+                must_not_contain_node_type,
+                must_not_match_function_name,
             });
         }
 
@@ -356,33 +298,14 @@ impl PatternRegistry {
     }
 
     /// Learn per-category feature weights and per-pattern calibration from corpus positive/negative pairs.
-    fn compute_category_weights(&mut self) {
-        // Only compute if not already loaded from bundle
-        if self.category_weights.is_empty() {
-            self.category_weights =
-                crate::pattern::weight_learner::learn_category_weights(&self.patterns);
-        }
-        if self.pattern_calibration.is_empty() {
-            self.pattern_calibration =
-                crate::per_pattern_calibration::train_per_pattern_calibration(&self.patterns);
-        }
-    }
+    
 
     /// Learn semantic markers from corpus patterns.
-    fn compute_learned_semantic_markers(&mut self) {
-        if self.learned_semantic_markers.is_empty() {
-            self.learned_semantic_markers = learn_semantic_markers(&self.patterns);
-        }
-    }
+    
 
     /// Run both IDF passes, learn category weights, and learn semantic markers.
     /// Called after `load_corpus` / `load_corpus_dirs`.
-    fn compute_and_apply_idf(&mut self) {
-        self.apply_ngram_idf();
-        self.compute_api_idf();
-        self.compute_category_weights();
-        self.compute_learned_semantic_markers();
-    }
+    
 
     pub fn pattern_count(&self) -> usize {
         self.patterns.len()
@@ -470,6 +393,7 @@ impl PatternRegistry {
         func_node: Option<tree_sitter::Node<'_>>,
         source: Option<&str>,
         actual_context: Option<&crate::context::FileContext>,
+        spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
     ) -> Vec<PatternMatch> {
         let t0 = std::time::Instant::now();
         // Query both LSH tables (structural + API-call)
@@ -537,7 +461,7 @@ impl PatternRegistry {
             });
             if needs_flows {
                 Some(crate::corpus::data_flow_extractor::extract_data_flows(
-                    node, src,
+                    node, src, spec,
                 ))
             } else {
                 None
@@ -554,9 +478,14 @@ impl PatternRegistry {
                 let n = cursor.node();
                 if n.kind() == "member_expression" || n.kind() == "subscript_expression" {
                     let text = &src[n.start_byte()..n.end_byte()];
-                    for pattern in crate::corpus::source_sink::always_register_source_patterns() {
+                    let patterns = spec
+                        .map(|s| s.known_source_patterns().to_vec())
+                        .unwrap_or_else(|| {
+                            crate::corpus::source_sink::always_register_source_patterns()
+                        });
+                    for pattern in patterns {
                         if text.contains(pattern) {
-                            let origin = crate::corpus::loader::taint_source_origin(pattern);
+                            let origin = crate::corpus::source_sink::taint_source_origin(pattern);
                             seen_origins.push(origin.clone());
                             if let Some(child) = n
                                 .child_by_field_name("property")
@@ -605,6 +534,7 @@ impl PatternRegistry {
                     actual_context,
                     &taint_metrics,
                     precomputed_flows.as_ref(),
+                    spec,
                 )
             })
             .collect();
@@ -643,17 +573,18 @@ impl PatternRegistry {
         actual_context: Option<&crate::context::FileContext>,
         taint_metrics: &Option<(TaintMetrics, TaintOrigin)>,
         precomputed_flows: Option<&std::collections::HashSet<(String, String)>>,
+        spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
     ) -> Option<PatternMatch> {
         // Merge hand-authored semantic filter with auto-derived suggestions
         let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
             (Some(hand), Some(auto)) => Some(crate::auto_filter::merge_filters(
-                hand,
+                Some(hand),
                 Some(auto),
                 &pattern.id,
             )),
             (Some(hand), None) => Some(hand.clone()),
             (None, Some(auto)) => Some(crate::auto_filter::merge_filters(
-                &Default::default(),
+                None,
                 Some(auto),
                 &pattern.id,
             )),
@@ -662,7 +593,7 @@ impl PatternRegistry {
 
         // Apply semantic filter if present
         if let (Some(filter), Some(node), Some(src)) = (merged_filter.as_ref(), func_node, source) {
-            if !filter.matches(node, src, Some(fp.file_path.as_str()), precomputed_flows) {
+            if !filter.matches(node, src, Some(fp.file_path.as_str()), precomputed_flows, spec) {
                 return None;
             }
         }

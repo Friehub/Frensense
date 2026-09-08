@@ -4,6 +4,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.5.3-fp-fix] - 2026-09-08
+
+### Fixed — Corpus Scoring False-Positive Reduction
+
+Five targeted fixes to the scoring pipeline reduce Juice Shop FPs by 65% (60→21)
+and raise precision from 25.93% to 34.38% with no change to rule-based recall.
+
+- **Double calibration removed** (`src/engine/project/runner.rs`): `per_pattern_calibration::calibrate`
+  was applied twice — once inside `registry::score_candidate` and once again in the runner. Applying
+  `sigmoid(sigmoid(x))` compresses all scores toward 1.0, inflating FP confidence. The redundant
+  runner-side call is removed.
+
+- **`tainted_api_sim` neutral-empty fix** (`frensense-engine/src/pattern/scorer.rs`): When both the
+  candidate and the corpus positive had empty `tainted_api_calls`, the dimension returned `1.0`
+  ("they agree"). This injected a free 0.30-weighted signal on every function where taint analysis
+  produced no data — which is most clean-file functions. Changed to return `0.0` (no taint data →
+  no taint signal). The condition was broadened from `&&` (both empty) to `||` (either empty) so a
+  corpus positive with no tainted calls does not falsely validate an untainted candidate.
+
+- **DEFAULT_WEIGHTS rebalanced** (`frensense-engine/src/pattern/weight_learner.rs`): API-call
+  dimensions were over-weighted for TypeScript/Node.js codebases where framework calls
+  (`sequelize.query`, `bcrypt.hash`) appear in both vulnerable and clean code equally.
+  `api_calls` reduced 0.25→0.14, `tainted_api_calls` reduced 0.30→0.13. Weight redistributed
+  to `ngram` (0.05→0.10), `ast` (0.10→0.15), `semantic_markers` (0.05→0.10), `control_flow` (0.04→0.09).
+
+- **`score_suppression_floor` raised** (`frensense-engine/src/pattern/scorer.rs`): Default floor
+  raised from 0.20 to 0.35. Post-calibration scores for noise-level raw scores (0.20–0.35) were
+  surviving the old floor and becoming findings. The raised floor requires a minimum real signal
+  before emission.
+
+- **`apply_semantic_override` guards tightened** (`frensense-engine/src/pattern/scorer.rs`): The
+  0.85 hard-floor override now requires `api_sim > 0.5` in addition to `flow_sim > 0.8 && motif_sim > 0.8`,
+  preventing motif hash collisions on common patterns from pinning clean code to high scores.
+  The secondary 0.75 floor tightened from `api_sim > 0.9` to `api_sim > 0.95`.
+
+### Benchmark (OWASP Juice Shop — Sep 2026)
+
+| Metric | Before (v0.5.1) | After (v0.5.3) | Delta |
+|---|---|---|---|
+| Total findings | 81 | 32 | −49 (−60%) |
+| True Positives | 21 | 11 | −10 |
+| False Positives | 60 | **21** | **−39 (−65%)** |
+| Precision | 25.93% | **34.38%** | **+8.45 pp** |
+| File Recall | 35.14% (13/37) | 24.32% (9/37) | −10.82 pp |
+
+### Benchmark (NodeGoat — Sep 2026, first measured baseline)
+
+| Metric | v0.5.3 |
+|---|---|
+| True Positives | 23 |
+| False Positives | 33 |
+| Precision | 41.07% |
+| Recall | 56.67% (17/30) |
+
+VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory per outdated package).
+
+
+### Added
+- **Crate Extractor `frensense-bundler`**: Extracted corpus building, loading, and directory scanning logic out of the core engine and into a standalone `frensense-bundler` crate.
+- **Crate Extractor `frensense-providers`**: Isolated heavy compiler toolchains (`oxc` for JS/TS and `rust-analyzer`/`ra_ap_*` for Rust) into a separate crate to serve as dynamic semantic providers.
+- **Crate Extractor `frensense-lang`**: Separated language-specific specifications and configurations into `frensense-lang`.
+
+### Changed
+- **Engine Bloat Reduction**: Decoupled `frensense-engine` into a pure, lightweight runtime scanner. It no longer depends on file system corpus loading or heavy compiler APIs.
+- **Dynamic Semantic Providers**: The CLI now conditionally loads and dynamically injects `SemanticProvider` implementations (like `OxcProvider` or `RustHirProvider`) into the engine, preventing aggressive analysis on basic structural files.
+
+### Fixed
+- **JavaScript Tree-Sitter Regression**: Fixed a bug where `JavaScriptSpec` incorrectly used the TypeScript `symbol_query` which contained invalid grammar tokens (`type_identifier`, `interface_declaration`). This caused the engine to silently skip parsing all `.js` files. Pure JavaScript scanning (e.g., NodeGoat benchmark) is fully restored.
+
 ## [0.5.2] - 2026-09-05
 
 

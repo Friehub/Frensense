@@ -80,7 +80,7 @@ with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf:
 
 try:
     result = subprocess.run(
-        [FRENSENSE_BIN] + scan_paths + ["--json"],
+        [FRENSENSE_BIN] + scan_paths + ["--use-compiler", "--json"],
         capture_output=True,
         text=True,
         timeout=600,

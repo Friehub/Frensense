@@ -13,8 +13,8 @@
 //!   `hono`) is still classified as `hono`.
 //!
 //! [`OxcProvider`] implements the same [`SemanticProvider`] contract as
-//! [`crate::semantic::ImportMapProvider`], but answers from the Oxc-built
-//! [`OxcSymbolTable`] instead of the tree-sitter [`crate::import_resolver::ImportMap`].
+//! [`frensense_engine::semantic::ImportMapProvider`], but answers from the Oxc-built
+//! [`OxcSymbolTable`] instead of the tree-sitter [`frensense_engine::import_resolver::ImportMap`].
 //! The name-based fallbacks survive only for unannotated code.
 //!
 //! This module is compiled only under the `oxc` feature.
@@ -31,11 +31,11 @@ use oxc_span::SourceType;
 use oxc_syntax::module_record::ImportImportName;
 use rustc_hash::FxHashMap;
 
-use crate::context::Environment;
-use crate::corpus::source_sink::{CorpusSourceSinkRegistry, SinkCategory};
-use crate::data_flow::TaintOrigin;
-use crate::fingerprint::FunctionFingerprint;
-use crate::semantic::{
+use frensense_engine::context::Environment;
+use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, SinkCategory};
+use frensense_engine::data_flow::TaintOrigin;
+use frensense_engine::fingerprint::FunctionFingerprint;
+use frensense_engine::semantic::{
     HTTP_FRAMEWORK_PACKAGES, OxcSymbolTable, PACKAGE_SINK_CATEGORIES, ResolvedModule,
     SemanticProvider, TypeContext, base_type_name, package_sink_category,
 };
@@ -369,7 +369,7 @@ impl SemanticProvider for OxcProvider {
             }
         }
         // 3. Fall back to name matching for unannotated parameters.
-        crate::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
+        frensense_engine::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
     }
 
     fn classify_sink(
@@ -456,8 +456,8 @@ impl SemanticProvider for OxcProvider {
             return true;
         }
         // Fall back to the ≥2 heuristic signals for untyped code.
-        crate::function_role::classify_role_with_imports(fp, Some(type_context.import_map))
-            == crate::function_role::FunctionRole::HttpHandler
+        frensense_engine::function_role::classify_role_with_imports(fp, Some(type_context.import_map), None)
+            == frensense_engine::function_role::FunctionRole::HttpHandler
     }
 
     fn file_imports(&self, package: &str) -> bool {
@@ -891,7 +891,7 @@ mod tests {
             },
         );
         let p = OxcProvider::new(Arc::new(table), registry(), None);
-        let import_map = crate::import_resolver::ImportMap::new();
+        let import_map = frensense_engine::import_resolver::ImportMap::new();
         let ctx = TypeContext::from_import_map(&import_map);
 
         let handler = FunctionFingerprint {

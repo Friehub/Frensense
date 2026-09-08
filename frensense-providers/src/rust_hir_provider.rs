@@ -14,7 +14,7 @@
 //! - `Json<CreateUser>` — the parameter's type resolves to `axum::extract::Json`,
 //!   so the parameter is user input even when its name is `body`.
 //! - `mutex.lock().unwrap()` — `MutexGuard` implements `Drop`; the RAII
-//!   exemption in [`crate::temporal`] is a *type* fact, not a `let`-binding
+//!   exemption in [`frensense_engine::temporal`] is a *type* fact, not a `let`-binding
 //!   syntax guess. (Expression-level; currently the module exposes the
 //!   function-level facts that feed into it.)
 //!
@@ -34,11 +34,11 @@ use ra_ap_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLi
 use ra_ap_vfs::{FileId, VfsPath, file_set::FileSet};
 use rustc_hash::FxHashMap;
 
-use crate::corpus::source_sink::SinkCategory;
-use crate::data_flow::TaintOrigin;
-use crate::fingerprint::FunctionFingerprint;
-use crate::function_role::FunctionRole;
-use crate::semantic::{FunctionHirFact, HirTypeMap, SemanticProvider, TypeContext, base_type_name};
+use frensense_engine::corpus::source_sink::SinkCategory;
+use frensense_engine::data_flow::TaintOrigin;
+use frensense_engine::fingerprint::FunctionFingerprint;
+use frensense_engine::function_role::FunctionRole;
+use frensense_engine::semantic::{FunctionHirFact, HirTypeMap, SemanticProvider, TypeContext, base_type_name};
 
 /// Canonical-path prefixes that mark a type as HTTP user input. The HIR has
 /// already resolved the base name to a real type; these only decide whether
@@ -58,9 +58,9 @@ const HTTP_EXTRACTOR_PREFIXES: &[&str] = &[
 
 /// Canonical-path prefixes whose types are dangerous by construction: any
 /// value of such a type is a sink in that category regardless of the method
-/// name. The Rust analogue of [`crate::semantic`]'s JS `PACKAGE_SINK_CATEGORIES`;
+/// name. The Rust analogue of [`frensense_engine::semantic`]'s JS `PACKAGE_SINK_CATEGORIES`;
 /// this is what takes over the Rust sink names the `--use-compiler` path
-/// removes from [`crate::corpus::source_sink::ALWAYS_REGISTER_SINKS`].
+/// removes from [`frensense_engine::corpus::source_sink::ALWAYS_REGISTER_SINKS`].
 const RUST_SINK_TYPES: &[(&str, SinkCategory)] = &[
     ("sqlx::", SinkCategory::SqlInjection),
     ("tokio_postgres::", SinkCategory::SqlInjection),
@@ -83,7 +83,7 @@ const RUST_SINK_TYPES: &[(&str, SinkCategory)] = &[
 ///
 /// The returned map is fully owned — the HIR database is dropped before this
 /// returns — so it can be shared across threads like
-/// [`crate::semantic::OxcSymbolTable`].
+/// [`frensense_engine::semantic::OxcSymbolTable`].
 ///
 /// Returns an error string on failure (no manifest, cargo metadata failure).
 pub fn build_hir_type_map(manifest_path: &Path) -> Result<HirTypeMap, String> {
@@ -360,7 +360,7 @@ impl SemanticProvider for RustHirProvider {
             }
         }
         // Name-based fallback for unannotated parameters.
-        crate::data_flow::classify_param_name_in_context(name, None)
+        frensense_engine::data_flow::classify_param_name_in_context(name, None)
     }
 
     fn classify_sink(
@@ -401,7 +401,7 @@ impl SemanticProvider for RustHirProvider {
         }
         // Fall back to the ≥2 heuristic signals for functions the HIR did not
         // analyse (different target, parse failure, ...).
-        crate::function_role::classify_role_with_imports(fp, None) == FunctionRole::HttpHandler
+        frensense_engine::function_role::classify_role_with_imports(fp, None, None) == FunctionRole::HttpHandler
     }
 
     fn file_imports(&self, _package: &str) -> bool {
@@ -535,7 +535,7 @@ mod tests {
         );
 
         // The handler is recognised from its return type alone.
-        let import_map = crate::import_resolver::ImportMap::new();
+        let import_map = frensense_engine::import_resolver::ImportMap::new();
         let mut ctx = TypeContext::from_import_map(&import_map);
         ctx.hir_types = Some(&map);
         let handler = fingerprint(main_rs.to_str().unwrap(), "handler");

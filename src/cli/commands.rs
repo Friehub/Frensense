@@ -116,7 +116,7 @@ pub fn handle_list_rules() -> Result<()> {
 }
 
 pub fn handle_list_patterns(corpus_dir: Option<&str>) -> Result<()> {
-    use frensense_engine::corpus::loader::load_corpus;
+    use frensense_bundler::loader::load_corpus;
     let dir = corpus_dir.unwrap_or("corpus/targets");
     let path = std::path::Path::new(dir);
     if !path.exists() {

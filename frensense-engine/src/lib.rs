@@ -16,8 +16,7 @@
     clippy::needless_pass_by_value
 )]
 
-pub(crate) mod ast_distance;
-pub(crate) mod auto_filter;
+pub mod ast_distance;
 pub mod cfg;
 pub mod context;
 pub mod corpus;
@@ -32,16 +31,12 @@ pub mod graph;
 pub mod import_resolver;
 pub(crate) mod lang;
 pub mod minhash;
-#[cfg(feature = "oxc")]
-pub mod oxc_provider;
 pub mod parser;
 pub mod pattern;
 pub mod per_pattern_calibration;
 #[cfg(feature = "full-analysis")]
 pub mod profile;
 pub(crate) mod route_registry;
-#[cfg(feature = "rust-hir")]
-pub mod rust_hir_provider;
 pub mod semantic;
 pub mod symbols;
 
@@ -138,13 +133,13 @@ pub fn analyze_file(
         .ok_or_else(|| FrensenseError::ParseFailure("Failed to parse source".to_string()))?;
 
     let root = tree.root_node();
-    let import_map = import_resolver::ImportMap::build_from_tree(source, root);
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let import_map = import_resolver::ImportMap::build_from_tree(ext, source, root);
     let route_registry =
         route_registry::build_handler_registry(root, source, &file_path.to_string_lossy());
 
     let mut functions = Vec::new();
     let parser_registry = parser::ParserRegistry;
-    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     fingerprint::extract_fingerprints(
         root,
         source,
@@ -166,7 +161,7 @@ pub fn analyze_file(
     let graph = symbols.graph().clone();
 
     #[cfg(feature = "full-analysis")]
-    let temporal_events = graph::extract_temporal_events(root, source, file_path);
+    let temporal_events = graph::extract_temporal_events(root, source, file_path, frensense_lang::spec_for_ext(ext));
 
     let semantic_ops =
         crate::data_flow::normalization::SemanticExtractor::extract(root, source, ext);
@@ -235,9 +230,13 @@ pub fn analyze_project(
 
         // 3. Register exposed taint sources (e.g. HTTP handlers)
         for res in results.values() {
+            let spec = Path::new(&res.file_path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .and_then(frensense_lang::spec_for_ext);
             for func in &res.functions {
                 let role =
-                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
+                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map), spec);
                 if role == crate::function_role::FunctionRole::HttpHandler {
                     let key = format!("{}:{}", res.file_path, func.function_name);
                     resolver.register_exposed_taint(
@@ -257,9 +256,13 @@ pub fn analyze_project(
 
         // 4. Resolve taint for sinks (e.g. DbQuery, ShellExecutor) and update fingerprints
         for res in results.values_mut() {
+            let spec = Path::new(&res.file_path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .and_then(frensense_lang::spec_for_ext);
             for func in &mut res.functions {
                 let role =
-                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
+                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map), spec);
                 if matches!(
                     role,
                     crate::function_role::FunctionRole::DbQuery
@@ -301,9 +304,13 @@ pub fn analyze_project(
     // 1. Identify all functions that return taint (e.g. DbQuery)
     let mut taint_returning_functions = rustc_hash::FxHashSet::default();
     for res in results.values() {
+        let spec = Path::new(&res.file_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .and_then(frensense_lang::spec_for_ext);
         for func in &res.functions {
             let role =
-                crate::function_role::classify_role_with_imports(func, Some(&res.import_map));
+                crate::function_role::classify_role_with_imports(func, Some(&res.import_map), spec);
             if matches!(role, crate::function_role::FunctionRole::DbQuery) {
                 taint_returning_functions.insert(func.function_name.clone());
             }
@@ -369,3 +376,4 @@ pub fn analyze_project(
         },
     })
 }
+pub mod auto_filter;

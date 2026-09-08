@@ -420,13 +420,21 @@ fn run_corpus_scan(
 
     // Load from corpus directories if specified (exclusive of embedded bundle)
     if !corpus_dirs.is_empty() {
-        match registry.load_corpus_dirs(&corpus_dirs) {
-            Ok(count) if count > 0 => {
-                eprintln!("Loaded {count} patterns from corpus directory");
-                corpus_loaded = true;
+                let mut total_loaded = 0;
+        for dir in &corpus_dirs {
+            match frensense_bundler::builder::build_bundle(dir) {
+                Ok(bytes) => {
+                    match registry.load_from_bundle(&bytes) {
+                        Ok(count) => total_loaded += count,
+                        Err(e) => eprintln!("Failed to load built bundle for {:?}: {}", dir, e),
+                    }
+                },
+                Err(e) => eprintln!("Failed to build bundle from {:?}: {}", dir, e),
             }
-            Ok(_) => {}
-            Err(e) => eprintln!("Corpus load error: {e}"),
+        }
+        if total_loaded > 0 {
+            eprintln!("Loaded {} patterns from corpus directory", total_loaded);
+            corpus_loaded = true;
         }
     }
 
@@ -515,7 +523,9 @@ fn run_corpus_scan(
 
             tracing::trace!(file = %snap.path.display(), "extracting fingerprints");
 
+            let ext = snap.path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let import_map = frensense_engine::import_resolver::ImportMap::build_from_tree(
+                ext,
                 &snap.content,
                 snap.tree.root_node(),
             );
@@ -597,7 +607,7 @@ fn run_corpus_scan(
         } else {
             fp.clone()
         };
-        let matches = registry.scan_function(&scan_fp, Some(func_node.clone()), Some(&snap.content), Some(actual_context));
+        let matches = registry.scan_function(&scan_fp, Some(func_node.clone()), Some(&snap.content), Some(actual_context), None);
 
         let elapsed = start_time.elapsed().as_millis();
         if elapsed > 500 {
@@ -622,6 +632,10 @@ fn run_corpus_scan(
                 });
 
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
+                // Apply per-category or global calibration to the raw pattern score.
+                // NOTE: per_pattern_calibration::calibrate is already applied inside
+                // registry::score_candidate. Do NOT apply it again here — double sigmoid
+                // application compresses all scores toward 1.0 and inflates FP confidence.
                 let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = calibration {
@@ -629,9 +643,6 @@ fn run_corpus_scan(
                 } else {
                     m.score
                 };
-
-                let pattern_params = registry.pattern_calibration.get(&m.pattern_id[..]);
-                confidence = frensense_engine::per_pattern_calibration::calibrate(confidence, pattern_params);
 
                 // Minimum-score gate: skip findings where key similarity dimensions are near-zero.
                 // This prevents the calibration sigmoid from boosting noise into high-confidence FPs.

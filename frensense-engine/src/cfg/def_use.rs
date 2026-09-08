@@ -3,6 +3,9 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use tree_sitter::Node;
 
+use frensense_lang::spec_for_ext;
+use frensense_lang::NodeRole;
+
 use crate::cfg::{BasicBlock, ControlFlowGraph};
 
 #[derive(Debug, Clone)]
@@ -170,11 +173,14 @@ fn scan_statement_def_uses(
     definitions: &mut Vec<Definition>,
     uses: &mut Vec<Use>,
     node_counter: &mut usize,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
 ) {
     let kind = node.kind();
 
-    match kind {
-        "let_declaration" | "lexical_declaration" | "variable_declaration" => {
+    let matched = spec.map(|s| s.classify(kind));
+
+    match matched {
+        Some(NodeRole::Declaration { .. }) => {
             if let Some(pattern) = node.child_by_field_name("pattern") {
                 let mut names = Vec::new();
                 collect_binding_names_from_pattern(pattern, source, &mut names);
@@ -188,8 +194,30 @@ fn scan_statement_def_uses(
                     });
                     *node_counter += 1;
                 }
+            } else if let Some(left) = node.child_by_field_name("left") {
+                if let Some(name) = find_var_name(left, source) {
+                    definitions.push(Definition {
+                        name,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: left.start_byte(),
+                        end_byte: left.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
+            } else if let Some(name_node) = node.child_by_field_name("name") {
+                if let Some(name) = find_var_name(name_node, source) {
+                    definitions.push(Definition {
+                        name,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: name_node.start_byte(),
+                        end_byte: name_node.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
             }
-            if let Some(value) = node.child_by_field_name("value") {
+            if let Some(value) = node.child_by_field_name("value").or_else(|| node.child_by_field_name("right")) {
                 let mut refs = Vec::new();
                 extract_ref_names(value, source, &mut refs);
                 for r in refs {
@@ -204,7 +232,7 @@ fn scan_statement_def_uses(
                 }
             }
         }
-        "assignment_expression" | "assignment" => {
+        Some(NodeRole::Assignment { .. }) => {
             if let Some(left) = node.child_by_field_name("left") {
                 if let Some(name) = find_var_name(left, source) {
                     definitions.push(Definition {
@@ -232,7 +260,7 @@ fn scan_statement_def_uses(
                 }
             }
         }
-        "call_expression" => {
+        Some(NodeRole::Call { .. }) => {
             if let Some(func) = node.child_by_field_name("function") {
                 let func_name = source[func.start_byte()..func.end_byte()].to_string();
                 uses.push(Use {
@@ -262,7 +290,7 @@ fn scan_statement_def_uses(
                 }
             }
         }
-        "return_statement" | "return_expression" => {
+        Some(NodeRole::Return) => {
             if let Some(value) = node.child_by_field_name("value") {
                 let mut refs = Vec::new();
                 extract_ref_names(value, source, &mut refs);
@@ -278,7 +306,116 @@ fn scan_statement_def_uses(
                 }
             }
         }
-        _ => {}
+        _ => {
+            // Fallback: raw kind matching when spec is None or kind doesn't classify
+            match kind {
+                "let_declaration" | "lexical_declaration" | "variable_declaration" => {
+                    if let Some(pattern) = node.child_by_field_name("pattern") {
+                        let mut names = Vec::new();
+                        collect_binding_names_from_pattern(pattern, source, &mut names);
+                        for name in names {
+                            definitions.push(Definition {
+                                name,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: pattern.start_byte(),
+                                end_byte: pattern.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
+                    }
+                    if let Some(value) = node.child_by_field_name("value") {
+                        let mut refs = Vec::new();
+                        extract_ref_names(value, source, &mut refs);
+                        for r in refs {
+                            uses.push(Use {
+                                name: r,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: value.start_byte(),
+                                end_byte: value.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
+                    }
+                }
+                "assignment_expression" | "assignment" => {
+                    if let Some(left) = node.child_by_field_name("left") {
+                        if let Some(name) = find_var_name(left, source) {
+                            definitions.push(Definition {
+                                name,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: left.start_byte(),
+                                end_byte: left.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
+                    }
+                    if let Some(right) = node.child_by_field_name("right") {
+                        let mut refs = Vec::new();
+                        extract_ref_names(right, source, &mut refs);
+                        for r in refs {
+                            uses.push(Use {
+                                name: r,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: right.start_byte(),
+                                end_byte: right.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
+                    }
+                }
+                "call_expression" => {
+                    if let Some(func) = node.child_by_field_name("function") {
+                        let func_name = source[func.start_byte()..func.end_byte()].to_string();
+                        uses.push(Use {
+                            name: func_name,
+                            block_id,
+                            node: *node_counter,
+                            start_byte: func.start_byte(),
+                            end_byte: func.end_byte(),
+                        });
+                        *node_counter += 1;
+                    }
+                    if let Some(args) = node.child_by_field_name("arguments") {
+                        for i in 0..args.child_count() {
+                            if let Some(arg) = args.child(i) {
+                                if is_identifier(arg) {
+                                    let arg_name = source[arg.start_byte()..arg.end_byte()].to_string();
+                                    uses.push(Use {
+                                        name: arg_name,
+                                        block_id,
+                                        node: *node_counter,
+                                        start_byte: arg.start_byte(),
+                                        end_byte: arg.end_byte(),
+                                    });
+                                    *node_counter += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                "return_statement" | "return_expression" => {
+                    if let Some(value) = node.child_by_field_name("value") {
+                        let mut refs = Vec::new();
+                        extract_ref_names(value, source, &mut refs);
+                        for r in refs {
+                            uses.push(Use {
+                                name: r,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: value.start_byte(),
+                                end_byte: value.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     let mut cursor = node.walk();
@@ -291,6 +428,7 @@ fn scan_statement_def_uses(
                 definitions,
                 uses,
                 node_counter,
+                spec,
             );
             if !cursor.goto_next_sibling() {
                 break;
@@ -334,13 +472,14 @@ fn scan_block_def_uses<'a>(
     definitions: &mut Vec<Definition>,
     uses: &mut Vec<Use>,
     node_counter: &mut usize,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
 ) {
     let mut statements = Vec::new();
     for &node in &block.nodes {
         collect_statements(node, &mut statements);
     }
     for stmt in &statements {
-        scan_statement_def_uses(*stmt, block.id, source, definitions, uses, node_counter);
+        scan_statement_def_uses(*stmt, block.id, source, definitions, uses, node_counter, spec);
     }
 }
 
@@ -399,7 +538,7 @@ fn compute_reaching_defs(cfg: &ControlFlowGraph, chains: &mut DefUseChain) {
     }
 }
 
-pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str) -> DefUseChain {
+pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str, spec: Option<&dyn frensense_lang::LanguageSpec>) -> DefUseChain {
     let mut chains = DefUseChain::new();
     let mut node_counter = 0usize;
 
@@ -410,6 +549,7 @@ pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str) -> DefUs
             &mut chains.definitions,
             &mut chains.uses,
             &mut node_counter,
+            spec,
         );
     }
 
@@ -434,8 +574,9 @@ pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str) -> DefUs
 }
 
 pub fn build_def_use<'a>(root: Node<'a>, source: &'a str, ext: &str) -> DefUseChain {
+    let spec = spec_for_ext(ext);
     let cfg = crate::cfg::build_cfg(root, source, ext);
-    compute_def_use(&cfg, source)
+    compute_def_use(&cfg, source, spec)
 }
 
 #[cfg(test)]

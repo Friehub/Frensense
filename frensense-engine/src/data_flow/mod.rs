@@ -36,6 +36,35 @@ use rustc_hash::FxHashMap;
 /// display formatters, etc.). Use `classify_param_name_in_context` instead
 /// when a `FileContext` (specifically `Environment`) is available.
 pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
+    classify_param_origin_heuristic(name)
+}
+
+/// Taint-origin classifier that prefers the language spec (per-language,
+/// type-aware) and falls back to the hardcoded heuristic.
+pub fn classify_param_origin_with_spec(
+    name: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> Option<TaintOrigin> {
+    if let Some(s) = spec {
+        if let Some(origin) = s.classify_param_taint(Some(name), None) {
+            return Some(match origin {
+                frensense_lang::TaintOrigin::UserInput => TaintOrigin::UserInput,
+                frensense_lang::TaintOrigin::EnvVariable => TaintOrigin::Environment,
+                frensense_lang::TaintOrigin::FileSystem => TaintOrigin::FileSystem,
+                frensense_lang::TaintOrigin::Database => TaintOrigin::Database,
+                frensense_lang::TaintOrigin::ExternalService => TaintOrigin::Network,
+            });
+        }
+    }
+    classify_param_origin_heuristic(name)
+}
+
+/// Heuristic name-based taint origin classification.
+///
+/// The names `"name"` and `"data"` are intentionally excluded here — they
+/// are extremely common in non-HTTP contexts. Use
+/// `classify_param_name_in_context` when a `FileContext` is available.
+fn classify_param_origin_heuristic(name: &str) -> Option<TaintOrigin> {
     let lower = name.to_lowercase();
     if matches!(
         lower.as_str(),
@@ -121,7 +150,18 @@ pub fn classify_param_name_in_context(
     name: &str,
     env: Option<&crate::context::Environment>,
 ) -> Option<TaintOrigin> {
-    if let Some(origin) = classify_param_origin(name) {
+    classify_param_name_in_context_with_spec(name, env, None)
+}
+
+/// Context-aware version of `classify_param_origin` that also consults the
+/// language spec.  When a spec is available its per-language, type-aware
+/// classification is tried first.
+pub fn classify_param_name_in_context_with_spec(
+    name: &str,
+    env: Option<&crate::context::Environment>,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> Option<TaintOrigin> {
+    if let Some(origin) = classify_param_origin_with_spec(name, spec) {
         return Some(origin);
     }
     let lower = name.to_lowercase();

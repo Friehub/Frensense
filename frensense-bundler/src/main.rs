@@ -12,8 +12,11 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir =
         env::var("CARGO_MANIFEST_DIR").map_or_else(|_| env::current_dir().unwrap(), PathBuf::from);
-    let corpus_dir = manifest_dir.join("corpus").join("targets");
-    let output_path = manifest_dir.join("frensense-corpus.frc");
+    
+    // CARGO_MANIFEST_DIR will point to frensense-bundler/. We need the workspace root.
+    let workspace_root = manifest_dir.parent().unwrap();
+    let corpus_dir = workspace_root.join("corpus").join("targets");
+    let output_path = workspace_root.join("frensense-corpus.frc");
 
     // nosemgrep: rust.lang.security.args.args
     let incremental = env::args().any(|a| a == "--incremental");
@@ -28,7 +31,7 @@ fn main() {
     }
 
     let bytes = if incremental {
-        match frensense_engine::corpus::bundle::build_bundle_incremental(&corpus_dir) {
+        match frensense_bundler::builder::build_bundle_incremental(&corpus_dir) {
             Ok(b) => b,
             Err(e) => {
                 eprintln!("Error building bundle: {e}");
@@ -36,7 +39,7 @@ fn main() {
             }
         }
     } else {
-        match frensense_engine::corpus::bundle::build_bundle(&corpus_dir) {
+        match frensense_bundler::builder::build_bundle(&corpus_dir) {
             Ok(b) => b,
             Err(e) => {
                 eprintln!("Error building bundle: {e}");

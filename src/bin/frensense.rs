@@ -44,7 +44,7 @@ fn main() -> Result<()> {
             .unwrap_or_else(|| PathBuf::from("frensense-corpus.frc"));
 
         eprintln!("Building FRC bundle from {}...", corpus_dir.display());
-        match frensense_engine::corpus::bundle::build_bundle(&corpus_dir) {
+        match frensense_bundler::builder::build_bundle(&corpus_dir) {
             Ok(bytes) => {
                 std::fs::write(&output_path, &bytes)?;
                 eprintln!(

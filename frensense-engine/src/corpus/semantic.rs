@@ -79,6 +79,7 @@ impl SemanticFilter {
         source: &str,
         file_path: Option<&str>,
         extracted_flows: Option<&std::collections::HashSet<(String, String)>>,
+        spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
     ) -> bool {
         if self.is_empty() {
             return true;
@@ -219,7 +220,7 @@ impl SemanticFilter {
         if !self.required_taint_flows.is_empty() {
             let flows = match extracted_flows {
                 Some(flows) => flows,
-                None => &crate::corpus::data_flow_extractor::extract_data_flows(func_node, source),
+                None => &crate::corpus::data_flow_extractor::extract_data_flows(func_node, source, spec),
             };
             for req_flow in &self.required_taint_flows {
                 if !flows.contains(req_flow) {
@@ -401,7 +402,7 @@ pub fn learn_constraints(
         nodes.dedup();
         pos_node_sets.push(nodes);
 
-        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source)
+        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source, None)
             .into_iter()
             .collect::<Vec<_>>();
         flows.sort();
@@ -424,7 +425,7 @@ pub fn learn_constraints(
         nodes.dedup();
         neg_node_sets.push(nodes);
 
-        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source)
+        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source, None)
             .into_iter()
             .collect::<Vec<_>>();
         flows.sort();
@@ -595,6 +596,7 @@ mod tests {
             func,
             "function sanitizeHtml(input: string) { return input; }",
             None,
+            None,
             None
         ));
 
@@ -605,6 +607,7 @@ mod tests {
         assert!(!filter2.matches(
             func,
             "function sanitizeHtml(input: string) { return input; }",
+            None,
             None,
             None
         ));
@@ -623,6 +626,7 @@ mod tests {
             func,
             "function foo() { fetch('/api').then(r => r.json()); }",
             None,
+            None,
             None
         ));
 
@@ -633,6 +637,7 @@ mod tests {
         assert!(!filter2.matches(
             func,
             "function foo() { fetch('/api').then(r => r.json()); }",
+            None,
             None,
             None
         ));
@@ -652,6 +657,7 @@ mod tests {
             func,
             "function foo() { fetch('/api').then(r => r.json()); }",
             None,
+            None,
             None
         ));
 
@@ -661,6 +667,7 @@ mod tests {
         assert!(!filter.matches(
             func2,
             "function foo() { fetch('/api').then(r => r.json()).catch(e => {}); }",
+            None,
             None,
             None
         ));

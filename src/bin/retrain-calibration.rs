@@ -8,7 +8,7 @@
 //! then trains Platt scaling parameters.
 
 use frensense::engine::confidence_calibration::{CalibrationParams, save_calibration};
-use frensense_engine::corpus::loader::load_corpus;
+use frensense_bundler::loader::load_corpus;
 use frensense_engine::fingerprint::{apply_idf_weights, compute_idf_weights};
 use frensense_engine::pattern::scorer::PatternScorer;
 use std::path::Path;

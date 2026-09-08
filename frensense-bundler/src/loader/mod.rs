@@ -1,42 +1,23 @@
+pub mod types;
+pub mod fs;
+pub mod metadata;
+pub mod features;
+
+pub use types::{CorpusPattern, LoadWarning};
+use types::AdvisoryText;
+use fs::{collect_corpus_files, is_negative_file, extract_pattern_name};
+use metadata::{parse_frensense_block, load_sidecar_toml, synthesize_advisory};
+use features::{FunctionFeatures, collect_function_features, collect_all_function_features, learn_from_features};
+pub(crate) use features::taint_source_origin;
+
 // SPDX-License-Identifier: MIT
 
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 
-use crate::corpus::semantic::SemanticFilter;
-use crate::fingerprint::{FunctionFingerprint, extract_fingerprints};
-
-#[derive(Debug, Clone)]
-pub struct CorpusPattern {
-    pub id: String,
-    pub positives: Vec<FunctionFingerprint>,
-    pub negatives: Vec<FunctionFingerprint>,
-    pub semantic_filter: Option<SemanticFilter>,
-    pub observation: Option<String>,
-    pub impact: Option<String>,
-    pub improvement: Option<String>,
-    pub expected_context: Option<crate::context::FileContext>,
-    pub cwe: Option<String>,
-    pub cvss: Option<f32>,
-    pub owasp: Option<String>,
-    pub severity: Option<String>,
-    pub runtime_probe: Option<String>,
-}
-
-/// A non-fatal diagnostic produced during corpus loading.
-/// Callers must surface these to the user — silent coverage gaps are a production risk.
-#[derive(Debug, Clone)]
-pub struct LoadWarning {
-    pub pattern_id: String,
-    pub message: String,
-}
-
-impl std::fmt::Display for LoadWarning {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "corpus[{}]: {}", self.pattern_id, self.message)
-    }
-}
+use frensense_engine::corpus::semantic::SemanticFilter;
+use frensense_engine::fingerprint::{FunctionFingerprint, extract_fingerprints};
+use frensense_lang::spec_for_ext;
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWarning>), String> {
     type PatternEntry = (
@@ -69,9 +50,9 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             continue;
         }
 
-        let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let source = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let lang_name = crate::parser::ext_to_language(ext);
+        let lang_name = frensense_engine::parser::ext_to_language(ext);
         if lang_name == "unknown" {
             // Unsupported extension: not a coverage gap (just an unrelated file type),
             // so skip silently rather than emitting a spurious warning.
@@ -79,7 +60,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         }
 
         let mut parser = tree_sitter::Parser::new();
-        let lang = crate::parser::ParserRegistry::get_language_by_name(lang_name)
+        let lang = frensense_engine::parser::ParserRegistry::get_language_by_name(lang_name)
             .map_err(|e| e.to_string())?;
         parser.set_language(&lang).map_err(|e| e.to_string())?;
         let Some(tree) = parser.parse(&source, None) else {
@@ -95,7 +76,8 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
 
         // Collect features from all function nodes for semantic learning
         let mut all_features = Vec::new();
-        collect_all_function_features(tree.root_node(), &source, &mut all_features);
+        let spec = spec_for_ext(ext);
+        collect_all_function_features(tree.root_node(), &source, &mut all_features, spec);
 
         let pattern_name = extract_pattern_name(file_name);
         let entry = pairs.entry(pattern_name).or_default();
@@ -109,7 +91,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             // M4: Auto-infer expected_context from the positive file path+content — no TOML needed
             if entry.2.expected_context.is_none() {
                 entry.2.expected_context =
-                    Some(crate::context::FileContext::extract(&path, &source));
+                    Some(frensense_engine::context::FileContext::extract(&path, &source));
             }
         } else {
             entry.1.extend(fps);
@@ -149,7 +131,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             // M2: Pass taint source awareness into constraint learning
             learn_from_features(&pos_features, &neg_features)
         } else {
-            crate::corpus::semantic::LearnedConstraints::default()
+            frensense_engine::corpus::semantic::LearnedConstraints::default()
         };
 
         // M3: Synthesize advisory text from learned constraints when no comment block is present
@@ -212,207 +194,6 @@ pub fn load_corpus_patterns(corpus_dir: &Path) -> Result<Vec<CorpusPattern>, Str
     load_corpus(corpus_dir).map(|(patterns, _warnings)| patterns)
 }
 
-#[derive(Debug, Clone, Default)]
-struct AdvisoryText {
-    observation: Option<String>,
-    impact: Option<String>,
-    improvement: Option<String>,
-    expected_context: Option<crate::context::FileContext>,
-    cwe: Option<String>,
-    cvss: Option<f32>,
-    owasp: Option<String>,
-    severity: Option<String>,
-    runtime_probe: Option<String>,
-}
-
-/// M3: Synthesize advisory text from what the AST diff already tells us.
-/// Used as a fallback when no `[frensense]` comment block is present in the positive file.
-fn synthesize_advisory(
-    pattern_id: &str,
-    required_calls: &[String],
-    forbidden_calls: &[String],
-) -> AdvisoryText {
-    // Convert pattern_id like "ts_jwt_bypass" to a readable label
-    let label = pattern_id.replace('_', " ");
-    let observation = if required_calls.is_empty() {
-        format!("Pattern '{label}' matches a known vulnerability shape.")
-    } else {
-        format!(
-            "Function calls {}. This matches a known vulnerability ({label}).",
-            required_calls.join(", ")
-        )
-    };
-    let improvement = if forbidden_calls.is_empty() {
-        "Review the function against the corpus positive example.".to_string()
-    } else {
-        format!(
-            "Replace {} with {} and validate all inputs.",
-            required_calls.join(" / "),
-            forbidden_calls.join(" / ")
-        )
-    };
-    AdvisoryText {
-        observation: Some(observation),
-        impact: None,
-        improvement: Some(improvement),
-        expected_context: None,
-        cwe: None,
-        cvss: None,
-        owasp: None,
-        severity: None,
-        runtime_probe: None,
-    }
-}
-
-/// Parse a `/// [frensense]` / `// [frensense]` / `# [frensense]` block from source.
-///
-/// Format:
-/// ```text
-/// [frensense]
-/// observation: what the bug looks like
-/// impact: what goes wrong
-/// improvement: how to fix it
-/// ```
-///
-/// Block ends at the first blank comment line or a non-comment line.
-fn parse_frensense_block(source: &str) -> AdvisoryText {
-    let mut result = AdvisoryText::default();
-    let mut in_block = false;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-
-        // Detect comment prefix
-        let content = if let Some(c) = trimmed.strip_prefix("///") {
-            Some(c.trim())
-        } else if let Some(c) = trimmed.strip_prefix("//!") {
-            Some(c.trim())
-        } else if let Some(c) = trimmed.strip_prefix("//") {
-            Some(c.trim())
-        } else {
-            trimmed.strip_prefix("#").map(str::trim)
-        };
-
-        let Some(text) = content else {
-            // Non-comment line — block is over
-            break;
-        };
-
-        if !in_block {
-            if text == "[frensense]" {
-                in_block = true;
-            }
-            continue;
-        }
-
-        // Empty comment line ends the block
-        if text.is_empty() {
-            break;
-        }
-
-        if let Some((key, value)) = text.split_once(':') {
-            let key = key.trim().to_lowercase();
-            let value = value.trim().to_string();
-            if !value.is_empty() {
-                match key.as_str() {
-                    "observation" => result.observation = Some(value),
-                    "impact" => result.impact = Some(value),
-                    "improvement" => result.improvement = Some(value),
-                    "cwe" => result.cwe = Some(value),
-                    "cvss" => result.cvss = value.parse::<f32>().ok(),
-                    "owasp" => result.owasp = Some(value),
-                    "severity" => result.severity = Some(value),
-                    "runtime_probe" => result.runtime_probe = Some(value),
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    result
-}
-
-fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str) -> AdvisoryText {
-    let toml_path = corpus_dir.join(format!("{pattern_name}.toml"));
-    let Ok(content) = std::fs::read_to_string(&toml_path) else {
-        return AdvisoryText::default();
-    };
-
-    let Ok(doc) = content.parse::<toml::Table>() else {
-        return AdvisoryText::default();
-    };
-
-    let expected_context = doc
-        .get("expected_context")
-        .and_then(|t| t.as_table())
-        .map(|t| {
-            let env_str = t
-                .get("environment")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
-            let sens_str = t
-                .get("sensitivity")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
-
-            let env = match env_str {
-                "Test" => crate::context::Environment::Test,
-                "Mock" => crate::context::Environment::Mock,
-                "RouteHandler" => crate::context::Environment::RouteHandler,
-                "Utility" => crate::context::Environment::Utility,
-                "Config" => crate::context::Environment::Config,
-                _ => crate::context::Environment::Unknown,
-            };
-
-            let sens = match sens_str {
-                "Low" => crate::context::DataSensitivity::Low,
-                "Medium" => crate::context::DataSensitivity::Medium,
-                "High" => crate::context::DataSensitivity::High,
-                _ => crate::context::DataSensitivity::Unknown,
-            };
-
-            let frameworks = t
-                .get("frameworks")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            crate::context::FileContext {
-                environment: env,
-                sensitivity: sens,
-                frameworks,
-            }
-        });
-
-    AdvisoryText {
-        observation: doc
-            .get("observation")
-            .and_then(|v| v.as_str())
-            .map(String::from),
-        impact: doc.get("impact").and_then(|v| v.as_str()).map(String::from),
-        improvement: doc
-            .get("improvement")
-            .and_then(|v| v.as_str())
-            .map(String::from),
-        expected_context,
-        cwe: doc.get("cwe").and_then(|v| v.as_str()).map(String::from),
-        cvss: doc.get("cvss").and_then(|v| v.as_float().map(|f| f as f32)),
-        owasp: doc.get("owasp").and_then(|v| v.as_str()).map(String::from),
-        severity: doc
-            .get("severity")
-            .and_then(|v| v.as_str())
-            .map(String::from),
-        runtime_probe: doc
-            .get("runtime_probe")
-            .and_then(|v| v.as_str())
-            .map(String::from),
-    }
-}
-
 /// Load semantic filters from the TOML file.
 pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilter> {
     // All semantic filters are now auto-learned from the corpus by
@@ -428,61 +209,6 @@ pub fn load_semantic_filters() -> std::collections::HashMap<String, SemanticFilt
     //   - excludes_call (calls in negatives but not positives) [disabled]
     //   - function_name_regex (common prefixes) [disabled]
     std::collections::HashMap::new()
-}
-
-/// Returns true if a file name represents any negative variant:
-/// `_negative.ts`, `_negative2.ts`, `_negative3.ts`, etc.
-/// Recursively collect all corpus files from a directory tree.
-fn collect_corpus_files(dir: &Path) -> Vec<std::path::PathBuf> {
-    let mut result = Vec::new();
-    let Ok(entries) = fs::read_dir(dir) else {
-        return result;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            result.extend(collect_corpus_files(&path));
-        } else if path.is_file() {
-            result.push(path);
-        }
-    }
-    result
-}
-
-fn is_negative_file(file_name: &str) -> bool {
-    // Strip the extension first, then check suffix
-    let stem = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
-    if stem.ends_with("_negative") {
-        return true;
-    }
-    // Match _negative2, _negative3, ... _negative9
-    if let Some(prefix) = stem.strip_suffix(|c: char| c.is_ascii_digit()) {
-        if prefix.ends_with("_negative") {
-            return true;
-        }
-    }
-    false
-}
-
-fn extract_pattern_name(file_name: &str) -> String {
-    let without_ext = file_name.rsplitn(2, '.').last().unwrap_or(file_name);
-
-    // Positive files: just strip _positive suffix (single occurrence)
-    if let Some(stripped) = without_ext.strip_suffix("_positive") {
-        return stripped.to_string();
-    }
-
-    // Negative files: strip _negative, _negative2 ... _negative9 (single occurrence)
-    if let Some(stripped) = without_ext.strip_suffix("_negative") {
-        return stripped.to_string();
-    }
-    if let Some(digits) = without_ext.strip_suffix(|c: char| c.is_ascii_digit()) {
-        if let Some(stripped) = digits.strip_suffix("_negative") {
-            return stripped.to_string();
-        }
-    }
-
-    without_ext.to_string()
 }
 
 #[cfg(test)]
@@ -534,13 +260,13 @@ mod tests {
         // Now check if the sqli pattern matches login.ts by loading login.ts fingerprints
         let js_path =
             std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
-        let js_src = std::fs::read_to_string(js_path).unwrap();
+        let js_src = std::std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
-        let lang = crate::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
+        let lang = frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
         parser.set_language(&lang).unwrap();
         let tree = parser.parse(&js_src, None).unwrap();
         let mut js_fps = Vec::new();
-        crate::fingerprint::extract_fingerprints(
+        frensense_engine::fingerprint::extract_fingerprints(
             tree.root_node(),
             &js_src,
             js_path,
@@ -574,7 +300,7 @@ mod tests {
 
     #[test]
     fn debug_why_sqli_not_matching_registry() {
-        use crate::corpus::registry::PatternRegistry;
+        use frensense_engine::corpus::registry::PatternRegistry;
         use crate::pattern::scorer::PatternScorer;
         use std::hash::{Hash, Hasher};
 
@@ -588,13 +314,13 @@ mod tests {
         // Load JS login.ts
         let js_path =
             std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
-        let js_src = std::fs::read_to_string(js_path).unwrap();
+        let js_src = std::std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
-        let lang = crate::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
+        let lang = frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
         parser.set_language(&lang).unwrap();
         let tree = parser.parse(&js_src, None).unwrap();
         let mut js_fps = Vec::new();
-        crate::fingerprint::extract_fingerprints(
+        frensense_engine::fingerprint::extract_fingerprints(
             tree.root_node(),
             &js_src,
             js_path,
@@ -607,7 +333,7 @@ mod tests {
         let handler = js_fps.iter().find(|fp| fp.line == 32).unwrap();
 
         // Scan the handler through the registry (no AST node, no source, no context)
-        let matches = registry.scan_function(handler, None, None, None);
+        let matches = registry.scan_function(handler, None, None, None, None);
 
         // Find the SQLi match and print its evidence
         // Print evidence for the FIRST SQLi match with models
@@ -917,238 +643,3 @@ fn validate(input: &str) -> bool {
     }
 }
 
-/// Classify a taint source pattern by its likely origin.
-/// Used during taint seeding to capture the correct TaintOrigin
-/// so the SinkCategory × TaintOrigin relevance multiplier can downweight
-/// mismatches (e.g. FileSystem data reaching an SQL sink).
-#[must_use]
-pub fn taint_source_origin(pattern: &str) -> crate::data_flow::TaintOrigin {
-    if pattern.contains("process.env") {
-        crate::data_flow::TaintOrigin::Environment
-    } else if pattern.contains("req.file") || pattern.contains("req.files") {
-        crate::data_flow::TaintOrigin::FileSystem
-    } else {
-        crate::data_flow::TaintOrigin::UserInput
-    }
-}
-
-/// Collected features from a function node for constraint learning.
-#[derive(Debug, Clone, Default)]
-struct FunctionFeatures {
-    calls: Vec<String>,
-    node_types: Vec<String>,
-    /// M2: Set if the function reads from a recognized taint source (user-controlled input)
-    taint_sources: Vec<String>,
-}
-
-/// Collect features from a function node.
-fn collect_function_features(node: tree_sitter::Node<'_>, source: &str) -> FunctionFeatures {
-    let mut features = FunctionFeatures::default();
-
-    // Collect call targets
-    let mut cursor = node.walk();
-    loop {
-        let n = cursor.node();
-        if n.kind() == "call_expression" {
-            if let Some(callee) = n
-                .child_by_field_name("function")
-                .or_else(|| n.child_by_field_name("callee"))
-            {
-                let target = source[callee.start_byte()..callee.end_byte()].to_string();
-                features.calls.push(target);
-            }
-        }
-
-        // Collect node types (only meaningful ones)
-        let kind = n.kind();
-        if !kind.is_empty() && !kind.starts_with("comment") {
-            features.node_types.push(kind.to_string());
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        loop {
-            if cursor.goto_next_sibling() {
-                break;
-            }
-            if !cursor.goto_parent() {
-                break;
-            }
-        }
-        if !cursor.goto_first_child() {
-            break;
-        }
-    }
-
-    features.calls.sort();
-    features.calls.dedup();
-    features.node_types.sort();
-    features.node_types.dedup();
-
-    // M2: Detect taint sources by scanning the raw source text of this function's span
-    let func_src = &source[node.start_byte()..node.end_byte().min(source.len())];
-    for pattern in crate::corpus::source_sink::always_register_source_patterns() {
-        if func_src.contains(pattern) {
-            features.taint_sources.push(pattern.to_string());
-        }
-    }
-    features.taint_sources.sort();
-    features.taint_sources.dedup();
-
-    features
-}
-
-/// Collect features from all function nodes in an AST.
-fn collect_all_function_features(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    out: &mut Vec<FunctionFeatures>,
-) {
-    let kind = node.kind();
-    if kind == "function_item"
-        || kind == "function_declaration"
-        || kind == "method_definition"
-        || kind == "arrow_function"
-        || kind == "function"
-        || kind == "generator_function"
-        || kind == "function_signature"
-        || kind == "method_declaration"
-    {
-        out.push(collect_function_features(node, source));
-    }
-    for i in 0..node.child_count() {
-        if let Some(child) = node.child(i) {
-            collect_all_function_features(child, source, out);
-        }
-    }
-}
-
-/// Learn semantic constraints from pre-collected features.
-fn learn_from_features(
-    pos_features: &[FunctionFeatures],
-    neg_features: &[FunctionFeatures],
-) -> crate::corpus::semantic::LearnedConstraints {
-    if pos_features.is_empty() || neg_features.is_empty() {
-        return crate::corpus::semantic::LearnedConstraints::default();
-    }
-
-    // Collect all call targets from positives and negatives
-    let pos_calls: Vec<&str> = pos_features
-        .iter()
-        .flat_map(|f| f.calls.iter().map(std::string::String::as_str))
-        .collect();
-    let neg_calls: Vec<&str> = neg_features
-        .iter()
-        .flat_map(|f| f.calls.iter().map(std::string::String::as_str))
-        .collect();
-
-    // Find calls in ALL positives but NOT in any negative
-    let mut required_calls: Vec<String> = pos_features[0]
-        .calls
-        .iter()
-        .filter(|call| {
-            pos_features.iter().all(|f| f.calls.contains(*call))
-                && !neg_calls.contains(&call.as_str())
-        })
-        .cloned()
-        .collect();
-
-    // M2: Auto-promote taint sources to required_calls when positives have taint
-    // and negatives do not — eliminates FP on non-user-controlled code paths.
-    let pos_has_taint = pos_features.iter().any(|f| !f.taint_sources.is_empty());
-    let neg_has_taint = neg_features.iter().any(|f| !f.taint_sources.is_empty());
-    if pos_has_taint && !neg_has_taint {
-        // Collect taint sources present in any positive but absent from all negatives
-        let neg_taint: std::collections::HashSet<&str> = neg_features
-            .iter()
-            .flat_map(|f| f.taint_sources.iter().map(std::string::String::as_str))
-            .collect();
-        for f in pos_features {
-            for src in &f.taint_sources {
-                if !neg_taint.contains(src.as_str()) && !required_calls.contains(src) {
-                    required_calls.push(src.clone());
-                }
-            }
-        }
-    }
-
-    // Find calls in ALL negatives but NOT in any positive
-    let forbidden_calls: Vec<String> = neg_features[0]
-        .calls
-        .iter()
-        .filter(|call| {
-            neg_features.iter().all(|f| f.calls.contains(*call))
-                && !pos_calls.contains(&call.as_str())
-        })
-        .cloned()
-        .collect();
-
-    // Same for node types
-    let pos_nts: Vec<&str> = pos_features
-        .iter()
-        .flat_map(|f| f.node_types.iter().map(std::string::String::as_str))
-        .collect();
-    let neg_nts: Vec<&str> = neg_features
-        .iter()
-        .flat_map(|f| f.node_types.iter().map(std::string::String::as_str))
-        .collect();
-
-    // Filter out noise node types
-    let noise: std::collections::HashSet<&str> = [
-        "program",
-        "statement_block",
-        "expression_statement",
-        "return_statement",
-        "if_statement",
-        "variable_declaration",
-        "identifier",
-        "call_expression",
-        "member_expression",
-        "string",
-        "number",
-        "true",
-        "false",
-        "null",
-        "template_string",
-        "binary_expression",
-        "unary_expression",
-        "parenthesized_expression",
-        "comma_expression",
-        "formal_parameters",
-        "type_annotation",
-    ]
-    .iter()
-    .copied()
-    .collect();
-
-    let required_node_types: Vec<String> = pos_features[0]
-        .node_types
-        .iter()
-        .filter(|nt| {
-            !noise.contains(nt.as_str())
-                && pos_features.iter().all(|f| f.node_types.contains(*nt))
-                && !neg_nts.contains(&nt.as_str())
-        })
-        .cloned()
-        .collect();
-
-    let forbidden_node_types: Vec<String> = neg_features[0]
-        .node_types
-        .iter()
-        .filter(|nt| {
-            !noise.contains(nt.as_str())
-                && neg_features.iter().all(|f| f.node_types.contains(*nt))
-                && !pos_nts.contains(&nt.as_str())
-        })
-        .cloned()
-        .collect();
-
-    crate::corpus::semantic::LearnedConstraints {
-        required_calls,
-        forbidden_calls,
-        required_node_types,
-        forbidden_node_types,
-        required_taint_flows: Vec::new(),
-    }
-}
