@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 2026-09-09
+### Architecture & Core Engine
+- **Field-Sensitive Program Dependence Graph (PDG)**: Transitioned the core taint engine from naive string-matching heuristics (`has_param_ref`) to exact graph-reachability queries. 
+- **Upgraded Def-Use Chains**: Modified `def_use.rs` to track full access paths (e.g. `req.body.id`) rather than flattening variables to their base object, eliminating phantom data-flows.
+- **Data & Control Fusion**: Introduced `pdg.rs` to fuse data dependence (from DefUseChains) with control dependence (via Post-Dominator trees).
+- **Benchmark Validated**: The structural PDG upgrade increased True Positives on NodeGoat and Juice Shop by 145% (from 11 to 27) compared to the baseline heuristic.
+
 ### Fixed
 - **Weight Learner Bias Fix**: Fixed a critical gradient descent bug in `frensense-bundler` where missing dimensions (like cross-file `flow_sim`) maintained their `0.5` initialization weight and stole up to 50% of the overall classification weight from valid dimensions during normalization. Dimensions are now initialized to `0.0`.
 - **AST Extraction for Semantic Rules**: Replaced the fragile `extract_call_targets` regex in both the bundler and engine with a robust Tree-sitter AST walk, completely eliminating mismatches where the bundler learned structural motifs that the inference engine failed to extract.
