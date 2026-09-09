@@ -306,7 +306,7 @@ fn run_findings_modules(
         // Propagate taint forward through the call graph so intermediate
         // non-HttpHandler functions called by seeded sources are also
         // treated as taint sources for multi-hop chain detection.
-        cross_file_taint.propagate_taint();
+        cross_file_taint.propagate_taint(Some(&sanitizer));
     }
 
     for snap in snapshots {
@@ -358,7 +358,7 @@ fn run_corpus_scan(
     let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(
         engine.corpus_threshold,
         engine.ngram_sim_threshold,
-        0.05,
+        0.20,
     );
     for (category, threshold) in &engine.threshold_overrides {
         registry.set_threshold_override(category.clone(), *threshold);
@@ -420,14 +420,12 @@ fn run_corpus_scan(
 
     // Load from corpus directories if specified (exclusive of embedded bundle)
     if !corpus_dirs.is_empty() {
-                let mut total_loaded = 0;
+        let mut total_loaded = 0;
         for dir in &corpus_dirs {
             match frensense_bundler::builder::build_bundle(dir) {
-                Ok(bytes) => {
-                    match registry.load_from_bundle(&bytes) {
-                        Ok(count) => total_loaded += count,
-                        Err(e) => eprintln!("Failed to load built bundle for {:?}: {}", dir, e),
-                    }
+                Ok(bytes) => match registry.load_from_bundle(&bytes) {
+                    Ok(count) => total_loaded += count,
+                    Err(e) => eprintln!("Failed to load built bundle for {:?}: {}", dir, e),
                 },
                 Err(e) => eprintln!("Failed to build bundle from {:?}: {}", dir, e),
             }
@@ -607,7 +605,13 @@ fn run_corpus_scan(
         } else {
             fp.clone()
         };
-        let matches = registry.scan_function(&scan_fp, Some(func_node.clone()), Some(&snap.content), Some(actual_context), None);
+        let scan_ctx = frensense_engine::corpus::registry::ScanContext {
+            func_node: Some(func_node.clone()),
+            source: Some(&snap.content),
+            actual_context: Some(actual_context),
+            spec: None,
+        };
+        let matches = registry.scan_function(&scan_fp, &scan_ctx);
 
         let elapsed = start_time.elapsed().as_millis();
         if elapsed > 500 {
@@ -1002,7 +1006,7 @@ fn run_standalone_taint(
                                     "Taint flow verified: `{src}` → `{fn_name}` → `{snk}`"
                                 ),
                             )
-                            .with_confidence(engine.scorer_config.taint_verified_boost)
+                            .with_confidence(1.0)
                             .with_line(line)
                             .with_content(fn_name.to_string())
                             .with_enclosing_symbol(fn_name.to_string())

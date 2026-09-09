@@ -9,7 +9,11 @@ use tree_sitter::Node;
 
 /// Extract the structural skeleton from an AST node.
 /// Returns a list of node kinds (identifiers and literals removed).
-pub fn extract_skeleton(root: Node, _source: &str, spec: Option<&dyn frensense_lang::LanguageSpec>) -> Vec<String> {
+pub fn extract_skeleton(
+    root: Node,
+    _source: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> Vec<String> {
     let mut skeleton = Vec::new();
     extract_skeleton_recursive(root, &mut skeleton, spec);
     skeleton
@@ -46,7 +50,11 @@ fn normalize_kind<'a>(kind: &'a str, spec: Option<&dyn frensense_lang::LanguageS
 }
 
 /// Recursively extract node kinds, skipping identifiers and literals.
-fn extract_skeleton_recursive(node: Node, skeleton: &mut Vec<String>, spec: Option<&dyn frensense_lang::LanguageSpec>) {
+fn extract_skeleton_recursive(
+    node: Node,
+    skeleton: &mut Vec<String>,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) {
     if skeleton.len() > 256 {
         return;
     }

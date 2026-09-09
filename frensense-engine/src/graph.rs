@@ -332,10 +332,9 @@ pub fn extract_temporal_events<'a>(
         let node = cursor.node();
         let kind = node.kind();
 
-        let is_call = spec.map_or(
-            kind == "call_expression",
-            |s| matches!(s.classify(kind), frensense_lang::NodeRole::Call { .. }),
-        );
+        let is_call = spec.map_or(kind == "call_expression", |s| {
+            matches!(s.classify(kind), frensense_lang::NodeRole::Call { .. })
+        });
 
         if is_call {
             let call_text = node.utf8_text(source.as_bytes()).unwrap_or("");

@@ -37,7 +37,14 @@ pub struct PatternMatch {
     pub has_validation_name: bool,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
+pub struct ScanContext<'a> {
+    pub func_node: Option<tree_sitter::Node<'a>>,
+    pub source: Option<&'a str>,
+    pub actual_context: Option<&'a crate::context::FileContext>,
+    pub spec: Option<&'a dyn frensense_lang::spec::LanguageSpec>,
+}
+
 pub struct PatternRegistry {
     patterns: Vec<CorpusPattern>,
     lsh_index: Option<LSHIndex>,
@@ -153,13 +160,8 @@ impl PatternRegistry {
         patterns.into_iter().take(n).collect()
     }
 
-    
-
-    
-
     /// Compute auto-derived semantic filter suggestions from corpus files.
     /// Only used as a fallback when the embedded bundle doesn't contain them.
-    
 
     /// Get the corpus-learned source/sink registry.
     pub fn source_sink_registry(&self) -> &CorpusSourceSinkRegistry {
@@ -175,21 +177,7 @@ impl PatternRegistry {
         self.patterns = loaded
             .patterns
             .into_iter()
-            .map(|bp| CorpusPattern {
-                id: bp.id.clone(),
-                positives: bp.positives,
-                negatives: bp.negatives,
-                semantic_filter: bp.semantic_filter,
-                observation: bp.observation,
-                impact: bp.impact,
-                improvement: bp.improvement,
-                expected_context: bp.expected_context,
-                cwe: bp.cwe.clone(),
-                cvss: bp.cvss,
-                owasp: bp.owasp.clone(),
-                severity: bp.severity.clone(),
-                runtime_probe: bp.runtime_probe.clone(),
-            })
+            .map(CorpusPattern::from)
             .collect();
 
         // Use pre-computed API IDF from bundle when available (avoids recomputation)
@@ -203,7 +191,11 @@ impl PatternRegistry {
         }
 
         if !loaded.pattern_calibration.is_empty() {
-            self.pattern_calibration = loaded.pattern_calibration.into_iter().map(|(k, a, b)| (k, (a, b))).collect();
+            self.pattern_calibration = loaded
+                .pattern_calibration
+                .into_iter()
+                .map(|(k, a, b)| (k, (a, b)))
+                .collect();
         }
 
         // Restore auto-derived filter suggestions from bundle
@@ -211,30 +203,38 @@ impl PatternRegistry {
         if !loaded.auto_filter_stats.is_empty() {
             let mut contains_call_to = std::collections::HashMap::new();
             let mut must_not_contain_call_to = std::collections::HashMap::new();
+            let mut contains_node_type = std::collections::HashMap::new();
             let mut must_not_contain_node_type = std::collections::HashMap::new();
             let mut must_not_match_function_name = std::collections::HashMap::new();
             for entry in loaded.auto_filter_stats {
                 let pid = entry.pattern_id;
                 let calls = entry.required_calls;
-                let excl_calls = entry.forbidden_types;
-                let excl_nodes = entry.required_taint_flows;
-                let excl_fnames = entry.forbidden_taint_flows;
+                let excl_calls = entry.forbidden_calls;
+                let req_nodes = entry.required_node_types;
+                let excl_nodes = entry.forbidden_node_types;
+                let excl_fnames = entry.forbidden_fn_names;
                 if !calls.is_empty() {
                     contains_call_to.insert(pid.clone(), calls.into_iter().collect());
                 }
                 if !excl_calls.is_empty() {
                     must_not_contain_call_to.insert(pid.clone(), excl_calls.into_iter().collect());
                 }
+                if !req_nodes.is_empty() {
+                    contains_node_type.insert(pid.clone(), req_nodes.into_iter().collect());
+                }
                 if !excl_nodes.is_empty() {
-                    must_not_contain_node_type.insert(pid.clone(), excl_nodes.into_iter().collect());
+                    must_not_contain_node_type
+                        .insert(pid.clone(), excl_nodes.into_iter().collect());
                 }
                 if !excl_fnames.is_empty() {
-                    must_not_match_function_name.insert(pid.clone(), excl_fnames.into_iter().collect());
+                    must_not_match_function_name
+                        .insert(pid.clone(), excl_fnames.into_iter().collect());
                 }
             }
             self.auto_filter_stats = Some(crate::auto_filter::AutoFilterStats {
                 contains_call_to,
                 must_not_contain_call_to,
+                contains_node_type,
                 function_name_regex: std::collections::HashMap::new(),
                 must_not_contain_node_type,
                 must_not_match_function_name,
@@ -298,14 +298,11 @@ impl PatternRegistry {
     }
 
     /// Learn per-category feature weights and per-pattern calibration from corpus positive/negative pairs.
-    
 
     /// Learn semantic markers from corpus patterns.
-    
 
     /// Run both IDF passes, learn category weights, and learn semantic markers.
     /// Called after `load_corpus` / `load_corpus_dirs`.
-    
 
     pub fn pattern_count(&self) -> usize {
         self.patterns.len()
@@ -387,14 +384,15 @@ impl PatternRegistry {
         self.lsh_index_api = Some(api_index);
     }
 
-    pub fn scan_function(
+    pub fn scan_function<'a>(
         &self,
         fp: &FunctionFingerprint,
-        func_node: Option<tree_sitter::Node<'_>>,
-        source: Option<&str>,
-        actual_context: Option<&crate::context::FileContext>,
-        spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
+        ctx: &ScanContext<'a>,
     ) -> Vec<PatternMatch> {
+        let func_node = ctx.func_node;
+        let source = ctx.source;
+        let actual_context = ctx.actual_context;
+        let spec = ctx.spec;
         let t0 = std::time::Instant::now();
         // Query both LSH tables (structural + API-call)
         let struct_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) =
@@ -444,11 +442,30 @@ impl PatternRegistry {
         let all_candidates_raw_len = all_candidates_raw.len();
         let all_candidates = all_candidates_raw;
         let candidate_count = all_candidates.len();
+        if candidate_count == 0 {
+            return Vec::new();
+        }
 
         // Apply IDF weights to candidate fingerprint for scoring
         let mut weighted_fp = fp.clone();
         if !self.idf_weights.is_empty() {
             apply_idf_weights(&mut weighted_fp, &self.idf_weights);
+        }
+
+        // Add learned semantic markers
+        if !self.learned_semantic_markers.is_empty() {
+            for call in &fp.raw_call_names {
+                let seg = call.rsplit(['.', ':']).next().unwrap_or(call);
+                if let Some(cat) = self.learned_semantic_markers.get(seg) {
+                    let mut h = rustc_hash::FxHasher::default();
+                    std::hash::Hash::hash(cat, &mut h);
+                    weighted_fp
+                        .semantic_markers
+                        .push(std::hash::Hasher::finish(&h));
+                }
+            }
+            weighted_fp.semantic_markers.sort_unstable();
+            weighted_fp.semantic_markers.dedup();
         }
 
         // Pre-compute data flows once (shared across all candidates, cheap AST walk)
@@ -518,6 +535,29 @@ impl PatternRegistry {
             }
         });
 
+        // Pre-compute DimCache in parallel across all referenced corpus targets
+        use rayon::prelude::*;
+        let global_dim_cache: crate::pattern::scorer::DimCache = all_candidates
+            .par_iter()
+            .flat_map(|&(idx, _)| {
+                let pattern = &self.patterns[idx];
+                let mut targets = Vec::new();
+                for pos in &pattern.positives {
+                    targets.push((crate::pattern::scorer::fingerprint_id(pos), pos, false));
+                }
+                for neg in &pattern.negatives {
+                    targets.push((crate::pattern::scorer::fingerprint_id(neg), neg, true));
+                }
+                targets
+            })
+            .map(|(key, target, is_neg)| {
+                (
+                    key,
+                    PatternScorer::raw_dimensions(&weighted_fp, target, is_neg),
+                )
+            })
+            .collect();
+
         // Parallel scoring: each candidate scored independently, then merged
         let mut matches: Vec<PatternMatch> = all_candidates
             .par_iter()
@@ -535,6 +575,7 @@ impl PatternRegistry {
                     &taint_metrics,
                     precomputed_flows.as_ref(),
                     spec,
+                    &global_dim_cache,
                 )
             })
             .collect();
@@ -574,6 +615,7 @@ impl PatternRegistry {
         taint_metrics: &Option<(TaintMetrics, TaintOrigin)>,
         precomputed_flows: Option<&std::collections::HashSet<(String, String)>>,
         spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
+        dim_cache: &crate::pattern::scorer::DimCache,
     ) -> Option<PatternMatch> {
         // Merge hand-authored semantic filter with auto-derived suggestions
         let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
@@ -593,7 +635,13 @@ impl PatternRegistry {
 
         // Apply semantic filter if present
         if let (Some(filter), Some(node), Some(src)) = (merged_filter.as_ref(), func_node, source) {
-            if !filter.matches(node, src, Some(fp.file_path.as_str()), precomputed_flows, spec) {
+            if !filter.matches(
+                node,
+                src,
+                Some(fp.file_path.as_str()),
+                precomputed_flows,
+                spec,
+            ) {
                 return None;
             }
         }
@@ -676,7 +724,6 @@ impl PatternRegistry {
             }
         }
 
-        let mut dim_cache = FxHashMap::default();
         let pat_weights =
             crate::pattern::weight_learner::category_weights(&pattern.id, &self.category_weights);
         let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence_cached(
@@ -687,7 +734,7 @@ impl PatternRegistry {
             actual_context,
             self.ngram_sim_threshold,
             pat_weights,
-            &mut dim_cache,
+            dim_cache,
         );
 
         let best_score = if !hit_both {
@@ -696,33 +743,37 @@ impl PatternRegistry {
             best_score
         };
 
-        let best_score = crate::per_pattern_calibration::calibrate(
-            best_score,
-            self.pattern_calibration.get(&pattern.id),
-        );
-
-        // Apply freshness penalty: down-weight patterns that match many functions
-        // but rarely verify taint. This reduces false positives from stale patterns.
+        // Apply freshness penalty and taint modifiers BEFORE calibration to raw scores
         let freshness_score = self.pattern_freshness_score(&pattern.id);
-        let best_score = best_score * freshness_score;
+        let mut raw_score = best_score * freshness_score;
 
-        let best_score = if let Some((tm, origin)) = taint_metrics {
+        if let Some((tm, origin)) = taint_metrics {
             let mut multiplier: f64 = 1.0;
             if tm.is_hollow_validator() {
                 multiplier = 0.5;
-            } else if tm.taint_branch_ratio > 0.5 {
-                multiplier = 0.8;
+            } else if tm.taint_branch_ratio < 0.1 && tm.tainted_uses > 2 {
+                multiplier = 1.1_f64.min(1.0 / self.scorer_config.taint_boost_cap);
+            } else if tm.taint_branch_ratio > 0.7 {
+                multiplier = 0.7;
             }
             if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
                 let relevance: f64 = crate::corpus::source_sink::sink_taint_relevance(cat, origin);
                 multiplier = multiplier.min(relevance);
             }
-            best_score * multiplier
-        } else {
-            best_score
-        };
+            raw_score *= multiplier;
+        }
+
+        if evidence.has_taint_path {
+            raw_score *= self.scorer_config.taint_verified_boost;
+        }
+
+        let best_score = crate::per_pattern_calibration::calibrate(
+            raw_score,
+            self.pattern_calibration.get(&pattern.id),
+        );
 
         let threshold = self.threshold_for_pattern(&pattern.id);
+        let threshold = threshold.max(self.scorer_config.score_suppression_floor);
         let has_taint = evidence.has_taint_path;
         let effective_threshold = if has_taint {
             threshold.min(0.15)

@@ -3,8 +3,8 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use tree_sitter::Node;
 
-use frensense_lang::spec_for_ext;
 use frensense_lang::NodeRole;
+use frensense_lang::spec_for_ext;
 
 use crate::cfg::{BasicBlock, ControlFlowGraph};
 
@@ -217,7 +217,10 @@ fn scan_statement_def_uses(
                     *node_counter += 1;
                 }
             }
-            if let Some(value) = node.child_by_field_name("value").or_else(|| node.child_by_field_name("right")) {
+            if let Some(value) = node
+                .child_by_field_name("value")
+                .or_else(|| node.child_by_field_name("right"))
+            {
                 let mut refs = Vec::new();
                 extract_ref_names(value, source, &mut refs);
                 for r in refs {
@@ -383,7 +386,8 @@ fn scan_statement_def_uses(
                         for i in 0..args.child_count() {
                             if let Some(arg) = args.child(i) {
                                 if is_identifier(arg) {
-                                    let arg_name = source[arg.start_byte()..arg.end_byte()].to_string();
+                                    let arg_name =
+                                        source[arg.start_byte()..arg.end_byte()].to_string();
                                     uses.push(Use {
                                         name: arg_name,
                                         block_id,
@@ -479,7 +483,15 @@ fn scan_block_def_uses<'a>(
         collect_statements(node, &mut statements);
     }
     for stmt in &statements {
-        scan_statement_def_uses(*stmt, block.id, source, definitions, uses, node_counter, spec);
+        scan_statement_def_uses(
+            *stmt,
+            block.id,
+            source,
+            definitions,
+            uses,
+            node_counter,
+            spec,
+        );
     }
 }
 
@@ -538,7 +550,11 @@ fn compute_reaching_defs(cfg: &ControlFlowGraph, chains: &mut DefUseChain) {
     }
 }
 
-pub fn compute_def_use<'a>(cfg: &ControlFlowGraph<'a>, source: &'a str, spec: Option<&dyn frensense_lang::LanguageSpec>) -> DefUseChain {
+pub fn compute_def_use<'a>(
+    cfg: &ControlFlowGraph<'a>,
+    source: &'a str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> DefUseChain {
     let mut chains = DefUseChain::new();
     let mut node_counter = 0usize;
 

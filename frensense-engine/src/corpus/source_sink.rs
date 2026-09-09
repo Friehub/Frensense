@@ -927,19 +927,17 @@ fn extract_sources_and_sinks_recursive(
         }
     }
     // Use spec-based classification for function nodes with fallback
-    let is_fn = spec
-        .map(|s| s.is_function_node(kind))
-        .unwrap_or_else(|| {
-            matches!(
-                kind,
-                "function_definition"
-                    | "function_declaration"
-                    | "arrow_function"
-                    | "method_definition"
-                    | "function_item"
-                    | "function_signature_item"
-            )
-        });
+    let is_fn = spec.map(|s| s.is_function_node(kind)).unwrap_or_else(|| {
+        matches!(
+            kind,
+            "function_definition"
+                | "function_declaration"
+                | "arrow_function"
+                | "method_definition"
+                | "function_item"
+                | "function_signature_item"
+        )
+    });
     if is_fn {
         if let Some(params) = node
             .child_by_field_name("parameters")
@@ -1116,7 +1114,6 @@ mod tests {
         );
     }
 }
-
 
 pub fn taint_source_origin(pattern: &str) -> crate::data_flow::TaintOrigin {
     if pattern.contains("process.env") {

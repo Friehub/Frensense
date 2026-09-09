@@ -5,7 +5,6 @@
 use std::path::Path;
 use tree_sitter::Node;
 
-use crate::lang::Language;
 use super::ast_walkers::{
     collect_raw_call_names, collect_structural_markers, collect_type_usages, count_comment_bytes,
     extract_argument_call_types, extract_cf_sequence, extract_control_flow,
@@ -16,6 +15,7 @@ use super::hashing::{
     normalize_token, split_name_segments, token_ngrams_positional, token_ngrams_sorted,
 };
 use super::types::FunctionFingerprint;
+use crate::lang::Language;
 
 // ---------------------------------------------------------------------------
 // Signature helpers (live here because they use body_field / params_field)
@@ -83,17 +83,12 @@ pub fn extract_fingerprints_with_nodes<'a>(
         let kind = node.kind();
 
         // Determine whether this node is a function via the spec, with a fallback.
-        let is_function = spec
-            .map(|s| s.is_function_node(kind))
-            .unwrap_or_else(|| {
-                matches!(
-                    kind,
-                    "function_item"
-                        | "function_declaration"
-                        | "method_definition"
-                        | "arrow_function"
-                )
-            });
+        let is_function = spec.map(|s| s.is_function_node(kind)).unwrap_or_else(|| {
+            matches!(
+                kind,
+                "function_item" | "function_declaration" | "method_definition" | "arrow_function"
+            )
+        });
 
         if is_function {
             // Resolve field names from the spec, falling back to sensible defaults.
@@ -211,13 +206,16 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     })
                     .unwrap_or_default();
 
-                let tainted_api_calls = extract_tainted_calls(body, source_code, &param_names, spec);
-                let motif_hashes = extract_motif_hashes(
-                    &raw_call_names,
-                    &crate::corpus::motifs::MOTIF_LOOKUP,
+                let tainted_api_calls =
+                    extract_tainted_calls(body, source_code, &param_names, spec);
+                let motif_hashes =
+                    extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
+                let data_flow_path_hashes = crate::corpus::flow_fingerprint::extract_flow_paths(
+                    body,
+                    source_code,
+                    import_map,
+                    spec,
                 );
-                let data_flow_path_hashes =
-                    crate::corpus::flow_fingerprint::extract_flow_paths(body, source_code, import_map, spec);
                 let argument_call_types = extract_argument_call_types(body, source_code, spec);
                 let literal_pattern_hashes = extract_literal_patterns(body, source_code, spec);
 
@@ -242,7 +240,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     line: node.start_position().row + 1,
                     language: language.clone(),
                     ngram_hashes: multi_scale_hashes.clone(),
-                    weighted_ngram_hashes: multi_scale_hashes.into_iter().map(|h| (h, 1.0)).collect(),
+                    weighted_ngram_hashes: multi_scale_hashes
+                        .into_iter()
+                        .map(|h| (h, 1.0))
+                        .collect(),
                     signature_ngrams: token_ngrams_sorted(
                         &sig_tokens,
                         3.min(sig_tokens.len().max(1)),
@@ -318,6 +319,13 @@ pub fn extract_fingerprints(
     import_map: Option<&crate::import_resolver::ImportMap>,
 ) {
     let mut with_nodes = Vec::new();
-    extract_fingerprints_with_nodes(root, source_code, path, &mut with_nodes, window_size, import_map);
+    extract_fingerprints_with_nodes(
+        root,
+        source_code,
+        path,
+        &mut with_nodes,
+        window_size,
+        import_map,
+    );
     fingerprints.extend(with_nodes.into_iter().map(|(fp, _)| fp));
 }

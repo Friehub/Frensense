@@ -1,8 +1,8 @@
-use frensense_engine::auto_filter::AutoFilterEntry;
 use crate::loader::load_corpus;
-use std::path::Path;
+use frensense_engine::auto_filter::AutoFilterEntry;
 use frensense_engine::corpus::bundle::{BundlePattern, BundlePayload};
 use frensense_frc::BundleHeader;
+use std::path::Path;
 // Note: imports will be fixed iteratively.
 pub fn build_bundle_from_patterns(
     patterns: &[BundlePattern],
@@ -48,7 +48,7 @@ pub fn build_bundle_from_patterns(
         });
     // Recursively find a corpus file by its pattern ID and variant.
     fn find_corpus_file(id: &str, variant: &str, dir: &Path) -> Option<String> {
-        for ext in &["ts", "tsx", "js", "jsx", "rs"] {
+        for ext in &["ts", "tsx", "js", "jsx", "rs", "py", "go"] {
             let target = format!("{}_{}.{}", id, variant, ext);
             let result = find_file_recursive(dir, &target);
             if result.is_some() {
@@ -84,9 +84,12 @@ pub fn build_bundle_from_patterns(
         if let Some(src) = find_corpus_file(&bp.id, "positive", corpus_dir.as_path()) {
             pattern_source_texts.insert(bp.id.clone(), src);
         }
-        for variant in &["negative", "negative2", "negative3", "negative4"] {
+        for (i, variant) in ["negative", "negative2", "negative3", "negative4"]
+            .iter()
+            .enumerate()
+        {
             if let Some(src) = find_corpus_file(&bp.id, variant, corpus_dir.as_path()) {
-                pattern_source_texts.insert(format!("{}_neg", bp.id), src);
+                pattern_source_texts.insert(format!("{}_neg_{}", bp.id, i), src);
             }
         }
     }
@@ -109,6 +112,11 @@ pub fn build_bundle_from_patterns(
                 .cloned()
                 .unwrap_or_default();
             let fn_re = String::new();
+            let req_nodes = auto_stats
+                .contains_node_type
+                .get(*pid)
+                .cloned()
+                .unwrap_or_default();
             let excl_nodes = auto_stats
                 .must_not_contain_node_type
                 .get(*pid)
@@ -119,13 +127,18 @@ pub fn build_bundle_from_patterns(
                 .get(*pid)
                 .cloned()
                 .unwrap_or_default();
-            if !calls.is_empty() || !excl_calls.is_empty() {
+            if !calls.is_empty()
+                || !excl_calls.is_empty()
+                || !req_nodes.is_empty()
+                || !excl_nodes.is_empty()
+            {
                 v.push(AutoFilterEntry {
                     pattern_id: pid.to_string(),
-                                        forbidden_types: excl_calls.into_iter().collect(),
                     required_calls: calls.into_iter().collect(),
-                                        required_taint_flows: excl_nodes.into_iter().collect(),
-                    forbidden_taint_flows: excl_fnames.into_iter().collect(),
+                    forbidden_calls: excl_calls.into_iter().collect(),
+                    required_node_types: req_nodes.into_iter().collect(),
+                    forbidden_node_types: excl_nodes.into_iter().collect(),
+                    forbidden_fn_names: excl_fnames.into_iter().collect(),
                 });
             }
         }
@@ -175,7 +188,7 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
         .collect();
 
     // Since build_bundle_incremental writes only patterns (no payload envelope in the old code?! Wait, let's look closer... ah, it serialized bundle_patterns directly!). Let's just fix it to use write_bundle. Wait, the old code serialized `bundle_patterns` without `BundlePayload`! That's a bug in the old code (it would fail to deserialize in `load_bundle`). I'll just change it to use write_bundle with `bundle_patterns`.
-    let output = frensense_frc::write_bundle(&bundle_patterns, bundle_patterns.len() as u32)?;
+    let output = build_bundle_from_patterns(&bundle_patterns, Some(corpus_dir))?;
 
     // Update manifest with current file hashes
     if let Ok(entries) = std::fs::read_dir(corpus_dir) {
@@ -213,7 +226,6 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 struct ManifestEntry {
     path: String,
@@ -249,7 +261,9 @@ impl Manifest {
     }
 }
 
-fn compute_bundle_api_idf(patterns: &[frensense_engine::corpus::bundle::BundlePattern]) -> Vec<(u64, f32)> {
+fn compute_bundle_api_idf(
+    patterns: &[frensense_engine::corpus::bundle::BundlePattern],
+) -> Vec<(u64, f32)> {
     let total = patterns.len() as f32;
     if total == 0.0 {
         return Vec::new();

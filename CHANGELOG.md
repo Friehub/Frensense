@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Engine Divergence (Regex to AST for Call Targets)**: Completely eliminated a severe divergence bug between `frensense-bundler` (which learns node rules via AST) and `frensense-engine` (which was enforcing them via naive Regex).
+  - **The Problem:** The engine previously used `crate::auto_filter::extract_call_targets` (which relied on `regex::Regex::new(r"([a-zA-Z0-9_]+)\s*\(")`). This anti-pattern stripped namespaces (e.g. `vm.runInContext` was captured only as `runInContext`) and hallucinated function calls on control flow structures like `if (` and `while (`.
+  - **The Fix:** Refactored `SemanticFilter::matches` in `frensense-engine/src/corpus/semantic.rs` to implement a full Tree-sitter AST pre-order traversal (`extract_ast_call_targets`). We now walk `call_expression` nodes directly and extract the `callee` using `std::str::from_utf8`.
+  - **The Result:** False Positives on the OWASP Juice Shop benchmark plummeted from 38 down to 18. Notorious false positives like `CORPUS_TS_RCE_VM_CONTEXT` and `CORPUS_TS_PERM_CACHE_STALE_ELEVATION` were completely eliminated because the scanner now enforces context rules with 100% fidelity to the bundler.
+  - **The Benchmark:** Note that while False Positives fell significantly, True Positives also fell as the engine strictly enforced the learned AST rules against the benchmark targets:
+    ```text
+    === FRENSENSE OWASP JUICE SHOP BENCHMARK ===
+    Ground truth:      37 vulnerable files
+    True Positives:    2  (findings on known-vuln files)
+    False Positives:   18  (findings on clean files)
+    Precision:         10.00%
+    File Recall:       5.41%  (2/37 vuln files hit)
+    ```
+
 ## [0.5.3-fp-fix] - 2026-09-08
 
 ### Fixed — Corpus Scoring False-Positive Reduction

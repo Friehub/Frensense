@@ -186,4 +186,3 @@ pub(crate) fn load_sidecar_toml(corpus_dir: &std::path::Path, pattern_name: &str
             .map(String::from),
     }
 }
-

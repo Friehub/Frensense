@@ -55,7 +55,8 @@ impl ImportMap {
         let mut map = Self::new();
         if let Some(spec) = frensense_lang::spec_for_ext(ext) {
             for import in spec.extract_imports(root, source) {
-                map.name_to_package.insert(import.local_name, import.package.clone());
+                map.name_to_package
+                    .insert(import.local_name, import.package.clone());
                 if let Some(symbol) = import.symbol {
                     map.name_to_package.insert(symbol, import.package);
                 }
@@ -84,10 +85,7 @@ mod tests {
     #[test]
     fn test_entry_point_not_imported() {
         let map = ImportMap::new();
-        assert_eq!(
-            map.classify_entry_point("Request"),
-            EntryPointKind::Unknown
-        );
+        assert_eq!(map.classify_entry_point("Request"), EntryPointKind::Unknown);
     }
 }
 

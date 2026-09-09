@@ -25,7 +25,11 @@ pub(crate) struct FunctionFeatures {
 }
 
 /// Collect features from a function node.
-pub(crate) fn collect_function_features(node: tree_sitter::Node<'_>, source: &str, spec: Option<&dyn frensense_lang::spec::LanguageSpec>) -> FunctionFeatures {
+pub(crate) fn collect_function_features(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
+) -> FunctionFeatures {
     let mut features = FunctionFeatures::default();
 
     // Collect call targets
@@ -51,15 +55,17 @@ pub(crate) fn collect_function_features(node: tree_sitter::Node<'_>, source: &st
         if cursor.goto_first_child() {
             continue;
         }
+        let mut reached_root = false;
         loop {
             if cursor.goto_next_sibling() {
                 break;
             }
             if !cursor.goto_parent() {
+                reached_root = true;
                 break;
             }
         }
-        if !cursor.goto_first_child() {
+        if reached_root {
             break;
         }
     }
@@ -73,7 +79,9 @@ pub(crate) fn collect_function_features(node: tree_sitter::Node<'_>, source: &st
     let func_src = &source[node.start_byte()..node.end_byte().min(source.len())];
     let patterns = spec
         .map(|s| s.known_source_patterns().to_vec())
-        .unwrap_or_else(|| frensense_engine::corpus::source_sink::always_register_source_patterns());
+        .unwrap_or_else(|| {
+            frensense_engine::corpus::source_sink::always_register_source_patterns()
+        });
     for pattern in patterns {
         if func_src.contains(pattern) {
             features.taint_sources.push(pattern.to_string());
@@ -94,21 +102,19 @@ pub(crate) fn collect_all_function_features(
 ) {
     let kind = node.kind();
     // Use spec-based classification for function nodes with fallback
-    let is_fn = spec
-        .map(|s| s.is_function_node(kind))
-        .unwrap_or_else(|| {
-            matches!(
-                kind,
-                "function_item"
-                    | "function_declaration"
-                    | "method_definition"
-                    | "arrow_function"
-                    | "function"
-                    | "generator_function"
-                    | "function_signature"
-                    | "method_declaration"
-            )
-        });
+    let is_fn = spec.map(|s| s.is_function_node(kind)).unwrap_or_else(|| {
+        matches!(
+            kind,
+            "function_item"
+                | "function_declaration"
+                | "method_definition"
+                | "arrow_function"
+                | "function"
+                | "generator_function"
+                | "function_signature"
+                | "method_declaration"
+        )
+    });
     if is_fn {
         out.push(collect_function_features(node, source, spec));
     }

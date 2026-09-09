@@ -438,8 +438,7 @@ impl SemanticProvider for ImportMapProvider {
         //    "query" ever having to appear in a sink list.
         if let Some(receiver) = call_text.split('.').next()
             && let Some(package) = self.import_map.resolve(receiver)
-            && let Some(category) =
-                package_sink_category_from_spec(package, self.spec.as_deref())
+            && let Some(category) = package_sink_category_from_spec(package, self.spec.as_deref())
         {
             return Some(category);
         }

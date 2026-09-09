@@ -235,6 +235,11 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
             for j in i + 1..pos_fps.len() {
                 let feats = compute_features(&pos_fps[i], &pos_fps[j]);
                 by_category.entry(cat.clone()).or_default().0.push(feats);
+                by_category
+                    .entry(pattern.id.clone())
+                    .or_default()
+                    .0
+                    .push(feats);
                 global_pos.push(feats);
             }
         }
@@ -244,6 +249,11 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
             for neg in neg_fps {
                 let feats = compute_features(pos, neg);
                 by_category.entry(cat.clone()).or_default().1.push(feats);
+                by_category
+                    .entry(pattern.id.clone())
+                    .or_default()
+                    .1
+                    .push(feats);
                 global_neg.push(feats);
             }
         }
@@ -268,5 +278,3 @@ pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, Fea
     }
     result
 }
-
-

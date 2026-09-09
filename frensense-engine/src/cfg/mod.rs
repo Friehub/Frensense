@@ -178,7 +178,9 @@ pub fn build_cfg<'a>(root: Node<'a>, source: &'a str, ext: &str) -> ControlFlowG
         let node = cursor.node();
         let kind = node.kind();
 
-        let role = spec.map(|s| s.classify(kind)).unwrap_or(frensense_lang::NodeRole::Other);
+        let role = spec
+            .map(|s| s.classify(kind))
+            .unwrap_or(frensense_lang::NodeRole::Other);
 
         match role {
             frensense_lang::NodeRole::Branch => {
@@ -427,7 +429,11 @@ fn is_statement_node(kind: &str, spec: Option<&dyn frensense_lang::LanguageSpec>
     }
 }
 
-fn collect_statement_nodes<'a>(node: Node<'a>, statements: &mut Vec<Node<'a>>, spec: Option<&dyn frensense_lang::LanguageSpec>) {
+fn collect_statement_nodes<'a>(
+    node: Node<'a>,
+    statements: &mut Vec<Node<'a>>,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) {
     let kind = node.kind();
     if is_statement_node(kind, spec) {
         statements.push(node);
@@ -445,7 +451,10 @@ fn collect_statement_nodes<'a>(node: Node<'a>, statements: &mut Vec<Node<'a>>, s
     }
 }
 
-fn split_statement_blocks(cfg: &mut ControlFlowGraph, spec: Option<&dyn frensense_lang::LanguageSpec>) {
+fn split_statement_blocks(
+    cfg: &mut ControlFlowGraph,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) {
     let n = cfg.blocks.len();
     let mut new_blocks: Vec<BasicBlock> = Vec::new();
     let mut block_map: FxHashMap<usize, (usize, usize)> = FxHashMap::default();
@@ -467,9 +476,9 @@ fn split_statement_blocks(cfg: &mut ControlFlowGraph, spec: Option<&dyn frensens
             block_map.insert(old_id, (new_id, new_id));
         } else {
             let mut statements: Vec<Node> = Vec::new();
-                for &node in &block.nodes {
-                    collect_statement_nodes(node, &mut statements, spec);
-                }
+            for &node in &block.nodes {
+                collect_statement_nodes(node, &mut statements, spec);
+            }
 
             if statements.len() <= 1 {
                 let new_id = new_blocks.len();

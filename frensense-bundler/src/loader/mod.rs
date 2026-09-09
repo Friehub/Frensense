@@ -1,14 +1,16 @@
-pub mod types;
+pub mod features;
 pub mod fs;
 pub mod metadata;
-pub mod features;
+pub mod types;
 
-pub use types::{CorpusPattern, LoadWarning};
-use types::AdvisoryText;
-use fs::{collect_corpus_files, is_negative_file, extract_pattern_name};
-use metadata::{parse_frensense_block, load_sidecar_toml, synthesize_advisory};
-use features::{FunctionFeatures, collect_function_features, collect_all_function_features, learn_from_features};
 pub(crate) use features::taint_source_origin;
+use features::{
+    collect_all_function_features, collect_function_features, learn_from_features, FunctionFeatures,
+};
+use fs::{collect_corpus_files, extract_pattern_name, is_negative_file};
+use metadata::{load_sidecar_toml, parse_frensense_block, synthesize_advisory};
+use types::AdvisoryText;
+pub use types::{CorpusPattern, LoadWarning};
 
 // SPDX-License-Identifier: MIT
 
@@ -16,7 +18,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use frensense_engine::corpus::semantic::SemanticFilter;
-use frensense_engine::fingerprint::{FunctionFingerprint, extract_fingerprints};
+use frensense_engine::fingerprint::{extract_fingerprints, FunctionFingerprint};
 use frensense_lang::spec_for_ext;
 
 pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWarning>), String> {
@@ -90,8 +92,9 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             }
             // M4: Auto-infer expected_context from the positive file path+content — no TOML needed
             if entry.2.expected_context.is_none() {
-                entry.2.expected_context =
-                    Some(frensense_engine::context::FileContext::extract(&path, &source));
+                entry.2.expected_context = Some(frensense_engine::context::FileContext::extract(
+                    &path, &source,
+                ));
             }
         } else {
             entry.1.extend(fps);
@@ -262,7 +265,8 @@ mod tests {
             std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
         let js_src = std::std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
-        let lang = frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
+        let lang =
+            frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
         parser.set_language(&lang).unwrap();
         let tree = parser.parse(&js_src, None).unwrap();
         let mut js_fps = Vec::new();
@@ -300,15 +304,15 @@ mod tests {
 
     #[test]
     fn debug_why_sqli_not_matching_registry() {
-        use frensense_engine::corpus::registry::PatternRegistry;
         use crate::pattern::scorer::PatternScorer;
+        use frensense_engine::corpus::registry::PatternRegistry;
         use std::hash::{Hash, Hasher};
 
         // Load the corpus into registry
         let dir = std::path::Path::new(
             "/home/oxisrael/Friehub/Taas/Frensene_main/Frensense/corpus/targets",
         );
-        let mut registry = PatternRegistry::new(0.0, 0.4, 0.05);
+        let mut registry = PatternRegistry::new(0.0, 0.4, 0.20);
         registry.load_corpus(dir).unwrap();
 
         // Load JS login.ts
@@ -316,7 +320,8 @@ mod tests {
             std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
         let js_src = std::std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
-        let lang = frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
+        let lang =
+            frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
         parser.set_language(&lang).unwrap();
         let tree = parser.parse(&js_src, None).unwrap();
         let mut js_fps = Vec::new();
@@ -333,7 +338,8 @@ mod tests {
         let handler = js_fps.iter().find(|fp| fp.line == 32).unwrap();
 
         // Scan the handler through the registry (no AST node, no source, no context)
-        let matches = registry.scan_function(handler, None, None, None, None);
+        let scan_ctx = frensense_engine::corpus::registry::ScanContext::default();
+        let matches = registry.scan_function(handler, &scan_ctx);
 
         // Find the SQLi match and print its evidence
         // Print evidence for the FIRST SQLi match with models
@@ -642,4 +648,3 @@ fn validate(input: &str) -> bool {
         );
     }
 }
-

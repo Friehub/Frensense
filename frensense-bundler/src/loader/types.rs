@@ -32,7 +32,6 @@ impl std::fmt::Display for LoadWarning {
     }
 }
 
-
 #[derive(Default, Debug, Clone)]
 pub(crate) struct AdvisoryText {
     pub(crate) observation: Option<String>,

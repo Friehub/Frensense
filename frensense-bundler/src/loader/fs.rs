@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Returns true if a file name represents any negative variant:
 /// `_negative.ts`, `_negative2.ts`, `_negative3.ts`, etc.
@@ -55,4 +55,3 @@ pub(crate) fn extract_pattern_name(file_name: &str) -> String {
 
     without_ext.to_string()
 }
-

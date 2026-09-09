@@ -12,7 +12,7 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir =
         env::var("CARGO_MANIFEST_DIR").map_or_else(|_| env::current_dir().unwrap(), PathBuf::from);
-    
+
     // CARGO_MANIFEST_DIR will point to frensense-bundler/. We need the workspace root.
     let workspace_root = manifest_dir.parent().unwrap();
     let corpus_dir = workspace_root.join("corpus").join("targets");

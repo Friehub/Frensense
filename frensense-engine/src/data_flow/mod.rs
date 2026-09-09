@@ -4,7 +4,6 @@ pub mod alias;
 pub mod confidence;
 pub mod cross_file;
 pub mod engine;
-pub mod entropy;
 pub mod normalization;
 pub mod pii;
 pub mod propagators;
@@ -98,11 +97,6 @@ fn classify_param_origin_heuristic(name: &str) -> Option<TaintOrigin> {
             | "message"
             | "text"
             | "html"
-            | "value"
-            | "threshold"
-            | "stocks"
-            | "funds"
-            | "bonds"
             | "ssn"
             | "dob"
             | "address"
@@ -165,7 +159,10 @@ pub fn classify_param_name_in_context_with_spec(
         return Some(origin);
     }
     let lower = name.to_lowercase();
-    if matches!(lower.as_str(), "name" | "data") {
+    if matches!(
+        lower.as_str(),
+        "name" | "data" | "value" | "threshold" | "stocks" | "funds" | "bonds"
+    ) {
         if env == Some(&crate::context::Environment::RouteHandler) {
             return Some(TaintOrigin::UserInput);
         }
@@ -233,6 +230,7 @@ impl TaintRegistry {
         self.field_taint.push(FxHashMap::default());
     }
 
+    /// CONSERVATIVE: conditional sanitization does not untaint.
     pub fn pop_scope(&mut self) {
         if self.scopes.len() > 1 {
             self.scopes.pop();

@@ -1,12 +1,13 @@
+use crate::corpus::semantic::SemanticFilter;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use crate::corpus::semantic::SemanticFilter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoFilterStats {
     pub contains_call_to: HashMap<String, Vec<String>>,
     pub must_not_contain_call_to: HashMap<String, Vec<String>>,
     pub function_name_regex: HashMap<String, String>,
+    pub contains_node_type: HashMap<String, Vec<String>>,
     pub must_not_contain_node_type: HashMap<String, Vec<String>>,
     pub must_not_match_function_name: HashMap<String, Vec<String>>,
 }
@@ -15,9 +16,10 @@ pub struct AutoFilterStats {
 pub struct AutoFilterEntry {
     pub pattern_id: String,
     pub required_calls: HashSet<String>,
-    pub forbidden_types: HashSet<String>,
-    pub required_taint_flows: HashSet<String>,
-    pub forbidden_taint_flows: HashSet<String>,
+    pub forbidden_calls: HashSet<String>,
+    pub required_node_types: HashSet<String>,
+    pub forbidden_node_types: HashSet<String>,
+    pub forbidden_fn_names: HashSet<String>,
 }
 
 fn strip_comments_and_strings(source: &str) -> String {
@@ -32,21 +34,29 @@ fn strip_comments_and_strings(source: &str) -> String {
     while i < chars.len() {
         let c = chars[i];
         if in_line_comment {
-            if c == '\n' { in_line_comment = false; out.push('\n'); }
+            if c == '\n' {
+                in_line_comment = false;
+                out.push('\n');
+            }
         } else if in_block_comment {
-            if c == '*' && i + 1 < chars.len() && chars[i+1] == '/' {
+            if c == '*' && i + 1 < chars.len() && chars[i + 1] == '/' {
                 in_block_comment = false;
                 i += 1;
             }
         } else if in_str {
-            if c == '\\' { i += 1; }
-            else if c == str_char { in_str = false; out.push(c); }
-            else { out.push(c); }
+            if c == '\\' {
+                i += 1;
+            } else if c == str_char {
+                in_str = false;
+                out.push(c);
+            } else {
+                out.push(c);
+            }
         } else {
-            if c == '/' && i + 1 < chars.len() && chars[i+1] == '/' {
+            if c == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
                 in_line_comment = true;
                 i += 1;
-            } else if c == '/' && i + 1 < chars.len() && chars[i+1] == '*' {
+            } else if c == '/' && i + 1 < chars.len() && chars[i + 1] == '*' {
                 in_block_comment = true;
                 i += 1;
             } else if c == '"' || c == '\'' || c == '`' {
@@ -91,6 +101,20 @@ pub fn merge_filters(
             for ex in excludes {
                 if !merged.must_not_contain_call_to.contains(ex) {
                     merged.must_not_contain_call_to.push(ex.clone());
+                }
+            }
+        }
+        if let Some(req_nodes) = stats.contains_node_type.get(pattern_id) {
+            for node in req_nodes {
+                if !merged.contains_node_type.contains(node) {
+                    merged.contains_node_type.push(node.clone());
+                }
+            }
+        }
+        if let Some(excludes) = stats.must_not_contain_node_type.get(pattern_id) {
+            for ex in excludes {
+                if !merged.must_not_contain_node_type.contains(ex) {
+                    merged.must_not_contain_node_type.push(ex.clone());
                 }
             }
         }

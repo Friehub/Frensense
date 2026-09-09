@@ -15,7 +15,11 @@ use crate::lang::{Language, mapper::abstract_kind};
 // Structural markers
 // ---------------------------------------------------------------------------
 
-pub(super) fn collect_structural_markers(node: Node<'_>, _source: &str, language: Language) -> Vec<u64> {
+pub(super) fn collect_structural_markers(
+    node: Node<'_>,
+    _source: &str,
+    language: Language,
+) -> Vec<u64> {
     let mut markers = FxHashSet::default();
     let mut cursor = node.walk();
 
@@ -264,7 +268,12 @@ fn extract_arg_types_recursive(
     spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 ) {
     let is_call = spec
-        .map(|s| matches!(s.classify(node.kind()), frensense_lang::NodeRole::Call { .. }))
+        .map(|s| {
+            matches!(
+                s.classify(node.kind()),
+                frensense_lang::NodeRole::Call { .. }
+            )
+        })
         .unwrap_or_else(|| node.kind() == "call_expression");
     if is_call {
         let callee_field = spec
@@ -345,7 +354,12 @@ fn extract_literal_patterns_recursive(
     spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 ) {
     let is_call = spec
-        .map(|s| matches!(s.classify(node.kind()), frensense_lang::NodeRole::Call { .. }))
+        .map(|s| {
+            matches!(
+                s.classify(node.kind()),
+                frensense_lang::NodeRole::Call { .. }
+            )
+        })
         .unwrap_or_else(|| node.kind() == "call_expression");
     if is_call {
         let callee_field = spec
@@ -375,9 +389,12 @@ fn extract_literal_patterns_recursive(
                         let pattern_type = match kind {
                             "binary_expression" if arg_text.contains('+') => {
                                 let upper = arg_text.to_uppercase();
-                                if upper.contains("SELECT") || upper.contains("FROM")
-                                    || upper.contains("WHERE") || upper.contains("INSERT")
-                                    || upper.contains("UPDATE") || upper.contains("DELETE")
+                                if upper.contains("SELECT")
+                                    || upper.contains("FROM")
+                                    || upper.contains("WHERE")
+                                    || upper.contains("INSERT")
+                                    || upper.contains("UPDATE")
+                                    || upper.contains("DELETE")
                                 {
                                     "sql_concat"
                                 } else {
@@ -402,8 +419,10 @@ fn extract_literal_patterns_recursive(
                             }
                             _ => {
                                 let upper = arg_text.to_uppercase();
-                                let has_sql = upper.contains("SELECT") || upper.contains("FROM")
-                                    || upper.contains("WHERE") || upper.contains("INSERT")
+                                let has_sql = upper.contains("SELECT")
+                                    || upper.contains("FROM")
+                                    || upper.contains("WHERE")
+                                    || upper.contains("INSERT")
                                     || upper.contains("DELETE");
                                 let has_params = arg_text.contains(':')
                                     && (arg_text.contains(":param")
@@ -478,7 +497,12 @@ fn extract_tainted_recursive(
     spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 ) {
     let is_call = spec
-        .map(|s| matches!(s.classify(node.kind()), frensense_lang::NodeRole::Call { .. }))
+        .map(|s| {
+            matches!(
+                s.classify(node.kind()),
+                frensense_lang::NodeRole::Call { .. }
+            )
+        })
         .unwrap_or_else(|| node.kind() == "call_expression");
     if is_call {
         if let Some(args_node) = node.child_by_field_name("arguments") {
@@ -516,10 +540,12 @@ fn has_param_ref(
     spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 ) -> bool {
     let is_member_access = spec
-        .map(|s| matches!(
-            s.classify(node.kind()),
-            frensense_lang::NodeRole::MemberAccess { .. }
-        ))
+        .map(|s| {
+            matches!(
+                s.classify(node.kind()),
+                frensense_lang::NodeRole::MemberAccess { .. }
+            )
+        })
         .unwrap_or_else(|| {
             matches!(
                 node.kind(),
@@ -565,10 +591,12 @@ fn extract_root_object<'a>(
         .child_by_field_name("object")
         .or_else(|| node.child_by_field_name("value"))?;
     let is_member_access = spec
-        .map(|s| matches!(
-            s.classify(obj.kind()),
-            frensense_lang::NodeRole::MemberAccess { .. }
-        ))
+        .map(|s| {
+            matches!(
+                s.classify(obj.kind()),
+                frensense_lang::NodeRole::MemberAccess { .. }
+            )
+        })
         .unwrap_or_else(|| {
             matches!(
                 obj.kind(),
@@ -606,10 +634,12 @@ fn extract_properties_recursive(
 ) {
     let kind = node.kind();
     let is_member_access = spec
-        .map(|s| matches!(
-            s.classify(kind),
-            frensense_lang::NodeRole::MemberAccess { .. }
-        ))
+        .map(|s| {
+            matches!(
+                s.classify(kind),
+                frensense_lang::NodeRole::MemberAccess { .. }
+            )
+        })
         .unwrap_or_else(|| kind == "member_expression" || kind == "field_expression");
     if is_member_access {
         let prop_field = spec
@@ -734,24 +764,91 @@ pub(super) fn extract_semantic_markers(
     let mut markers = FxHashSet::default();
 
     let categories: &[(&str, &[&str])] = &[
-        ("db_query", &["query", "execute", "raw_query", "format!", "sql_query", "execute_query"]),
-        ("db_write", &["insert", "update", "upsert", "execute", "bulk_write"]),
-        ("cmd_exec", &["exec", "system", "spawn", "popen", "Command::new", "child_process"]),
+        (
+            "db_query",
+            &[
+                "query",
+                "execute",
+                "raw_query",
+                "format!",
+                "sql_query",
+                "execute_query",
+            ],
+        ),
+        (
+            "db_write",
+            &["insert", "update", "upsert", "execute", "bulk_write"],
+        ),
+        (
+            "cmd_exec",
+            &[
+                "exec",
+                "system",
+                "spawn",
+                "popen",
+                "Command::new",
+                "child_process",
+            ],
+        ),
         ("code_eval", &["eval", "Function", "new Function"]),
-        ("file_read", &["readFile", "readFileSync", "createReadStream", "read_to_string", "fs::read"]),
-        ("file_write", &["writeFile", "writeFileSync", "createWriteStream", "write", "fs::write"]),
-        ("dom_xss", &["innerHTML", "outerHTML", "document.write", "insertAdjacentHTML"]),
-        ("http_request", &["fetch", "axios", "request", "get", "post", "reqwest"]),
+        (
+            "file_read",
+            &[
+                "readFile",
+                "readFileSync",
+                "createReadStream",
+                "read_to_string",
+                "fs::read",
+            ],
+        ),
+        (
+            "file_write",
+            &[
+                "writeFile",
+                "writeFileSync",
+                "createWriteStream",
+                "write",
+                "fs::write",
+            ],
+        ),
+        (
+            "dom_xss",
+            &[
+                "innerHTML",
+                "outerHTML",
+                "document.write",
+                "insertAdjacentHTML",
+            ],
+        ),
+        (
+            "http_request",
+            &["fetch", "axios", "request", "get", "post", "reqwest"],
+        ),
         ("url_redirect", &["redirect", "location"]),
         ("crypto_weak", &["md5", "sha1", "createHash", "Md5", "Sha1"]),
-        ("crypto_strong", &["sha256", "sha512", "bcrypt", "argon2", "Sha256"]),
-        ("deserialize", &["JSON.parse", "from_str", "loads", "deserialize", "serde_json"]),
+        (
+            "crypto_strong",
+            &["sha256", "sha512", "bcrypt", "argon2", "Sha256"],
+        ),
+        (
+            "deserialize",
+            &[
+                "JSON.parse",
+                "from_str",
+                "loads",
+                "deserialize",
+                "serde_json",
+            ],
+        ),
         ("sanitize", &["sanitize", "escape", "encode", "validate"]),
         ("regex", &["Regex::new", "new RegExp", "re.compile"]),
         ("process", &["exit", "std::process", "child_process"]),
         ("auth_middleware", &["verify", "decode", "verifyToken"]),
         ("weak_random", &["random"]),
-        ("financial_calc", &["price", "priceSnapshot", "total", "amount"]),
+        (
+            "financial_calc",
+            &["price", "priceSnapshot", "total", "amount"],
+        ),
     ];
 
     for (category, api_names) in categories {

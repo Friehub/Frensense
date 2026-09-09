@@ -4,7 +4,11 @@ use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
 /// Extracts (source_call, sink_call) data flow edges from a function.
-pub fn extract_data_flows(func_node: Node<'_>, source: &str, spec: Option<&dyn LanguageSpec>) -> HashSet<(String, String)> {
+pub fn extract_data_flows(
+    func_node: Node<'_>,
+    source: &str,
+    spec: Option<&dyn LanguageSpec>,
+) -> HashSet<(String, String)> {
     let mut flows = HashSet::new();
     let mut taints: HashMap<String, HashSet<String>> = HashMap::new();
     let mut alias_tracker = AliasTracker::new();
@@ -22,18 +26,26 @@ pub fn extract_data_flows(func_node: Node<'_>, source: &str, spec: Option<&dyn L
         // When no spec is available, use raw kind matching as fallback.
         // When spec is available, classify via the spec to get field names.
         let dominated = match spec.map_or(None, |s| Some(s.classify(kind))) {
-            Some(NodeRole::Declaration { name_field, value_field }) => {
-                Some((node.child_by_field_name(name_field), node.child_by_field_name(value_field)))
-            }
-            Some(NodeRole::Assignment { lhs_field, rhs_field }) => {
-                Some((node.child_by_field_name(lhs_field), node.child_by_field_name(rhs_field)))
-            }
-            None if kind == "variable_declarator" || kind == "assignment_expression" => {
-                Some((
-                    node.child_by_field_name("name").or_else(|| node.child_by_field_name("left")),
-                    node.child_by_field_name("value").or_else(|| node.child_by_field_name("right")),
-                ))
-            }
+            Some(NodeRole::Declaration {
+                name_field,
+                value_field,
+            }) => Some((
+                node.child_by_field_name(name_field),
+                node.child_by_field_name(value_field),
+            )),
+            Some(NodeRole::Assignment {
+                lhs_field,
+                rhs_field,
+            }) => Some((
+                node.child_by_field_name(lhs_field),
+                node.child_by_field_name(rhs_field),
+            )),
+            None if kind == "variable_declarator" || kind == "assignment_expression" => Some((
+                node.child_by_field_name("name")
+                    .or_else(|| node.child_by_field_name("left")),
+                node.child_by_field_name("value")
+                    .or_else(|| node.child_by_field_name("right")),
+            )),
             _ => None,
         };
 
@@ -48,10 +60,9 @@ pub fn extract_data_flows(func_node: Node<'_>, source: &str, spec: Option<&dyn L
                 taints.entry(l_name).or_default().extend(r_taints);
             }
         } else {
-            let is_call = spec.map_or(
-                kind == "call_expression",
-                |s| matches!(s.classify(kind), NodeRole::Call { .. }),
-            );
+            let is_call = spec.map_or(kind == "call_expression", |s| {
+                matches!(s.classify(kind), NodeRole::Call { .. })
+            });
             if is_call {
                 let callee_field = spec.and_then(|s| match s.classify(kind) {
                     NodeRole::Call { callee_field, .. } => Some(callee_field),
@@ -69,7 +80,8 @@ pub fn extract_data_flows(func_node: Node<'_>, source: &str, spec: Option<&dyn L
                 if let (Some(c), Some(a)) = (callee, args) {
                     let sink_name = extract_callee_name(c, source, spec);
                     if !sink_name.is_empty() {
-                        let arg_taints = fast_evaluate_taint(a, source, &taints, &alias_tracker, spec);
+                        let arg_taints =
+                            fast_evaluate_taint(a, source, &taints, &alias_tracker, spec);
                         for t in arg_taints {
                             if t != sink_name {
                                 flows.insert((t.clone(), sink_name.clone()));
@@ -114,10 +126,9 @@ fn fast_evaluate_taint(
             break;
         }
         let kind = node.kind();
-        let is_call = spec.map_or(
-            kind == "call_expression",
-            |s| matches!(s.classify(kind), NodeRole::Call { .. }),
-        );
+        let is_call = spec.map_or(kind == "call_expression", |s| {
+            matches!(s.classify(kind), NodeRole::Call { .. })
+        });
         if is_call {
             let callee_field = spec.and_then(|s| match s.classify(kind) {
                 NodeRole::Call { callee_field, .. } => Some(callee_field),
@@ -131,10 +142,9 @@ fn fast_evaluate_taint(
                 if !name.is_empty() {
                     result.insert(name.clone());
                 }
-                let is_member = spec.map_or(
-                    c.kind() == "member_expression",
-                    |s| matches!(s.classify(c.kind()), NodeRole::MemberAccess { .. }),
-                );
+                let is_member = spec.map_or(c.kind() == "member_expression", |s| {
+                    matches!(s.classify(c.kind()), NodeRole::MemberAccess { .. })
+                });
                 if is_member {
                     let object_field = spec.and_then(|s| match s.classify(c.kind()) {
                         NodeRole::MemberAccess { object_field, .. } => Some(object_field),
@@ -146,10 +156,9 @@ fn fast_evaluate_taint(
                 }
             }
         } else {
-            let is_await = spec.map_or(
-                kind == "await_expression",
-                |s| matches!(s.classify(kind), NodeRole::Await),
-            );
+            let is_await = spec.map_or(kind == "await_expression", |s| {
+                matches!(s.classify(kind), NodeRole::Await)
+            });
             if is_await {
                 if let Some(arg) = node.child(1) {
                     stack.push(arg);
@@ -215,7 +224,11 @@ fn extract_callee_name(node: Node<'_>, source: &str, spec: Option<&dyn LanguageS
     let kind = node.kind();
     match spec.map_or(None, |s| Some(s.classify(kind))) {
         Some(NodeRole::Identifier) => source[node.start_byte()..node.end_byte()].to_string(),
-        Some(NodeRole::MemberAccess { property_field, object_field, .. }) => {
+        Some(NodeRole::MemberAccess {
+            property_field,
+            object_field,
+            ..
+        }) => {
             let prop = node
                 .child_by_field_name(property_field)
                 .or_else(|| node.child_by_field_name("field"))
@@ -223,25 +236,30 @@ fn extract_callee_name(node: Node<'_>, source: &str, spec: Option<&dyn LanguageS
                 .unwrap_or("");
             let obj = node
                 .child_by_field_name(object_field)
-                .map(|o| match spec.map_or(None, |s| Some(s.classify(o.kind()))) {
-                    Some(NodeRole::MemberAccess { property_field: p_field, .. }) => o
-                        .child_by_field_name(p_field)
-                        .or_else(|| o.child_by_field_name("field"))
-                        .map(|p| source[p.start_byte()..p.end_byte()].to_string())
-                        .unwrap_or_default(),
-                    Some(NodeRole::Identifier) => {
-                        source[o.start_byte()..o.end_byte()].to_string()
-                    }
-                    None if o.kind() == "member_expression" => o
-                        .child_by_field_name("property")
-                        .or_else(|| o.child_by_field_name("field"))
-                        .map(|p| source[p.start_byte()..p.end_byte()].to_string())
-                        .unwrap_or_default(),
-                    None if matches!(o.kind(), "identifier" | "field_identifier") => {
-                        source[o.start_byte()..o.end_byte()].to_string()
-                    }
-                    _ => String::new(),
-                })
+                .map(
+                    |o| match spec.map_or(None, |s| Some(s.classify(o.kind()))) {
+                        Some(NodeRole::MemberAccess {
+                            property_field: p_field,
+                            ..
+                        }) => o
+                            .child_by_field_name(p_field)
+                            .or_else(|| o.child_by_field_name("field"))
+                            .map(|p| source[p.start_byte()..p.end_byte()].to_string())
+                            .unwrap_or_default(),
+                        Some(NodeRole::Identifier) => {
+                            source[o.start_byte()..o.end_byte()].to_string()
+                        }
+                        None if o.kind() == "member_expression" => o
+                            .child_by_field_name("property")
+                            .or_else(|| o.child_by_field_name("field"))
+                            .map(|p| source[p.start_byte()..p.end_byte()].to_string())
+                            .unwrap_or_default(),
+                        None if matches!(o.kind(), "identifier" | "field_identifier") => {
+                            source[o.start_byte()..o.end_byte()].to_string()
+                        }
+                        _ => String::new(),
+                    },
+                )
                 .unwrap_or_default();
 
             if obj.is_empty() {

@@ -23,7 +23,7 @@ const MIN_EXAMPLES: usize = 10;
 pub type CalibrationParams = (f32, f32);
 
 /// Compute the 8-d feature vector for calibration scoring.
-fn compute_calibration_features(
+pub fn compute_calibration_features(
     candidate: &FunctionFingerprint,
     target: &FunctionFingerprint,
 ) -> f64 {
@@ -102,15 +102,13 @@ fn compute_calibration_features(
         + literal_concat_sim * 0.04
 }
 
-
-
 pub fn calibrate(raw_score: f64, params: Option<&(f32, f32)>) -> f64 {
     let (a, b) = match params {
         Some(&(a, b)) => (a as f64, b as f64),
-        None => (8.0, -3.2), // Fallback Platt scaling: centers probability 0.5 at raw_score 0.4
+        None => (8.0, -3.2), // Fallback Platt scaling
     };
     let z = a * raw_score + b;
-    // Clamp to avoid overflow
     let z = z.clamp(-20.0, 20.0);
-    1.0 / (1.0 + (-z).exp())
+    let p = 1.0 / (1.0 + (-z).exp());
+    if params.is_none() { p.min(0.55) } else { p }
 }

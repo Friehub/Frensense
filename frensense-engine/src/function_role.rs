@@ -324,7 +324,10 @@ fn is_shell_executor(fp: &FunctionFingerprint, spec: Option<&dyn LanguageSpec>) 
     fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
         if let Some(s) = spec {
-            if s.shell_api_method_names().iter().any(|api| lower.ends_with(api)) {
+            if s.shell_api_method_names()
+                .iter()
+                .any(|api| lower.ends_with(api))
+            {
                 return true;
             }
         }
@@ -337,7 +340,10 @@ fn is_db_query(fp: &FunctionFingerprint, spec: Option<&dyn LanguageSpec>) -> boo
     fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
         if let Some(s) = spec {
-            if s.db_api_method_names().iter().any(|api| lower.ends_with(api)) {
+            if s.db_api_method_names()
+                .iter()
+                .any(|api| lower.ends_with(api))
+            {
                 return true;
             }
         }
@@ -352,10 +358,14 @@ fn is_db_query(fp: &FunctionFingerprint, spec: Option<&dyn LanguageSpec>) -> boo
 /// - Unknown is compatible with everything (no information)
 pub fn roles_are_incompatible(role_a: FunctionRole, role_b: FunctionRole) -> bool {
     use FunctionRole::*;
-    matches!(
-        (role_a, role_b),
-        (HttpHandler, ShellExecutor | DbQuery) | (ShellExecutor | DbQuery, HttpHandler)
-    )
+    if role_a == Unknown
+        || role_b == Unknown
+        || role_a == DataTransformer
+        || role_b == DataTransformer
+    {
+        return false;
+    }
+    role_a != role_b
 }
 
 #[cfg(test)]

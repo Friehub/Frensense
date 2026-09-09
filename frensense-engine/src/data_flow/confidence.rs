@@ -4,9 +4,9 @@ use std::path::Path;
 
 use crate::cfg::build_cfg;
 use crate::cfg::def_use::compute_def_use;
+use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 use frensense_lang::spec::NodeRole;
 use frensense_lang::spec_for_ext;
-use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 
 /// Maximum number of definition hops we trace backward before giving up.
 /// Beyond this the value is treated as unresolvable.
@@ -343,7 +343,10 @@ fn resolve_declared_type(
                         | "arrow_function"
                         | "method_definition"
                         | "function_item"
-                ) => break,
+                ) =>
+            {
+                break;
+            }
             _ => {}
         }
         if let Some(parent) = current.parent() {

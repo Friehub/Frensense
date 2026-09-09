@@ -1,4 +1,4 @@
-use frensense_engine::auto_filter::{AutoFilterStats, AutoFilterEntry, extract_call_targets};
+use frensense_engine::auto_filter::{extract_call_targets, AutoFilterEntry, AutoFilterStats};
 // SPDX-License-Identifier: MIT
 
 use frensense_engine::corpus::bundle::BundlePattern;
@@ -7,12 +7,12 @@ use std::collections::HashMap;
 
 /// A single auto-derived filter entry for one pattern.
 
-
 pub fn compute_auto_filters(
     patterns: &[BundlePattern],
     source_texts: &HashMap<String, String>,
 ) -> AutoFilterStats {
     let mut contains_call_to: HashMap<String, Vec<String>> = HashMap::new();
+    let mut contains_node_type: HashMap<String, Vec<String>> = HashMap::new();
 
     // NOTE: The category-level cross-pattern exclusivity loop has been intentionally
     // removed. Grouping patterns by category prefix (e.g., "ns") and then learning
@@ -142,13 +142,12 @@ pub fn compute_auto_filters(
     AutoFilterStats {
         contains_call_to,
         must_not_contain_call_to,
+        contains_node_type,
         function_name_regex,
         must_not_contain_node_type,
         must_not_match_function_name,
     }
 }
-
-
 
 /// Get concatenated source text for all negative variants of a pattern.
 /// Negative sources are stored under "{pattern_id}_neg" (or "_neg2", "_neg3").
@@ -258,5 +257,3 @@ fn extract_node_types(source: &str) -> Vec<String> {
     }
     r
 }
-
-

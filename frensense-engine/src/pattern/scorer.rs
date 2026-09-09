@@ -138,7 +138,7 @@ const SEMANTIC_ZERO_PENALTY: f64 = 0.30;
 const SEMANTIC_MATCH_BOOST: f64 = 2.0;
 const NOISE_GATE_MODERATE_SIGNAL: f64 = 0.15;
 const NOISE_GATE_STRONG_SIGNAL: f64 = 0.4;
-const NOISE_GATE_MIN_MODERATE_DIMS: usize = 2;
+const NOISE_GATE_MIN_MODERATE_DIMS: usize = 3;
 const AST_NGRAM_MIN_THRESHOLD: f64 = 0.25;
 const BASE_SCORE_WEIGHT: f64 = 0.4;
 const STRUCTURAL_SCORE_WEIGHT: f64 = 0.3;
@@ -390,7 +390,7 @@ impl PatternScorer {
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
         weights: &[f64; 15],
-        dim_cache: &mut DimCache,
+        dim_cache: &DimCache,
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
             candidate,
@@ -412,18 +412,17 @@ impl PatternScorer {
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
         weights: &[f64; 15],
-        mut dim_cache: Option<&mut DimCache>,
+        dim_cache: Option<&DimCache>,
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
         let mut raw_dim = |target: &FunctionFingerprint, is_negative: bool| -> RawDimensions {
-            if let Some(ref mut cache) = dim_cache {
+            if let Some(cache) = dim_cache {
                 let key = fingerprint_id(target);
-                *cache
-                    .entry(key)
-                    .or_insert_with(|| Self::raw_dimensions(candidate, target, is_negative))
-            } else {
-                Self::raw_dimensions(candidate, target, is_negative)
+                if let Some(cached) = cache.get(&key) {
+                    return *cached;
+                }
             }
+            Self::raw_dimensions(candidate, target, is_negative)
         };
 
         let mut evidence = MatchEvidence::default();
@@ -617,12 +616,13 @@ impl PatternScorer {
         //   • one strong dimension (> NOISE_GATE_STRONG_SIGNAL), OR
         //   • ≥NOISE_GATE_MIN_MODERATE_DIMS dimensions with moderate signal
         //     (> NOISE_GATE_MODERATE_SIGNAL)
-        let strong_count = signal
+        let moderate_count = signal
             .iter()
             .filter(|&&s| s > NOISE_GATE_MODERATE_SIGNAL)
             .count();
-        let gate =
-            max_signal > NOISE_GATE_STRONG_SIGNAL || strong_count >= NOISE_GATE_MIN_MODERATE_DIMS;
+        let signal_sum: f64 = signal.iter().sum();
+        let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
+            || (moderate_count >= NOISE_GATE_MIN_MODERATE_DIMS && signal_sum > 0.40);
 
         // Use the weighted sum as the final score — this is the same type of
         // score that the Platt scaling calibration was trained on (weighted
@@ -778,15 +778,13 @@ impl PatternScorer {
             &candidate.data_flow_path_hashes,
             &target.data_flow_path_hashes,
         );
-        let tainted_api_sim =
-            if candidate.tainted_api_calls.is_empty() || target.tainted_api_calls.is_empty() {
-                // No taint data on either side — no signal. Return 0.0 so this dimension
-                // does not contribute score when taint information is absent.
-                // (Previous: returned 1.0 for mutual-empty, injecting a free 0.30-weight boost.)
-                0.0
-            } else {
-                jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
-            };
+        let tainted_api_sim = if candidate.tainted_api_calls.is_empty() {
+            0.0
+        } else if target.tainted_api_calls.is_empty() {
+            jaccard(&candidate.tainted_api_calls, &target.api_calls)
+        } else {
+            jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
+        };
         let config_sim = jaccard(
             &candidate.config_literal_hashes,
             &target.config_literal_hashes,
@@ -908,12 +906,6 @@ impl RawDimensions {
         // on common patterns (forEach, map, filter) from pinning clean code to 0.85.
         if self.flow_sim > 0.8 && self.motif_sim > 0.8 && self.api_sim > 0.5 {
             return base_score.max(0.85);
-        }
-
-        // Secondary override: if it's a near-perfect literal API match with flow evidence.
-        // Tighten api_sim requirement from 0.9 to 0.95 to reduce partial-match FPs.
-        if self.api_sim > 0.95 && self.flow_sim > 0.5 {
-            return base_score.max(0.75);
         }
 
         base_score

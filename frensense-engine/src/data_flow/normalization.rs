@@ -78,9 +78,7 @@ impl SemanticExtractor {
             let node = cursor.node();
             let kind = node.kind();
 
-            let role = spec
-                .map(|s| s.classify(kind))
-                .unwrap_or(NodeRole::Other);
+            let role = spec.map(|s| s.classify(kind)).unwrap_or(NodeRole::Other);
 
             match role {
                 NodeRole::Call {
@@ -156,5 +154,4 @@ impl SemanticExtractor {
             }
         }
     }
-
 }

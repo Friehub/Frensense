@@ -22,13 +22,13 @@ impl Language {
     /// in `frensense-lang` by default.
     pub fn spec(self) -> Option<&'static dyn frensense_lang::LanguageSpec> {
         let ext = match self {
-            Language::Rust       => "rs",
+            Language::Rust => "rs",
             Language::TypeScript => "ts",
             Language::JavaScript => "js",
-            Language::C          => "c",
-            Language::Python     => "py",
-            Language::Go         => "go",
-            Language::Html       => return None,
+            Language::C => "c",
+            Language::Python => "py",
+            Language::Go => "go",
+            Language::Html => return None,
         };
         frensense_lang::spec_for_ext(ext)
     }

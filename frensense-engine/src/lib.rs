@@ -161,7 +161,8 @@ pub fn analyze_file(
     let graph = symbols.graph().clone();
 
     #[cfg(feature = "full-analysis")]
-    let temporal_events = graph::extract_temporal_events(root, source, file_path, frensense_lang::spec_for_ext(ext));
+    let temporal_events =
+        graph::extract_temporal_events(root, source, file_path, frensense_lang::spec_for_ext(ext));
 
     let semantic_ops =
         crate::data_flow::normalization::SemanticExtractor::extract(root, source, ext);
@@ -235,8 +236,11 @@ pub fn analyze_project(
                 .and_then(|e| e.to_str())
                 .and_then(frensense_lang::spec_for_ext);
             for func in &res.functions {
-                let role =
-                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map), spec);
+                let role = crate::function_role::classify_role_with_imports(
+                    func,
+                    Some(&res.import_map),
+                    spec,
+                );
                 if role == crate::function_role::FunctionRole::HttpHandler {
                     let key = format!("{}:{}", res.file_path, func.function_name);
                     resolver.register_exposed_taint(
@@ -252,7 +256,7 @@ pub fn analyze_project(
         //     functions (DataTransformer, etc.) called by seeded sources are also
         //     treated as taint sources.  Without this, multi-hop chains like
         //     HttpHandler → service → repository → DB fail to resolve.
-        resolver.propagate_taint();
+        resolver.propagate_taint(None);
 
         // 4. Resolve taint for sinks (e.g. DbQuery, ShellExecutor) and update fingerprints
         for res in results.values_mut() {
@@ -261,8 +265,11 @@ pub fn analyze_project(
                 .and_then(|e| e.to_str())
                 .and_then(frensense_lang::spec_for_ext);
             for func in &mut res.functions {
-                let role =
-                    crate::function_role::classify_role_with_imports(func, Some(&res.import_map), spec);
+                let role = crate::function_role::classify_role_with_imports(
+                    func,
+                    Some(&res.import_map),
+                    spec,
+                );
                 if matches!(
                     role,
                     crate::function_role::FunctionRole::DbQuery
@@ -319,45 +326,48 @@ pub fn analyze_project(
 
     // 2. Map call sites to bindings
     for (file_path, res) in &results {
+        let mut bindings = Vec::new();
+        let mut calls = Vec::new();
+
         for op in &res.semantic_ops {
-            if let crate::data_flow::normalization::SemanticOp::Call {
-                function_name,
-                range,
-                ..
-            } = op
-            {
-                if taint_returning_functions.contains(function_name) {
-                    // Find a binding that encompasses this call
-                    for other_op in &res.semantic_ops {
-                        match other_op {
-                            crate::data_flow::normalization::SemanticOp::Binding {
-                                name,
-                                value_range,
-                            } => {
-                                if value_range.start_byte <= range.start_byte
-                                    && value_range.end_byte >= range.end_byte
-                                {
-                                    local_tainted_vars
-                                        .entry(file_path.clone())
-                                        .or_default()
-                                        .push(name.clone());
-                                }
-                            }
-                            crate::data_flow::normalization::SemanticOp::Assignment {
-                                target,
-                                value_range,
-                            } => {
-                                if value_range.start_byte <= range.start_byte
-                                    && value_range.end_byte >= range.end_byte
-                                {
-                                    local_tainted_vars
-                                        .entry(file_path.clone())
-                                        .or_default()
-                                        .push(target.clone());
-                                }
-                            }
-                            _ => {}
-                        }
+            match op {
+                crate::data_flow::normalization::SemanticOp::Binding { name, value_range } => {
+                    bindings.push((name, value_range));
+                }
+                crate::data_flow::normalization::SemanticOp::Assignment {
+                    target,
+                    value_range,
+                } => {
+                    bindings.push((target, value_range));
+                }
+                crate::data_flow::normalization::SemanticOp::Call {
+                    function_name,
+                    range,
+                    ..
+                } => {
+                    calls.push((function_name, range));
+                }
+                _ => {}
+            }
+        }
+
+        // Pre-sort bindings by start_byte for fast O(log N) lookup
+        bindings.sort_by_key(|(_, r)| r.start_byte);
+
+        for (function_name, range) in calls {
+            if taint_returning_functions.contains(function_name) {
+                // Find all bindings that start before or at `range.start_byte`
+                let idx = bindings.partition_point(|(_, r)| r.start_byte <= range.start_byte);
+
+                // Scan backwards to find the tightest encompassing binding
+                for (name, v_range) in bindings[..idx].iter().rev() {
+                    if v_range.end_byte >= range.end_byte {
+                        local_tainted_vars
+                            .entry(file_path.clone())
+                            .or_default()
+                            .push((*name).clone());
+                        // A call can only be assigned to one encompassing binding in the AST
+                        break;
                     }
                 }
             }
