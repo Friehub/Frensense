@@ -456,8 +456,11 @@ impl SemanticProvider for OxcProvider {
             return true;
         }
         // Fall back to the ≥2 heuristic signals for untyped code.
-        frensense_engine::function_role::classify_role_with_imports(fp, Some(type_context.import_map), None)
-            == frensense_engine::function_role::FunctionRole::HttpHandler
+        frensense_engine::function_role::classify_role_with_imports(
+            fp,
+            Some(type_context.import_map),
+            None,
+        ) == frensense_engine::function_role::FunctionRole::HttpHandler
     }
 
     fn file_imports(&self, package: &str) -> bool {

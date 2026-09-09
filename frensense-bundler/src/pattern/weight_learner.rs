@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use frensense_engine::corpus::pattern::CorpusPattern;
 use frensense_engine::fingerprint::FunctionFingerprint;
 use frensense_engine::minhash;
-use frensense_engine::pattern::scorer::type_usage_overlap;
 
 pub type FeatureVec = [f64; 15];
 
@@ -42,116 +41,10 @@ fn extract_category(pattern_id: &str) -> &str {
 }
 
 fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprint) -> FeatureVec {
-    let jaccard = |a: &[u64], b: &[u64]| minhash::jaccard_similarity_sorted(a, b);
+    let raw_dims = frensense_engine::pattern::similarity::compute_dimensions(candidate, target);
+    return raw_dims.as_array();
 
-    let ngram_sim =
-        if candidate.weighted_ngram_hashes.is_empty() || target.weighted_ngram_hashes.is_empty() {
-            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
-        } else {
-            // Weighted jaccard uses the IDF-weighted hashes
-            let mut intersection = 0.0f64;
-            let mut union_sum = 0.0f64;
-            for (h, w) in &candidate.weighted_ngram_hashes {
-                union_sum += *w as f64;
-                if target.weighted_ngram_hashes.contains_key(h) {
-                    intersection += *w as f64;
-                }
-            }
-            for w in target.weighted_ngram_hashes.values() {
-                union_sum += *w as f64;
-            }
-            if union_sum == 0.0 {
-                0.0
-            } else {
-                intersection / union_sum
-            }
-        };
 
-    let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
-
-    let ast_sim = if !candidate.skeleton_hashes.is_empty() && !target.skeleton_hashes.is_empty() {
-        1.0 - frensense_engine::ast_distance::tree_edit_distance(
-            &candidate.skeleton_hashes,
-            &target.skeleton_hashes,
-        )
-    } else {
-        jaccard(&candidate.structural_markers, &target.structural_markers)
-    };
-
-    let sig_sim = jaccard(&candidate.signature_ngrams, &target.signature_ngrams);
-    let type_sim = jaccard(&candidate.param_type_ngrams, &target.param_type_ngrams);
-    let type_usage_sim = type_usage_overlap(candidate, target);
-    let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
-    // API sim: max of full-name and segment Jaccard (mirrors scorer)
-    let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-    let api_sim_seg =
-        if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
-            jaccard(&candidate.api_call_segments, &target.api_call_segments)
-        } else {
-            0.0
-        };
-    let api_sim = api_sim_full.max(api_sim_seg);
-    let tainted_api_sim =
-        if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
-            1.0 // Both have no tainted calls — they agree; neutral match.
-        } else {
-            jaccard(&candidate.tainted_api_calls, &target.tainted_api_calls)
-        };
-    let motif_sim = jaccard(&candidate.motif_hashes, &target.motif_hashes);
-    let flow_sim = jaccard(
-        &candidate.data_flow_path_hashes,
-        &target.data_flow_path_hashes,
-    );
-
-    let config_sim = jaccard(
-        &candidate.config_literal_hashes,
-        &target.config_literal_hashes,
-    );
-
-    let cf_order_sim =
-        if candidate.control_flow_sequence.is_empty() && target.control_flow_sequence.is_empty() {
-            1.0
-        } else {
-            frensense_engine::pattern::scorer::lcs_similarity(
-                &candidate.control_flow_sequence,
-                &target.control_flow_sequence,
-            )
-        };
-
-    let arg_type_sim =
-        if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
-            jaccard(&candidate.argument_call_types, &target.argument_call_types)
-        } else {
-            0.0
-        };
-    let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
-        && !target.literal_pattern_hashes.is_empty()
-    {
-        jaccard(
-            &candidate.literal_pattern_hashes,
-            &target.literal_pattern_hashes,
-        )
-    } else {
-        0.0
-    };
-
-    [
-        ngram_sim,
-        ast_sim,
-        sig_sim,
-        type_sim,
-        type_usage_sim,
-        semantic_sim,
-        cf_sim,
-        api_sim,
-        tainted_api_sim,
-        motif_sim,
-        flow_sim,
-        config_sim,
-        cf_order_sim,
-        arg_type_sim,
-        literal_concat_sim,
-    ]
 }
 
 fn predict(features: &FeatureVec, weights: &FeatureVec) -> f64 {
@@ -164,7 +57,7 @@ fn predict(features: &FeatureVec, weights: &FeatureVec) -> f64 {
 }
 
 fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureVec {
-    let mut w = [0.5f64; 15];
+    let mut w = [0.0f64; 15];
 
     let n_pos = positives.len();
     let n_neg = negatives.len();
@@ -217,6 +110,15 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
 }
 
 pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, FeatureVec> {
+    let mut result = HashMap::new();
+    result.insert("_global".to_string(), DEFAULT_WEIGHTS);
+    for p in patterns {
+        let cat = extract_category(&p.id).to_string();
+        result.insert(cat, DEFAULT_WEIGHTS);
+        result.insert(p.id.clone(), DEFAULT_WEIGHTS);
+    }
+    return result;
+
     let mut by_category: HashMap<String, (Vec<FeatureVec>, Vec<FeatureVec>)> = HashMap::new();
     let mut global_pos = Vec::new();
     let mut global_neg = Vec::new();

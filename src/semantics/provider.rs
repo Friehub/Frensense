@@ -21,8 +21,8 @@ use std::sync::Arc;
 use frensense_engine::context::Environment;
 use frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry;
 use frensense_engine::import_resolver::ImportMap;
-use frensense_providers::oxc_provider::OxcProvider;
 use frensense_engine::semantic::{ImportMapProvider, SemanticProvider};
+use frensense_providers::oxc_provider::OxcProvider;
 use tree_sitter::Tree;
 
 #[cfg(feature = "rust-hir")]

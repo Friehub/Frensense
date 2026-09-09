@@ -45,3 +45,18 @@ full-analysis = []
 
 [dev-dependencies]
 tempfile = "3"
+
+[[bin]]
+name = 'dump_filter'
+path = 'dump_filter.rs'
+
+
+[[bin]]
+name = 'dump_filter2'
+path = 'dump_filter2.rs'
+
+
+[[bin]]
+name = 'dump_filter3'
+path = 'dump_filter3.rs'
+

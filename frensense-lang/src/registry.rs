@@ -30,7 +30,7 @@ use crate::spec::LanguageSpec;
 
 /// Thread-safe registry of all known [`LanguageSpec`] implementations.
 pub struct LanguageRegistry {
-    by_ext:  FxHashMap<&'static str, Arc<dyn LanguageSpec>>,
+    by_ext: FxHashMap<&'static str, Arc<dyn LanguageSpec>>,
     by_name: FxHashMap<&'static str, Arc<dyn LanguageSpec>>,
 }
 
@@ -51,7 +51,7 @@ impl LanguageRegistry {
     /// Build the default registry from all feature-gated providers.
     fn build_default() -> Self {
         let mut reg = Self {
-            by_ext:  FxHashMap::default(),
+            by_ext: FxHashMap::default(),
             by_name: FxHashMap::default(),
         };
 

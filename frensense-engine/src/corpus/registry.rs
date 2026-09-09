@@ -553,7 +553,7 @@ impl PatternRegistry {
             .map(|(key, target, is_neg)| {
                 (
                     key,
-                    PatternScorer::raw_dimensions(&weighted_fp, target, is_neg),
+                    crate::pattern::similarity::compute_dimensions(&weighted_fp, target),
                 )
             })
             .collect();

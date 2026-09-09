@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use crate::corpus::pattern::CorpusPattern;
 use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
-use crate::pattern::scorer::type_usage_overlap;
+use crate::pattern::similarity::type_usage_overlap;
 
 /// Minimum number of scored examples required to fit a per-pattern sigmoid.
 const MIN_EXAMPLES: usize = 10;

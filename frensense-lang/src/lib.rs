@@ -271,11 +271,12 @@
 //! }
 //! ```
 
-pub mod spec;
-pub mod registry;
 pub mod providers;
+pub mod registry;
+pub mod spec;
 
 // Convenient re-exports
-pub use spec::{Import, LanguageSpec, NodeRole, PackageCategory,
-               PropagatorRule, SanitizerKind, TaintOrigin};
-pub use registry::{LanguageRegistry, spec_for_ext, spec_for_path};
+pub use registry::{spec_for_ext, spec_for_path, LanguageRegistry};
+pub use spec::{
+    Import, LanguageSpec, NodeRole, PackageCategory, PropagatorRule, SanitizerKind, TaintOrigin,
+};

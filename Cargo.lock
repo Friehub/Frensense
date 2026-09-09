@@ -754,6 +754,7 @@ dependencies = [
  "serde",
  "toml 0.8.23",
  "tree-sitter",
+ "tree-sitter-typescript",
 ]
 
 [[package]]

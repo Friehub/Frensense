@@ -38,7 +38,9 @@ use frensense_engine::corpus::source_sink::SinkCategory;
 use frensense_engine::data_flow::TaintOrigin;
 use frensense_engine::fingerprint::FunctionFingerprint;
 use frensense_engine::function_role::FunctionRole;
-use frensense_engine::semantic::{FunctionHirFact, HirTypeMap, SemanticProvider, TypeContext, base_type_name};
+use frensense_engine::semantic::{
+    FunctionHirFact, HirTypeMap, SemanticProvider, TypeContext, base_type_name,
+};
 
 /// Canonical-path prefixes that mark a type as HTTP user input. The HIR has
 /// already resolved the base name to a real type; these only decide whether
@@ -401,7 +403,8 @@ impl SemanticProvider for RustHirProvider {
         }
         // Fall back to the ≥2 heuristic signals for functions the HIR did not
         // analyse (different target, parse failure, ...).
-        frensense_engine::function_role::classify_role_with_imports(fp, None, None) == FunctionRole::HttpHandler
+        frensense_engine::function_role::classify_role_with_imports(fp, None, None)
+            == FunctionRole::HttpHandler
     }
 
     fn file_imports(&self, _package: &str) -> bool {

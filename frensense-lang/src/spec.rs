@@ -42,7 +42,7 @@ pub enum NodeRole {
     /// A variable declaration with an initializer.
     /// `let x = expr` (JS/Rust), `x := expr` (Go).
     Declaration {
-        name_field:  &'static str,
+        name_field: &'static str,
         value_field: &'static str,
     },
     /// A mutation of an existing binding.
@@ -56,23 +56,23 @@ pub enum NodeRole {
     /// Any function / method invocation.
     Call {
         callee_field: &'static str,
-        args_field:   &'static str,
+        args_field: &'static str,
     },
     /// Member / field access producing a value (not a call).
     /// `obj.field`, `obj->field`, `obj.attribute`.
     MemberAccess {
-        object_field:   &'static str,
+        object_field: &'static str,
         property_field: &'static str,
     },
 
     // ── Control flow ──────────────────────────────────────────────────────
-    Branch,        // if / switch / ternary / match-arm
-    Loop,          // for / while / do / loop
-    Return,        // return statement / expression
-    Try,           // try { … }
-    Catch,         // catch / except clause
-    Finally,       // finally clause
-    Throw,         // throw / raise
+    Branch,  // if / switch / ternary / match-arm
+    Loop,    // for / while / do / loop
+    Return,  // return statement / expression
+    Try,     // try { … }
+    Catch,   // catch / except clause
+    Finally, // finally clause
+    Throw,   // throw / raise
 
     // ── Special language patterns ─────────────────────────────────────────
     /// Go: `if err != nil { return … }` — structurally a Branch but semantically
@@ -122,9 +122,9 @@ pub enum PackageCategory {
     NoSqlDatabase,
     CommandExecution,
     FileSystem,
-    HttpClient,       // SSRF risk
-    TemplateEngine,   // SSTI / XSS
-    Deserialization,  // unsafe deserialize
+    HttpClient,      // SSRF risk
+    TemplateEngine,  // SSTI / XSS
+    Deserialization, // unsafe deserialize
     Crypto,
     Logging,
     Testing,
@@ -133,11 +133,11 @@ pub enum PackageCategory {
 /// Broad origin of tainted data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TaintOrigin {
-    UserInput,        // HTTP request body/query/path/header
-    EnvVariable,      // process.env / os.environ / std::env
-    FileSystem,       // file read whose path came from user
-    Database,         // query result that may contain injection
-    ExternalService,  // IPC / downstream API response
+    UserInput,       // HTTP request body/query/path/header
+    EnvVariable,     // process.env / os.environ / std::env
+    FileSystem,      // file read whose path came from user
+    Database,        // query result that may contain injection
+    ExternalService, // IPC / downstream API response
 }
 
 /// A propagator rule describes how taint flows through a specific call.
@@ -148,10 +148,10 @@ pub enum TaintOrigin {
 pub struct PropagatorRule {
     /// Short call name or method name, e.g. `"Sprintf"`, `"format"`, `"join"`.
     /// Matched against the last segment of a member chain.
-    pub call:             &'static str,
+    pub call: &'static str,
     /// Argument index that carries taint into the return (0-based).
     /// `None` means *any* argument taints the return.
-    pub tainted_arg:      Option<usize>,
+    pub tainted_arg: Option<usize>,
     /// If `true`, a tainted receiver taints the return value.
     pub tainted_receiver: bool,
 }
@@ -162,10 +162,10 @@ pub struct Import {
     /// The local binding name, e.g. `"cp"`, `"exec"`, `"Flask"`.
     pub local_name: String,
     /// The source package / module path, e.g. `"child_process"`, `"flask"`.
-    pub package:    String,
+    pub package: String,
     /// The specific symbol imported, if the language supports named imports.
     /// e.g. `from flask import Flask` → `symbol = Some("Flask")`.
-    pub symbol:     Option<String>,
+    pub symbol: Option<String>,
 }
 
 // ── The trait ─────────────────────────────────────────────────────────────────
@@ -180,7 +180,6 @@ pub struct Import {
 /// The trait is object-safe: it can be stored as `Arc<dyn LanguageSpec>` in
 /// the [`LanguageRegistry`](crate::registry::LanguageRegistry).
 pub trait LanguageSpec: Send + Sync + 'static {
-
     // ── Identity ─────────────────────────────────────────────────────────
 
     /// Canonical short name used in fingerprints and the FRC bundle.
@@ -219,10 +218,7 @@ pub trait LanguageSpec: Send + Sync + 'static {
     /// (e.g. Python `decorated_definition` which wraps the real
     /// `function_definition`).
     fn is_function_node(&self, kind: &str) -> bool {
-        matches!(
-            self.classify(kind),
-            NodeRole::Function { .. }
-        )
+        matches!(self.classify(kind), NodeRole::Function { .. })
     }
 
     // ── Special structural patterns ───────────────────────────────────────
@@ -385,7 +381,5 @@ pub fn call_last_segment(call: &str) -> &str {
 /// Extract the UTF-8 text for a node from the source slice.
 #[inline]
 pub fn node_text<'s>(node: Node<'_>, source: &'s str) -> &'s str {
-    source
-        .get(node.start_byte()..node.end_byte())
-        .unwrap_or("")
+    source.get(node.start_byte()..node.end_byte()).unwrap_or("")
 }

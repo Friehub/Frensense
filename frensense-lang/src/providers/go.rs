@@ -14,8 +14,8 @@
 use tree_sitter::Node;
 
 use crate::spec::{
-    call_last_segment, node_text, Import, LanguageSpec, NodeRole,
-    PackageCategory, PropagatorRule, SanitizerKind, TaintOrigin,
+    call_last_segment, node_text, Import, LanguageSpec, NodeRole, PackageCategory, PropagatorRule,
+    SanitizerKind, TaintOrigin,
 };
 
 // ── AST classification ────────────────────────────────────────────────────────
@@ -24,29 +24,29 @@ fn classify_go(kind: &str) -> NodeRole {
     match kind {
         // ── Functions ────────────────────────────────────────────────────
         "function_declaration" => NodeRole::Function {
-            is_method:    false,
-            name_field:   Some("name"),
+            is_method: false,
+            name_field: Some("name"),
             params_field: "parameters",
-            body_field:   "body",
+            body_field: "body",
         },
         // This was the critical missing case — ALL Go struct methods
         "method_declaration" => NodeRole::Function {
-            is_method:    true,
-            name_field:   Some("name"),
+            is_method: true,
+            name_field: Some("name"),
             params_field: "parameters",
-            body_field:   "body",
+            body_field: "body",
         },
         "func_literal" => NodeRole::Function {
-            is_method:    false,
-            name_field:   None,
+            is_method: false,
+            name_field: None,
             params_field: "parameters",
-            body_field:   "body",
+            body_field: "body",
         },
 
         // ── Declarations / assignments ───────────────────────────────────
         // Go := operator — was missing everywhere in the engine before this crate
         "short_var_declaration" => NodeRole::Declaration {
-            name_field:  "left",
+            name_field: "left",
             value_field: "right",
         },
         // Go = operator (mutation of existing variable)
@@ -56,45 +56,49 @@ fn classify_go(kind: &str) -> NodeRole {
         },
         // var x type = expr  (top-level or function-scoped)
         "var_spec" => NodeRole::Declaration {
-            name_field:  "name",
+            name_field: "name",
             value_field: "value",
         },
         // const x = expr
         "const_spec" => NodeRole::Declaration {
-            name_field:  "name",
+            name_field: "name",
             value_field: "value",
         },
 
         // ── Calls ────────────────────────────────────────────────────────
         "call_expression" => NodeRole::Call {
             callee_field: "function",
-            args_field:   "arguments",
+            args_field: "arguments",
         },
         // pkg.Function or receiver.Method — NOT `member_expression`
         "selector_expression" => NodeRole::MemberAccess {
-            object_field:   "operand",
+            object_field: "operand",
             property_field: "field",
         },
 
         // ── Control flow ─────────────────────────────────────────────────
         // Go uses a single `for` for loops, range, and while-style
-        "for_statement"                                    => NodeRole::Loop,
-        "if_statement"                                     => NodeRole::Branch,
+        "for_statement" => NodeRole::Loop,
+        "if_statement" => NodeRole::Branch,
         // type switch and expression switch
         "expression_switch_statement" | "type_switch_statement" => NodeRole::Branch,
-        "return_statement"                                 => NodeRole::Return,
+        "return_statement" => NodeRole::Return,
         // Go has no try/catch — but defer/recover pattern exists
-        "defer_statement"                                  => NodeRole::Await, // closest analogue
-        "go_statement"                                     => NodeRole::Await, // goroutine launch
-        "send_statement"                                   => NodeRole::Other,
+        "defer_statement" => NodeRole::Await, // closest analogue
+        "go_statement" => NodeRole::Await,    // goroutine launch
+        "send_statement" => NodeRole::Other,
 
         // ── Structural ───────────────────────────────────────────────────
-        "block"                                            => NodeRole::Block,
-        "import_declaration" | "import_spec"               => NodeRole::Import,
-        "identifier" | "field_identifier" | "type_identifier"
-        | "blank_identifier"                               => NodeRole::Identifier,
-        "interpreted_string_literal" | "raw_string_literal"
-        | "int_literal" | "float_literal" | "rune_literal" => NodeRole::Literal,
+        "block" => NodeRole::Block,
+        "import_declaration" | "import_spec" => NodeRole::Import,
+        "identifier" | "field_identifier" | "type_identifier" | "blank_identifier" => {
+            NodeRole::Identifier
+        }
+        "interpreted_string_literal"
+        | "raw_string_literal"
+        | "int_literal"
+        | "float_literal"
+        | "rune_literal" => NodeRole::Literal,
 
         _ => NodeRole::Other,
     }
@@ -117,7 +121,9 @@ fn go_is_error_guard(node: Node<'_>, source: &str) -> bool {
     // Matches: `err != nil`, `err == nil` (early return on success),
     // `err != nil && err != io.EOF`, custom error variable names like `dbErr`
     (cond_text.contains("err") || cond_text.contains("Err") || cond_text.contains("error"))
-        && (cond_text.contains("nil") || cond_text.contains("!= nil") || cond_text.contains("== nil"))
+        && (cond_text.contains("nil")
+            || cond_text.contains("!= nil")
+            || cond_text.contains("== nil"))
 }
 
 // ── Import extraction ─────────────────────────────────────────────────────────
@@ -147,18 +153,24 @@ fn extract_go_imports(root: Node<'_>, source: &str) -> Vec<Import> {
 
                     imports.push(Import {
                         local_name: local.to_owned(),
-                        package:    raw.to_owned(),
-                        symbol:     None,
+                        package: raw.to_owned(),
+                        symbol: None,
                     });
                 }
             }
             _ => {}
         }
 
-        if cursor.goto_first_child() { continue; }
+        if cursor.goto_first_child() {
+            continue;
+        }
         loop {
-            if cursor.goto_next_sibling() { break; }
-            if !cursor.goto_parent() { break 'outer; }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                break 'outer;
+            }
         }
     }
 
@@ -230,13 +242,14 @@ fn go_package_category(pkg: &str) -> Option<PackageCategory> {
 fn go_classify_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintOrigin> {
     // Type annotation: `*http.Request`, `*gin.Context`, `echo.Context`, etc.
     if let Some(a) = ann {
-        let a = a.trim_start_matches('*');  // remove pointer indirection
+        let a = a.trim_start_matches('*'); // remove pointer indirection
         if a.ends_with("http.Request")
             || a.ends_with("gin.Context")
             || a.ends_with("echo.Context")
             || a.ends_with("fiber.Ctx")
             || a.ends_with("chi.Context")
-            || a.ends_with(".Request")      // covers any framework's Request type
+            || a.ends_with(".Request")
+        // covers any framework's Request type
         {
             return Some(TaintOrigin::UserInput);
         }
@@ -253,9 +266,7 @@ fn go_classify_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintOrigi
 fn go_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     match call_last_segment(call) {
         // Numeric coercion — kills injection risk
-        "Atoi" | "ParseInt" | "ParseUint" | "ParseFloat" | "ParseBool" => {
-            Some(SanitizerKind::Full)
-        }
+        "Atoi" | "ParseInt" | "ParseUint" | "ParseFloat" | "ParseBool" => Some(SanitizerKind::Full),
         // HTML escaping
         "EscapeString" | "HTMLEscapeString" | "HTMLEscape" => Some(SanitizerKind::HtmlEscape),
         // URL encoding
@@ -270,38 +281,130 @@ fn go_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
 
 static GO_PROPAGATORS: &[PropagatorRule] = &[
     // fmt — format string propagates taint from args
-    PropagatorRule { call: "Sprintf",     tainted_arg: None,    tainted_receiver: false },
-    PropagatorRule { call: "Fprintf",     tainted_arg: None,    tainted_receiver: false },
-    PropagatorRule { call: "Errorf",      tainted_arg: None,    tainted_receiver: false },
-    PropagatorRule { call: "Stringer",    tainted_arg: None,    tainted_receiver: false },
-
+    PropagatorRule {
+        call: "Sprintf",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "Fprintf",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "Errorf",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "Stringer",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
     // strings — receiver taints return
-    PropagatorRule { call: "Join",        tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "Replace",     tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "ReplaceAll",  tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "TrimSpace",   tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "Trim",        tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "ToLower",     tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "ToUpper",     tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "Split",       tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "SplitN",      tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "Contains",    tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "HasPrefix",   tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "HasSuffix",   tainted_arg: Some(0), tainted_receiver: false },
-
+    PropagatorRule {
+        call: "Join",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "Replace",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "ReplaceAll",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "TrimSpace",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "Trim",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "ToLower",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "ToUpper",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "Split",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "SplitN",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "Contains",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "HasPrefix",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "HasSuffix",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
     // strconv — propagates taint (type conversion, not sanitization)
-    PropagatorRule { call: "Itoa",        tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "FormatInt",   tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "AppendInt",   tainted_arg: Some(0), tainted_receiver: false },
-
+    PropagatorRule {
+        call: "Itoa",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "FormatInt",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "AppendInt",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
     // path/filepath — path building propagates traversal risk
-    PropagatorRule { call: "Join",        tainted_arg: None,    tainted_receiver: false },
-    PropagatorRule { call: "Base",        tainted_arg: Some(0), tainted_receiver: false },
-
+    PropagatorRule {
+        call: "Join",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "Base",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
     // bytes.Buffer / strings.Builder
-    PropagatorRule { call: "WriteString", tainted_arg: Some(0), tainted_receiver: true  },
-    PropagatorRule { call: "Write",       tainted_arg: Some(0), tainted_receiver: true  },
-    PropagatorRule { call: "String",      tainted_arg: None,    tainted_receiver: true  },
+    PropagatorRule {
+        call: "WriteString",
+        tainted_arg: Some(0),
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "Write",
+        tainted_arg: Some(0),
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "String",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
 ];
 
 // ── Tree-sitter queries ───────────────────────────────────────────────────────
@@ -362,9 +465,13 @@ const GO_CALL_QUERY: &str = r#"
 pub struct GoSpec;
 
 impl LanguageSpec for GoSpec {
-    fn name(&self) -> &'static str { "go" }
+    fn name(&self) -> &'static str {
+        "go"
+    }
 
-    fn extensions(&self) -> &'static [&'static str] { &["go"] }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["go"]
+    }
 
     fn tree_sitter_language(&self) -> tree_sitter::Language {
         #[cfg(feature = "go")]
@@ -394,8 +501,12 @@ impl LanguageSpec for GoSpec {
         extract_go_imports(root, source)
     }
 
-    fn symbol_query(&self) -> Option<&'static str> { Some(GO_SYMBOL_QUERY) }
-    fn call_query(&self)   -> Option<&'static str> { Some(GO_CALL_QUERY) }
+    fn symbol_query(&self) -> Option<&'static str> {
+        Some(GO_SYMBOL_QUERY)
+    }
+    fn call_query(&self) -> Option<&'static str> {
+        Some(GO_CALL_QUERY)
+    }
 
     fn package_category(&self, pkg: &str) -> Option<PackageCategory> {
         go_package_category(pkg)
@@ -423,158 +534,175 @@ impl LanguageSpec for GoSpec {
     fn known_sink_names(&self) -> &'static [(&'static str, &'static str)] {
         &[
             // Code Execution
-            ("eval",                "CodeExecution"),
-            ("exec",                "CommandInjection"),
-            ("Exec",                "CommandInjection"),
-            ("Command",             "CommandInjection"),
-            ("Run",                 "CommandInjection"),
-            ("Output",              "CommandInjection"),
-            ("CombinedOutput",      "CommandInjection"),
-            ("spawn",               "CommandInjection"),
-            ("spawnSync",           "CommandInjection"),
+            ("eval", "CodeExecution"),
+            ("exec", "CommandInjection"),
+            ("Exec", "CommandInjection"),
+            ("Command", "CommandInjection"),
+            ("Run", "CommandInjection"),
+            ("Output", "CommandInjection"),
+            ("CombinedOutput", "CommandInjection"),
+            ("spawn", "CommandInjection"),
+            ("spawnSync", "CommandInjection"),
             // SQL Injection
-            ("Query",               "SqlInjection"),
-            ("QueryRow",            "SqlInjection"),
-            ("QueryContext",        "SqlInjection"),
-            ("ExecContext",         "SqlInjection"),
-            ("Prepare",             "SqlInjection"),
-            ("PrepareContext",      "SqlInjection"),
-            ("executeRaw",          "SqlInjection"),
-            ("queryRaw",            "SqlInjection"),
-            ("prepare",             "SqlInjection"),
+            ("Query", "SqlInjection"),
+            ("QueryRow", "SqlInjection"),
+            ("QueryContext", "SqlInjection"),
+            ("ExecContext", "SqlInjection"),
+            ("Prepare", "SqlInjection"),
+            ("PrepareContext", "SqlInjection"),
+            ("executeRaw", "SqlInjection"),
+            ("queryRaw", "SqlInjection"),
+            ("prepare", "SqlInjection"),
             // Path Traversal
-            ("ReadFile",            "PathTraversal"),
-            ("Open",                "PathTraversal"),
-            ("Create",              "PathTraversal"),
-            ("WriteFile",           "PathTraversal"),
-            ("read",                "PathTraversal"),
-            ("read_to_string",      "PathTraversal"),
-            ("write",               "PathTraversal"),
-            ("readFile",            "PathTraversal"),
-            ("writeFile",           "PathTraversal"),
-            ("readFileSync",        "PathTraversal"),
-            ("join",                "PathTraversal"),
-            ("unlink",              "PathTraversal"),
-            ("stat",                "PathTraversal"),
-            ("access",              "PathTraversal"),
+            ("ReadFile", "PathTraversal"),
+            ("Open", "PathTraversal"),
+            ("Create", "PathTraversal"),
+            ("WriteFile", "PathTraversal"),
+            ("read", "PathTraversal"),
+            ("read_to_string", "PathTraversal"),
+            ("write", "PathTraversal"),
+            ("readFile", "PathTraversal"),
+            ("writeFile", "PathTraversal"),
+            ("readFileSync", "PathTraversal"),
+            ("join", "PathTraversal"),
+            ("unlink", "PathTraversal"),
+            ("stat", "PathTraversal"),
+            ("access", "PathTraversal"),
             // SSRF
-            ("http.Get",            "Ssrf"),
-            ("http.Post",           "Ssrf"),
-            ("http.Head",           "Ssrf"),
-            ("http.Do",             "Ssrf"),
-            ("Get",                 "Ssrf"),
-            ("Post",                "Ssrf"),
-            ("Do",                  "Ssrf"),
-            ("NewRequest",          "Ssrf"),
-            ("fetch",               "Ssrf"),
-            ("request",             "Ssrf"),
-            ("got",                 "Ssrf"),
+            ("http.Get", "Ssrf"),
+            ("http.Post", "Ssrf"),
+            ("http.Head", "Ssrf"),
+            ("http.Do", "Ssrf"),
+            ("Get", "Ssrf"),
+            ("Post", "Ssrf"),
+            ("Do", "Ssrf"),
+            ("NewRequest", "Ssrf"),
+            ("fetch", "Ssrf"),
+            ("request", "Ssrf"),
+            ("got", "Ssrf"),
             // Open Redirect
-            ("redirect",            "OpenRedirect"),
-            ("Redirect",            "OpenRedirect"),
-            ("c.redirect",          "OpenRedirect"),
-            ("location.href",       "OpenRedirect"),
-            ("window.location",     "OpenRedirect"),
+            ("redirect", "OpenRedirect"),
+            ("Redirect", "OpenRedirect"),
+            ("c.redirect", "OpenRedirect"),
+            ("location.href", "OpenRedirect"),
+            ("window.location", "OpenRedirect"),
             // XSS
-            ("innerHTML",           "XssDom"),
-            ("outerHTML",           "XssDom"),
-            ("document.write",      "XssDom"),
-            ("document.writeln",    "XssDom"),
-            ("dangerouslySetInnerHTML","XssDom"),
+            ("innerHTML", "XssDom"),
+            ("outerHTML", "XssDom"),
+            ("document.write", "XssDom"),
+            ("document.writeln", "XssDom"),
+            ("dangerouslySetInnerHTML", "XssDom"),
             // SSTI — Template engine renders
-            ("ExecuteTemplate",     "TemplateSsti"),
-            ("render_template",     "TemplateSsti"),
-            ("render_template_string","TemplateSsti"),
-            ("ejs.render",          "TemplateSsti"),
-            ("pug.compile",         "TemplateSsti"),
-            ("handlebars.compile",  "TemplateSsti"),
-            ("nunjucks.render",     "TemplateSsti"),
-            ("marko.render",        "TemplateSsti"),
-            ("eta.render",          "TemplateSsti"),
-            ("swig.render",         "TemplateSsti"),
-            ("liquid.render",       "TemplateSsti"),
-            ("mustache.render",     "TemplateSsti"),
+            ("ExecuteTemplate", "TemplateSsti"),
+            ("render_template", "TemplateSsti"),
+            ("render_template_string", "TemplateSsti"),
+            ("ejs.render", "TemplateSsti"),
+            ("pug.compile", "TemplateSsti"),
+            ("handlebars.compile", "TemplateSsti"),
+            ("nunjucks.render", "TemplateSsti"),
+            ("marko.render", "TemplateSsti"),
+            ("eta.render", "TemplateSsti"),
+            ("swig.render", "TemplateSsti"),
+            ("liquid.render", "TemplateSsti"),
+            ("mustache.render", "TemplateSsti"),
             // Insecure Deserialization
-            ("bincode::deserialize","UnsafeDeserialize"),
-            ("serde_json::from_str","UnsafeDeserialize"),
-            ("yaml.load",           "UnsafeDeserialize"),
-            ("js-yaml.load",        "UnsafeDeserialize"),
-            ("pickle.loads",        "UnsafeDeserialize"),
-            ("msgpack.decode",      "UnsafeDeserialize"),
+            ("bincode::deserialize", "UnsafeDeserialize"),
+            ("serde_json::from_str", "UnsafeDeserialize"),
+            ("yaml.load", "UnsafeDeserialize"),
+            ("js-yaml.load", "UnsafeDeserialize"),
+            ("pickle.loads", "UnsafeDeserialize"),
+            ("msgpack.decode", "UnsafeDeserialize"),
             // Prototype Pollution
-            ("Object.assign",       "PrototypePollution"),
-            ("_.merge",             "PrototypePollution"),
-            ("_.defaultsDeep",      "PrototypePollution"),
-            ("_.set",               "PrototypePollution"),
-            ("$.extend",            "PrototypePollution"),
-            ("setPrototypeOf",      "PrototypePollution"),
+            ("Object.assign", "PrototypePollution"),
+            ("_.merge", "PrototypePollution"),
+            ("_.defaultsDeep", "PrototypePollution"),
+            ("_.set", "PrototypePollution"),
+            ("$.extend", "PrototypePollution"),
+            ("setPrototypeOf", "PrototypePollution"),
             // XXE
-            ("DOMParser",           "Xxe"),
+            ("DOMParser", "Xxe"),
             // JWT
-            ("jwt.verify",          "Jwt"),
-            ("jwt.decode",          "Jwt"),
-            ("jwt.sign",            "Jwt"),
+            ("jwt.verify", "Jwt"),
+            ("jwt.decode", "Jwt"),
+            ("jwt.sign", "Jwt"),
             // Cloudflare Workers / Prisma
-            ("c.redirect",          "OpenRedirect"),
-            ("env.KV.put",          "StorageWrite"),
-            ("KVNamespace.put",     "StorageWrite"),
-            ("env.DB.prepare",      "SqlInjection"),
-            ("res.send",            "ResponseLeak"),
-            ("res.json",            "ResponseLeak"),
-            ("res.redirect",        "OpenRedirect"),
-            ("res.render",          "TemplateSsti"),
-            ("revalidatePath",      "StorageWrite"),
-            ("prisma.queryRawUnsafe","SqlInjection"),
-            ("prisma.executeRawUnsafe","SqlInjection"),
-            ("R2Bucket.put",        "StorageWrite"),
-            ("D1Database.prepare",  "SqlInjection"),
-            ("DurableObjectStub.fetch","Ssrf"),
-            ("Queue.send",          "Ssrf"),
+            ("c.redirect", "OpenRedirect"),
+            ("env.KV.put", "StorageWrite"),
+            ("KVNamespace.put", "StorageWrite"),
+            ("env.DB.prepare", "SqlInjection"),
+            ("res.send", "ResponseLeak"),
+            ("res.json", "ResponseLeak"),
+            ("res.redirect", "OpenRedirect"),
+            ("res.render", "TemplateSsti"),
+            ("revalidatePath", "StorageWrite"),
+            ("prisma.queryRawUnsafe", "SqlInjection"),
+            ("prisma.executeRawUnsafe", "SqlInjection"),
+            ("R2Bucket.put", "StorageWrite"),
+            ("D1Database.prepare", "SqlInjection"),
+            ("DurableObjectStub.fetch", "Ssrf"),
+            ("Queue.send", "Ssrf"),
             // MongoDB / ORM
-            ("update",              "NoSqlInjection"),
-            ("updateOne",           "NoSqlInjection"),
-            ("updateMany",          "NoSqlInjection"),
-            ("insert",              "NoSqlInjection"),
-            ("insertOne",           "NoSqlInjection"),
-            ("insertMany",          "NoSqlInjection"),
-            ("delete",              "NoSqlInjection"),
-            ("deleteOne",           "NoSqlInjection"),
-            ("deleteMany",          "NoSqlInjection"),
-            ("find",                "NoSqlInjection"),
-            ("findOne",             "NoSqlInjection"),
-            ("findAll",             "NoSqlInjection"),
+            ("update", "NoSqlInjection"),
+            ("updateOne", "NoSqlInjection"),
+            ("updateMany", "NoSqlInjection"),
+            ("insert", "NoSqlInjection"),
+            ("insertOne", "NoSqlInjection"),
+            ("insertMany", "NoSqlInjection"),
+            ("delete", "NoSqlInjection"),
+            ("deleteOne", "NoSqlInjection"),
+            ("deleteMany", "NoSqlInjection"),
+            ("find", "NoSqlInjection"),
+            ("findOne", "NoSqlInjection"),
+            ("findAll", "NoSqlInjection"),
             // Storage Write
-            ("put",                 "StorageWrite"),
-            ("setItem",             "StorageWrite"),
+            ("put", "StorageWrite"),
+            ("setItem", "StorageWrite"),
             // Log Leak
-            ("log",                 "LogLeak"),
-            ("error",               "LogLeak"),
-            ("info",                "LogLeak"),
-            ("debug",               "LogLeak"),
+            ("log", "LogLeak"),
+            ("error", "LogLeak"),
+            ("info", "LogLeak"),
+            ("debug", "LogLeak"),
         ]
     }
 
     fn known_source_patterns(&self) -> &'static [&'static str] {
         &[
             // net/http standard library
-            "r.URL.Query", "r.URL.Path", "r.URL.RawQuery",
-            "r.FormValue", "r.PostFormValue", "r.Body",
-            "r.Header.Get", "r.PathValue",
+            "r.URL.Query",
+            "r.URL.Path",
+            "r.URL.RawQuery",
+            "r.FormValue",
+            "r.PostFormValue",
+            "r.Body",
+            "r.Header.Get",
+            "r.PathValue",
             // Gin
-            "c.Param", "c.Query", "c.DefaultQuery",
-            "c.PostForm", "c.DefaultPostForm",
-            "c.GetHeader", "c.GetRawData",
-            "c.ShouldBindJSON", "c.ShouldBind",
+            "c.Param",
+            "c.Query",
+            "c.DefaultQuery",
+            "c.PostForm",
+            "c.DefaultPostForm",
+            "c.GetHeader",
+            "c.GetRawData",
+            "c.ShouldBindJSON",
+            "c.ShouldBind",
             // Echo
-            "c.Param", "c.QueryParam", "c.FormValue",
+            "c.Param",
+            "c.QueryParam",
+            "c.FormValue",
             "c.Request().Body",
             // Fiber
-            "c.Params", "c.Query", "c.Body",
-            "c.FormValue", "c.Get",
+            "c.Params",
+            "c.Query",
+            "c.Body",
+            "c.FormValue",
+            "c.Get",
         ]
     }
 
-    fn propagator_rules(&self) -> &'static [PropagatorRule] { GO_PROPAGATORS }
+    fn propagator_rules(&self) -> &'static [PropagatorRule] {
+        GO_PROPAGATORS
+    }
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         go_classify_sanitizer(call)
@@ -582,18 +710,35 @@ impl LanguageSpec for GoSpec {
 
     fn route_context_hints(&self) -> &'static [&'static str] {
         &[
-            "http.HandleFunc", "http.Handle",
-            "r.GET(", "r.POST(", "r.PUT(", "r.DELETE(",  // Gin
-            "e.GET(", "e.POST(",                           // Echo
-            "app.Get(", "app.Post(",                       // Fiber
-            "http.ResponseWriter", "*http.Request",
-            "c.JSON(", "c.String(", "c.Status(",           // Gin response
-            "c.JSON(", "c.String(",                        // Echo/Fiber response
+            "http.HandleFunc",
+            "http.Handle",
+            "r.GET(",
+            "r.POST(",
+            "r.PUT(",
+            "r.DELETE(", // Gin
+            "e.GET(",
+            "e.POST(", // Echo
+            "app.Get(",
+            "app.Post(", // Fiber
+            "http.ResponseWriter",
+            "*http.Request",
+            "c.JSON(",
+            "c.String(",
+            "c.Status(", // Gin response
+            "c.JSON(",
+            "c.String(", // Echo/Fiber response
         ]
     }
 
     fn test_context_hints(&self) -> &'static [&'static str] {
-        &["func Test", "testing.T", "t.Error(", "t.Fatal(", "t.Run(", "testify"]
+        &[
+            "func Test",
+            "testing.T",
+            "t.Error(",
+            "t.Fatal(",
+            "t.Run(",
+            "testify",
+        ]
     }
 
     fn response_method_names(&self) -> &'static [&'static str] {

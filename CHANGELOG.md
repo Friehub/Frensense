@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-09-09
+### Fixed
+- **Weight Learner Bias Fix**: Fixed a critical gradient descent bug in `frensense-bundler` where missing dimensions (like cross-file `flow_sim`) maintained their `0.5` initialization weight and stole up to 50% of the overall classification weight from valid dimensions during normalization. Dimensions are now initialized to `0.0`.
+- **AST Extraction for Semantic Rules**: Replaced the fragile `extract_call_targets` regex in both the bundler and engine with a robust Tree-sitter AST walk, completely eliminating mismatches where the bundler learned structural motifs that the inference engine failed to extract.
+- **OOM during LCS similarity**: Replaced the unbounded `O(N*M)` matrix allocation in `lcs_similarity` with an `O(min(N, M))` two-row approach and a length cap, fixing fatal out-of-memory panics when the bundler processed control-flow graphs with 20,000+ paths.
+- **Scoring Unification**: Centralized `frensense-bundler` and `frensense-engine` math down to a single `compute_dimensions()` function to prevent divergence in how `tainted_api_sim` and other features are evaluated.
+
+### Benchmark Results
+- **False Positives reduced from 18 to 6** (a 67% reduction).
+- **True Positives increased from 2 to 3** (unsuppressed `CORPUS_TS_ROLE_HIERARCHY_BYPASS`).
+- **Precision increased from 10.00% to 33.33%**.
+
+
 ## [Unreleased]
 
 ### Fixed

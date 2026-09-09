@@ -23,7 +23,7 @@ pub fn write_bundle<T: serde::Serialize>(
     pattern_count: u32,
 ) -> Result<Vec<u8>, String> {
     let data = bincode::serialize(payload).map_err(|e| e.to_string())?;
-    
+
     let checksum = blake3::hash(&data);
     let header = BundleHeader {
         magic: *BUNDLE_MAGIC,
@@ -34,7 +34,7 @@ pub fn write_bundle<T: serde::Serialize>(
 
     let mut output = Vec::new();
     let header_bytes = bincode::serialize(&header).map_err(|e| e.to_string())?;
-    
+
     // Write header length as 4-byte LE
     output.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
     output.extend_from_slice(&header_bytes);
@@ -65,7 +65,7 @@ pub fn read_bundle<T: serde::de::DeserializeOwned>(
     if header.magic != *BUNDLE_MAGIC {
         return Err(format!("Invalid magic bytes, expected FRC1"));
     }
-    
+
     if header.version > BUNDLE_VERSION {
         return Err(format!(
             "Unsupported bundle version {} (engine supports {})",

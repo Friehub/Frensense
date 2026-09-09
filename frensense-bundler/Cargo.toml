@@ -15,3 +15,4 @@ serde = { version = "1.0", features = ["derive"] }
 frensense-lang = { path = "../frensense-lang" }
 frensense-engine = { path = "../frensense-engine" }
 
+tree-sitter-typescript = "0.23"

@@ -11,3 +11,4 @@ pub use compiler::{Pattern, PatternCompiler, PatternConstraint, PatternNode};
 pub use matcher::PatternMatcher;
 pub use scorer::PatternScorer;
 pub mod weight_learner;
+pub mod similarity;

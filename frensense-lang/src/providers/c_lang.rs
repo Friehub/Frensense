@@ -6,8 +6,8 @@
 use tree_sitter::Node;
 
 use crate::spec::{
-    call_last_segment, node_text, Import, LanguageSpec, NodeRole,
-    PackageCategory, PropagatorRule, SanitizerKind, TaintOrigin,
+    call_last_segment, node_text, Import, LanguageSpec, NodeRole, PackageCategory, PropagatorRule,
+    SanitizerKind, TaintOrigin,
 };
 
 // ── AST classification ────────────────────────────────────────────────────────
@@ -16,15 +16,15 @@ fn classify_c(kind: &str) -> NodeRole {
     match kind {
         // ── Functions ────────────────────────────────────────────────────
         "function_definition" => NodeRole::Function {
-            is_method:    false,
-            name_field:   Some("declarator"),
+            is_method: false,
+            name_field: Some("declarator"),
             params_field: "declarator", // walked from the declarator
-            body_field:   "body",
+            body_field: "body",
         },
 
         // ── Declarations / assignments ───────────────────────────────────
         "declaration" | "init_declarator" => NodeRole::Declaration {
-            name_field:  "declarator",
+            name_field: "declarator",
             value_field: "value",
         },
         "assignment_expression" => NodeRole::Assignment {
@@ -35,14 +35,14 @@ fn classify_c(kind: &str) -> NodeRole {
         // ── Calls ────────────────────────────────────────────────────────
         "call_expression" => NodeRole::Call {
             callee_field: "function",
-            args_field:   "arguments",
+            args_field: "arguments",
         },
         "field_expression" => NodeRole::MemberAccess {
-            object_field:   "argument",
+            object_field: "argument",
             property_field: "field",
         },
         "subscript_expression" => NodeRole::MemberAccess {
-            object_field:   "argument",
+            object_field: "argument",
             property_field: "index",
         },
 
@@ -53,9 +53,10 @@ fn classify_c(kind: &str) -> NodeRole {
 
         // ── Structural ───────────────────────────────────────────────────
         "compound_statement" => NodeRole::Block,
-        "identifier"         => NodeRole::Identifier,
-        "string_literal" | "char_literal" | "number_literal"
-        | "true" | "false" | "null" => NodeRole::Literal,
+        "identifier" => NodeRole::Identifier,
+        "string_literal" | "char_literal" | "number_literal" | "true" | "false" | "null" => {
+            NodeRole::Literal
+        }
 
         _ => NodeRole::Other,
     }
@@ -87,8 +88,8 @@ fn extract_c_includes(root: Node<'_>, source: &str) -> Vec<Import> {
                     .to_owned();
                 imports.push(Import {
                     local_name: local,
-                    package:    pkg,
-                    symbol:     None,
+                    package: pkg,
+                    symbol: None,
                 });
             }
         }
@@ -125,122 +126,140 @@ fn c_package_category(pkg: &str) -> Option<PackageCategory> {
 
 static C_SINK_NAMES: &[(&str, &str)] = &[
     // Code Execution
-    ("eval",          "CodeExecution"),
-    ("system",        "CommandInjection"),
-    ("popen",         "CommandInjection"),
-    ("exec",          "CommandInjection"),
-    ("execve",        "CommandInjection"),
-    ("execl",         "CommandInjection"),
-    ("execlp",        "CommandInjection"),
-    ("execvp",        "CommandInjection"),
-    ("execvpe",       "CommandInjection"),
-    ("spawn",         "CommandInjection"),
-    ("spawnSync",     "CommandInjection"),
+    ("eval", "CodeExecution"),
+    ("system", "CommandInjection"),
+    ("popen", "CommandInjection"),
+    ("exec", "CommandInjection"),
+    ("execve", "CommandInjection"),
+    ("execl", "CommandInjection"),
+    ("execlp", "CommandInjection"),
+    ("execvp", "CommandInjection"),
+    ("execvpe", "CommandInjection"),
+    ("spawn", "CommandInjection"),
+    ("spawnSync", "CommandInjection"),
     // SQL Injection
-    ("mysql_query",   "SqlInjection"),
-    ("sqlite3_exec",  "SqlInjection"),
-    ("execute",       "SqlInjection"),
-    ("query",         "SqlInjection"),
-    ("prepare",       "SqlInjection"),
+    ("mysql_query", "SqlInjection"),
+    ("sqlite3_exec", "SqlInjection"),
+    ("execute", "SqlInjection"),
+    ("query", "SqlInjection"),
+    ("prepare", "SqlInjection"),
     // Path Traversal
-    ("fopen",         "PathTraversal"),
-    ("open",          "PathTraversal"),
-    ("read",          "PathTraversal"),
-    ("write",         "PathTraversal"),
-    ("readFile",      "PathTraversal"),
-    ("writeFile",     "PathTraversal"),
-    ("readFileSync",  "PathTraversal"),
-    ("join",          "PathTraversal"),
-    ("unlink",        "PathTraversal"),
-    ("stat",          "PathTraversal"),
-    ("access",        "PathTraversal"),
+    ("fopen", "PathTraversal"),
+    ("open", "PathTraversal"),
+    ("read", "PathTraversal"),
+    ("write", "PathTraversal"),
+    ("readFile", "PathTraversal"),
+    ("writeFile", "PathTraversal"),
+    ("readFileSync", "PathTraversal"),
+    ("join", "PathTraversal"),
+    ("unlink", "PathTraversal"),
+    ("stat", "PathTraversal"),
+    ("access", "PathTraversal"),
     // Buffer Overflow / Memory Safety
-    ("gets",          "BufferOverflow"),
-    ("strcpy",        "BufferOverflow"),
-    ("strcat",        "BufferOverflow"),
-    ("sprintf",       "FormatString"),
-    ("vsprintf",      "FormatString"),
-    ("printf",        "FormatString"),
-    ("snprintf",      "FormatString"),
-    ("sscanf",        "FormatString"),
-    ("memcpy",        "BufferOverflow"),
-    ("memmove",       "BufferOverflow"),
-    ("memset",        "BufferOverflow"),
-    ("strncpy",       "BufferOverflow"),
-    ("strncat",       "BufferOverflow"),
-    ("mktemp",        "PathTraversal"),
-    ("tmpnam",        "PathTraversal"),
+    ("gets", "BufferOverflow"),
+    ("strcpy", "BufferOverflow"),
+    ("strcat", "BufferOverflow"),
+    ("sprintf", "FormatString"),
+    ("vsprintf", "FormatString"),
+    ("printf", "FormatString"),
+    ("snprintf", "FormatString"),
+    ("sscanf", "FormatString"),
+    ("memcpy", "BufferOverflow"),
+    ("memmove", "BufferOverflow"),
+    ("memset", "BufferOverflow"),
+    ("strncpy", "BufferOverflow"),
+    ("strncat", "BufferOverflow"),
+    ("mktemp", "PathTraversal"),
+    ("tmpnam", "PathTraversal"),
     // SSRF
-    ("fetch",         "Ssrf"),
-    ("get",           "Ssrf"),
-    ("post",          "Ssrf"),
-    ("request",       "Ssrf"),
-    ("got",           "Ssrf"),
+    ("fetch", "Ssrf"),
+    ("get", "Ssrf"),
+    ("post", "Ssrf"),
+    ("request", "Ssrf"),
+    ("got", "Ssrf"),
     // Open Redirect
-    ("redirect",      "OpenRedirect"),
+    ("redirect", "OpenRedirect"),
     // XSS
-    ("innerHTML",     "XssDom"),
-    ("outerHTML",     "XssDom"),
-    ("document.write","XssDom"),
-    ("dangerouslySetInnerHTML","XssDom"),
+    ("innerHTML", "XssDom"),
+    ("outerHTML", "XssDom"),
+    ("document.write", "XssDom"),
+    ("dangerouslySetInnerHTML", "XssDom"),
     // SSTI
-    ("render",        "TemplateSsti"),
-    ("render_template","TemplateSsti"),
-    ("ejs.render",    "TemplateSsti"),
-    ("pug.compile",   "TemplateSsti"),
-    ("handlebars.compile","TemplateSsti"),
-    ("nunjucks.render","TemplateSsti"),
+    ("render", "TemplateSsti"),
+    ("render_template", "TemplateSsti"),
+    ("ejs.render", "TemplateSsti"),
+    ("pug.compile", "TemplateSsti"),
+    ("handlebars.compile", "TemplateSsti"),
+    ("nunjucks.render", "TemplateSsti"),
     // Unsafe Deserialization
-    ("pickle.loads",  "UnsafeDeserialize"),
-    ("yaml.load",     "UnsafeDeserialize"),
-    ("bincode::deserialize","UnsafeDeserialize"),
-    ("serde_json::from_str","UnsafeDeserialize"),
+    ("pickle.loads", "UnsafeDeserialize"),
+    ("yaml.load", "UnsafeDeserialize"),
+    ("bincode::deserialize", "UnsafeDeserialize"),
+    ("serde_json::from_str", "UnsafeDeserialize"),
     // Prototype Pollution
     ("Object.assign", "PrototypePollution"),
-    ("_.merge",       "PrototypePollution"),
-    ("_.defaultsDeep","PrototypePollution"),
-    ("_.set",         "PrototypePollution"),
-    ("$.extend",      "PrototypePollution"),
-    ("setPrototypeOf","PrototypePollution"),
+    ("_.merge", "PrototypePollution"),
+    ("_.defaultsDeep", "PrototypePollution"),
+    ("_.set", "PrototypePollution"),
+    ("$.extend", "PrototypePollution"),
+    ("setPrototypeOf", "PrototypePollution"),
     // XXE
-    ("DOMParser",     "Xxe"),
+    ("DOMParser", "Xxe"),
     // JWT
-    ("jwt.verify",    "Jwt"),
-    ("jwt.decode",    "Jwt"),
-    ("jwt.sign",      "Jwt"),
+    ("jwt.verify", "Jwt"),
+    ("jwt.decode", "Jwt"),
+    ("jwt.sign", "Jwt"),
     // MongoDB / ORM
-    ("update",        "NoSqlInjection"),
-    ("updateOne",     "NoSqlInjection"),
-    ("updateMany",    "NoSqlInjection"),
-    ("insert",        "NoSqlInjection"),
-    ("insertOne",     "NoSqlInjection"),
-    ("insertMany",    "NoSqlInjection"),
-    ("delete",        "NoSqlInjection"),
-    ("deleteOne",     "NoSqlInjection"),
-    ("deleteMany",    "NoSqlInjection"),
-    ("find",          "NoSqlInjection"),
-    ("findOne",       "NoSqlInjection"),
-    ("findAll",       "NoSqlInjection"),
+    ("update", "NoSqlInjection"),
+    ("updateOne", "NoSqlInjection"),
+    ("updateMany", "NoSqlInjection"),
+    ("insert", "NoSqlInjection"),
+    ("insertOne", "NoSqlInjection"),
+    ("insertMany", "NoSqlInjection"),
+    ("delete", "NoSqlInjection"),
+    ("deleteOne", "NoSqlInjection"),
+    ("deleteMany", "NoSqlInjection"),
+    ("find", "NoSqlInjection"),
+    ("findOne", "NoSqlInjection"),
+    ("findAll", "NoSqlInjection"),
     // Storage Write
-    ("put",           "StorageWrite"),
-    ("setItem",       "StorageWrite"),
+    ("put", "StorageWrite"),
+    ("setItem", "StorageWrite"),
     // Log Leak
-    ("log",           "LogLeak"),
-    ("error",         "LogLeak"),
-    ("info",          "LogLeak"),
-    ("debug",         "LogLeak"),
+    ("log", "LogLeak"),
+    ("error", "LogLeak"),
+    ("info", "LogLeak"),
+    ("debug", "LogLeak"),
 ];
 
-static C_SOURCE_PATTERNS: &[&str] = &[
-    "argv", "getenv", "fgets", "scanf", "stdin",
-];
+static C_SOURCE_PATTERNS: &[&str] = &["argv", "getenv", "fgets", "scanf", "stdin"];
 
 static C_PROPAGATORS: &[PropagatorRule] = &[
-    PropagatorRule { call: "sprintf",  tainted_arg: None, tainted_receiver: false },
-    PropagatorRule { call: "snprintf", tainted_arg: None, tainted_receiver: false },
-    PropagatorRule { call: "strcat",   tainted_arg: None, tainted_receiver: false },
-    PropagatorRule { call: "strcpy",   tainted_arg: None, tainted_receiver: false },
-    PropagatorRule { call: "strdup",   tainted_arg: Some(0), tainted_receiver: false },
+    PropagatorRule {
+        call: "sprintf",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "snprintf",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "strcat",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "strcpy",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "strdup",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
 ];
 
 // ── CSpec ─────────────────────────────────────────────────────────────────────
@@ -248,9 +267,13 @@ static C_PROPAGATORS: &[PropagatorRule] = &[
 pub struct CSpec;
 
 impl LanguageSpec for CSpec {
-    fn name(&self) -> &'static str { "c" }
+    fn name(&self) -> &'static str {
+        "c"
+    }
 
-    fn extensions(&self) -> &'static [&'static str] { &["c", "h"] }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["c", "h"]
+    }
 
     fn tree_sitter_language(&self) -> tree_sitter::Language {
         #[cfg(feature = "c-grammar")]
@@ -276,24 +299,28 @@ impl LanguageSpec for CSpec {
     }
 
     fn symbol_query(&self) -> Option<&'static str> {
-        Some(r"
+        Some(
+            r"
             (function_definition
                 declarator: (function_declarator
                     declarator: (identifier) @name))
             (declaration
                 declarator: (function_declarator
                     declarator: (identifier) @name))
-        ")
+        ",
+        )
     }
 
     fn call_query(&self) -> Option<&'static str> {
-        Some(r"
+        Some(
+            r"
             (function_definition
                 declarator: (function_declarator declarator: (identifier) @caller)
                 body: (_
                     (expression_statement
                         (call_expression function: (identifier) @call))))
-        ")
+        ",
+        )
     }
 
     fn package_category(&self, pkg: &str) -> Option<PackageCategory> {

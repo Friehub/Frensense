@@ -15,8 +15,8 @@
 use tree_sitter::Node;
 
 use crate::spec::{
-    call_last_segment, node_text, Import, LanguageSpec, NodeRole,
-    PackageCategory, PropagatorRule, SanitizerKind, TaintOrigin,
+    call_last_segment, node_text, Import, LanguageSpec, NodeRole, PackageCategory, PropagatorRule,
+    SanitizerKind, TaintOrigin,
 };
 
 // ── AST classification ────────────────────────────────────────────────────────
@@ -26,31 +26,31 @@ fn classify_python(kind: &str) -> NodeRole {
         // ── Functions ────────────────────────────────────────────────────
         // Both were missing from the engine's hardcoded match before this crate.
         "function_definition" | "async_function_definition" => NodeRole::Function {
-            is_method:    false,   // determined by parent (class_definition body)
-            name_field:   Some("name"),
+            is_method: false, // determined by parent (class_definition body)
+            name_field: Some("name"),
             params_field: "parameters",
-            body_field:   "body",
+            body_field: "body",
         },
         // `decorated_definition` wraps a `function_definition` with decorators.
         // Fingerprint extraction must descend into it to find the real function.
         // We classify it as a Function so the walker enters it.
         "decorated_definition" => NodeRole::Function {
-            is_method:    false,
-            name_field:   None,    // name is on the inner function_definition
+            is_method: false,
+            name_field: None, // name is on the inner function_definition
             params_field: "parameters",
-            body_field:   "body",
+            body_field: "body",
         },
         "lambda" => NodeRole::Function {
-            is_method:    false,
-            name_field:   None,
+            is_method: false,
+            name_field: None,
             params_field: "parameters",
-            body_field:   "body",
+            body_field: "body",
         },
 
         // ── Assignments ──────────────────────────────────────────────────
         // Python has no separate "declaration" concept — `x = expr` is both.
         "assignment" | "annotated_assignment" => NodeRole::Declaration {
-            name_field:  "left",
+            name_field: "left",
             value_field: "right",
         },
         "augmented_assignment" => NodeRole::Assignment {
@@ -59,7 +59,7 @@ fn classify_python(kind: &str) -> NodeRole {
         },
         // Walrus operator `:=` — e.g. `if (m := re.match(...))`
         "named_expression" => NodeRole::Declaration {
-            name_field:  "name",
+            name_field: "name",
             value_field: "value",
         },
 
@@ -67,37 +67,38 @@ fn classify_python(kind: &str) -> NodeRole {
         // Python uses `call`, NOT `call_expression`
         "call" => NodeRole::Call {
             callee_field: "function",
-            args_field:   "arguments",
+            args_field: "arguments",
         },
         // Python member access is `attribute`, NOT `member_expression`
         "attribute" => NodeRole::MemberAccess {
-            object_field:   "object",
+            object_field: "object",
             property_field: "attribute",
         },
         "subscript" => NodeRole::MemberAccess {
-            object_field:   "value",
+            object_field: "value",
             property_field: "slice",
         },
 
         // ── Control flow ─────────────────────────────────────────────────
         "if_statement" | "conditional_expression" | "match_statement" => NodeRole::Branch,
-        "for_statement" | "while_statement"                           => NodeRole::Loop,
-        "return_statement"                                            => NodeRole::Return,
-        "try_statement"                                               => NodeRole::Try,
+        "for_statement" | "while_statement" => NodeRole::Loop,
+        "return_statement" => NodeRole::Return,
+        "try_statement" => NodeRole::Try,
         // Python uses `except_clause`, NOT `catch_clause`
-        "except_clause" | "except_group_clause"                       => NodeRole::Catch,
-        "finally_clause"                                              => NodeRole::Finally,
-        "raise_statement"                                             => NodeRole::Throw,
-        "await"                                                       => NodeRole::Await,
+        "except_clause" | "except_group_clause" => NodeRole::Catch,
+        "finally_clause" => NodeRole::Finally,
+        "raise_statement" => NodeRole::Throw,
+        "await" => NodeRole::Await,
         // `with` statement — needs special context_manager_call handling
-        "with_statement"                                              => NodeRole::ContextManager,
+        "with_statement" => NodeRole::ContextManager,
 
         // ── Structural ───────────────────────────────────────────────────
-        "block"                                                        => NodeRole::Block,
-        "import_statement" | "import_from_statement"                   => NodeRole::Import,
-        "identifier"                                                   => NodeRole::Identifier,
-        "string" | "integer" | "float" | "true" | "false" | "none"
-        | "concatenated_string"                                        => NodeRole::Literal,
+        "block" => NodeRole::Block,
+        "import_statement" | "import_from_statement" => NodeRole::Import,
+        "identifier" => NodeRole::Identifier,
+        "string" | "integer" | "float" | "true" | "false" | "none" | "concatenated_string" => {
+            NodeRole::Literal
+        }
 
         _ => NodeRole::Other,
     }
@@ -110,7 +111,9 @@ fn classify_python(kind: &str) -> NodeRole {
 ///
 /// Returns `Some(path_text)` when the context manager is a file open call.
 fn python_context_manager_call<'s>(node: Node<'_>, source: &'s str) -> Option<&'s str> {
-    if node.kind() != "with_statement" { return None; }
+    if node.kind() != "with_statement" {
+        return None;
+    }
 
     // with_statement > with_clause > with_item > value (the expression)
     for i in 0..node.named_child_count() {
@@ -160,8 +163,8 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
                                 let local = pkg.split('.').next().unwrap_or(pkg);
                                 imports.push(Import {
                                     local_name: local.to_owned(),
-                                    package:    pkg.to_owned(),
-                                    symbol:     None,
+                                    package: pkg.to_owned(),
+                                    symbol: None,
                                 });
                             }
                             "aliased_import" => {
@@ -176,8 +179,8 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
                                     .unwrap_or(name);
                                 imports.push(Import {
                                     local_name: alias.to_owned(),
-                                    package:    name.to_owned(),
-                                    symbol:     None,
+                                    package: name.to_owned(),
+                                    symbol: None,
                                 });
                             }
                             _ => {}
@@ -204,8 +207,8 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
                                 if sym != module_name.as_str() {
                                     imports.push(Import {
                                         local_name: sym.to_owned(),
-                                        package:    module_name.clone(),
-                                        symbol:     Some(sym.to_owned()),
+                                        package: module_name.clone(),
+                                        symbol: Some(sym.to_owned()),
                                     });
                                 }
                             }
@@ -220,8 +223,8 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
                                     .unwrap_or(name);
                                 imports.push(Import {
                                     local_name: alias.to_owned(),
-                                    package:    module_name.clone(),
-                                    symbol:     Some(name.to_owned()),
+                                    package: module_name.clone(),
+                                    symbol: Some(name.to_owned()),
                                 });
                             }
                             "wildcard_import" => {
@@ -232,8 +235,8 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
                                         .next()
                                         .unwrap_or(&module_name)
                                         .to_owned(),
-                                    package:    module_name.clone(),
-                                    symbol:     None,
+                                    package: module_name.clone(),
+                                    symbol: None,
                                 });
                             }
                             _ => {}
@@ -244,10 +247,16 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
             _ => {}
         }
 
-        if cursor.goto_first_child() { continue; }
+        if cursor.goto_first_child() {
+            continue;
+        }
         loop {
-            if cursor.goto_next_sibling() { break; }
-            if !cursor.goto_parent() { break 'outer; }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                break 'outer;
+            }
         }
     }
 
@@ -261,44 +270,49 @@ fn python_package_category(pkg: &str) -> Option<PackageCategory> {
     let base = pkg.split('.').next().unwrap_or(pkg);
     match base {
         // ── HTTP frameworks ───────────────────────────────────────────────
-        "flask" | "django" | "fastapi" | "aiohttp"
-        | "tornado" | "starlette" | "sanic" | "falcon"
-        | "bottle" | "pyramid" | "cherrypy" | "uvicorn"
-        | "litestar" | "blacksheep" | "robyn" => Some(PackageCategory::HttpFramework),
+        "flask" | "django" | "fastapi" | "aiohttp" | "tornado" | "starlette" | "sanic"
+        | "falcon" | "bottle" | "pyramid" | "cherrypy" | "uvicorn" | "litestar" | "blacksheep"
+        | "robyn" => Some(PackageCategory::HttpFramework),
 
         // ── SQL databases ─────────────────────────────────────────────────
-        "sqlalchemy" | "psycopg2" | "psycopg" | "pymysql"
-        | "sqlite3" | "pymssql" | "cx_Oracle" | "aiomysql"
-        | "asyncpg" | "databases" | "tortoise" | "peewee"
-        | "pony" => Some(PackageCategory::SqlDatabase),
+        "sqlalchemy" | "psycopg2" | "psycopg" | "pymysql" | "sqlite3" | "pymssql" | "cx_Oracle"
+        | "aiomysql" | "asyncpg" | "databases" | "tortoise" | "peewee" | "pony" => {
+            Some(PackageCategory::SqlDatabase)
+        }
 
         // ── NoSQL ─────────────────────────────────────────────────────────
-        "pymongo" | "motor" | "redis" | "aioredis"
-        | "elasticsearch" | "cassandra" | "couchdb" => Some(PackageCategory::NoSqlDatabase),
+        "pymongo" | "motor" | "redis" | "aioredis" | "elasticsearch" | "cassandra" | "couchdb" => {
+            Some(PackageCategory::NoSqlDatabase)
+        }
 
         // ── Command execution ─────────────────────────────────────────────
-        "subprocess" | "os" | "shlex" | "pty"
-        | "popen2" | "commands" | "plumbum" | "sh" => Some(PackageCategory::CommandExecution),
+        "subprocess" | "os" | "shlex" | "pty" | "popen2" | "commands" | "plumbum" | "sh" => {
+            Some(PackageCategory::CommandExecution)
+        }
 
         // ── File system ───────────────────────────────────────────────────
-        "pathlib" | "shutil" | "glob" | "tempfile"
-        | "io" | "fileinput" | "zipfile" | "tarfile" => Some(PackageCategory::FileSystem),
+        "pathlib" | "shutil" | "glob" | "tempfile" | "io" | "fileinput" | "zipfile" | "tarfile" => {
+            Some(PackageCategory::FileSystem)
+        }
 
         // ── HTTP clients (SSRF) ───────────────────────────────────────────
-        "requests" | "httpx" | "aiohttp" | "urllib"
-        | "urllib3" | "httplib2" | "pycurl" | "grequests" => Some(PackageCategory::HttpClient),
+        "requests" | "httpx" | "aiohttp" | "urllib" | "urllib3" | "httplib2" | "pycurl"
+        | "grequests" => Some(PackageCategory::HttpClient),
 
         // ── Template engines (SSTI) ───────────────────────────────────────
-        "jinja2" | "mako" | "chameleon" | "genshi"
-        | "django" => Some(PackageCategory::TemplateEngine),  // also framework
+        "jinja2" | "mako" | "chameleon" | "genshi" | "django" => {
+            Some(PackageCategory::TemplateEngine)
+        } // also framework
 
         // ── Unsafe deserialization ────────────────────────────────────────
-        "pickle" | "cPickle" | "shelve" | "marshal"
-        | "yaml" | "PyYAML" | "jsonpickle" | "dill" => Some(PackageCategory::Deserialization),
+        "pickle" | "cPickle" | "shelve" | "marshal" | "yaml" | "PyYAML" | "jsonpickle" | "dill" => {
+            Some(PackageCategory::Deserialization)
+        }
 
         // ── Crypto ───────────────────────────────────────────────────────
-        "cryptography" | "Crypto" | "nacl" | "hashlib"
-        | "hmac" | "secrets" => Some(PackageCategory::Crypto),
+        "cryptography" | "Crypto" | "nacl" | "hashlib" | "hmac" | "secrets" => {
+            Some(PackageCategory::Crypto)
+        }
 
         // ── Testing ───────────────────────────────────────────────────────
         "pytest" | "unittest" | "nose" | "hypothesis" => Some(PackageCategory::Testing),
@@ -354,40 +368,135 @@ fn python_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
 
 static PYTHON_PROPAGATORS: &[PropagatorRule] = &[
     // str methods — receiver taints return
-    PropagatorRule { call: "format",      tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "format_map",  tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "replace",     tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "join",        tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "split",       tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "strip",       tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "lstrip",      tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "rstrip",      tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "lower",       tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "upper",       tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "title",       tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "encode",      tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "decode",      tainted_arg: None,    tainted_receiver: true  },
-
+    PropagatorRule {
+        call: "format",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "format_map",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "replace",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "join",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "split",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "strip",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "lstrip",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "rstrip",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "lower",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "upper",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "title",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "encode",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "decode",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
     // Type coercions that propagate (not sanitize) taint
-    PropagatorRule { call: "str",         tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "bytes",       tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "list",        tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "tuple",       tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "dict",        tainted_arg: Some(0), tainted_receiver: false },
-
+    PropagatorRule {
+        call: "str",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "bytes",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "list",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "tuple",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "dict",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
     // json
-    PropagatorRule { call: "loads",       tainted_arg: Some(0), tainted_receiver: false },
-    PropagatorRule { call: "dumps",       tainted_arg: Some(0), tainted_receiver: false },
-
+    PropagatorRule {
+        call: "loads",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "dumps",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
     // re / regex
-    PropagatorRule { call: "sub",         tainted_arg: None,    tainted_receiver: false },
-    PropagatorRule { call: "subn",        tainted_arg: None,    tainted_receiver: false },
-    PropagatorRule { call: "group",       tainted_arg: None,    tainted_receiver: true  },
-    PropagatorRule { call: "groups",      tainted_arg: None,    tainted_receiver: true  },
-
+    PropagatorRule {
+        call: "sub",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "subn",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "group",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "groups",
+        tainted_arg: None,
+        tainted_receiver: true,
+    },
     // path building
-    PropagatorRule { call: "join",        tainted_arg: None,    tainted_receiver: false },
-
+    PropagatorRule {
+        call: "join",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
     // f-string interpolation: `f"SELECT {user}"` is handled by the
     // flow_fingerprint's is_interpolation_node check, not propagator rules.
     // Listed here for documentation completeness.
@@ -448,9 +557,13 @@ const PYTHON_CALL_QUERY: &str = r#"
 pub struct PythonSpec;
 
 impl LanguageSpec for PythonSpec {
-    fn name(&self) -> &'static str { "python" }
+    fn name(&self) -> &'static str {
+        "python"
+    }
 
-    fn extensions(&self) -> &'static [&'static str] { &["py", "pyi", "pyw"] }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["py", "pyi", "pyw"]
+    }
 
     fn tree_sitter_language(&self) -> tree_sitter::Language {
         #[cfg(feature = "python")]
@@ -470,10 +583,7 @@ impl LanguageSpec for PythonSpec {
 
     fn wrap_region(&self, code: &str) -> String {
         // Python requires indentation inside function bodies
-        let indented: String = code
-            .lines()
-            .map(|l| format!("    {}\n", l))
-            .collect();
+        let indented: String = code.lines().map(|l| format!("    {}\n", l)).collect();
         format!("def _region():\n{}", indented)
     }
 
@@ -485,8 +595,12 @@ impl LanguageSpec for PythonSpec {
         extract_python_imports(root, source)
     }
 
-    fn symbol_query(&self) -> Option<&'static str> { Some(PYTHON_SYMBOL_QUERY) }
-    fn call_query(&self)   -> Option<&'static str> { Some(PYTHON_CALL_QUERY)   }
+    fn symbol_query(&self) -> Option<&'static str> {
+        Some(PYTHON_SYMBOL_QUERY)
+    }
+    fn call_query(&self) -> Option<&'static str> {
+        Some(PYTHON_CALL_QUERY)
+    }
 
     fn package_category(&self, pkg: &str) -> Option<PackageCategory> {
         python_package_category(pkg)
@@ -522,138 +636,159 @@ impl LanguageSpec for PythonSpec {
     fn known_sink_names(&self) -> &'static [(&'static str, &'static str)] {
         &[
             // Code Execution
-            ("eval",              "CodeExecution"),
-            ("exec",              "CodeExecution"),
-            ("compile",           "CodeExecution"),
+            ("eval", "CodeExecution"),
+            ("exec", "CodeExecution"),
+            ("compile", "CodeExecution"),
             // Command Injection
-            ("system",            "CommandInjection"),
-            ("popen",             "CommandInjection"),
-            ("call",              "CommandInjection"),
-            ("run",               "CommandInjection"),
-            ("check_output",      "CommandInjection"),
-            ("Popen",             "CommandInjection"),
-            ("execfile",          "CommandInjection"),
-            ("spawn",             "CommandInjection"),
-            ("spawnSync",         "CommandInjection"),
+            ("system", "CommandInjection"),
+            ("popen", "CommandInjection"),
+            ("call", "CommandInjection"),
+            ("run", "CommandInjection"),
+            ("check_output", "CommandInjection"),
+            ("Popen", "CommandInjection"),
+            ("execfile", "CommandInjection"),
+            ("spawn", "CommandInjection"),
+            ("spawnSync", "CommandInjection"),
             // SQL Injection
-            ("execute",           "SqlInjection"),
-            ("executemany",       "SqlInjection"),
-            ("raw",               "SqlInjection"),
-            ("raw_sql",           "SqlInjection"),
-            ("query",             "SqlInjection"),
-            ("executeRaw",        "SqlInjection"),
-            ("queryRaw",          "SqlInjection"),
-            ("filter",            "SqlInjection"),    // Django ORM raw filter
-            ("extra",             "SqlInjection"),    // Django ORM .extra()
-            ("prepare",           "SqlInjection"),
+            ("execute", "SqlInjection"),
+            ("executemany", "SqlInjection"),
+            ("raw", "SqlInjection"),
+            ("raw_sql", "SqlInjection"),
+            ("query", "SqlInjection"),
+            ("executeRaw", "SqlInjection"),
+            ("queryRaw", "SqlInjection"),
+            ("filter", "SqlInjection"), // Django ORM raw filter
+            ("extra", "SqlInjection"),  // Django ORM .extra()
+            ("prepare", "SqlInjection"),
             // Path Traversal
-            ("open",              "PathTraversal"),
-            ("read",              "PathTraversal"),
-            ("write",             "PathTraversal"),
-            ("readFile",          "PathTraversal"),
-            ("writeFile",         "PathTraversal"),
-            ("readFileSync",      "PathTraversal"),
-            ("join",              "PathTraversal"),
-            ("unlink",            "PathTraversal"),
-            ("stat",              "PathTraversal"),
-            ("access",            "PathTraversal"),
+            ("open", "PathTraversal"),
+            ("read", "PathTraversal"),
+            ("write", "PathTraversal"),
+            ("readFile", "PathTraversal"),
+            ("writeFile", "PathTraversal"),
+            ("readFileSync", "PathTraversal"),
+            ("join", "PathTraversal"),
+            ("unlink", "PathTraversal"),
+            ("stat", "PathTraversal"),
+            ("access", "PathTraversal"),
             // SSRF
-            ("get",               "Ssrf"),
-            ("post",              "Ssrf"),
-            ("request",           "Ssrf"),
-            ("send",              "Ssrf"),
-            ("fetch",             "Ssrf"),
-            ("http.get",          "Ssrf"),
-            ("https.get",         "Ssrf"),
-            ("got",               "Ssrf"),
+            ("get", "Ssrf"),
+            ("post", "Ssrf"),
+            ("request", "Ssrf"),
+            ("send", "Ssrf"),
+            ("fetch", "Ssrf"),
+            ("http.get", "Ssrf"),
+            ("https.get", "Ssrf"),
+            ("got", "Ssrf"),
             // Open Redirect
-            ("redirect",          "OpenRedirect"),
+            ("redirect", "OpenRedirect"),
             // XSS
-            ("innerHTML",         "XssDom"),
-            ("outerHTML",         "XssDom"),
-            ("document.write",    "XssDom"),
+            ("innerHTML", "XssDom"),
+            ("outerHTML", "XssDom"),
+            ("document.write", "XssDom"),
             ("dangerouslySetInnerHTML", "XssDom"),
             // SSTI — Template engine renders
-            ("render_template",   "TemplateSsti"),
+            ("render_template", "TemplateSsti"),
             ("render_template_string", "TemplateSsti"),
-            ("from_string",       "TemplateSsti"),
-            ("render",            "TemplateSsti"),
-            ("ejs.render",        "TemplateSsti"),
-            ("pug.compile",       "TemplateSsti"),
-            ("handlebars.compile","TemplateSsti"),
-            ("nunjucks.render",   "TemplateSsti"),
-            ("marko.render",      "TemplateSsti"),
-            ("eta.render",        "TemplateSsti"),
-            ("swig.render",       "TemplateSsti"),
-            ("liquid.render",     "TemplateSsti"),
-            ("mustache.render",   "TemplateSsti"),
+            ("from_string", "TemplateSsti"),
+            ("render", "TemplateSsti"),
+            ("ejs.render", "TemplateSsti"),
+            ("pug.compile", "TemplateSsti"),
+            ("handlebars.compile", "TemplateSsti"),
+            ("nunjucks.render", "TemplateSsti"),
+            ("marko.render", "TemplateSsti"),
+            ("eta.render", "TemplateSsti"),
+            ("swig.render", "TemplateSsti"),
+            ("liquid.render", "TemplateSsti"),
+            ("mustache.render", "TemplateSsti"),
             // Response
-            ("make_response",     "XssReflected"),
-            ("res.send",          "ResponseLeak"),
-            ("res.json",          "ResponseLeak"),
+            ("make_response", "XssReflected"),
+            ("res.send", "ResponseLeak"),
+            ("res.json", "ResponseLeak"),
             // Unsafe Deserialization
-            ("pickle.loads",      "UnsafeDeserialize"),
-            ("pickle.load",       "UnsafeDeserialize"),
-            ("yaml.load",         "UnsafeDeserialize"),
-            ("yaml.safe_load",    "UnsafeDeserialize"),
-            ("marshal.loads",     "UnsafeDeserialize"),
-            ("shelve.open",       "UnsafeDeserialize"),
-            ("loads",             "UnsafeDeserialize"),
-            ("load",              "UnsafeDeserialize"),
+            ("pickle.loads", "UnsafeDeserialize"),
+            ("pickle.load", "UnsafeDeserialize"),
+            ("yaml.load", "UnsafeDeserialize"),
+            ("yaml.safe_load", "UnsafeDeserialize"),
+            ("marshal.loads", "UnsafeDeserialize"),
+            ("shelve.open", "UnsafeDeserialize"),
+            ("loads", "UnsafeDeserialize"),
+            ("load", "UnsafeDeserialize"),
             ("bincode::deserialize", "UnsafeDeserialize"),
             // Log Leak
-            ("log",               "LogLeak"),
-            ("error",             "LogLeak"),
-            ("info",              "LogLeak"),
-            ("debug",             "LogLeak"),
+            ("log", "LogLeak"),
+            ("error", "LogLeak"),
+            ("info", "LogLeak"),
+            ("debug", "LogLeak"),
             // Prototype Pollution
-            ("Object.assign",     "PrototypePollution"),
-            ("_.merge",           "PrototypePollution"),
-            ("_.defaultsDeep",    "PrototypePollution"),
-            ("_.set",             "PrototypePollution"),
-            ("$.extend",          "PrototypePollution"),
-            ("setPrototypeOf",    "PrototypePollution"),
+            ("Object.assign", "PrototypePollution"),
+            ("_.merge", "PrototypePollution"),
+            ("_.defaultsDeep", "PrototypePollution"),
+            ("_.set", "PrototypePollution"),
+            ("$.extend", "PrototypePollution"),
+            ("setPrototypeOf", "PrototypePollution"),
             // XXE
-            ("DOMParser",         "Xxe"),
+            ("DOMParser", "Xxe"),
             // JWT
-            ("jwt.verify",        "Jwt"),
-            ("jwt.decode",        "Jwt"),
-            ("jwt.sign",          "Jwt"),
+            ("jwt.verify", "Jwt"),
+            ("jwt.decode", "Jwt"),
+            ("jwt.sign", "Jwt"),
             // MongoDB / ORM operators
-            ("$where",            "NoSqlInjection"),
-            ("$regex",            "NoSqlInjection"),
-            ("$gt",               "NoSqlInjection"),
-            ("$lt",               "NoSqlInjection"),
-            ("$ne",               "NoSqlInjection"),
-            ("$in",               "NoSqlInjection"),
-            ("$nin",              "NoSqlInjection"),
-            ("$exists",           "NoSqlInjection"),
-            ("$expr",             "NoSqlInjection"),
-            ("$function",         "NoSqlInjection"),
-            ("$accumulator",      "NoSqlInjection"),
+            ("$where", "NoSqlInjection"),
+            ("$regex", "NoSqlInjection"),
+            ("$gt", "NoSqlInjection"),
+            ("$lt", "NoSqlInjection"),
+            ("$ne", "NoSqlInjection"),
+            ("$in", "NoSqlInjection"),
+            ("$nin", "NoSqlInjection"),
+            ("$exists", "NoSqlInjection"),
+            ("$expr", "NoSqlInjection"),
+            ("$function", "NoSqlInjection"),
+            ("$accumulator", "NoSqlInjection"),
         ]
     }
 
     fn known_source_patterns(&self) -> &'static [&'static str] {
         &[
             // Flask
-            "request.args", "request.form", "request.json", "request.data",
-            "request.values", "request.files", "request.cookies",
-            "request.headers", "request.get_json()", "request.get_data()",
+            "request.args",
+            "request.form",
+            "request.json",
+            "request.data",
+            "request.values",
+            "request.files",
+            "request.cookies",
+            "request.headers",
+            "request.get_json()",
+            "request.get_data()",
             // Django
-            "request.GET", "request.POST", "request.body",
-            "request.META", "request.FILES", "request.COOKIES",
+            "request.GET",
+            "request.POST",
+            "request.body",
+            "request.META",
+            "request.FILES",
+            "request.COOKIES",
             // FastAPI — these are parameter names, recognised via classify_param_taint
             // but listed here for motif matching
-            "Query", "Path", "Body", "Form", "Header", "Cookie",
+            "Query",
+            "Path",
+            "Body",
+            "Form",
+            "Header",
+            "Cookie",
             // aiohttp
-            "request.match_info", "request.rel_url.query",
-            "await request.json()", "await request.text()",
-            "await request.read()", "await request.post()",
+            "request.match_info",
+            "request.rel_url.query",
+            "await request.json()",
+            "await request.text()",
+            "await request.read()",
+            "await request.post()",
         ]
     }
 
-    fn propagator_rules(&self) -> &'static [PropagatorRule] { PYTHON_PROPAGATORS }
+    fn propagator_rules(&self) -> &'static [PropagatorRule] {
+        PYTHON_PROPAGATORS
+    }
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         python_classify_sanitizer(call)
@@ -661,28 +796,51 @@ impl LanguageSpec for PythonSpec {
 
     fn route_context_hints(&self) -> &'static [&'static str] {
         &[
-            "@app.route", "@router.get", "@router.post",
-            "@bp.route", "@blueprint.route",
-            "from flask import", "from fastapi import",
-            "from django.http import", "from aiohttp import",
-            "request.args", "request.form", "request.json",
-            "request.GET", "request.POST",
-            "return jsonify", "return Response",
-            "return render_template", "return render(",
-            "HttpResponse", "JsonResponse",
+            "@app.route",
+            "@router.get",
+            "@router.post",
+            "@bp.route",
+            "@blueprint.route",
+            "from flask import",
+            "from fastapi import",
+            "from django.http import",
+            "from aiohttp import",
+            "request.args",
+            "request.form",
+            "request.json",
+            "request.GET",
+            "request.POST",
+            "return jsonify",
+            "return Response",
+            "return render_template",
+            "return render(",
+            "HttpResponse",
+            "JsonResponse",
         ]
     }
 
     fn test_context_hints(&self) -> &'static [&'static str] {
         &[
-            "import pytest", "def test_", "unittest.TestCase",
-            "self.assert", "self.assertEqual", "pytest.raises",
-            "from unittest", "@pytest.fixture", "@pytest.mark",
+            "import pytest",
+            "def test_",
+            "unittest.TestCase",
+            "self.assert",
+            "self.assertEqual",
+            "pytest.raises",
+            "from unittest",
+            "@pytest.fixture",
+            "@pytest.mark",
         ]
     }
 
     fn response_method_names(&self) -> &'static [&'static str] {
-        &["jsonify", "make_response", "render_template", "redirect", "Response"]
+        &[
+            "jsonify",
+            "make_response",
+            "render_template",
+            "redirect",
+            "Response",
+        ]
     }
 
     fn db_api_method_names(&self) -> &'static [&'static str] {
