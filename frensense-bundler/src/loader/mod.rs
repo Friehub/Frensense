@@ -40,6 +40,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
     let entries = collect_corpus_files(corpus_dir);
     let mut warnings: Vec<LoadWarning> = Vec::new();
     for path in entries {
+        println!("Processing {:?}", path);
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };

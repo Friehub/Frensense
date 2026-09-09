@@ -49,6 +49,7 @@ pub struct PatternRegistry {
     patterns: Vec<CorpusPattern>,
     lsh_index: Option<LSHIndex>,
     lsh_index_api: Option<LSHIndex>,
+    flow_index: Option<FxHashMap<u64, Vec<usize>>>,
     threshold: f64,
     ngram_sim_threshold: f64,
     struct_overlap_threshold: f64,
@@ -81,6 +82,7 @@ impl PatternRegistry {
             patterns: Vec::new(),
             lsh_index: None,
             lsh_index_api: None,
+            flow_index: None,
             threshold,
             ngram_sim_threshold,
             struct_overlap_threshold,
@@ -356,6 +358,7 @@ impl PatternRegistry {
         let mut struct_index = LSHIndex::new(num_bands, rows_per_band);
         // API-call LSH (new — helps distinguish patterns by what they call)
         let mut api_index = LSHIndex::new(num_bands, rows_per_band);
+        let mut flow_index: FxHashMap<u64, Vec<usize>> = FxHashMap::default();
 
         for (i, pattern) in self.patterns.iter().enumerate() {
             // Issue 6 fix: index ALL positives, not just the first.
@@ -378,10 +381,16 @@ impl PatternRegistry {
                     minhash_signature(&fp.structural_markers, num_hashes)
                 };
                 api_index.insert(&sig_a, i as u64);
+
+                // Flow paths
+                for flow_hash in &fp.data_flow_path_hashes {
+                    flow_index.entry(*flow_hash).or_default().push(i);
+                }
             }
         }
         self.lsh_index = Some(struct_index);
         self.lsh_index_api = Some(api_index);
+        self.flow_index = Some(flow_index);
     }
 
     pub fn scan_function<'a>(
@@ -425,14 +434,32 @@ impl PatternRegistry {
                 struct_candidates.clone()
             };
 
-        // Merge: a candidate passes if it's in EITHER table (preserve recall).
+        let mut flow_candidates: std::collections::HashSet<usize> =
+            std::collections::HashSet::new();
+        if let Some(ref flow_idx) = self.flow_index {
+            for flow_hash in &fp.data_flow_path_hashes {
+                if let Some(matches) = flow_idx.get(flow_hash) {
+                    for &id in matches {
+                        flow_candidates.insert(id);
+                    }
+                }
+            }
+        }
+
+        // Merge: a candidate passes if it's in EITHER table (preserve recall) or shares a flow path.
         // Track which table(s) it passed through for penalty application.
         let all_candidates_raw: Vec<(usize, bool)> = {
             let mut seen = std::collections::HashSet::new();
             let mut merged = Vec::new();
-            for &id in struct_candidates.iter().chain(api_candidates.iter()) {
+            for &id in struct_candidates
+                .iter()
+                .chain(api_candidates.iter())
+                .chain(flow_candidates.iter())
+            {
                 if seen.insert(id) {
-                    let hit_both = struct_candidates.contains(&id) && api_candidates.contains(&id);
+                    let hit_both = (struct_candidates.contains(&id)
+                        && api_candidates.contains(&id))
+                        || flow_candidates.contains(&id);
                     merged.push((id, hit_both));
                 }
             }
@@ -780,6 +807,14 @@ impl PatternRegistry {
         } else {
             threshold
         };
+
+        if fp.function_name == "userSearch" {
+            println!(
+                "DEBUG userSearch: pattern={}, has_taint={}, raw={}, best={}, effective={}",
+                pattern.id, has_taint, raw_score, best_score, effective_threshold
+            );
+        }
+
         if best_score >= effective_threshold {
             Some(PatternMatch {
                 pattern_id: pattern.id.clone(),

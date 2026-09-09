@@ -28,7 +28,8 @@ impl RawDimensions {
             .api_sim
             .max(self.semantic_sim)
             .max(self.ast_sim)
-            .max(self.motif_sim);
+            .max(self.motif_sim)
+            .max(self.flow_sim);
 
         // Soft multiplier: if identity is 0, score drops by 90%. If identity > 0.4, score is preserved.
         let gate = (identity_gate * 2.5 + 0.1).min(1.0);

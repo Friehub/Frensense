@@ -1,18 +1,16 @@
 import re
+
 content = open("CHANGELOG.md").read()
 
-new_log = """
-## [Unreleased] - 2026-09-09
+new_entry = """## [Unreleased]
+
 ### Fixed
-- **Weight Learner Bias Fix**: Fixed a critical gradient descent bug in `frensense-bundler` where missing dimensions (like cross-file `flow_sim`) maintained their `0.5` initialization weight and stole up to 50% of the overall classification weight from valid dimensions during normalization. Dimensions are now initialized to `0.0`.
-- **AST Extraction for Semantic Rules**: Replaced the fragile `extract_call_targets` regex in both the bundler and engine with a robust Tree-sitter AST walk, completely eliminating mismatches where the bundler learned structural motifs that the inference engine failed to extract.
-- **OOM during LCS similarity**: Replaced the unbounded `O(N*M)` matrix allocation in `lcs_similarity` with an `O(min(N, M))` two-row approach and a length cap, fixing fatal out-of-memory panics when the bundler processed control-flow graphs with 20,000+ paths.
-- **Scoring Unification**: Centralized `frensense-bundler` and `frensense-engine` math down to a single `compute_dimensions()` function to prevent divergence in how `tainted_api_sim` and other features are evaluated.
+- **Regex Illusion / False Recall**: Identified and resolved a critical bug where `auto_filter` incorrectly extracted `if` and `catch` as exact API calls, artificially inflating both textual overlap (`ngram_sim`, `signature_sim`) and motif hashes across frameworks. The heuristic `contains_call_to` generator in `frensense-bundler` has been temporarily disabled pending an AST-aware replacement.
+- **Semantic Override Generalization**: `apply_semantic_override` now successfully triggers on `flow_sim > 0.8` (which hashes abstract `SemanticMarkers` like `SqlSink` rather than raw strings) and `identity_gate > 0.1`, dropping the strict `motif_sim > 0.8` requirement. This allows the engine's core data-flow abstraction to generalize across frameworks (e.g. `db.query` vs `sequelize.query`).
+- **Minimum-Score Gate Strictness**: Temporarily disabled the hard-coded gate in `runner.rs` that silently dropped matches if structural/textual overlap (`ngram_sim` AND `signature_sim`) was `< 5%`. This ensures valid data-flow matches between small corpus patterns (15 lines) and large, harness-heavy vulnerable functions (78 lines) are not discarded.
 
 """
 
-content = content.replace("## [Unreleased]", new_log.strip() + "\n\n## [Unreleased]")
-if new_log.strip() not in content:
-    content = new_log + content
+content = re.sub(r"(## \[Unreleased\]\n\n)?### Changed\n- \*\*Consolidated single-binaries", new_entry + r"### Changed\n- **Consolidated single-binaries", content)
 
 open("CHANGELOG.md", "w").write(content)

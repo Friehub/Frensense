@@ -111,6 +111,12 @@ fn extract_ref_names(node: Node, source: &str, names: &mut Vec<String>) {
             }
         }
         "member_expression" | "field_expression" => {
+            // Keep the full field path instead of stripping it!
+            names.push(source[node.start_byte()..node.end_byte()].to_string());
+
+            // We ALSO want to record a use of the base object, because reading req.body
+            // is technically also a read of req. But for exact field-sensitive taint,
+            // the full path is the most precise. Let's just use the full path.
             if let Some(obj) = node.child_by_field_name("object") {
                 extract_ref_names(obj, source, names);
             }
@@ -664,4 +670,15 @@ fn reassign() {
             "should have use of x"
         );
     }
+}
+
+#[test]
+fn test_variable_declaration_js() {
+    let source = "var query = req.body.login + '1';";
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&tree_sitter_javascript::LANGUAGE.into())
+        .unwrap();
+    let tree = parser.parse(source, None).unwrap();
+    println!("{}", tree.root_node().to_sexp());
 }

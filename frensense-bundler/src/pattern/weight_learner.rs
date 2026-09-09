@@ -43,8 +43,6 @@ fn extract_category(pattern_id: &str) -> &str {
 fn compute_features(candidate: &FunctionFingerprint, target: &FunctionFingerprint) -> FeatureVec {
     let raw_dims = frensense_engine::pattern::similarity::compute_dimensions(candidate, target);
     return raw_dims.as_array();
-
-
 }
 
 fn predict(features: &FeatureVec, weights: &FeatureVec) -> f64 {

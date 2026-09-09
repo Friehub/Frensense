@@ -206,8 +206,13 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     })
                     .unwrap_or_default();
 
-                let tainted_api_calls =
-                    extract_tainted_calls(body, source_code, &param_names, spec);
+                let tainted_api_calls = extract_tainted_calls(
+                    body,
+                    source_code,
+                    &param_names,
+                    spec,
+                    path.extension().and_then(|e| e.to_str()).unwrap_or(""),
+                );
                 let motif_hashes =
                     extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
                 let data_flow_path_hashes = crate::corpus::flow_fingerprint::extract_flow_paths(

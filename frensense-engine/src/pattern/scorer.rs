@@ -5,12 +5,12 @@ use std::hash::{Hash, Hasher};
 
 use crate::corpus::motifs::MOTIFS;
 use crate::fingerprint::FunctionFingerprint;
-use crate::pattern::similarity::RawDimensions;
 use crate::minhash;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::matcher::MatchResult;
+use crate::pattern::similarity::RawDimensions;
 use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -390,7 +390,9 @@ impl PatternScorer {
         dim_cache: Option<&DimCache>,
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
-        let mut raw_dim = |target: &FunctionFingerprint, _is_negative: bool| -> crate::pattern::similarity::RawDimensions {
+        let mut raw_dim = |target: &FunctionFingerprint,
+                           _is_negative: bool|
+         -> crate::pattern::similarity::RawDimensions {
             if let Some(cache) = dim_cache {
                 let key = fingerprint_id(target);
                 if let Some(cached) = cache.get(&key) {
@@ -405,12 +407,19 @@ impl PatternScorer {
         let mut best_dim = RawDimensions::default();
 
         for (i, positive) in positives.iter().enumerate() {
+            let has_flow_match = {
+                candidate
+                    .data_flow_path_hashes
+                    .iter()
+                    .any(|h| positive.data_flow_path_hashes.contains(h))
+            };
+
             if !positive.api_calls.is_empty() && !candidate.api_calls.is_empty() {
                 let has_overlap = positive
                     .api_calls
                     .iter()
                     .any(|h| candidate.api_calls.contains(h));
-                if !has_overlap {
+                if !has_overlap && !has_flow_match {
                     let motif_overlap = !candidate.motif_hashes.is_empty()
                         && !positive.motif_hashes.is_empty()
                         && positive
@@ -423,11 +432,22 @@ impl PatternScorer {
                 }
             }
 
-            let dim = raw_dim(positive, false);
+            let mut dim = raw_dim(positive, false);
+
+            let has_flow_match = dim.flow_sim > 0.0 || {
+                candidate
+                    .data_flow_path_hashes
+                    .iter()
+                    .any(|h| positive.data_flow_path_hashes.contains(h))
+            };
+
+            if has_flow_match && dim.flow_sim == 0.0 {
+                dim.flow_sim = 1.0;
+            }
 
             // Early exit: if ngram similarity is very low, this positive can't produce
             // a high score. Skip the expensive weighted_score computation.
-            if dim.ngram_sim < 0.05 && dim.api_sim < 0.1 {
+            if dim.ngram_sim < 0.05 && dim.api_sim < 0.1 && !has_flow_match {
                 continue;
             }
 
@@ -452,17 +472,17 @@ impl PatternScorer {
                 evidence.control_flow_sim = dim.cf_sim;
                 evidence.api_sim = dim.api_sim;
                 evidence.motif_sim = dim.motif_sim;
-                evidence.flow_sim = if dim.flow_sim > 0.0
+                evidence.flow_sim = if has_flow_match
                     || (!candidate.data_flow_path_hashes.is_empty()
                         && !positive.data_flow_path_hashes.is_empty())
                 {
-                    Some(dim.flow_sim)
+                    Some(dim.flow_sim.max(0.1))
                 } else {
                     None
                 };
                 evidence.semantic_sim = dim.semantic_sim;
                 evidence.best_positive_index = i;
-                evidence.has_taint_path = dim.flow_sim > 0.0;
+                evidence.has_taint_path = has_flow_match;
             }
         }
 
@@ -656,9 +676,7 @@ impl PatternScorer {
         .1
     }
 
-    
-
-// A lightweight identity-hash for a fingerprint, used as a cache key.
+    // A lightweight identity-hash for a fingerprint, used as a cache key.
 }
 
 // Computed from a few identifying fields — collisions are astronomically unlikely.

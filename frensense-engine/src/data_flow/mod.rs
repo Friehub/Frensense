@@ -1,3 +1,4 @@
+pub mod pdg;
 // SPDX-License-Identifier: MIT
 
 pub mod alias;
