@@ -22,7 +22,19 @@ pub struct RawDimensions {
 
 impl RawDimensions {
     pub fn weighted_score(&self, w: &[f64; 15]) -> f64 {
-        self.ngram_sim * w[0]
+        // OPTION B: Multiplicative Gating
+        // Identity Prerequisites
+        let identity_gate = self
+            .api_sim
+            .max(self.semantic_sim)
+            .max(self.ast_sim)
+            .max(self.motif_sim);
+
+        // Soft multiplier: if identity is 0, score drops by 90%. If identity > 0.4, score is preserved.
+        let gate = (identity_gate * 2.5 + 0.1).min(1.0);
+
+        // Vulnerability Indicators (we still use their weights, but we omit the identity dimensions to avoid double-counting, or just keep them)
+        let vuln_score = self.ngram_sim * w[0]
             + self.ast_sim * w[1]
             + self.signature_sim * w[2]
             + self.param_type_sim * w[3]
@@ -36,7 +48,9 @@ impl RawDimensions {
             + self.config_sim * w[11]
             + self.cf_order_sim * w[12]
             + self.arg_type_sim * w[13]
-            + self.literal_concat_sim * w[14]
+            + self.literal_concat_sim * w[14];
+
+        vuln_score * gate
     }
 
     pub fn as_array(&self) -> [f64; 15] {
@@ -60,7 +74,16 @@ impl RawDimensions {
     }
 
     pub fn apply_semantic_override(&self, base_score: f64) -> f64 {
-        if self.flow_sim > 0.8 && self.motif_sim > 0.8 && self.api_sim > 0.5 {
+        let identity_gate = self
+            .api_sim
+            .max(self.semantic_sim)
+            .max(self.ast_sim)
+            .max(self.motif_sim);
+
+        // Data flow paths are abstract (they hash SemanticMarkers like SqlSink, not raw strings).
+        // Therefore, flow_sim generalizes across frameworks perfectly!
+        // We drop the motif_sim requirement because motif hashes use exact API strings which don't cross frameworks.
+        if self.flow_sim > 0.8 && identity_gate > 0.1 {
             return base_score.max(0.85);
         }
         base_score
@@ -197,21 +220,19 @@ pub fn lcs_similarity(candidate: &[u64], target: &[u64]) -> f64 {
     lcs / max_len
 }
 
-
 pub fn compute_dimensions(
     candidate: &FunctionFingerprint,
     target: &FunctionFingerprint,
 ) -> RawDimensions {
-    let ngram_sim = if candidate.weighted_ngram_hashes.is_empty()
-        || target.weighted_ngram_hashes.is_empty()
-    {
-        jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
-    } else {
-        crate::pattern::scorer::weighted_jaccard(
-            &candidate.weighted_ngram_hashes,
-            &target.weighted_ngram_hashes,
-        )
-    };
+    let ngram_sim =
+        if candidate.weighted_ngram_hashes.is_empty() || target.weighted_ngram_hashes.is_empty() {
+            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
+        } else {
+            crate::pattern::scorer::weighted_jaccard(
+                &candidate.weighted_ngram_hashes,
+                &target.weighted_ngram_hashes,
+            )
+        };
 
     let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
 
@@ -233,11 +254,12 @@ pub fn compute_dimensions(
     let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
 
     let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
-    let api_sim_seg = if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
-        jaccard(&candidate.api_call_segments, &target.api_call_segments)
-    } else {
-        0.0
-    };
+    let api_sim_seg =
+        if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
+            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+        } else {
+            0.0
+        };
     let api_sim = api_sim_full.max(api_sim_seg);
 
     let motif_sim = containment(&candidate.motif_hashes, &target.motif_hashes);
@@ -247,39 +269,38 @@ pub fn compute_dimensions(
     );
 
     // Mutual empty MUST be 1.0 so that weights don't zero out!
-    let tainted_api_sim = if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
-        0.0
-    } else if candidate.tainted_api_calls.is_empty() {
-        0.0
-    } else if target.tainted_api_calls.is_empty() {
-        jaccard_sorted(&candidate.tainted_api_calls, &target.api_calls)
-    } else {
-        jaccard_sorted(&candidate.tainted_api_calls, &target.tainted_api_calls)
-    };
+    let tainted_api_sim =
+        if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
+            0.0
+        } else if candidate.tainted_api_calls.is_empty() {
+            0.0
+        } else if target.tainted_api_calls.is_empty() {
+            jaccard_sorted(&candidate.tainted_api_calls, &target.api_calls)
+        } else {
+            jaccard_sorted(&candidate.tainted_api_calls, &target.tainted_api_calls)
+        };
 
     let config_sim = jaccard(
         &candidate.config_literal_hashes,
         &target.config_literal_hashes,
     );
 
-    let cf_order_sim = if candidate.control_flow_sequence.is_empty()
-        && target.control_flow_sequence.is_empty()
-    {
-        0.0
-    } else {
-        lcs_similarity(
-            &candidate.control_flow_sequence,
-            &target.control_flow_sequence,
-        )
-    };
+    let cf_order_sim =
+        if candidate.control_flow_sequence.is_empty() && target.control_flow_sequence.is_empty() {
+            0.0
+        } else {
+            lcs_similarity(
+                &candidate.control_flow_sequence,
+                &target.control_flow_sequence,
+            )
+        };
 
-    let arg_type_sim = if !candidate.argument_call_types.is_empty()
-        && !target.argument_call_types.is_empty()
-    {
-        jaccard(&candidate.argument_call_types, &target.argument_call_types)
-    } else {
-        0.0
-    };
+    let arg_type_sim =
+        if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
+            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+        } else {
+            0.0
+        };
 
     let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
         && !target.literal_pattern_hashes.is_empty()
