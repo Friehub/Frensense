@@ -280,3 +280,4 @@ pub use registry::{spec_for_ext, spec_for_path, LanguageRegistry};
 pub use spec::{
     Import, LanguageSpec, NodeRole, PackageCategory, PropagatorRule, SanitizerKind, TaintOrigin,
 };
+

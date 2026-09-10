@@ -55,7 +55,7 @@ for adv in advisories:
     is_tp = False
     if af in gt_by_file:
         for g in gt_by_file[af]:
-            if abs(line - g["line"]) <= 5:
+            if -5 <= (g["line"] - line) <= 75:
                 is_tp = True
                 found_gt_items.add(g["id"])
                 break

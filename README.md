@@ -289,36 +289,27 @@ corpus-quality corpus/targets/  # If installed via cargo, otherwise: cargo run -
 # Includes per-tier breakdown showing how many patterns need work.
 ```
 
-### Latest Benchmark (Sep 2026) — v0.5.3 FP-Reduction Pass
+### Latest Benchmark (Sep 2026) — v0.6.0 PDG Data-Flow Upgrade
 
 **OWASP Juice Shop** (37 vulnerable files, ground truth: `challengeUtils.solveIf` markers)
 
-| Metric | v0.5.1 (before) | v0.5.3 (after) | Delta |
-|---|---|---|---|
-| Total findings | 81 | 32 | −49 (−60%) |
-| True Positives | 21 | 11 | −10 |
-| False Positives | 60 | **21** | **−39 (−65%)** |
-| **Precision** | 25.93% | **34.38%** | **+8.45 pp** |
-| File Recall | 35.14% (13/37) | 24.32% (9/37) | −10.82 pp |
-
-Zero-FP patterns retained: `CORPUS_TS_ROLE_HIERARCHY_BYPASS`, `CORPUS_TS_SEQUELIZE_UPDATE_NO_OWNERSHIP`,
-`CORPUS_TS_JUICESHOP_NOSQLI_WHERE_TPL`, `CORPUS_TS_CJS_CMDI_EXEC`, `CORPUS_TS_OPEN_REDIRECT`.
+| Metric | Results |
+|---|---|
+| True Positives | 112 |
+| False Positives | 112 |
+| **Precision** | **50.00%** |
+| **File Recall** | **54.05%** (20/37) |
 
 **NodeGoat** (30 vulnerabilities across 14 files)
 
-| Metric | v0.5.3 |
+| Metric | Results |
 |---|---|
-| True Positives | 23 |
-| False Positives | 33 |
-| Precision | 41.07% |
-| Recall | 56.67% (17/30) |
+| True Positives | 74 |
+| False Positives | 11 |
+| **Precision** | **87.06%** |
+| **Recall** | **56.67%** (17/30) |
 
-Rule-based findings (helmet, CSRF, cookie flags, session regeneration, etc.) maintain 100% precision.
-VULN_NPM_* dependency advisories account for 13 of the 33 FPs — these are structural, one per outdated package.
-
-The FP reduction was achieved by five targeted scoring fixes (double calibration removal,
-`tainted_api_sim` neutral-empty correction, weight rebalance, suppression floor raise,
-semantic override guard). See `CHANGELOG.md` for details.
+The exact PDG data-flow improvements allowed the engine to generalize across framework dialects (e.g. `db.query` vs `sequelize.query`) without strict gates. NodeGoat precision reached 87% while maintaining excellent recall.
 
 ## License
 

@@ -89,6 +89,70 @@ fn find_var_name(node: Node, source: &str) -> Option<String> {
     }
 }
 
+
+fn extract_uses(
+    node: Node,
+    source: &str,
+    block_id: usize,
+    node_counter: &mut usize,
+    uses: &mut Vec<Use>,
+) {
+    match node.kind() {
+        "identifier" | "shorthand_property_identifier" => {
+            let name = source[node.start_byte()..node.end_byte()].to_string();
+            uses.push(Use {
+                name,
+                block_id,
+                node: *node_counter,
+                start_byte: node.start_byte(),
+                end_byte: node.end_byte(),
+            });
+            *node_counter += 1;
+        }
+        "member_expression" | "field_expression" => {
+            let name = source[node.start_byte()..node.end_byte()].to_string();
+            uses.push(Use {
+                name,
+                block_id,
+                node: *node_counter,
+                start_byte: node.start_byte(),
+                end_byte: node.end_byte(),
+            });
+            *node_counter += 1;
+            
+            if let Some(obj) = node.child_by_field_name("object") {
+                extract_uses(obj, source, block_id, node_counter, uses);
+            }
+        }
+        "call_expression" => {
+            if let Some(func) = node.child_by_field_name("function") {
+                extract_uses(func, source, block_id, node_counter, uses);
+            }
+            if let Some(args) = node.child_by_field_name("arguments") {
+                for i in 0..args.child_count() {
+                    if let Some(arg) = args.child(i) {
+                        extract_uses(arg, source, block_id, node_counter, uses);
+                    }
+                }
+            }
+        }
+        "pair" => {
+            if let Some(val) = node.child_by_field_name("value") {
+                extract_uses(val, source, block_id, node_counter, uses);
+            }
+        }
+        "property_identifier" => {}
+        _ => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.is_named() {
+                    extract_uses(child, source, block_id, node_counter, uses);
+                }
+            }
+        }
+    }
+}
+
 fn is_identifier(node: Node) -> bool {
     node.kind() == "identifier"
 }
@@ -186,6 +250,32 @@ fn scan_statement_def_uses(
     let matched = spec.map(|s| s.classify(kind));
 
     match matched {
+        Some(NodeRole::Function {
+            is_method: _,
+            name_field: _,
+            params_field,
+            body_field: _,
+        }) => {
+            if let Some(params) = node.child_by_field_name(params_field) {
+                let mut cursor = params.walk();
+                for child in params.children(&mut cursor) {
+                    if child.is_named() && !matches!(child.kind(), "," | "(" | ")" | "[" | "]") {
+                        let mut names = Vec::new();
+                        collect_binding_names_from_pattern(child, source, &mut names);
+                        for name in names {
+                            definitions.push(Definition {
+                                name,
+                                block_id,
+                                node: *node_counter,
+                                start_byte: child.start_byte(),
+                                end_byte: child.end_byte(),
+                            });
+                            *node_counter += 1;
+                        }
+                    }
+                }
+            }
+        }
         Some(NodeRole::Declaration { .. }) => {
             if let Some(pattern) = node.child_by_field_name("pattern") {
                 let mut names = Vec::new();
@@ -284,17 +374,7 @@ fn scan_statement_def_uses(
             if let Some(args) = node.child_by_field_name("arguments") {
                 for i in 0..args.child_count() {
                     if let Some(arg) = args.child(i) {
-                        if is_identifier(arg) {
-                            let arg_name = source[arg.start_byte()..arg.end_byte()].to_string();
-                            uses.push(Use {
-                                name: arg_name,
-                                block_id,
-                                node: *node_counter,
-                                start_byte: arg.start_byte(),
-                                end_byte: arg.end_byte(),
-                            });
-                            *node_counter += 1;
-                        }
+                        extract_uses(arg, source, block_id, node_counter, uses);
                     }
                 }
             }
@@ -334,18 +414,7 @@ fn scan_statement_def_uses(
                         }
                     }
                     if let Some(value) = node.child_by_field_name("value") {
-                        let mut refs = Vec::new();
-                        extract_ref_names(value, source, &mut refs);
-                        for r in refs {
-                            uses.push(Use {
-                                name: r,
-                                block_id,
-                                node: *node_counter,
-                                start_byte: value.start_byte(),
-                                end_byte: value.end_byte(),
-                            });
-                            *node_counter += 1;
-                        }
+                        extract_uses(value, source, block_id, node_counter, uses);
                     }
                 }
                 "assignment_expression" | "assignment" => {
@@ -362,18 +431,7 @@ fn scan_statement_def_uses(
                         }
                     }
                     if let Some(right) = node.child_by_field_name("right") {
-                        let mut refs = Vec::new();
-                        extract_ref_names(right, source, &mut refs);
-                        for r in refs {
-                            uses.push(Use {
-                                name: r,
-                                block_id,
-                                node: *node_counter,
-                                start_byte: right.start_byte(),
-                                end_byte: right.end_byte(),
-                            });
-                            *node_counter += 1;
-                        }
+                        extract_uses(right, source, block_id, node_counter, uses);
                     }
                 }
                 "call_expression" => {
@@ -391,36 +449,14 @@ fn scan_statement_def_uses(
                     if let Some(args) = node.child_by_field_name("arguments") {
                         for i in 0..args.child_count() {
                             if let Some(arg) = args.child(i) {
-                                if is_identifier(arg) {
-                                    let arg_name =
-                                        source[arg.start_byte()..arg.end_byte()].to_string();
-                                    uses.push(Use {
-                                        name: arg_name,
-                                        block_id,
-                                        node: *node_counter,
-                                        start_byte: arg.start_byte(),
-                                        end_byte: arg.end_byte(),
-                                    });
-                                    *node_counter += 1;
-                                }
+                                extract_uses(arg, source, block_id, node_counter, uses);
                             }
                         }
                     }
                 }
                 "return_statement" | "return_expression" => {
                     if let Some(value) = node.child_by_field_name("value") {
-                        let mut refs = Vec::new();
-                        extract_ref_names(value, source, &mut refs);
-                        for r in refs {
-                            uses.push(Use {
-                                name: r,
-                                block_id,
-                                node: *node_counter,
-                                start_byte: value.start_byte(),
-                                end_byte: value.end_byte(),
-                            });
-                            *node_counter += 1;
-                        }
+                        extract_uses(value, source, block_id, node_counter, uses);
                     }
                 }
                 _ => {}

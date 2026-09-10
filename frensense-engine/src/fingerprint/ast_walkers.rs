@@ -488,7 +488,8 @@ pub(super) fn extract_tainted_calls(
     // 1. Build Data Flow Graph and PDG
     let cfg = crate::cfg::build_cfg(node, source, ext);
     let def_use = crate::cfg::def_use::compute_def_use(&cfg, source, spec);
-    let pdg = crate::data_flow::pdg::build_pdg(&cfg, &def_use);
+    let spec = frensense_lang::spec_for_ext(ext);
+    let pdg = crate::data_flow::pdg::build_pdg(&cfg, &def_use, source, spec);
 
     // 2. Identify initially tainted vars (parameters)
     let mut param_def_nodes = FxHashSet::default();

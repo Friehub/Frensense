@@ -126,7 +126,7 @@ pub fn compute_post_dominators(cfg: &ControlFlowGraph) -> FxHashMap<usize, FxHas
     post_doms
 }
 
-pub fn build_pdg(cfg: &ControlFlowGraph, def_use: &DefUseChain) -> ProgramDependenceGraph {
+pub fn build_pdg(cfg: &ControlFlowGraph, def_use: &DefUseChain, source: &str, spec: Option<&dyn frensense_lang::spec::LanguageSpec>) -> ProgramDependenceGraph {
     let mut pdg = ProgramDependenceGraph::new();
 
     for def in &def_use.definitions {
@@ -153,7 +153,7 @@ pub fn build_pdg(cfg: &ControlFlowGraph, def_use: &DefUseChain) -> ProgramDepend
     }
 
     // Add Assignment Data Dependence (RHS -> LHS)
-    let spec = frensense_lang::spec_for_ext(""); // Hack for now, or just use tree-sitter field names
+    // Using provided spec
     for block in &cfg.blocks {
         for &node in &block.nodes {
             let is_assign = node.kind() == "variable_declarator"

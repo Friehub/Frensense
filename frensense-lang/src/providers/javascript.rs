@@ -1004,4 +1004,12 @@ static JS_SOURCE_PATTERNS: &[&str] = &[
     "event.pathParameters",
     "process.env",
     "process.argv",
+    // Hardened for object destructuring: const { body, query, params } = req
+    "body",
+    "query",
+    "params",
+    "headers",
+    "cookies",
+    "file",
+    "files",
 ];

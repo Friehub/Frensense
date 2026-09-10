@@ -828,7 +828,7 @@ pub fn extract_param_info(param: tree_sitter::Node, source: &str) -> (String, St
     // Fallback: regex on full text
     if name.is_empty() || ty.is_empty() {
         let text = &source[param.start_byte()..param.end_byte()];
-        if let Some(caps) = regex::Regex::new(r"(\w+)\s*:\s*(.+)")
+        if let Some(caps) = regex::Regex::new(r"([^:]+)\s*:\s*(.+)")
             .ok()
             .and_then(|re| re.captures(text))
         {

@@ -613,17 +613,6 @@ impl PatternRegistry {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         let t_end = t0.elapsed();
-        if t_end.as_millis() > 50 {
-            eprintln!(
-                "[scan_function] func={} raw={} filtered={} lsh={:.1?} total={:.1?} matches={}",
-                fp.function_name,
-                all_candidates_raw_len,
-                candidate_count,
-                t_lsh,
-                t_end,
-                matches.len(),
-            );
-        }
         matches
     }
 
@@ -808,12 +797,6 @@ impl PatternRegistry {
             threshold
         };
 
-        if fp.function_name == "userSearch" {
-            println!(
-                "DEBUG userSearch: pattern={}, has_taint={}, raw={}, best={}, effective={}",
-                pattern.id, has_taint, raw_score, best_score, effective_threshold
-            );
-        }
 
         if best_score >= effective_threshold {
             Some(PatternMatch {
