@@ -3,9 +3,7 @@ pub mod fs;
 pub mod metadata;
 pub mod types;
 
-use features::{
-    collect_all_function_features, learn_from_features, FunctionFeatures,
-};
+use features::{collect_all_function_features, learn_from_features, FunctionFeatures};
 use fs::{collect_corpus_files, extract_pattern_name, is_negative_file};
 use metadata::{load_sidecar_toml, parse_frensense_block, synthesize_advisory};
 use types::AdvisoryText;

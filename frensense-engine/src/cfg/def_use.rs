@@ -89,7 +89,6 @@ fn find_var_name(node: Node, source: &str) -> Option<String> {
     }
 }
 
-
 fn extract_uses(
     node: Node,
     source: &str,
@@ -119,7 +118,7 @@ fn extract_uses(
                 end_byte: node.end_byte(),
             });
             *node_counter += 1;
-            
+
             if let Some(obj) = node.child_by_field_name("object") {
                 extract_uses(obj, source, block_id, node_counter, uses);
             }

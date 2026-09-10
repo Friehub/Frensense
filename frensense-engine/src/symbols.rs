@@ -134,7 +134,7 @@ impl SymbolRegistry {
     pub fn add_call_edge(&mut self, file_path: &Path, src_name: &str, target_name: &str) {
         let file_str = file_path.display().to_string();
         let src_symbols = self.find(src_name);
-        
+
         let mut t_name = target_name;
         let mut module_hint = None;
 
@@ -156,7 +156,9 @@ impl SymbolRegistry {
         let mut target_node_id = None;
 
         if let Some(local) = target_symbols.iter().find(|s| s.file_path == file_str) {
-            target_node_id = self.graph.find_node(&local.name, &local.file_path, local.line);
+            target_node_id = self
+                .graph
+                .find_node(&local.name, &local.file_path, local.line);
         } else {
             let mut candidates = target_symbols.clone();
             if let Some(hint) = module_hint {

@@ -1,4 +1,3 @@
-
 /// Classify a taint source pattern by its likely origin.
 /// Used during taint seeding to capture the correct TaintOrigin
 /// so the SinkCategory × TaintOrigin relevance multiplier can downweight

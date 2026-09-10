@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-
 use crate::corpus::pattern::CorpusPattern;
 use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 use crate::data_flow::taint_metrics::TaintMetrics;
@@ -795,7 +794,6 @@ impl PatternRegistry {
         } else {
             threshold
         };
-
 
         if best_score >= effective_threshold {
             Some(PatternMatch {

@@ -390,7 +390,7 @@ impl PatternScorer {
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
         let raw_dim = |target: &FunctionFingerprint,
-                           _is_negative: bool|
+                       _is_negative: bool|
          -> crate::pattern::similarity::RawDimensions {
             if let Some(cache) = dim_cache {
                 let key = fingerprint_id(target);

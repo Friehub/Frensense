@@ -1,3 +1,4 @@
+#![allow(dead_code, unreachable_patterns, unreachable_code)]
 // SPDX-License-Identifier: MIT
 //! Builds the corpus fingerprint bundle (frensense-corpus.frc).
 //!

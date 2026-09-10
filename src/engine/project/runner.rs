@@ -1150,7 +1150,6 @@ fn precompute_taint_summaries_for_file(
     file_path: &str,
     data_flow: &mut frensense_engine::data_flow::DataFlowEngine,
 ) {
-    
     use tree_sitter::Node;
     fn node_uses_tainted_var(node: Node, source: &str, registry: &TaintRegistry) -> bool {
         match node.kind() {

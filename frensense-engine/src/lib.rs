@@ -1,3 +1,4 @@
+#![allow(dead_code, unreachable_patterns, unreachable_code)]
 #![allow(
     clippy::too_many_lines,
     clippy::too_many_arguments,
