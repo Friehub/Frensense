@@ -220,7 +220,7 @@ fn go_package_category(pkg: &str) -> Option<PackageCategory> {
         "os" | "io" | "io/ioutil" | "path/filepath" | "path" => Some(PackageCategory::FileSystem),
 
         // ── HTTP clients (SSRF) ───────────────────────────────────────────
-        "net/http"              // doubles as client
+        // "net/http"              // doubles as client
         | "github.com/go-resty/resty/v2"
         | "github.com/hashicorp/go-retryablehttp" => Some(PackageCategory::HttpClient),
 

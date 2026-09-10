@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::cfg::def_use::DefUseChain;
-use crate::cfg::{BasicBlock, ControlFlowGraph};
+use crate::cfg::ControlFlowGraph;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Debug, Clone)]
@@ -126,7 +126,7 @@ pub fn compute_post_dominators(cfg: &ControlFlowGraph) -> FxHashMap<usize, FxHas
     post_doms
 }
 
-pub fn build_pdg(cfg: &ControlFlowGraph, def_use: &DefUseChain, source: &str, spec: Option<&dyn frensense_lang::spec::LanguageSpec>) -> ProgramDependenceGraph {
+pub fn build_pdg(cfg: &ControlFlowGraph, def_use: &DefUseChain, _source: &str, _spec: Option<&dyn frensense_lang::spec::LanguageSpec>) -> ProgramDependenceGraph {
     let mut pdg = ProgramDependenceGraph::new();
 
     for def in &def_use.definitions {

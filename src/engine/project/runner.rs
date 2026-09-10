@@ -11,10 +11,8 @@ use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
 use frensense_engine::data_flow::alias::AliasTracker;
 use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegistry};
-use frensense_engine::pattern::evidence::MatchEvidence;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
-use rustc_hash::FxHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
 use std::path::{Path, PathBuf};
@@ -152,7 +150,7 @@ fn apply_severity_overrides(
 /// May panic if internal assertions fail.
 /// Run all findings modules (W1-W7) on snapshots.
 fn run_findings_modules(
-    root: &Path,
+    _root: &Path,
     snapshots: &[FileSnapshot],
     symbols: &SymbolRegistry,
     _file_trees: &rustc_hash::FxHashMap<
@@ -164,7 +162,7 @@ fn run_findings_modules(
         ),
     >,
     _extra_taint_rule_dirs: &[PathBuf],
-    mut dep_resolver: &mut frensense_engine::deps::DependencyResolver,
+    _dep_resolver: &mut frensense_engine::deps::DependencyResolver,
     source_sink: &frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry,
     all_advisories: &mut Vec<Advisory>,
     use_data_flow: bool,
@@ -180,7 +178,7 @@ fn run_findings_modules(
     let sanitizer = frensense_engine::data_flow::SanitizerRegistry::default_combined();
 
     // Instantiate dormant modules
-    let alias_tracker = frensense_engine::data_flow::AliasTracker::new();
+    let _alias_tracker = frensense_engine::data_flow::AliasTracker::new();
     let mut exposed_count = 0;
 
     // Seed the cross-file taint resolver with user input sources
@@ -651,8 +649,8 @@ fn run_corpus_scan(
                 // Minimum-score gate: skip findings where key similarity dimensions are near-zero.
                 // This prevents the calibration sigmoid from boosting noise into high-confidence FPs.
                 if let Some(ref evidence) = m.matched_evidence {
-                    let ngram_low = evidence.ngram_sim < 0.05;
-                    let sig_low = evidence.signature_sim < 0.05;                    // Skip if both ngram AND signature are near-zero (no textual/structural match).
+                    let _ngram_low = evidence.ngram_sim < 0.05;
+                    let _sig_low = evidence.signature_sim < 0.05;                    // Skip if both ngram AND signature are near-zero (no textual/structural match).
                     // API similarity alone is insufficient — generic calls like `console.log`
                     // match many patterns without real vulnerability overlap.
                     // FIXME: We temporarily disable this gate because Juice Shop's 78-line functions 
@@ -991,7 +989,7 @@ fn run_standalone_taint(
                                 src.to_uppercase(),
                             );
 
-                            let mut advisory = Advisory::bare(
+                            let advisory = Advisory::bare(
                                 rule_id,
                                 crate::Severity::Warning,
                                 snap.id,
@@ -1148,11 +1146,11 @@ struct TaintVerification {
 fn precompute_taint_summaries_for_file(
     tree: &tree_sitter::Tree,
     source: &str,
-    ext: &str,
+    _ext: &str,
     file_path: &str,
     data_flow: &mut frensense_engine::data_flow::DataFlowEngine,
 ) {
-    use std::collections::HashMap;
+    
     use tree_sitter::Node;
     fn node_uses_tainted_var(node: Node, source: &str, registry: &TaintRegistry) -> bool {
         match node.kind() {

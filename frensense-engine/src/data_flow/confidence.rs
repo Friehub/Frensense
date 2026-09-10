@@ -53,7 +53,7 @@ impl TaintConfidenceAdjuster {
         source: &str,
         file_path: &Path,
         sink_line: u32,
-        sink_content: &str,
+        _sink_content: &str,
         original_confidence: f32,
         registry: &CorpusSourceSinkRegistry,
         local_tainted_vars: Option<&[String]>,

@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Returns true if a file name represents any negative variant:
 /// `_negative.ts`, `_negative2.ts`, `_negative3.ts`, etc.

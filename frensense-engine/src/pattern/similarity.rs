@@ -1,5 +1,4 @@
 use crate::fingerprint::FunctionFingerprint;
-use std::cmp::max;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RawDimensions {

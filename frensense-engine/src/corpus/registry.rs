@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-use std::path::Path;
 
 use crate::corpus::pattern::CorpusPattern;
-use crate::corpus::source_sink::{CorpusSourceSinkRegistry, build_registry_from_dir};
+use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 use crate::data_flow::taint_metrics::TaintMetrics;
 use crate::data_flow::{TaintOrigin, TaintRegistry};
 use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
@@ -465,8 +464,8 @@ impl PatternRegistry {
             }
             merged
         };
-        let t_lsh = t0.elapsed();
-        let all_candidates_raw_len = all_candidates_raw.len();
+        let _t_lsh = t0.elapsed();
+        let _all_candidates_raw_len = all_candidates_raw.len();
         let all_candidates = all_candidates_raw;
         let candidate_count = all_candidates.len();
         if candidate_count == 0 {
@@ -577,7 +576,7 @@ impl PatternRegistry {
                 }
                 targets
             })
-            .map(|(key, target, is_neg)| {
+            .map(|(key, target, _is_neg)| {
                 (
                     key,
                     crate::pattern::similarity::compute_dimensions(&weighted_fp, target),
@@ -612,7 +611,7 @@ impl PatternRegistry {
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        let t_end = t0.elapsed();
+        let _t_end = t0.elapsed();
         matches
     }
 

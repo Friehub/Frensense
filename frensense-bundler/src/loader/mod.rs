@@ -3,9 +3,8 @@ pub mod fs;
 pub mod metadata;
 pub mod types;
 
-pub(crate) use features::taint_source_origin;
 use features::{
-    collect_all_function_features, collect_function_features, learn_from_features, FunctionFeatures,
+    collect_all_function_features, learn_from_features, FunctionFeatures,
 };
 use fs::{collect_corpus_files, extract_pattern_name, is_negative_file};
 use metadata::{load_sidecar_toml, parse_frensense_block, synthesize_advisory};

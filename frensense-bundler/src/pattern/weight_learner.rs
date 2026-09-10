@@ -14,7 +14,6 @@ use std::collections::HashMap;
 
 use frensense_engine::corpus::pattern::CorpusPattern;
 use frensense_engine::fingerprint::FunctionFingerprint;
-use frensense_engine::minhash;
 
 pub type FeatureVec = [f64; 15];
 

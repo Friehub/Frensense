@@ -1,8 +1,7 @@
-use frensense_engine::auto_filter::{extract_call_targets, AutoFilterEntry, AutoFilterStats};
+use frensense_engine::auto_filter::{extract_call_targets, AutoFilterStats};
 // SPDX-License-Identifier: MIT
 
 use frensense_engine::corpus::bundle::BundlePattern;
-use frensense_engine::corpus::semantic::SemanticFilter;
 use std::collections::HashMap;
 
 /// A single auto-derived filter entry for one pattern.
@@ -12,7 +11,7 @@ pub fn compute_auto_filters(
     source_texts: &HashMap<String, String>,
 ) -> AutoFilterStats {
     let mut contains_call_to: HashMap<String, Vec<String>> = HashMap::new();
-    let mut contains_node_type: HashMap<String, Vec<String>> = HashMap::new();
+    let contains_node_type: HashMap<String, Vec<String>> = HashMap::new();
 
     // NOTE: The category-level cross-pattern exclusivity loop has been intentionally
     // removed. Grouping patterns by category prefix (e.g., "ns") and then learning

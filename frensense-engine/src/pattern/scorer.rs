@@ -5,7 +5,6 @@ use std::hash::{Hash, Hasher};
 
 use crate::corpus::motifs::MOTIFS;
 use crate::fingerprint::FunctionFingerprint;
-use crate::minhash;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
 use crate::pattern::evidence::MatchEvidence;
@@ -390,7 +389,7 @@ impl PatternScorer {
         dim_cache: Option<&DimCache>,
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
-        let mut raw_dim = |target: &FunctionFingerprint,
+        let raw_dim = |target: &FunctionFingerprint,
                            _is_negative: bool|
          -> crate::pattern::similarity::RawDimensions {
             if let Some(cache) = dim_cache {

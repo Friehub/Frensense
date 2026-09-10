@@ -9,9 +9,7 @@
 //! Falls back to per-category Platt scaling when a pattern has fewer than
 //! MIN_EXAMPLES training pairs.
 
-use std::collections::HashMap;
 
-use crate::corpus::pattern::CorpusPattern;
 use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
 use crate::pattern::similarity::type_usage_overlap;

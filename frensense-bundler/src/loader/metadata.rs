@@ -1,5 +1,4 @@
 use super::types::AdvisoryText;
-use std::path::Path;
 
 pub(crate) fn synthesize_advisory(
     pattern_id: &str,

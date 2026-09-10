@@ -296,11 +296,11 @@ fn python_package_category(pkg: &str) -> Option<PackageCategory> {
         }
 
         // ── HTTP clients (SSRF) ───────────────────────────────────────────
-        "requests" | "httpx" | "aiohttp" | "urllib" | "urllib3" | "httplib2" | "pycurl"
+        "requests" | "httpx" | "urllib" | "urllib3" | "httplib2" | "pycurl"
         | "grequests" => Some(PackageCategory::HttpClient),
 
         // ── Template engines (SSTI) ───────────────────────────────────────
-        "jinja2" | "mako" | "chameleon" | "genshi" | "django" => {
+        "jinja2" | "mako" | "chameleon" | "genshi" => {
             Some(PackageCategory::TemplateEngine)
         } // also framework
 

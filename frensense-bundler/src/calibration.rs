@@ -1,11 +1,8 @@
-use frensense_engine::corpus::bundle::BundlePattern;
 use frensense_engine::corpus::pattern::CorpusPattern;
-use frensense_engine::pattern::scorer::PatternScorer;
 use frensense_engine::per_pattern_calibration::CalibrationParams;
 use std::collections::HashMap;
 
 use frensense_engine::fingerprint::FunctionFingerprint;
-use frensense_engine::minhash;
 
 pub fn train_per_pattern_calibration(
     patterns: &[CorpusPattern],

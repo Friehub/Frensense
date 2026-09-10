@@ -1,4 +1,3 @@
-use frensense_engine::corpus::semantic::LearnedConstraints;
 
 /// Classify a taint source pattern by its likely origin.
 /// Used during taint seeding to capture the correct TaintOrigin

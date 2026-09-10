@@ -1,7 +1,6 @@
 use crate::loader::load_corpus;
 use frensense_engine::auto_filter::AutoFilterEntry;
 use frensense_engine::corpus::bundle::{BundlePattern, BundlePayload};
-use frensense_frc::BundleHeader;
 use std::path::Path;
 // Note: imports will be fixed iteratively.
 pub fn build_bundle_from_patterns(
@@ -111,7 +110,7 @@ pub fn build_bundle_from_patterns(
                 .get(*pid)
                 .cloned()
                 .unwrap_or_default();
-            let fn_re = String::new();
+            let _fn_re = String::new();
             let req_nodes = auto_stats
                 .contains_node_type
                 .get(*pid)

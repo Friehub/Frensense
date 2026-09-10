@@ -161,7 +161,7 @@ impl SemanticFilter {
             }
         }
 
-        let func_src = &source[func_node.start_byte()..func_node.end_byte()];
+        let _func_src = &source[func_node.start_byte()..func_node.end_byte()];
 
         // Check contains_call_to — uses the same text-based extractor as the
         // auto-filter (extract_call_targets) which skips comments and non-call
@@ -680,7 +680,7 @@ mod tests {
 
 pub fn extract_ast_call_targets(node: Node<'_>, source: &str) -> std::collections::HashSet<String> {
     let mut targets = std::collections::HashSet::new();
-    let mut cursor = node.walk();
+    let _cursor = node.walk();
 
     // Perform a pre-order traversal
     let mut visit_stack = vec![node];

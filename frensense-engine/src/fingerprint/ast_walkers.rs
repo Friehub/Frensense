@@ -493,7 +493,7 @@ pub(super) fn extract_tainted_calls(
 
     // 2. Identify initially tainted vars (parameters)
     let mut param_def_nodes = FxHashSet::default();
-    for (i, def) in def_use.definitions.iter().enumerate() {
+    for (_i, def) in def_use.definitions.iter().enumerate() {
         for param in param_names {
             // Check if this definition is for a parameter or a field of a parameter
             if def.name.starts_with(param) {
@@ -504,7 +504,7 @@ pub(super) fn extract_tainted_calls(
 
     // 3. Find all API calls and their arguments
     let mut api_calls = Vec::new();
-    let mut cursor = node.walk();
+    let _cursor = node.walk();
     let mut stack = vec![node];
 
     while let Some(curr) = stack.pop() {
@@ -545,7 +545,7 @@ pub(super) fn extract_tainted_calls(
     }
 
     // 4. For each API call, check if any argument USE node is reachable from a parameter DEF node
-    for (call_node, func_name, args_node) in api_calls {
+    for (_call_node, func_name, args_node) in api_calls {
         let mut is_tainted = false;
 
         // Find uses within the arguments node
