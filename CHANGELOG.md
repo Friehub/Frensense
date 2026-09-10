@@ -21,10 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Minimum-Score Gate Strictness**: Temporarily disabled the hard-coded gate in `runner.rs` that silently dropped matches if structural/textual overlap (`ngram_sim` AND `signature_sim`) was `< 5%`. This ensures valid data-flow matches between small corpus patterns (15 lines) and large, harness-heavy vulnerable functions (78 lines) are not discarded.
 
 ### Benchmark Results (Juice Shop & NodeGoat)
-- **Juice Shop TPs increased from 17 to 25** (a 47% improvement over the regex baseline).
-- **NodeGoat TPs increased from 23 to 27** (a 17% improvement over the regex baseline).
-- **NodeGoat Recall hit 60.0%** (18/30 vulnerabilities discovered).
-- *Note: These improvements were achieved entirely through pure data-flow generalisation (`flow_sim` matching abstract `SemanticMarkers`) across different ORMs without relying on text/AST overlap.*
+- **Juice Shop True Positives**: 112 (Findings on known vulnerable files)
+- **Juice Shop Precision**: 50.00%
+- **Juice Shop File Recall**: 54.05% (20/37 vulnerable files hit)
+- **NodeGoat True Positives**: 74 (Findings on known vulnerable lines)
+- **NodeGoat Precision**: 87.06%
+- **NodeGoat Recall**: 56.67% (17/30 vulnerabilities hit)
+- *Note: These results were achieved without strict gates, allowing the engine's data-flow improvements to generalize across different ORMs.*
 
 
 ## [Unreleased]
