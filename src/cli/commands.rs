@@ -19,7 +19,9 @@ pub fn print_help() {
     println!();
     println!("Detection Options:");
     println!("  --corpus <dir>      Load detection patterns from corpus directory");
-    println!("  --use-compiler      Enable exact semantic resolution (Oxc for TS, rust-analyzer for RS)");
+    println!(
+        "  --use-compiler      Enable exact semantic resolution (Oxc for TS, rust-analyzer for RS)"
+    );
 
     println!("  --threshold <0-1>   Corpus match threshold (default: 0.40)");
     println!("  --language <lang>   Language filter: rust, typescript, javascript, yaml");
@@ -59,7 +61,9 @@ pub fn print_help() {
     println!();
     println!("Corpus Development:");
     println!("  --build-bundle       Compile the corpus into a binary .frc bundle");
-    println!("  --build-bundle-output <file>  Output path for the bundle (default: frensense-corpus.frc)");
+    println!(
+        "  --build-bundle-output <file>  Output path for the bundle (default: frensense-corpus.frc)"
+    );
     println!();
     println!("Information:");
     println!("  --version           Display version and enabled features");

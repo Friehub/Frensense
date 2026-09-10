@@ -1,6 +1,7 @@
 [package]
 name = "frensense-frc"
 version = "0.6.0"
+license = "MIT"
 edition = "2021"
 
 [dependencies]
