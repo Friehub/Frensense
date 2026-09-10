@@ -710,7 +710,7 @@ dependencies = [
 
 [[package]]
 name = "frensense"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "blake3",
  "criterion",
@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "frensense-bundler"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "blake3",
  "frensense-engine",
@@ -759,7 +759,7 @@ dependencies = [
 
 [[package]]
 name = "frensense-engine"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "frensense-frc"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -796,7 +796,7 @@ dependencies = [
 
 [[package]]
 name = "frensense-lang"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "rustc-hash 1.1.0",
  "tree-sitter",
@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "frensense-providers"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "frensense-engine",
  "oxc_allocator",
@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "frensense-runtime"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "base64",
  "clap",

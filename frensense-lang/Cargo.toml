@@ -1,6 +1,6 @@
 [package]
 name        = "frensense-lang"
-version     = "0.1.0"
+version     = "0.6.0"
 edition     = "2021"
 description = "Per-language AST specs for the frensense engine — eliminates all hardcoded node-kind strings"
 license     = "MIT"
