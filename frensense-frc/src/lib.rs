@@ -63,7 +63,7 @@ pub fn read_bundle<T: serde::de::DeserializeOwned>(
     let header: BundleHeader = bincode::deserialize(header_data).map_err(|e| e.to_string())?;
 
     if header.magic != *BUNDLE_MAGIC {
-        return Err(format!("Invalid magic bytes, expected FRC1"));
+        return Err("Invalid magic bytes, expected FRC1".to_string());
     }
 
     if header.version > BUNDLE_VERSION {
