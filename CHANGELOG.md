@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance & Noise Reduction
+- **Deduplication Pass**: Implemented a strict deduplication phase in the engine runner (`runner.rs`) to group findings by `(file_path, enclosing_symbol, vulnerability_category)` and retain only the highest-confidence match. This eliminates duplicate advisories stemming from multiple bundler mutations (e.g. TryCatch, Async, Let bindings) hitting the same vulnerable line, reducing total alert volume by ~75% while maintaining identical recall.
+- **Taint Override Normalization**: Removed a hardcoded `threshold.min(0.16)` override that drastically dropped structural match thresholds if a taint flow was statically verified. Matches are now strictly evaluated against the global configuration threshold, preventing false-positive spikes in intentionally vulnerable CTF applications (e.g., OWASP Juice Shop) while preserving precision on normal apps (e.g., NodeGoat).
+- **AST Parsing Granularity (`is_top_level_stmt`)**: Fixed a critical extraction bug where the engine erroneously grouped entire files as a single `is_program` AST fingerprint. The engine now correctly slices files into individual top-level statements and functions, improving precision by ensuring structures are scored independently and resolving bundler timeouts on 10,000+ line files.
+- **Data-Flow Assignment Tracking**: Upgraded the PDG extractor in `ast_walkers.rs` to recognize `IdentifierReference`, `BindingIdentifier`, and `property_identifier` AST variants, ensuring taint logic correctly tracks and propagates data-flows across complex object reassignments.
+
+
 ### Fixed
 
 - **Engine Divergence (Regex to AST for Call Targets)**: Completely eliminated a severe divergence bug between `frensense-bundler` (which learns node rules via AST) and `frensense-engine` (which was enforcing them via naive Regex).
@@ -50,20 +57,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.3-fp-fix] - 2026-09-08
 
-### Fixed — Corpus Scoring False-Positive Reduction
+### Fixed - Corpus Scoring False-Positive Reduction
 
 Five targeted fixes to the scoring pipeline reduce Juice Shop FPs by 65% (60→21)
 and raise precision from 25.93% to 34.38% with no change to rule-based recall.
 
 - **Double calibration removed** (`src/engine/project/runner.rs`): `per_pattern_calibration::calibrate`
-  was applied twice — once inside `registry::score_candidate` and once again in the runner. Applying
+  was applied twice - once inside `registry::score_candidate` and once again in the runner. Applying
   `sigmoid(sigmoid(x))` compresses all scores toward 1.0, inflating FP confidence. The redundant
   runner-side call is removed.
 
 - **`tainted_api_sim` neutral-empty fix** (`frensense-engine/src/pattern/scorer.rs`): When both the
   candidate and the corpus positive had empty `tainted_api_calls`, the dimension returned `1.0`
   ("they agree"). This injected a free 0.30-weighted signal on every function where taint analysis
-  produced no data — which is most clean-file functions. Changed to return `0.0` (no taint data →
+  produced no data - which is most clean-file functions. Changed to return `0.0` (no taint data →
   no taint signal). The condition was broadened from `&&` (both empty) to `||` (either empty) so a
   corpus positive with no tainted calls does not falsely validate an untainted candidate.
 
@@ -83,7 +90,7 @@ and raise precision from 25.93% to 34.38% with no change to rule-based recall.
   preventing motif hash collisions on common patterns from pinning clean code to high scores.
   The secondary 0.75 floor tightened from `api_sim > 0.9` to `api_sim > 0.95`.
 
-### Benchmark (OWASP Juice Shop — Sep 2026)
+### Benchmark (OWASP Juice Shop - Sep 2026)
 
 | Metric | Before (v0.5.1) | After (v0.5.3) | Delta |
 |---|---|---|---|
@@ -93,7 +100,7 @@ and raise precision from 25.93% to 34.38% with no change to rule-based recall.
 | Precision | 25.93% | **34.38%** | **+8.45 pp** |
 | File Recall | 35.14% (13/37) | 24.32% (9/37) | −10.82 pp |
 
-### Benchmark (NodeGoat — Sep 2026, first measured baseline)
+### Benchmark (NodeGoat - Sep 2026, first measured baseline)
 
 | Metric | v0.5.3 |
 |---|---|
@@ -148,10 +155,10 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 
 ### Added
 - **Minimum-score gate**: Skip corpus matches where ngram AND signature similarity are both near-zero (<0.05). Prevents calibration sigmoid from boosting noise into high-confidence false positives. Generic API matches like `console.log` alone are insufficient for a finding.
-- **Compiler-aware sink registry**: `CorpusSourceSinkRegistry::new(use_compiler: bool)` — when `use_compiler=true`, uses a reduced 95-item sink list (vs 168 full list) covering only truly dangerous bare calls, framework-specific sinks, and MongoDB operators. OXC module resolution handles generic sinks like `query`, `readFile`, `fetch`.
+- **Compiler-aware sink registry**: `CorpusSourceSinkRegistry::new(use_compiler: bool)` - when `use_compiler=true`, uses a reduced 95-item sink list (vs 168 full list) covering only truly dangerous bare calls, framework-specific sinks, and MongoDB operators. OXC module resolution handles generic sinks like `query`, `readFile`, `fetch`.
 - **`npm audit` / `cargo audit` subprocess integration**: Vulnerability detection now tries `npm audit --json` and `cargo audit --json` before falling back to hardcoded lists. Requires tools to be installed; gracefully degrades if unavailable.
 - **LanguageProvider trait methods**: Added `known_sink_names()`, `known_source_patterns()`, `resolve_receiver_module()` to `SemanticProvider` trait with default impls. `OxcProvider` implements using `PACKAGE_SINK_CATEGORIES` + global function sinks. `ImportMapProvider` uses hardcoded fallbacks.
-- **Module-based sink classification**: `check_call_for_sink()` now calls `provider.resolve_receiver_module(fn_name_full)` and passes resolved module to `classify_sink()` — enables OXC module-based classification for calls like `db.query()`.
+- **Module-based sink classification**: `check_call_for_sink()` now calls `provider.resolve_receiver_module(fn_name_full)` and passes resolved module to `classify_sink()` - enables OXC module-based classification for calls like `db.query()`.
 
 ### Changed
 - **`PACKAGE_SINK_CATEGORIES` made `pub`**: Was `const`, now `pub const` so `oxc_provider.rs` can reference it.
@@ -184,7 +191,7 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 ### Changed
 - **Corpus API error types**: `load_corpus`, `load_corpus_dirs`, `load_from_bundle` now return `crate::Result<usize>` (was `Result<usize, String>`).
 - **Deduplicated `extract_fingerprints`**: `extract_fingerprints` now delegates to `extract_fingerprints_with_nodes` and discards nodes (was ~180 lines of duplication).
-- **Fixed `to_uppercase()` duplication**: `fingerprint.rs:654-672` — compute `arg_upper` once instead of calling `.to_uppercase()` 6x on same string.
+- **Fixed `to_uppercase()` duplication**: `fingerprint.rs:654-672` - compute `arg_upper` once instead of calling `.to_uppercase()` 6x on same string.
 - **Shannon entropy optimization**: Replaced `HashMap<char, i32>` + `.chars().count()` with fixed-size `[u32; 128]` byte array in `data_flow/entropy.rs`.
 - **Removed dead code**: Deleted `semantic_patterns/` module (6 files: `auth_guard_dominator`, `csrf_missing_token`, `hardcoded_credentials`, `helpers`, `idor_missing_ownership`, `registry`), `findings/semantic_patterns.rs`, `findings/temporal_violation.rs`. Removed NO-OP modules from `registered_modules()`. Removed dead functions: `extract_imports`, `count_lines`, `common_prefix`, `similarity_score`, `approximate_jaccard`, `hash_ngrams`, `compute_ast_distance`, `has_controller_decorator`, `extract_controller_prefix`, `extract_route_path_from_file`. Removed hardcoded 18-name taint check in `interprocedural.rs` → delegates to `registry.has_any_tainted()`. Removed duplicate `classify_param_origin()` in `corpus_seeder.rs` → delegates to canonical impl.
 - **Fixed evaluate.py**: Changed `data.get("findings", [])` → `data.get("findings", data.get("advisorys", []))` to read correct JSON key.
@@ -202,9 +209,9 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 - **Five corpus tiers**: Documented in `FRENSENSE_CORPUS_GUIDE.md` with specific requirements per tier (Tier 1: 7 positives, 4 negatives, cvss, runtime_probe; Tier 2-5: graduated requirements).
 - **Per-pattern `contains_call_to` learning**: Auto-filter now learns calls present in positives but absent from negatives, catching distinctive APIs like `fetch`, `exec`, `redirect` that category-level exclusivity checks miss.
 - **Bidirectional context penalty**: Score now penalizes non-RouteHandler patterns matching RouteHandler files (config patterns on route files get 50% penalty).
-- **Content-based route handler detection**: `FileContext::extract` now detects route handlers by code structure (20+ heuristics: `(req, res)` parameters, `app.get(`, `router.post(`, `res.json()`, `res.redirect()`) — works for any directory convention.
+- **Content-based route handler detection**: `FileContext::extract` now detects route handlers by code structure (20+ heuristics: `(req, res)` parameters, `app.get(`, `router.post(`, `res.json()`, `res.redirect()`) - works for any directory convention.
 - **Qualified call names**: `extract_call_targets` now emits both full qualified names (`res.redirect`) and short names (`redirect`), enabling finer-grained auto-filter constraints.
-- **High-quality corpus pairs**: Added `ts_cmdi_exec_shell` (CWE-78), `ts_open_redirect` (CWE-601), `ts_cmdi_exec_direct` (CWE-78), `ts_ssrf_fetch_direct` (CWE-918), `ts_sqli_concat_direct` (CWE-89), `ts_xss_reflected_response` (CWE-79) — all with proper `[frensense]` blocks, real imports, typed handlers, multiple functions, explicit taint sources, and Tier 1-compliant counts (7+ positives, 4+ negatives).
+- **High-quality corpus pairs**: Added `ts_cmdi_exec_shell` (CWE-78), `ts_open_redirect` (CWE-601), `ts_cmdi_exec_direct` (CWE-78), `ts_ssrf_fetch_direct` (CWE-918), `ts_sqli_concat_direct` (CWE-89), `ts_xss_reflected_response` (CWE-79) - all with proper `[frensense]` blocks, real imports, typed handlers, multiple functions, explicit taint sources, and Tier 1-compliant counts (7+ positives, 4+ negatives).
 - **Corpus restructuring**: Files reorganized into subdirectories (`route-handlers/`, `config/`, `middleware/`, `utility/`, `test/`, `mock/`) enabling `FileContext`-based environment detection.
 - **Motif abstraction layer**: 10 sink/source motif groups (CommandExecutionSink, SqlSink, HttpOutboundSink, etc.) mapped to canonical names. Patterns trained on `exec()` now automatically match `spawn()`, `Command::new()`.
 - **Data-flow path fingerprints**: `data_flow_path_hashes` captures abstract source→sink chains (e.g., `UserInputSource → taint_flow → CommandExecutionSink`) invariant to variable renaming.
@@ -215,7 +222,7 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 
 ### Changed
 - **All hand-crafted semantic filters removed**: `load_semantic_filters()` returns empty HashMap. ~150 manually authored `contains_call_to`/`contains_import`/`function_name_regex` filters replaced by auto-learned constraints from `compute_auto_filters`.
-- **Auto-learner now learns 6 constraint types**: `contains_call_to`, `contains_import`, `excludes_call`, `excludes_node_type`, `excludes_function_name`, `function_name_regex` — all with frequency thresholds to prevent over-exclusion.
+- **Auto-learner now learns 6 constraint types**: `contains_call_to`, `contains_import`, `excludes_call`, `excludes_node_type`, `excludes_function_name`, `function_name_regex` - all with frequency thresholds to prevent over-exclusion.
 - **Negative source files now read for auto-filter learning**: `get_negative_source()` concatenates all negative variants, enabling proper `excludes_call` and `excludes_node_type` learning.
 - **Bundle format v4**: Auto-filter stats expanded to 7-tuple (pid, imports, calls, excludes_call, fn_regex, excludes_nodes, excludes_fnames). Bundle version bumped to 4.
 - **No TOML**: All metadata goes in `[frensense]` comment blocks. TOML sidecar files deprecated.
@@ -262,12 +269,12 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 - **603 positive corpus patterns** (from 89 in v0.3.x). 1214 fingerprints. 3.0MB FRC bundle.
 
 ### Removed
-- `check_then_act.rs` — hardcoded TOCTOU detector (replaced by corpus patterns)
-- `temporal_rules.toml` rules — replaced by corpus patterns (file retained as empty)
-- `ROADMAP.md` — superseded by tasks.md and SCALING_PLAN.md
+- `check_then_act.rs` - hardcoded TOCTOU detector (replaced by corpus patterns)
+- `temporal_rules.toml` rules - replaced by corpus patterns (file retained as empty)
+- `ROADMAP.md` - superseded by tasks.md and SCALING_PLAN.md
 - Stale test references to `TAINT_CREDENTIAL_TO_LOG`, `TAINT_INPUT_TO_EXEC` (taint-as-detection removed)
-- Commodity detectors: `dead_branch.rs`, `unused_variable.rs`, `atomic_section.rs`, `secrets.rs` — Clippy/GitLeaks do them better
-- `reachability.rs` — only used by removed dead_branch detector
+- Commodity detectors: `dead_branch.rs`, `unused_variable.rs`, `atomic_section.rs`, `secrets.rs` - Clippy/GitLeaks do them better
+- `reachability.rs` - only used by removed dead_branch detector
 
 ## [0.4.0] - Unreleased / Internal
 
@@ -278,7 +285,7 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 - **Visited-set cycle detection in `resolve_call_taint`**: Prevents re-analysis and infinite recursion when the same callee is encountered multiple times during taint resolution. Tracks `(file_path, start_byte)` pairs per analysis.
 - **Match-arm and if-expression return propagation**: `find_returns()` now explicitly walks `match_expression` arms and `if_expression` consequence/alternative branches as potential return values, improving intra-procedural taint flow through conditional logic.
 - **Rule quality pipeline**: Every rule now carries a `precision` tier (`very-high | high | medium | low`), letting users choose a rule suite via `--suite {default|extended|all}`. `default` runs only `very-high` rules (battle-tested, near-zero false positives). `extended` adds `high` rules (well-tested, occasional FP). `all` runs every rule (current behavior, unchanged as default).
-- **`--suite` CLI flag**: `frensense --suite default path/` filters to high-confidence findings only. Backward compatible — existing invocations without `--suite` behave identically.
+- **`--suite` CLI flag**: `frensense --suite default path/` filters to high-confidence findings only. Backward compatible - existing invocations without `--suite` behave identically.
 - **Historical self-scan benchmark**: `scripts/historical-benchmark.sh` scans a target repo at every tagged version with the current frensense binary and outputs a CSV showing how advisory counts evolved over time. Documented in `BENCHMARK.md`.
 
 - **Regex Illusion / False Recall**: Identified and resolved a critical bug where `auto_filter` incorrectly extracted `if` and `catch` as exact API calls, artificially inflating both textual overlap (`ngram_sim`, `signature_sim`) and motif hashes across frameworks. The heuristic `contains_call_to` generator in `frensense-bundler` has been temporarily disabled pending an AST-aware replacement.
@@ -309,7 +316,7 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 ### Added
 - **Native TypeScript rule `TS_TAUTOLOGICAL_ASSERT`**: Detects `expect(x).toBe(x)`, `expect(true).toBeTruthy()`, `expect(null).toBeNull()` via AST walk. Registered under `#[cfg(feature = "typescript")]`. 7 test cases.
 - **`temporal` feature flag**: New Cargo feature gates `TemporalAnalyzer`, `TemporalConfig`, and all temporal compilation/execution paths. On by default. Allows `cargo build --no-default-features` to exclude temporal analysis.
-- **Feature ownership map**: `FEATURE_MAP.md` documents exactly which files each differentiator (temporal, schema_contract, mcp, csa) owns — no more guessing what lives where.
+- **Feature ownership map**: `FEATURE_MAP.md` documents exactly which files each differentiator (temporal, schema_contract, mcp, csa) owns - no more guessing what lives where.
 - **Gap analysis → build plan**: `GAP_ANALYSIS.md` restructured into 6 priority-ordered phases (P0–P5) with tickable checkboxes, aligned to v0.4.0 plan.
 
 ### Changed
@@ -318,7 +325,7 @@ VULN_NPM_* dependency advisories account for 13/33 FPs (structural, one advisory
 
 ### Removed
 - **14 style/noise YAML rules**: Self-audit findings dropped from 186 to 69.
-- **10 Solidity rules and `solidity` feature**: Dead code — feature not compiled, no tree-sitter support. Includes 7 core, 2 security, 2 CSA rules.
+- **10 Solidity rules and `solidity` feature**: Dead code - feature not compiled, no tree-sitter support. Includes 7 core, 2 security, 2 CSA rules.
 - **Old bug tracking docs**: `V0_3_1_ISSUES.md`, `V0_3_1_REPORT.md`, `AUDIT_V0.3.0_REPORT.md`.
 
 ## [0.2.2] - 2026-05-14

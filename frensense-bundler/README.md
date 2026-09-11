@@ -1,16 +1,26 @@
-# frensense-bundler: Corpus Compiler
+# frensense-bundler: Corpus Pipeline & Model Training
 
-`frensense-bundler` is responsible for compiling raw vulnerability examples, security fixes, and configuration definitions into a highly optimized, binary **Frensense Rule Corpus (`.frc`)**.
+`frensense-bundler` is the offline pipeline responsible for compiling human-readable vulnerability corpus definitions (`.ts`, `.rs`, `.py`) into an optimized, serialized mathematical representation (`.frc` bundle) consumed by the `frensense-engine`.
 
-## Purpose
+## Core Responsibilities
 
-Unlike traditional SAST tools that rely on hand-written YAML or JSON rules, Frensense "learns" from real code snippets (the corpus). `frensense-bundler` acts as the compiler that prepares this corpus for the engine.
+### 1. Corpus Ingestion & Verification (`ingestion/`)
+- Parses vulnerability examples (e.g. `ts_sqli_sequelize.ts`) into Tree-sitter ASTs.
+- Classifies expected sinks, sources, and data-flows based on custom JSDoc/Docstring tags (e.g., `@frensense-sink`).
 
-## What it does:
+### 2. Mutation & Data-Augmentation (`mutators/`)
+To maximize recall across wildly different real-world coding styles, the bundler automatically generates structural mutations of the base corpus rules:
+- **Async Wrappers**: Wraps patterns in `async`/`await` functions.
+- **Try/Catch Blocks**: Injects exception handling wrappers around the vulnerability.
+- **Variable Reassignments**: Spreads inline logic out into distinct `let` bindings to fuzz data-flow constraints.
 
-1. **AST Parsing & Fingerprinting:** Ingests raw `.js`, `.ts`, `.rs`, `.go`, etc., snippets from the corpus directories and runs them through the Frensense fingerprinting pipeline.
-2. **Metadata Extraction:** Parses accompanying `.yml` or `.json` metadata files that define the vulnerability type, CWE, OWASP category, and required taint paths.
-3. **Serialization & Compression:** Bundles the pre-computed fingerprints, structural hashes, and semantic markers into a compressed `.frc` binary archive.
+*Note: The Frensense Engine actively deduplicates hits against these mutations at runtime to prevent alert fatigue.*
 
-## Usage in CI/CD
-By shipping a pre-compiled `.frc` bundle, the `frensense` CLI can achieve sub-second startup times in CI environments without needing to re-parse and hash the raw training data on every scan.
+### 3. Dimensional Weight Learning (`pattern/weight_learner.rs`)
+- Frensense does not use hard-coded metric weights. Instead, the bundler runs mini-batch Gradient Descent across the corpus files to learn the optimal feature weights.
+- It extracts positive examples (vulnerable functions) and negative examples (secure/sanitized functions), running a calibration loop to assign high weights to distinguishing features (e.g., Taint flow, API similarity) and low weights to generic features.
+- A critical bias-fix ensures missing dimensions (like cross-file `flow_sim`) are initialized to `0.0` instead of `0.5`, preventing dimension starvation.
+
+### 4. Serialization (`builder.rs`)
+- Packages the patterns, multi-scale hashes, learned weights, and semantic hints into a tightly packed binary `.frc` (Frensense Rule Corpus) file.
+- The compiled `.frc` bundle is embedded directly into the Frensense release binary using `include_bytes!`.

@@ -1,18 +1,22 @@
-# frensense-providers: Compiler-Backed Semantics
+# frensense-providers: Compiler & Semantic Integration
 
-`frensense-providers` acts as a deep-semantic bridge between the Frensense engine and language-specific compilers or advanced frontends.
+`frensense-providers` bridges the gap between shallow syntax trees (Tree-sitter) and deep compiler-level semantics. While `frensense-engine` can operate entirely on AST heuristics, it becomes exponentially more precise when augmented by the exact type-checkers and language servers powering modern toolchains.
 
-While `frensense-lang` uses Tree-sitter for fast, structural AST parsing, `frensense-providers` integrates actual compiler frontends to extract 100% accurate semantic data (type resolution, module resolution, and definition maps) when running in high-accuracy mode (`--use-compiler`).
+## Core Responsibilities
 
-## Supported Providers
+### 1. Compiler Host Integration (`hosts/`)
+The providers crate hosts embedded compiler instances directly within the Frensense memory space, allowing it to instantly query symbol resolutions without spinning up heavy external daemon processes.
 
-### 1. Oxc (JavaScript & TypeScript)
-Integrates the `oxc_semantic` and `oxc_resolver` crates.
-- **Capabilities:** Resolves complex TypeScript interfaces, exact module imports/exports, and precise scope/variable shadowing that Tree-sitter alone cannot decipher.
+- **Rust-Analyzer (`providers/rust_hir/`)**: Embeds rust-analyzer's `hir` (High-Level Intermediate Representation) crates to resolve exact trait implementations, macro expansions, and generic type monomorphizations.
+- **Oxc / TypeScript (`providers/typescript/`)**: Utilizes the high-performance `oxc` toolkit to achieve near-instantaneous global symbol resolution, module tracking, and exact type inference for JavaScript and TypeScript.
 
-### 2. Rust-Analyzer HIR (Rust)
-Integrates the `ra_ap_hir` (High-Level Intermediate Representation) crates from `rust-analyzer`.
-- **Capabilities:** Provides perfect type inference, trait resolution, and macro expansion tracking for Rust codebases.
+### 2. Deep Semantic Insights
+When the Frensense Engine extracts a fingerprint (e.g. `req.body.id`), the AST only knows that it's a `MemberExpression`. The provider allows the engine to query:
+1. "Where was this variable originally defined?"
+2. "What exact struct/class is `req` bound to?"
+3. "Is this type considered a user-controlled input boundary?"
 
-## Architecture
-Providers are optional and feature-gated (`#[cfg(feature = "oxc")]`, `#[cfg(feature = "rust-hir")]`). When enabled, the engine enriches its standard structural data-flow with guaranteed compiler facts, vastly reducing false positives in highly dynamic codebases.
+### 3. Graceful Degradation
+`frensense-providers` is designed to fail gracefully. 
+- If a project fails to compile, is missing dependencies, or uses an unsupported language, the provider simply returns `None` for semantic queries. 
+- The `frensense-engine` will immediately fall back to its statistical tree-sitter heuristics, guaranteeing that a scan will always complete even on severely broken codebases.

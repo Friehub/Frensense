@@ -89,9 +89,20 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 "function_item" | "function_declaration" | "method_definition" | "arrow_function"
             )
         });
-        let is_program = kind == "program" || kind == "source_file";
+        let parent = node.parent();
+        let is_top_level_stmt = parent.map_or(false, |p| {
+            p.kind() == "program" || p.kind() == "source_file"
+        }) && !is_function
+            && matches!(
+                node.kind(),
+                "expression_statement"
+                    | "lexical_declaration"
+                    | "variable_declaration"
+                    | "export_statement"
+                    | "export_assignment"
+            );
 
-        if is_function || is_program {
+        if is_function || is_top_level_stmt {
             // Resolve field names from the spec, falling back to sensible defaults.
             let (name_field, params_field, body_field) = spec
                 .map(|s| match s.classify(kind) {
@@ -105,7 +116,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 })
                 .unwrap_or((Some("name"), "parameters", "body"));
 
-            let body_opt = if is_program {
+            let body_opt = if is_top_level_stmt {
                 Some(node)
             } else {
                 node.child_by_field_name(body_field)
