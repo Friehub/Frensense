@@ -572,12 +572,6 @@ impl<'a> CrossFileVerifier<'a> {
 
         let fn_name_full = &self.source[callee.start_byte()..callee.end_byte()];
 
-        let mut fn_name_field = fn_name_full;
-        if callee.kind() == "member_expression" || callee.kind() == "field_expression" {
-            if let Some(field) = callee.child_by_field_name("field") {
-                fn_name_field = &self.source[field.start_byte()..field.end_byte()];
-            }
-        }
 
         // Apply safe-base filtering to avoid false positives on native objects
         if fn_name_full.starts_with("Object.")

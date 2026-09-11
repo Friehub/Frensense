@@ -8,6 +8,7 @@ use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_wei
 use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::{PatternScorer, ScorerConfig};
+#[allow(unused_imports)]
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -561,7 +562,8 @@ impl PatternRegistry {
         });
 
         // Pre-compute DimCache in parallel across all referenced corpus targets
-        use rayon::prelude::*;
+        #[allow(unused_imports)]
+use rayon::prelude::*;
         let global_dim_cache: crate::pattern::scorer::DimCache = all_candidates
             .par_iter()
             .flat_map(|&(idx, _)| {

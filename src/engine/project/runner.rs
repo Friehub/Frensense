@@ -37,7 +37,7 @@ fn build_rust_hir(engine: &Engine, root: &Path) -> Option<std::sync::Arc<RustHir
         if !manifest.exists() {
             return None;
         }
-        return frensense_engine::rust_hir_provider::build_hir_type_map(&manifest)
+        return frensense_providers::rust_hir_provider::build_hir_type_map(&manifest)
             .map(std::sync::Arc::new)
             .map_err(|e| {
                 tracing::warn!(
