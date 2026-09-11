@@ -1,0 +1,64 @@
+
+=== FRENSENSE OWASP JUICE SHOP BENCHMARK ===
+Ground truth:      37 vulnerable files
+True Positives:    117  (findings on known-vuln files)
+False Positives:   109  (findings on clean files)
+Precision:         51.77%
+File Recall:       59.46%  (22/37 vuln files hit)
+
+--- Missed Vulnerable Files ---
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/lib/startup/registerWebsocketEvents.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/models/feedback.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/models/product.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/models/user.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/b2bOrder.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/basketItems.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/chat.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/checkKeys.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/createProductReviews.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/currentUser.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/easterEgg.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/nftMint.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/premiumReward.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/privacyPolicyProof.ts
+ - /home/oxisrael/Friehub/Taas/benchmarks/juice-shop/routes/web3Wallet.ts
+
+PATTERN                                              |   TP |   FP |    PREC
+-----------------------------------------------------------------------------
+CORPUS_TS_NOSQLI_MONGO_WHERE_M4                      |   17 |   12 | 58.62%
+CORPUS_TS_IDOR_FINDBYPK_BODY_PARAM                   |   14 |    7 | 66.67%
+CORPUS_TS_SQLI_CONCAT_DIRECT                         |   13 |    4 | 76.47%
+CORPUS_TS_NOSQLI_MONGO_COMPUTED_KEY                  |    9 |   12 | 42.86%
+CORPUS_TS_IDOR_CHILD_RESOURCE_M6                     |    7 |    4 | 63.64%
+CORPUS_TS_SQLI_MODELS_QUERY_THEN_DIRECT              |    7 |    2 | 77.78%
+CORPUS_TS_IDOR_UPDATE_NO_OWNERSHIP_M6                |    7 |    4 | 63.64%
+CORPUS_TS_NOSQLI_MONGO_QUERY_SELECTOR                |    5 |    1 | 83.33%
+CORPUS_TS_NOSQLI_MONGO_REGEX                         |    4 |    1 | 80.00%
+CORPUS_TS_IDOR_BODY_USERID                           |    4 |   14 | 22.22%
+CORPUS_TS_NOSQLI_MONGO_WHERE                         |    4 |    1 | 80.00%
+CORPUS_TS_SSRF_REQUEST                               |    3 |    6 | 33.33%
+CORPUS_TS_SSRF_DNS_REBINDING_VECTOR                  |    3 |    5 | 37.50%
+CORPUS_TS_CMDI_TEMPLATE_LITERAL_M10                  |    2 |    2 | 50.00%
+CORPUS_TS_SQLI_MYSQL2                                |    2 |    2 | 50.00%
+CORPUS_TS_XSS_REFLECTED_RESPONSE_ASYNC               |    2 |    4 | 33.33%
+CORPUS_TS_XSS_REFLECTED_RESPONSE                     |    2 |    0 | 100.00%
+CORPUS_TS_SSRF_FETCH                                 |    2 |    2 | 50.00%
+CORPUS_TS_SSRF_AXIOS                                 |    2 |    2 | 50.00%
+CORPUS_TS_NOSQLI_MONGO_WHERE_TPL                     |    1 |    0 | 100.00%
+CORPUS_TS_PATH_TRAVERSAL_READFILE_M6                 |    1 |    1 | 50.00%
+CORPUS_TS_PATH_TRAVERSAL_READFILE_M5                 |    1 |    1 | 50.00%
+CORPUS_TS_XSS_REFLECTED_RESPONSE_M5                  |    1 |    0 | 100.00%
+CORPUS_TS_XSS_STORED_ADMIN_PANEL                     |    1 |    0 | 100.00%
+CORPUS_TS_XSS_REFLECTED_ERROR_MESSAGE                |    1 |    0 | 100.00%
+CORPUS_TS_CMDI_EXEC_SHELL                            |    1 |    0 | 100.00%
+CORPUS_TS_SQLI_QUERY_TEMPLATE_LITERAL_THEN           |    1 |    0 | 100.00%
+CORPUS_TS_IDOR_CHILD_RESOURCE_M5                     |    0 |    7 |  0.00%
+CORPUS_TS_IDOR_CHILD_RESOURCE_M7                     |    0 |    3 |  0.00%
+CORPUS_TS_CMDI_THIRD_PARTY_GIT                       |    0 |    1 |  0.00%
+CORPUS_TS_CMDI_TEMPLATE_LITERAL_M11                  |    0 |    1 |  0.00%
+CORPUS_TS_CMDI_ZIP_UNZIP                             |    0 |    1 |  0.00%
+CORPUS_TS_SQLI_MODELS_SEQUELIZE_THEN                 |    0 |    3 |  0.00%
+CORPUS_TS_SQLI_SEQUELIZE_MODELS_THEN                 |    0 |    3 |  0.00%
+CORPUS_TS_XSS_REFLECTED_JSON_HTML                    |    0 |    1 |  0.00%
+CORPUS_TS_SSRF_NEEDLE_GET                            |    0 |    1 |  0.00%
+CORPUS_TS_CMDI_INDIRECT_VIA_FILE                     |    0 |    1 |  0.00%

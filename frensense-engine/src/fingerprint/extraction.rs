@@ -89,8 +89,9 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 "function_item" | "function_declaration" | "method_definition" | "arrow_function"
             )
         });
+        let is_program = kind == "program" || kind == "source_file";
 
-        if is_function {
+        if is_function || is_program {
             // Resolve field names from the spec, falling back to sensible defaults.
             let (name_field, params_field, body_field) = spec
                 .map(|s| match s.classify(kind) {
@@ -104,7 +105,13 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 })
                 .unwrap_or((Some("name"), "parameters", "body"));
 
-            if let Some(body) = node.child_by_field_name(body_field) {
+            let body_opt = if is_program {
+                Some(node)
+            } else {
+                node.child_by_field_name(body_field)
+            };
+
+            if let Some(body) = body_opt {
                 // ----- Function name resolution -----
                 let mut function_name = "anonymous".to_string();
                 if let Some(nf) = name_field {

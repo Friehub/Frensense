@@ -317,8 +317,11 @@ mod tests {
             5,
             None,
         );
-        assert!(!fps.is_empty(), "no fingerprint for {source}");
-        fps.remove(0)
+        let fp = fps
+            .into_iter()
+            .find(|fp| fp.function_name != "anonymous")
+            .unwrap_or_else(|| panic!("no named function found in {source}"));
+        fp
     }
 
     #[test]

@@ -149,7 +149,7 @@ const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
 
-/// M1: Weighted Jaccard — IDF-weighted intersection / union.
+/// M1: Weighted Jaccard - IDF-weighted intersection / union.
 pub fn weighted_jaccard(
     a: &rustc_hash::FxHashMap<u64, f32>,
     b: &rustc_hash::FxHashMap<u64, f32>,
@@ -159,13 +159,20 @@ pub fn weighted_jaccard(
     }
     let mut intersection = 0.0f64;
     let mut union = 0.0f64;
-    let all_keys: rustc_hash::FxHashSet<_> = a.keys().chain(b.keys()).collect();
-    for key in all_keys {
-        let wa = f64::from(a.get(key).copied().unwrap_or(0.0));
-        let wb = f64::from(b.get(key).copied().unwrap_or(0.0));
-        intersection += wa.min(wb);
-        union += wa.max(wb);
+
+    for (k, &wa) in a {
+        let wb = b.get(k).copied().unwrap_or(0.0);
+        let wa_f = f64::from(wa);
+        let wb_f = f64::from(wb);
+        intersection += wa_f.min(wb_f);
+        union += wa_f.max(wb_f);
     }
+    for (k, &wb) in b {
+        if !a.contains_key(k) {
+            union += f64::from(wb);
+        }
+    }
+
     if union == 0.0 {
         0.0
     } else {
@@ -618,7 +625,7 @@ impl PatternScorer {
         let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
             || (moderate_count >= NOISE_GATE_MIN_MODERATE_DIMS && signal_sum > 0.40);
 
-        // Use the weighted sum as the final score — this is the same type of
+        // Use the weighted sum as the final score - this is the same type of
         // score that the Platt scaling calibration was trained on (weighted
         // sums in the 0.3–0.6 range). Using max_signal or a blended score
         // would shift the distribution, making the sigmoid extrapolate
@@ -678,7 +685,7 @@ impl PatternScorer {
     // A lightweight identity-hash for a fingerprint, used as a cache key.
 }
 
-// Computed from a few identifying fields — collisions are astronomically unlikely.
+// Computed from a few identifying fields - collisions are astronomically unlikely.
 
 pub fn fingerprint_id(fp: &FunctionFingerprint) -> u64 {
     use std::hash::{Hash, Hasher};

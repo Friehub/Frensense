@@ -1,0 +1,80 @@
+[INFO] Ground truth: 30 vulnerabilities across 14 files
+[INFO] Scanning NodeGoat directory: /home/oxisrael/Friehub/Taas/benchmarks/NodeGoat
+[INFO] Total advisories emitted: 89
+
+=== FRENSENSE NODEGOAT BENCHMARK ===
+Ground truth:      30 vulnerabilities
+True Positives:    77  (findings on known-vuln lines)
+False Positives:   12  (findings on clean lines)
+Precision:         86.52%
+Recall:            56.67%  (17/30 vulnerabilities hit)
+
+--- Missed Vulnerabilities ---
+ - A2-NO_SESSION_REGENERATE: app/routes/session.js:116
+ - A2-USER_ENUM: app/routes/session.js:82
+ - A3-MARKED_VULN: server.js:126
+ - A3-RAW_ERROR_TEMPLATE: app/views/error-template.html:11
+ - A5-COOKIE_FLAGS: server.js:93
+ - A5-COOKIE_NAME: server.js:87
+ - A5-NOSNIFF: server.js:64
+ - A5-SAVE_UNINIT: server.js:84
+ - A5-X_POWERED_BY: server.js:42
+ - A6-HARDCODED_SECRET: config/env/all.js:8
+ - A8-CSRF_FORM_FIELD: app/views/contributions.html:89
+ - A8-CSRF_MIDDLEWARE: server.js:104
+ - HPP_DOS: app/routes/profile.js:95
+
+PATTERN                                              |   TP |   FP |    PREC
+-----------------------------------------------------------------------------
+CORPUS_TS_OPEN_REDIRECT                              |    7 |    0 | 100.00%
+CORPUS_TS_NS_SSN_PLAINTEXT                           |    7 |    7 | 50.00%
+CORPUS_TS_NS_PLAINTEXT_PASSWORD                      |    3 |    0 | 100.00%
+CORPUS_TS_NOSQLI_MONGO_WHERE_TPL                     |    2 |    0 | 100.00%
+CORPUS_TS_SQLI_MODELS_SEQUELIZE_THEN                 |    2 |    0 | 100.00%
+CORPUS_TS_NS_EVAL                                    |    2 |    0 | 100.00%
+CORPUS_TS_SQLI_SEQUELIZE_MODELS_THEN                 |    2 |    0 | 100.00%
+CORPUS_TS_JUICESHOP_NOSQLI_WHERE_TPL                 |    2 |    1 | 66.67%
+CORPUS_TS_SSRF_NEEDLE_GET                            |    2 |    0 | 100.00%
+CORPUS_TS_SSRF_FETCH                                 |    2 |    0 | 100.00%
+CORPUS_TS_SSRF_AXIOS                                 |    2 |    0 | 100.00%
+CORPUS_TS_SSRF_REQUEST                               |    2 |    0 | 100.00%
+CORPUS_TS_CJS_SSRF_REQUEST_LIB                       |    2 |    0 | 100.00%
+CORPUS_TS_RACE_CACHE_DOUBLE_POPULATION               |    2 |    0 | 100.00%
+CORPUS_TS_REDIRECT_UNVALIDATED_ASYNC                 |    2 |    0 | 100.00%
+A2-WEAK_PW                                           |    2 |    0 | 100.00%
+CORPUS_TS_EVENTS_MAX_LISTENERS_EXCEEDED              |    1 |    0 | 100.00%
+CORPUS_TS_SSE_DATA_INJECTION                         |    1 |    0 | 100.00%
+CORPUS_TS_HEADER_INJECTION_LOCATION                  |    1 |    0 | 100.00%
+CORPUS_TS_EXPRESS5_REDIRECT_ORDER_LEAK               |    1 |    0 | 100.00%
+A5-HELMET_MISSING                                    |    1 |    0 | 100.00%
+A5-X_POWERED_BY                                      |    1 |    0 | 100.00%
+A5-NOSNIFF                                           |    1 |    0 | 100.00%
+A5-COOKIE_NAME                                       |    1 |    0 | 100.00%
+A8-CSRF_MIDDLEWARE                                   |    1 |    0 | 100.00%
+A5-SAVE_UNINIT                                       |    1 |    0 | 100.00%
+A5-HTTP                                              |    1 |    0 | 100.00%
+A3-SWIG_AUTOESCAPE                                   |    1 |    0 | 100.00%
+A3-MARKED_VULN                                       |    1 |    0 | 100.00%
+A5-COOKIE_FLAGS                                      |    1 |    0 | 100.00%
+A2-USER_ENUM                                         |    1 |    1 | 50.00%
+A7-NO_ADMIN_CHECK                                    |    1 |    0 | 100.00%
+A10-SSRF                                             |    1 |    0 | 100.00%
+A3-WRONG_ENCODING                                    |    1 |    0 | 100.00%
+REDOS                                                |    1 |    0 | 100.00%
+A4-IDOR_PARAM                                        |    1 |    0 | 100.00%
+A2-NO_SESSION_REGENERATE                             |    1 |    0 | 100.00%
+A1-LOG_INJECTION                                     |    1 |    0 | 100.00%
+VULN_NPM_BCRYPT_NODEJS                               |    1 |    0 | 100.00%
+VULN_NPM_MARKED                                      |    1 |    0 | 100.00%
+VULN_NPM_NEEDLE                                      |    1 |    0 | 100.00%
+VULN_NPM_NODE_ESAPI                                  |    1 |    0 | 100.00%
+VULN_NPM_SWIG                                        |    1 |    0 | 100.00%
+VULN_NPM_HELMET                                      |    1 |    0 | 100.00%
+VULN_NPM_EXPRESS_SESSION                             |    1 |    0 | 100.00%
+VULN_NPM_FOREVER                                     |    1 |    0 | 100.00%
+VULN_NPM_GRUNT                                       |    1 |    0 | 100.00%
+VULN_NPM_MOCHA                                       |    1 |    0 | 100.00%
+VULN_NPM_NODEMON                                     |    1 |    0 | 100.00%
+VULN_NPM_SELENIUM_WEBDRIVER                          |    1 |    0 | 100.00%
+CORPUS_TS_NS_NO_ADMIN_CHECK                          |    0 |    2 |  0.00%
+CORPUS_TS_SECURITY_HEADER_XFRAME_MISSING             |    0 |    1 |  0.00%

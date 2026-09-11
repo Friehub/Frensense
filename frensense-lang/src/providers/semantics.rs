@@ -47,7 +47,7 @@ pub const JS_SEMANTIC_MAPPINGS: &[(&str, &[&str])] = &[
             "http.request",
         ],
     ),
-    ("SINK_EXEC", &["exec", "spawn", "child_process"]),
+    ("SINK_EXEC", &["exec", "spawn", "child_process", "execSync"]),
     ("SINK_NOSQL_QUERY", &["$where"]),
     ("OP_JWT_VERIFY", &["jwt.verify", "jose.jwtVerify"]),
     (
@@ -60,4 +60,25 @@ pub const JS_SEMANTIC_MAPPINGS: &[(&str, &[&str])] = &[
             "searchParams.",
         ],
     ),
+    // --- Security, Cookies, and Sessions ---
+    (
+        "OP_SET_COOKIE",
+        &["res.cookie", ".cookie(", ".setHeader", "set-cookie"],
+    ),
+    ("OP_SET_HEADER", &["res.setHeader", "res.header", "res.set"]),
+    ("OP_APP_DISABLE", &["app.disable", ".disable("]),
+    ("OP_SESSION_CREATE", &["express-session", "session("]),
+    (
+        "OP_SESSION_REGENERATE",
+        &["req.session.regenerate", ".regenerate("],
+    ),
+    ("OP_CSRF_PROTECT", &["csurf", "csrf"]),
+    ("OP_MARKDOWN_PARSE", &["marked(", "marked.parse"]),
+    ("OP_HASH_COMPARE", &["bcrypt.compare", "timingSafeEqual"]),
+    (
+        "OP_HASH_CREATE",
+        &["bcrypt.hash", "createHash", "createHmac"],
+    ),
+    ("OP_HPP_PROTECT", &["hpp()"]),
+    ("OP_HELMET_PROTECT", &["helmet()"]),
 ];
