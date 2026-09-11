@@ -181,9 +181,12 @@ jobs:
       - name: Run Full Regression Suite
         run: cargo test
 
+      - name: Build Release Binaries
+        run: cargo build --release --bin frensense
+
       - name: CLI Binary Smoke Test
         run: |
-          binary="./target/debug/frensense"
+          binary="./target/release/frensense"
           "$binary" --version
           "$binary" --help
           echo 'fn main() { let x = 1; }' > /tmp/test_smoke.rs
@@ -192,7 +195,7 @@ jobs:
 
       - name: Baseline Regression Check
         run: |
-          binary="./target/debug/frensense"
+          binary="./target/release/frensense"
           baseline="corpus/baselines/targets.json"
           mkdir -p "$(dirname "$baseline")"
           echo "Emitting baseline for corpus targets..."
