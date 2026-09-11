@@ -483,7 +483,7 @@ impl LanguageSpec for TypeScriptSpec {
     fn map_api_to_semantic_token(&self, call: &str) -> Option<&'static str> {
         for (token, prefixes) in crate::providers::semantics::JS_SEMANTIC_MAPPINGS {
             for prefix in *prefixes {
-                if call.starts_with(prefix) {
+                if call.contains(prefix) {
                     return Some(*token);
                 }
             }
@@ -715,7 +715,7 @@ impl LanguageSpec for JavaScriptSpec {
     fn map_api_to_semantic_token(&self, call: &str) -> Option<&'static str> {
         for (token, prefixes) in crate::providers::semantics::JS_SEMANTIC_MAPPINGS {
             for prefix in *prefixes {
-                if call.starts_with(prefix) {
+                if call.contains(prefix) {
                     return Some(*token);
                 }
             }

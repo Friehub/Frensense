@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-/// Universal semantic tokens mapped to framework-specific API prefixes.
+/// Universal semantic tokens mapped to framework-specific API substrings.
 /// This allows structural matching to generalize across frameworks
 /// by boosting similarity when two different APIs map to the same token.
 
@@ -10,35 +10,29 @@ pub const JS_SEMANTIC_MAPPINGS: &[(&str, &[&str])] = &[
         &[
             "prisma.",
             "db.prepare",
-            "mongoose.model.find",
-            "mongoose.model.findOne",
-            "collection.find",
-            "allocationsCol.find",
-            "benefitsCol.find",
-            "contributionsCol.find",
-            "researchCol.find",
-            "memosCol.find",
-            "userCol.find",
+            ".find",
+            ".findOne",
+            ".findAll",
+            ".findBy",
+            ".getBy",
+            ".count",
             "db.collection",
-            "findBy",
-            "getBy",
         ],
     ),
     (
         "SINK_DB_WRITE",
         &[
-            "prisma.",
-            "db.prepare",
-            "mongoose.model.save",
-            "mongoose.model.update",
-            "collection.insert",
-            "collection.update",
-            "allocationsCol.update",
-            "benefitsCol.update",
-            "contributionsCol.update",
-            "researchCol.update",
-            "memosCol.update",
-            "userCol.update",
+            ".save",
+            ".update",
+            ".updateOne",
+            ".updateMany",
+            ".insert",
+            ".insertOne",
+            ".insertMany",
+            ".destroy",
+            ".delete",
+            ".deleteOne",
+            ".deleteMany",
         ],
     ),
     (
@@ -53,11 +47,8 @@ pub const JS_SEMANTIC_MAPPINGS: &[(&str, &[&str])] = &[
             "http.request",
         ],
     ),
-    ("SINK_EXEC", &["exec", "spawn", "child_process", "execSync"]),
-    (
-        "SINK_NOSQL_QUERY",
-        &["$where", "allocationsCol.find", "db.collection"],
-    ),
+    ("SINK_EXEC", &["exec", "spawn", "child_process"]),
+    ("SINK_NOSQL_QUERY", &["$where"]),
     ("OP_JWT_VERIFY", &["jwt.verify", "jose.jwtVerify"]),
     (
         "SOURCE_HTTP_REQUEST",
