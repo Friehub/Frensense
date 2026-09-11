@@ -1,6 +1,7 @@
+#![allow(unused)]
 // SPDX-License-Identifier: MIT
 
-//! # FRC — Frensense Reference Corpus Bundle Format
+//! # FRC - Frensense Reference Corpus Bundle Format
 //!
 //! A pre-compiled binary format that embeds corpus fingerprints.
 //! This crate handles the `.frc` file envelope (header, versioning, checksum)

@@ -1,3 +1,5 @@
+#![allow(unused)]
+#![allow(clippy::all)]
 // SPDX-License-Identifier: MIT
 #![warn(clippy::unwrap_used)]
 
@@ -305,7 +307,7 @@ fn main() -> Result<()> {
             .output()
             .map_err(|e| {
                 frensense::FrensenseError::Config(format!(
-                    "Failed to run git diff: {e} — is this a git repository?"
+                    "Failed to run git diff: {e} - is this a git repository?"
                 ))
             })?;
         if !output.status.success() {

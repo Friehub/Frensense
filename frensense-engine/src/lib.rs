@@ -1,3 +1,4 @@
+#![allow(unused)]
 #![allow(clippy::all)]
 #![allow(dead_code, unreachable_patterns, unreachable_code)]
 #![allow(
@@ -57,7 +58,7 @@ pub struct FileId(pub u32);
 pub struct ScopeId(pub u64);
 
 /// Structured result of analyzing a single source file.
-/// This is the primary output of the engine — no advisories, no rules.
+/// This is the primary output of the engine - no advisories, no rules.
 #[derive(Debug, Clone)]
 pub struct AnalysisResult {
     pub language: String,

@@ -1,3 +1,5 @@
+#![allow(unused)]
+#![allow(clippy::all)]
 // SPDX-License-Identifier: MIT
 //! Retrain calibration parameters from corpus data.
 //!

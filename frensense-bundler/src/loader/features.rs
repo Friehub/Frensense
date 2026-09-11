@@ -133,11 +133,11 @@ pub(crate) fn learn_from_features(
     }
 
     // Collect all call targets from positives and negatives
-    let pos_calls: Vec<&str> = pos_features
+    let pos_calls: std::collections::HashSet<&str> = pos_features
         .iter()
         .flat_map(|f| f.calls.iter().map(std::string::String::as_str))
         .collect();
-    let neg_calls: Vec<&str> = neg_features
+    let neg_calls: std::collections::HashSet<&str> = neg_features
         .iter()
         .flat_map(|f| f.calls.iter().map(std::string::String::as_str))
         .collect();
@@ -154,7 +154,7 @@ pub(crate) fn learn_from_features(
         .collect();
 
     // M2: Auto-promote taint sources to required_calls when positives have taint
-    // and negatives do not — eliminates FP on non-user-controlled code paths.
+    // and negatives do not - eliminates FP on non-user-controlled code paths.
     let pos_has_taint = pos_features.iter().any(|f| !f.taint_sources.is_empty());
     let neg_has_taint = neg_features.iter().any(|f| !f.taint_sources.is_empty());
     if pos_has_taint && !neg_has_taint {
@@ -184,11 +184,11 @@ pub(crate) fn learn_from_features(
         .collect();
 
     // Same for node types
-    let pos_nts: Vec<&str> = pos_features
+    let pos_nts: std::collections::HashSet<&str> = pos_features
         .iter()
         .flat_map(|f| f.node_types.iter().map(std::string::String::as_str))
         .collect();
-    let neg_nts: Vec<&str> = neg_features
+    let neg_nts: std::collections::HashSet<&str> = neg_features
         .iter()
         .flat_map(|f| f.node_types.iter().map(std::string::String::as_str))
         .collect();
