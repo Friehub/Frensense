@@ -140,6 +140,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 let mut multi_scale_hashes = token_ngrams_positional(&tokens, window_size);
                 multi_scale_hashes.extend(token_ngrams_positional(&tokens, window_size + 2));
                 multi_scale_hashes.extend(token_ngrams_positional(&tokens, window_size + 5));
+                multi_scale_hashes.sort_unstable();
+                multi_scale_hashes.dedup();
 
                 // ----- AST-aware features -----
                 let control_flow = extract_control_flow(body, source_code, spec);
