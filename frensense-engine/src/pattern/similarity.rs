@@ -226,7 +226,7 @@ pub fn compute_dimensions(
 ) -> RawDimensions {
     let ngram_sim =
         if candidate.weighted_ngram_hashes.is_empty() || target.weighted_ngram_hashes.is_empty() {
-            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
+            jaccard_sorted(&candidate.ngram_hashes, &target.ngram_hashes)
         } else {
             crate::pattern::scorer::weighted_jaccard(
                 &candidate.weighted_ngram_hashes,
@@ -234,7 +234,7 @@ pub fn compute_dimensions(
             )
         };
 
-    let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
+    let semantic_sim = jaccard_sorted(&candidate.semantic_markers, &target.semantic_markers);
 
     let ast_sim = if !candidate.skeleton_hashes.is_empty()
         && !target.skeleton_hashes.is_empty()
@@ -245,18 +245,18 @@ pub fn compute_dimensions(
             &target.skeleton_hashes,
         )
     } else {
-        jaccard(&candidate.structural_markers, &target.structural_markers)
+        jaccard_sorted(&candidate.structural_markers, &target.structural_markers)
     };
 
     let signature_sim = jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams);
     let param_type_sim = jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
     let type_usage_sim = type_usage_overlap(candidate, target);
-    let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
+    let cf_sim = jaccard_sorted(&candidate.control_flow_hashes, &target.control_flow_hashes);
 
-    let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
+    let api_sim_full = jaccard_sorted(&candidate.api_calls, &target.api_calls);
     let api_sim_seg =
         if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
-            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+            jaccard_sorted(&candidate.api_call_segments, &target.api_call_segments)
         } else {
             0.0
         };
@@ -280,7 +280,7 @@ pub fn compute_dimensions(
             jaccard_sorted(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
 
-    let config_sim = jaccard(
+    let config_sim = jaccard_sorted(
         &candidate.config_literal_hashes,
         &target.config_literal_hashes,
     );
@@ -297,7 +297,7 @@ pub fn compute_dimensions(
 
     let arg_type_sim =
         if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
-            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+            jaccard_sorted(&candidate.argument_call_types, &target.argument_call_types)
         } else {
             0.0
         };
@@ -305,7 +305,7 @@ pub fn compute_dimensions(
     let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
         && !target.literal_pattern_hashes.is_empty()
     {
-        jaccard(
+        jaccard_sorted(
             &candidate.literal_pattern_hashes,
             &target.literal_pattern_hashes,
         )
