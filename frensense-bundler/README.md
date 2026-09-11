@@ -24,3 +24,6 @@ To maximize recall across wildly different real-world coding styles, the bundler
 ### 4. Serialization (`builder.rs`)
 - Packages the patterns, multi-scale hashes, learned weights, and semantic hints into a tightly packed binary `.frc` (Frensense Rule Corpus) file.
 - The compiled `.frc` bundle is embedded directly into the Frensense release binary using `include_bytes!`.
+
+### Important Note on Custom Corpora
+Because the bundle is embedded via `include_bytes!`, the engine operates strictly on the corpus it was compiled with. Currently, **there is no runtime flag to load an external `.frc` file.** Therefore, if users write their own custom rules and build a new bundle (`frensense --build-bundle`), they **must** recompile the entire Frensense Rust binary (`cargo build --release`) for the engine to recognize and use the new patterns.

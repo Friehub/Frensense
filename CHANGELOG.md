@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Known Architectural Limitations
+- **Corpus Recompilation**: As currently designed, the Frensense engine embeds the compiled `.frc` corpus bundle directly into the binary at compile time via `include_bytes!`. Consequently, users who use the bundler to create custom vulnerability signatures cannot load them at runtime (e.g., no `--load-bundle` CLI flag). Users must currently execute a full `cargo build --release` after building a new corpus to embed it into the scanner.
+
+
 ### Performance & Noise Reduction
 - **Deduplication Pass**: Implemented a strict deduplication phase in the engine runner (`runner.rs`) to group findings by `(file_path, enclosing_symbol, vulnerability_category)` and retain only the highest-confidence match. This eliminates duplicate advisories stemming from multiple bundler mutations (e.g. TryCatch, Async, Let bindings) hitting the same vulnerable line, reducing total alert volume by ~75% while maintaining identical recall.
 - **Taint Override Normalization**: Removed a hardcoded `threshold.min(0.16)` override that drastically dropped structural match thresholds if a taint flow was statically verified. Matches are now strictly evaluated against the global configuration threshold, preventing false-positive spikes in intentionally vulnerable CTF applications (e.g., OWASP Juice Shop) while preserving precision on normal apps (e.g., NodeGoat).
