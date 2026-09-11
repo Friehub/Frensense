@@ -28,6 +28,7 @@ pub struct FunctionFingerprint {
     pub control_flow_sequence: Vec<u64>,
     /// API calls: hashes of the full callee expression.
     pub api_calls: Vec<u64>,
+    pub semantic_api_tokens: Vec<u64>,
     /// Last-segment hashes of chained method calls.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub api_call_segments: Vec<u64>,

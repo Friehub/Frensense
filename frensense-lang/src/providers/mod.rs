@@ -4,3 +4,4 @@ pub mod go;
 pub mod javascript;
 pub mod python;
 pub mod rust_lang;
+pub mod semantics;

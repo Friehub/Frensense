@@ -150,8 +150,16 @@ pub fn extract_fingerprints_with_nodes<'a>(
 
                 let mut api_calls_set = rustc_hash::FxHashSet::default();
                 let mut api_call_segments_set = rustc_hash::FxHashSet::default();
+                let mut semantic_api_tokens_set = rustc_hash::FxHashSet::default();
                 for name in &raw_call_names {
                     use std::hash::{Hash, Hasher};
+
+                    if let Some(token) = spec.and_then(|s| s.map_api_to_semantic_token(name)) {
+                        let mut h = rustc_hash::FxHasher::default();
+                        token.hash(&mut h);
+                        semantic_api_tokens_set.insert(h.finish());
+                    }
+
                     let is_macro = name.starts_with("macro_");
                     let mut h = rustc_hash::FxHasher::default();
                     name.hash(&mut h);
@@ -169,6 +177,9 @@ pub fn extract_fingerprints_with_nodes<'a>(
                 api_calls.sort_unstable();
                 let mut api_call_segments: Vec<u64> = api_call_segments_set.into_iter().collect();
                 api_call_segments.sort_unstable();
+                let mut semantic_api_tokens: Vec<u64> =
+                    semantic_api_tokens_set.into_iter().collect();
+                semantic_api_tokens.sort_unstable();
 
                 let property_accesses = extract_property_accesses(body, source_code, spec);
                 let semantic_markers = extract_semantic_markers(
@@ -280,6 +291,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     control_flow_hashes: control_flow,
                     control_flow_sequence,
                     api_calls,
+                    semantic_api_tokens,
                     api_call_segments,
                     property_accesses,
                     motif_hashes,

@@ -600,6 +600,7 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
                 control_flow_hashes: Vec::new(),
                 control_flow_sequence: Vec::new(),
                 api_calls: Vec::new(),
+                semantic_api_tokens: Vec::new(),
                 api_call_segments: Vec::new(),
                 property_accesses: Vec::new(),
                 motif_hashes: Vec::new(),

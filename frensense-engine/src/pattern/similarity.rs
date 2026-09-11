@@ -260,7 +260,15 @@ pub fn compute_dimensions(
         } else {
             0.0
         };
-    let api_sim = api_sim_full.max(api_sim_seg);
+
+    let semantic_api_sim =
+        if !candidate.semantic_api_tokens.is_empty() && !target.semantic_api_tokens.is_empty() {
+            jaccard_sorted(&candidate.semantic_api_tokens, &target.semantic_api_tokens)
+        } else {
+            0.0
+        };
+
+    let api_sim = api_sim_full.max(api_sim_seg).max(semantic_api_sim);
 
     let motif_sim = containment(&candidate.motif_hashes, &target.motif_hashes);
     let flow_sim = containment(
