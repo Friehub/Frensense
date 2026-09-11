@@ -572,7 +572,6 @@ impl<'a> CrossFileVerifier<'a> {
 
         let fn_name_full = &self.source[callee.start_byte()..callee.end_byte()];
 
-
         // Apply safe-base filtering to avoid false positives on native objects
         if fn_name_full.starts_with("Object.")
             || fn_name_full.starts_with("Array.")

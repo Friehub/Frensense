@@ -563,7 +563,7 @@ impl PatternRegistry {
 
         // Pre-compute DimCache in parallel across all referenced corpus targets
         #[allow(unused_imports)]
-use rayon::prelude::*;
+        use rayon::prelude::*;
         let global_dim_cache: crate::pattern::scorer::DimCache = all_candidates
             .par_iter()
             .flat_map(|&(idx, _)| {
