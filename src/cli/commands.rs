@@ -77,13 +77,17 @@ pub fn print_help() {
     println!("  frensense                            Scan current directory");
     println!("  frensense src/                       Scan a specific directory");
     println!("  frensense main.rs                    Scan a single file");
-    println!("  frensense --language rust .           Scan Rust files only");
-    println!("  frensense --diff-only --strict        Check changed files, fail on any finding");
-    println!("  frensense --json --suite extended     Export extended scan as JSON");
-    println!("  frensense --disable-rule RUST_STD_OUTPUT .    Disable a specific rule");
-    println!("  frensense --override-severity FILE_TOO_LONG:info .  Change rule severity");
-    println!("  frensense --emit-baseline baseline.json   Save baseline");
-    println!("  frensense --compare-baseline baseline.json  Check for regressions");
+    println!(
+        "  frensense src/ --use-compiler        Scan with exact semantic resolution (Oxc/rust-analyzer)"
+    );
+    println!("  frensense --diff-only --strict       Check changed files, fail on any finding");
+    println!("  frensense --json                     Export scan results as JSON");
+    println!("  frensense --corpus-bundle custom.frc Use a specific compiled corpus bundle");
+    println!("  frensense corpus/targets/ --build-bundle  Compile training pairs into .frc bundle");
+    println!("  frensense --emit-baseline baseline.json   Save current findings as a baseline");
+    println!(
+        "  frensense --compare-baseline baseline.json  Check for regressions against baseline"
+    );
     println!();
     println!("Learn Mode:");
     println!("  frensense --learn positive.ts negative.ts    Learn patterns from examples");
