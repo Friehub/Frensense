@@ -646,19 +646,27 @@ fn run_corpus_scan(
                     m.score
                 };
 
-                // Minimum-score gate: skip findings where key similarity dimensions are near-zero.
-                // This prevents the calibration sigmoid from boosting noise into high-confidence FPs.
+                // ── Structural Integrity Gate ────────────────────────────────────────
+                // Root cause of gradient-descent FP overfitting: the bundler ML learns
+                // that `flow_sim` (taint path) is the single most predictive feature and
+                // assigns it near-100% weight. This causes ANY function with a
+                // user-input -> outbound HTTP taint path (e.g. a clean fetch() to Paystack)
+                // to simultaneously match CMDI, NoSQLi, SSRF, and Mass Assignment rules,
+                // even when the dangerous API (exec, $where, db.create) is absent.
+                //
+                // Fix: Structural floor gate.
+                // If a candidate has near-zero textual overlap with the vulnerable pattern
+                // (`ngram_sim < 0.10`), it MUST be anchored by either a solid API overlap
+                // (`api_sim >= 0.35`) or a strong structural shape (`ast_sim >= 0.50`).
+                //
+                // This drops FPs like `paystack.adapter.ts` vs NoSQLi (where `ngram=0.0`,
+                // `api=0.17` because it only matched `res.json`), while preserving short,
+                // highly-concentrated true positives like `eval(input)` (where `ngram=0.0`
+                // but `api=1.00` and `ast=0.80`).
                 if let Some(ref evidence) = m.matched_evidence {
-                    let _ngram_low = evidence.ngram_sim < 0.05;
-                    let _sig_low = evidence.signature_sim < 0.05;                    // Skip if both ngram AND signature are near-zero (no textual/structural match).
-                    // API similarity alone is insufficient - generic calls like `console.log`
-                    // match many patterns without real vulnerability overlap.
-                    // FIXME: We temporarily disable this gate because Juice Shop's 78-line functions 
-                    // vs Corpus 15-line functions naturally drop below 5% textual overlap.
-                    // if ngram_low && sig_low {
-                    //     continue;
-                    // }
-
+                    if evidence.ngram_sim < 0.10 && evidence.api_sim < 0.35 {
+                        continue;
+                    }
                 }
 
                 let mut taint_verified = false;
