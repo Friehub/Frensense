@@ -1,6 +1,6 @@
 [package]
 name = "frensense-engine"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Friehub Developers"]
 edition = "2024"
 description = "Frensense engine core - structural code analysis primitives (fingerprints, profiles, semantic graph, taint, temporal events)"
@@ -12,8 +12,8 @@ rust-version = "1.95"
 name = "frensense_engine"
 
 [dependencies]
-frensense-lang = { path = "../frensense-lang", version = "0.6.0" }
-frensense-frc = { path = "../frensense-frc", version = "0.6.0" }
+frensense-lang = { path = "../frensense-lang", version = "0.6.1" }
+frensense-frc = { path = "../frensense-frc", version = "0.6.1" }
 
 tracing = "0.1"
 tree-sitter = "0.23"

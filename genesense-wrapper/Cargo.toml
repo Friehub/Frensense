@@ -1,6 +1,6 @@
 [package]
 name = "genesense"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Friehub Developers"]
 edition = "2024"
 description = "Deprecated. The project has been renamed to frensense. Please install frensense instead."
@@ -14,4 +14,4 @@ name = "genesense"
 path = "src/main.rs"
 
 [dependencies]
-frensense = { path = "../", version = "0.6.0" }
+frensense = { path = "../", version = "0.6.1" }

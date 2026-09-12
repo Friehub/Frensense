@@ -291,9 +291,9 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
-          npx frensense --version
+          ./node_modules/.bin/frensense --version
           echo 'fn main() { let x = 1; }' > test.rs
-          npx frensense test.rs --json > /dev/null
+          ./node_modules/.bin/frensense test.rs --json > /dev/null
           echo 'NPM package OK'
 
       - name: Check version not already published
@@ -314,9 +314,9 @@ jobs:
           npm init -y > /dev/null
           npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
           npm install "$GITHUB_WORKSPACE"/genesense-npm/genesense-*.tgz
-          npx genesense --version
+          ./node_modules/.bin/genesense --version
           echo "fn main() { let y = 2; }" > test2.rs
-          npx genesense test2.rs --json > /dev/null
+          ./node_modules/.bin/genesense test2.rs --json > /dev/null
           echo "Genesense NPM wrapper OK"
 
       - name: Publish to NPM

@@ -1,6 +1,6 @@
 [package]
 name = "frensense-providers"
-version = "0.6.0"
+version = "0.6.1"
 license = "MIT"
 edition = "2024"
 description = "Compiler-backed semantic providers for Frensense"
