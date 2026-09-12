@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789235623844,
+  "lastUpdate": 1789236280922,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -2663,6 +2663,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/75b4135ebcd751d7d78519624d40623438ab1d2f"
         },
         "date": 1789235622149,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 1671,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 1682,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "committer": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "distinct": false,
+          "id": "d26ea72ee12bf5faf2502aea1a047952aafbb808",
+          "message": "fix(ci): explicitly pass -p frensense-bundler to cargo run to avoid workspace resolution error",
+          "timestamp": "2026-09-12T18:58:07+01:00",
+          "tree_id": "d9b7568606f1916ecfc66a769cd6d52145d4f64b",
+          "url": "https://github.com/Friehub/Frensense/commit/d26ea72ee12bf5faf2502aea1a047952aafbb808"
+        },
+        "date": 1789236279796,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
