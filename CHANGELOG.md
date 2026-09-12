@@ -5,8 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Known Issues
-- **ML Gradient Descent Disabled**: The ML gradient descent training in `frensense-bundler/src/pattern/weight_learner.rs` has been intentionally disabled via an early return. Training was aggressively overfitting on the custom corpus and causing precision to plummet (e.g. 52% precision on NodeGoat). The engine will use hardcoded `DEFAULT_WEIGHTS` until the training math is fixed in a future PR.
+### Fixed
+- **ML Gradient Descent - Sigmoid Saturation (Bug 1)**: `predict()` in `frensense-bundler/src/pattern/weight_learner.rs` previously computed `sigmoid(w·x)` where both the weight vector and feature vector live in `[0, 1]`, constraining sigmoid output to `[0.50, 0.73]`. The gradient `(pred - label)` was always ~0.5 in magnitude for both classes, making discrimination impossible. Fixed by centering and scaling features before the dot product: `Σ wᵢ·(xᵢ - 0.5)·4`, giving sigmoid outputs in `[0.12, 0.88]`.
+- **ML Gradient Descent - Missing L2 Regularization (Bug 2)**: No regularization meant individual noisy training examples could dominate the gradient on small corpora. Fixed by adding an L2 penalty anchored to `DEFAULT_WEIGHTS` (`λ=0.01`): `grad[i] += λ·(w[i] - DEFAULT_WEIGHTS[i])`. This blends data signal with the hand-tuned prior instead of regularizing toward zero.
+- **ML Gradient Descent - Degenerate Label=1 Training Pairs (Bug 3)**: Label=1 examples were constructed as all `(posᵢ, posⱼ)` intra-positive pairs, measuring similarity between two different shapes of the same bug. These pairs produce low similarity vectors, the opposite of what the scorer sees at inference time when it takes `max(candidate, positives)`. Fixed with leave-one-out: for each positive `pᵢ`, find its best-matching counterpart among all other positives and use that feature vector as the label=1 example.
+- **ML Gradient Descent - `MIN_TRAINING_PAIRS` Too Low (Bug 4)**: Threshold was 5. A 15-parameter model trained on 5 feature vectors is severely underdetermined. Raised to 20. Patterns with fewer pairs now fall back to the global learned weights instead of per-pattern overfitted weights.
+- **ML Gradient Descent - Dead `result` HashMap + Early Return (Bug 5)**: The function allocated a first `HashMap`, populated it with `DEFAULT_WEIGHTS` for every pattern, and returned early - the second `HashMap` and all real training logic below was unreachable dead code. The early return and dead first block are now removed; training is re-enabled.
+- **ML Gradient Descent - Explicit `return` Idiom Violation (Bug 6)**: `compute_features` used an explicit `return` on its last expression. Fixed to use implicit return consistent with the rest of the codebase.
+- **Gradient Descent Weight Init (prior session)**: `train_weights` now initializes `w` from `DEFAULT_WEIGHTS` instead of `[0.0; 15]`, so poor convergence degrades gracefully to the known-good prior.
 
 ## [0.6.0] - 2026-09-10
 ### Architecture & Core Engine
