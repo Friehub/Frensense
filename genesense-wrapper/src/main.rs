@@ -7,7 +7,7 @@ fn main() {
     eprintln!("Please update your scripts and run: cargo install frensense");
     eprintln!("=======================================================\n");
 
-    // nosemgrep: rust.lang.security.args.args
+    // nosemgrep: rust.lang.security.args-os.args-os
     let args: Vec<_> = env::args_os().skip(1).collect();
 
     let status = Command::new("frensense")
