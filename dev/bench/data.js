@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789240399063,
+  "lastUpdate": 1789240588600,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Benchmark": [
@@ -97,6 +97,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/c70ff0020fc876bc679d1a9cc9233635c85417f0"
         },
         "date": 1789239673014,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 1671,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 1682,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "committer": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "distinct": false,
+          "id": "c3b8417ee94459919e02a2ae70b1f46ebd2f2b4b",
+          "message": "fix(release): add missing cargo descriptions and fix NPM local tarball testing paths",
+          "timestamp": "2026-09-12T20:11:12+01:00",
+          "tree_id": "9beda8319a6becd8cda49320c67e84165faafab0",
+          "url": "https://github.com/Friehub/Frensense/commit/c3b8417ee94459919e02a2ae70b1f46ebd2f2b4b"
+        },
+        "date": 1789240587726,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
