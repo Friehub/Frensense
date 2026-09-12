@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789238968022,
+  "lastUpdate": 1789239673746,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Benchmark": [
@@ -23,6 +23,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/8380b4d83538fc10fd2d0f936a1633bdb60c28f7"
         },
         "date": 1789238967159,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 1671,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 1682,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "committer": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "distinct": false,
+          "id": "c70ff0020fc876bc679d1a9cc9233635c85417f0",
+          "message": "fix(release): publish internal crates sequentially and fix npm package resolution",
+          "timestamp": "2026-09-12T19:55:49+01:00",
+          "tree_id": "96ba9c500d8ea0b3e3c8f307eb79498e5d493645",
+          "url": "https://github.com/Friehub/Frensense/commit/c70ff0020fc876bc679d1a9cc9233635c85417f0"
+        },
+        "date": 1789239673014,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
