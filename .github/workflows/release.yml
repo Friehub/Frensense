@@ -133,6 +133,17 @@ jobs:
       - name: Build CLI Binary
         run: cargo build --release --target ${{ matrix.settings.target }}
 
+      - name: Build FRC Bundle
+        if: matrix.settings.host == 'ubuntu-latest'
+        run: cargo run --release -p frensense-bundler --bin frensense-bundler -- -c corpus/targets -o frensense-corpus.frc
+
+      - name: Upload FRC Artifact
+        if: matrix.settings.host == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frensense-corpus
+          path: frensense-corpus.frc
+
       - name: Smoke test CLI binary
         shell: bash
         run: |
@@ -223,6 +234,10 @@ jobs:
             --token ${{ secrets.CARGO_REGISTRY_TOKEN }} \
             --no-default-features \
             --features rust,typescript,fingerprinting
+      - name: Publish Genesense Wrapper
+        run: |
+          cargo publish -p genesense \
+            --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # 5. Publish to NPM
   publish-npm:
@@ -267,6 +282,7 @@ jobs:
           cp artifacts/cli-x86_64-apple-darwin/frensense          ./dist/binaries/frensense-macos-x64
           cp artifacts/cli-aarch64-apple-darwin/frensense          ./dist/binaries/frensense-macos-arm64
           cp artifacts/cli-x86_64-pc-windows-msvc/frensense.exe   ./dist/binaries/frensense-windows-x64.exe
+          cp artifacts/frensense-corpus/frensense-corpus.frc      ./dist/frensense-corpus.frc
 
       - name: Test NPM package before publish
         run: |
@@ -289,8 +305,29 @@ jobs:
             exit 0
           fi
 
+      - name: Test Genesense NPM Wrapper before publish
+        run: |
+          cd genesense-npm
+          PACKAGE=$(npm pack --silent 2>&1 | tail -1)
+          echo "Genesense wrapper package: $PACKAGE"
+          TESTDIR=$(mktemp -d)
+          cd "$TESTDIR"
+          npm init -y > /dev/null
+          npm install "$GITHUB_WORKSPACE/genesense-npm/$PACKAGE" > /dev/null 2>&1
+          npx genesense --version
+          echo "fn main() { let y = 2; }" > test2.rs
+          npx genesense test2.rs --json > /dev/null
+          echo "Genesense NPM wrapper OK"
+
       - name: Publish to NPM
         run: npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Genesense NPM Wrapper
+        run: |
+          cd genesense-npm
+          npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -323,6 +360,7 @@ jobs:
             if [[ "$target" == *"windows"* ]]; then ext=".exe"; fi
             cp "${dir}frensense${ext}" "release-binaries/frensense-${target}${ext}"
           done
+          cp artifacts/frensense-corpus/frensense-corpus.frc release-binaries/
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

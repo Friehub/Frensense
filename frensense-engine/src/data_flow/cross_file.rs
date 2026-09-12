@@ -26,7 +26,7 @@ pub struct CrossFileTaintResolver {
     call_graph: FxHashMap<String, Vec<String>>,
     reverse_call_graph: FxHashMap<String, Vec<String>>,
     module_map: FxHashMap<String, Vec<String>>,
-    /// Key: `"{file_path}:{symbol_name}"` — O(1) lookup.
+    /// Key: `"{file_path}:{symbol_name}"` - O(1) lookup.
     /// Previously keyed by `(symbol, file)` tuple which required O(n) scan in `find_taint_source`.
     exposed_taint: FxHashMap<String, TaintOrigin>,
 }
@@ -83,8 +83,8 @@ impl CrossFileTaintResolver {
     ///
     /// BFS forward from each registered source up to `PROPAGATE_MAX_DEPTH`.
     /// Call this once after all initial `register_exposed_taint` calls.
-    pub fn propagate_taint(&mut self) {
-        // exposed_taint is now keyed by "{file}:{symbol}" directly — no reconstruction needed.
+    pub fn propagate_taint(&mut self, sanitizers: Option<&crate::data_flow::SanitizerRegistry>) {
+        // exposed_taint is now keyed by "{file}:{symbol}" directly - no reconstruction needed.
         let seeds: Vec<(String, TaintOrigin)> = self
             .exposed_taint
             .iter()
@@ -104,6 +104,12 @@ impl CrossFileTaintResolver {
 
                 if let Some(callees) = self.call_graph.get(&current) {
                     for callee in callees {
+                        if let Some(reg) = sanitizers {
+                            let callee_name = callee.split(':').last().unwrap_or(callee.as_str());
+                            if reg.is_full_sanitizer(callee_name) {
+                                continue;
+                            }
+                        }
                         if visited.insert(callee.clone()) {
                             // Register the intermediate function as a taint source
                             // using the flat "{file}:{symbol}" key format.
@@ -174,7 +180,7 @@ impl CrossFileTaintResolver {
     }
 
     fn find_taint_source(&self, key: &str) -> Option<(TaintOrigin, String)> {
-        // O(1) direct lookup — the key is stored as "{file_path}:{symbol_name}".
+        // O(1) direct lookup - the key is stored as "{file_path}:{symbol_name}".
         self.exposed_taint
             .get(key)
             .map(|origin| (origin.clone(), key.to_string()))
@@ -270,7 +276,7 @@ mod tests {
         );
 
         // After propagation: intermediate is transitively seeded
-        resolver.propagate_taint();
+        resolver.propagate_taint(None);
         assert!(
             resolver.exposed_taint.contains_key("a.rs:intermediate"),
             "propagate_taint should register intermediate as a taint source"
@@ -314,7 +320,7 @@ mod tests {
         }
 
         resolver.register_exposed_taint("f0", "a.rs", TaintOrigin::UserInput);
-        resolver.propagate_taint();
+        resolver.propagate_taint(None);
 
         // f1-f5 should be seeded, f6 should not (depth 6 > PROPAGATE_MAX_DEPTH=5)
         for i in 1..=5 {

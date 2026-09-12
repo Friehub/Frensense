@@ -47,7 +47,7 @@ pub static PARAM_TAINT_DECORATORS: &[(&str, TaintOrigin)] = &[
     // WebSocket
     ("MessageBody", TaintOrigin::UserInput),
     ("ConnectedSocket", TaintOrigin::Network),
-    // Injected services — NOT user input
+    // Injected services - NOT user input
     ("Inject", TaintOrigin::UserInput), // ambiguous, treat as user input
 ];
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Implementation 2 — [`OxcProvider`]: exact JavaScript / TypeScript
+//! Implementation 2 - [`OxcProvider`]: exact JavaScript / TypeScript
 //! resolution via the Oxc compiler.
 //!
 //! Oxc gives us what the tree-sitter heuristics could never have:
@@ -13,8 +13,8 @@
 //!   `hono`) is still classified as `hono`.
 //!
 //! [`OxcProvider`] implements the same [`SemanticProvider`] contract as
-//! [`crate::semantic::ImportMapProvider`], but answers from the Oxc-built
-//! [`OxcSymbolTable`] instead of the tree-sitter [`crate::import_resolver::ImportMap`].
+//! [`frensense_engine::semantic::ImportMapProvider`], but answers from the Oxc-built
+//! [`OxcSymbolTable`] instead of the tree-sitter [`frensense_engine::import_resolver::ImportMap`].
 //! The name-based fallbacks survive only for unannotated code.
 //!
 //! This module is compiled only under the `oxc` feature.
@@ -31,11 +31,11 @@ use oxc_span::SourceType;
 use oxc_syntax::module_record::ImportImportName;
 use rustc_hash::FxHashMap;
 
-use crate::context::Environment;
-use crate::corpus::source_sink::{CorpusSourceSinkRegistry, SinkCategory};
-use crate::data_flow::TaintOrigin;
-use crate::fingerprint::FunctionFingerprint;
-use crate::semantic::{
+use frensense_engine::context::Environment;
+use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, SinkCategory};
+use frensense_engine::data_flow::TaintOrigin;
+use frensense_engine::fingerprint::FunctionFingerprint;
+use frensense_engine::semantic::{
     HTTP_FRAMEWORK_PACKAGES, OxcSymbolTable, PACKAGE_SINK_CATEGORIES, ResolvedModule,
     SemanticProvider, TypeContext, base_type_name, package_sink_category,
 };
@@ -121,7 +121,7 @@ fn ts_resolver(cwd: &Path) -> Resolver {
 /// import (`./util`) resolves to a file but no package; a bare import (`pg`)
 /// resolves to a package. When the direct package is not one the engine knows
 /// about, re-exporting barrels are followed (up to [`MAX_BARREL_DEPTH`]) so
-/// that, e.g. `@hono/node-server` — which re-exports `hono` — still lands on
+/// that, e.g. `@hono/node-server` - which re-exports `hono` - still lands on
 /// the known `hono` package.
 fn resolve_module(resolver: &Resolver, from: &Path, request: &str) -> ResolvedModule {
     let direct = resolve_once(resolver, from, request);
@@ -173,7 +173,7 @@ fn follow_barrels(resolver: &Resolver, from: &Path, request: &str, depth: usize)
         return resolved;
     }
 
-    // Every `export ... from 'mod'` this barrel performs is followed — with
+    // Every `export ... from 'mod'` this barrel performs is followed - with
     // the re-export resolved relative to the barrel's own directory, not the
     // original file's.
     for export in &module_record.indirect_export_entries {
@@ -238,7 +238,7 @@ fn resolve_init<'a>(
     match init {
         Expression::NewExpression(new) => resolve_expression(&new.callee, bindings),
         Expression::CallExpression(call) => {
-            // `const client = require('pg')` — CommonJS equivalent of an import.
+            // `const client = require('pg')` - CommonJS equivalent of an import.
             if is_require(call) {
                 return require_target(call);
             }
@@ -296,7 +296,7 @@ fn resolve_member<'a>(
     resolve_expression(member.object(), bindings)
 }
 
-/// Implementation 2 — exact resolution for JavaScript / TypeScript.
+/// Implementation 2 - exact resolution for JavaScript / TypeScript.
 ///
 /// Answers the [`SemanticProvider`] questions from the [`OxcSymbolTable`] built
 /// by [`build_oxc_symbol_table`]. Where Oxc knows the module a name comes from,
@@ -355,7 +355,7 @@ impl SemanticProvider for OxcProvider {
                 return Some(TaintOrigin::UserInput);
             }
         }
-        // 2. A type annotation imported from an HTTP framework is user input —
+        // 2. A type annotation imported from an HTTP framework is user input -
         //    Oxc confirmed the type name resolves to that package.
         if let Some(annotation) = type_annotation {
             let base = base_type_name(annotation);
@@ -369,7 +369,7 @@ impl SemanticProvider for OxcProvider {
             }
         }
         // 3. Fall back to name matching for unannotated parameters.
-        crate::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
+        frensense_engine::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
     }
 
     fn classify_sink(
@@ -440,7 +440,7 @@ impl SemanticProvider for OxcProvider {
 
     fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: if any type used by the function resolves to an HTTP
-        // framework package, Oxc has confirmed it — a single signal suffices.
+        // framework package, Oxc has confirmed it - a single signal suffices.
         let type_confirmed = fp.type_usages.iter().any(|annotation| {
             self.symbol_table
                 .types
@@ -456,8 +456,11 @@ impl SemanticProvider for OxcProvider {
             return true;
         }
         // Fall back to the ≥2 heuristic signals for untyped code.
-        crate::function_role::classify_role_with_imports(fp, Some(type_context.import_map))
-            == crate::function_role::FunctionRole::HttpHandler
+        frensense_engine::function_role::classify_role_with_imports(
+            fp,
+            Some(type_context.import_map),
+            None,
+        ) == frensense_engine::function_role::FunctionRole::HttpHandler
     }
 
     fn file_imports(&self, package: &str) -> bool {
@@ -472,7 +475,7 @@ impl SemanticProvider for OxcProvider {
     }
 
     fn known_sink_names(&self) -> Vec<(&'static str, SinkCategory)> {
-        // Global sinks that don't require module resolution — these are always
+        // Global sinks that don't require module resolution - these are always
         // dangerous regardless of which file imports them.
         let mut sinks: Vec<(&str, SinkCategory)> = vec![
             ("eval", SinkCategory::CodeExecution),
@@ -502,7 +505,7 @@ impl SemanticProvider for OxcProvider {
             ("$.extend", SinkCategory::CodeExecution),
             ("jQuery.extend", SinkCategory::CodeExecution),
             ("setPrototypeOf", SinkCategory::CodeExecution),
-            // SSTI — template engine renders
+            // SSTI - template engine renders
             ("ejs.render", SinkCategory::CodeExecution),
             ("ejs.renderFile", SinkCategory::CodeExecution),
             ("pug.compile", SinkCategory::CodeExecution),
@@ -541,7 +544,7 @@ impl SemanticProvider for OxcProvider {
             ("window.location", SinkCategory::OpenRedirect),
         ];
 
-        // Package-level sinks from PACKAGE_SINK_CATEGORIES — any method call
+        // Package-level sinks from PACKAGE_SINK_CATEGORIES - any method call
         // on a value from these packages is a sink, regardless of method name.
         for &(_package, ref category) in PACKAGE_SINK_CATEGORIES {
             // The package itself isn't a sink name; the methods on it are.
@@ -891,7 +894,7 @@ mod tests {
             },
         );
         let p = OxcProvider::new(Arc::new(table), registry(), None);
-        let import_map = crate::import_resolver::ImportMap::new();
+        let import_map = frensense_engine::import_resolver::ImportMap::new();
         let ctx = TypeContext::from_import_map(&import_map);
 
         let handler = FunctionFingerprint {

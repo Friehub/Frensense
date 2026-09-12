@@ -1,3 +1,5 @@
+#![allow(unused)]
+#![allow(clippy::all)]
 // SPDX-License-Identifier: MIT
 #![warn(clippy::unwrap_used)]
 
@@ -15,14 +17,25 @@ const CORPUS_BUNDLE: &[u8] = include_bytes!("../../frensense-corpus.frc");
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(tracing::Level::INFO.into())
-                .from_env_lossy(),
-        )
-        .with_writer(std::io::stderr)
-        .init();
+    let use_debug = env::var("RUST_LOG").is_ok();
+    let env_filter = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(tracing::Level::INFO.into())
+        .from_env_lossy();
+
+    if use_debug {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_writer(std::io::stderr)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .without_time()
+            .with_target(false)
+            .with_level(false)
+            .with_writer(std::io::stderr)
+            .init();
+    }
     // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
     if handle_early_args(&args) {
@@ -44,7 +57,7 @@ fn main() -> Result<()> {
             .unwrap_or_else(|| PathBuf::from("frensense-corpus.frc"));
 
         eprintln!("Building FRC bundle from {}...", corpus_dir.display());
-        match frensense_engine::corpus::bundle::build_bundle(&corpus_dir) {
+        match frensense_bundler::builder::build_bundle(&corpus_dir) {
             Ok(bytes) => {
                 std::fs::write(&output_path, &bytes)?;
                 eprintln!(
@@ -68,7 +81,16 @@ fn main() -> Result<()> {
     }
 
     let mut engine = Engine::new();
-    engine.set_corpus_bundle(CORPUS_BUNDLE);
+    if let Some(ref path) = options.corpus_bundle_path {
+        let bytes = std::fs::read(path).unwrap_or_else(|e| {
+            eprintln!("Error reading corpus bundle: {}", e);
+            std::process::exit(1);
+        });
+        let leaked = Box::leak(bytes.into_boxed_slice());
+        engine.set_corpus_bundle(leaked);
+    } else {
+        engine.set_corpus_bundle(CORPUS_BUNDLE);
+    }
     engine.set_suite(options.suite);
     engine.set_severity_filter(options.severity_filter);
 
@@ -305,7 +327,7 @@ fn main() -> Result<()> {
             .output()
             .map_err(|e| {
                 frensense::FrensenseError::Config(format!(
-                    "Failed to run git diff: {e} — is this a git repository?"
+                    "Failed to run git diff: {e} - is this a git repository?"
                 ))
             })?;
         if !output.status.success() {

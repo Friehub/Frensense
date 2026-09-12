@@ -271,12 +271,12 @@ impl ProjectProfile {
                         .find(|(k, _)| k.to_lowercase() == seg.to_lowercase())
                     {
                         details.push(format!(
-                            "Name casing: '{}' uses '{}' — project uses '{}' (seen {}x).",
+                            "Name casing: '{}' uses '{}' - project uses '{}' (seen {}x).",
                             fp.function_name, seg, entry.0, entry.1.count
                         ));
                     } else {
                         details.push(format!(
-                            "Name segment: '{}' uses '{}' — never seen in this project.",
+                            "Name segment: '{}' uses '{}' - never seen in this project.",
                             fp.function_name, seg
                         ));
                     }
@@ -315,7 +315,7 @@ impl ProjectProfile {
                 if !lang_profile.type_usage_freq.contains_key(ty) {
                     if let Some(entry) = lang_profile.type_usage_freq.get(ty) {
                         details.push(format!(
-                            "Type usage: '{}' — seen {}x in project.",
+                            "Type usage: '{}' - seen {}x in project.",
                             ty, entry.count
                         ));
                     } else {
@@ -330,7 +330,7 @@ impl ProjectProfile {
                 / lang_profile.total_functions.max(1) as f64;
             if fp.comment_density < 0.01 && avg_density > 0.05 {
                 details.push(
-                    "No comments in function body — project average suggests ~5% comment density."
+                    "No comments in function body - project average suggests ~5% comment density."
                         .to_string(),
                 );
             }

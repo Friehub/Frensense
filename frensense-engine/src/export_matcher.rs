@@ -4,7 +4,7 @@
 //!
 //! Frameworks like Next.js (App + Pages Router), SvelteKit, Cloudflare
 //! Workers, and AWS Lambda use file conventions and named/default exports
-//! to declare HTTP handlers — no explicit route registration needed.
+//! to declare HTTP handlers - no explicit route registration needed.
 //!
 //! This module walks top-level export statements and classifies exported
 //! functions/variables against a table of framework-specific rules keyed

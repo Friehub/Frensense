@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 
-//! Implementation 3 — [`RustHirProvider`]: type-checked Rust facts via the
+//! Implementation 3 - [`RustHirProvider`]: type-checked Rust facts via the
 //! rust-analyzer HIR (`ra_ap_*`), opt-in with the `rust-hir` feature /
 //! `--use-compiler`.
 //!
 //! The tree-sitter heuristics guess at Rust semantics from names and syntax.
 //! The HIR replaces those guesses with type-checked facts:
 //!
-//! - `async fn handler(body: Json<CreateUser>) -> impl IntoResponse` — the
+//! - `async fn handler(body: Json<CreateUser>) -> impl IntoResponse` - the
 //!   return type's `impl Trait` bounds name `IntoResponse`, so this is an HTTP
 //!   handler because the *trait says so*, not because of a `req` parameter
 //!   name or a `res.send()` call. This is the "one fact" the HIR gives us.
-//! - `Json<CreateUser>` — the parameter's type resolves to `axum::extract::Json`,
+//! - `Json<CreateUser>` - the parameter's type resolves to `axum::extract::Json`,
 //!   so the parameter is user input even when its name is `body`.
-//! - `mutex.lock().unwrap()` — `MutexGuard` implements `Drop`; the RAII
-//!   exemption in [`crate::temporal`] is a *type* fact, not a `let`-binding
+//! - `mutex.lock().unwrap()` - `MutexGuard` implements `Drop`; the RAII
+//!   exemption in [`frensense_engine::temporal`] is a *type* fact, not a `let`-binding
 //!   syntax guess. (Expression-level; currently the module exposes the
 //!   function-level facts that feed into it.)
 //!
@@ -34,11 +34,13 @@ use ra_ap_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLi
 use ra_ap_vfs::{FileId, VfsPath, file_set::FileSet};
 use rustc_hash::FxHashMap;
 
-use crate::corpus::source_sink::SinkCategory;
-use crate::data_flow::TaintOrigin;
-use crate::fingerprint::FunctionFingerprint;
-use crate::function_role::FunctionRole;
-use crate::semantic::{FunctionHirFact, HirTypeMap, SemanticProvider, TypeContext, base_type_name};
+use frensense_engine::corpus::source_sink::SinkCategory;
+use frensense_engine::data_flow::TaintOrigin;
+use frensense_engine::fingerprint::FunctionFingerprint;
+use frensense_engine::function_role::FunctionRole;
+use frensense_engine::semantic::{
+    FunctionHirFact, HirTypeMap, SemanticProvider, TypeContext, base_type_name,
+};
 
 /// Canonical-path prefixes that mark a type as HTTP user input. The HIR has
 /// already resolved the base name to a real type; these only decide whether
@@ -58,9 +60,9 @@ const HTTP_EXTRACTOR_PREFIXES: &[&str] = &[
 
 /// Canonical-path prefixes whose types are dangerous by construction: any
 /// value of such a type is a sink in that category regardless of the method
-/// name. The Rust analogue of [`crate::semantic`]'s JS `PACKAGE_SINK_CATEGORIES`;
+/// name. The Rust analogue of [`frensense_engine::semantic`]'s JS `PACKAGE_SINK_CATEGORIES`;
 /// this is what takes over the Rust sink names the `--use-compiler` path
-/// removes from [`crate::corpus::source_sink::ALWAYS_REGISTER_SINKS`].
+/// removes from [`frensense_engine::corpus::source_sink::ALWAYS_REGISTER_SINKS`].
 const RUST_SINK_TYPES: &[(&str, SinkCategory)] = &[
     ("sqlx::", SinkCategory::SqlInjection),
     ("tokio_postgres::", SinkCategory::SqlInjection),
@@ -81,9 +83,9 @@ const RUST_SINK_TYPES: &[(&str, SinkCategory)] = &[
 /// (so it needs a buildable workspace) and then type-checks on demand, which
 /// is why the `RustHirProvider` is opt-in.
 ///
-/// The returned map is fully owned — the HIR database is dropped before this
-/// returns — so it can be shared across threads like
-/// [`crate::semantic::OxcSymbolTable`].
+/// The returned map is fully owned - the HIR database is dropped before this
+/// returns - so it can be shared across threads like
+/// [`frensense_engine::semantic::OxcSymbolTable`].
 ///
 /// Returns an error string on failure (no manifest, cargo metadata failure).
 pub fn build_hir_type_map(manifest_path: &Path) -> Result<HirTypeMap, String> {
@@ -121,7 +123,7 @@ pub fn build_hir_type_map(manifest_path: &Path) -> Result<HirTypeMap, String> {
 
         // The crate graph only gives the loader crate *root* files. Submodule
         // files (`mod foo;`) are resolved lazily through the source-root file
-        // set, so walk every crate's source directory to discover them too —
+        // set, so walk every crate's source directory to discover them too -
         // otherwise `use axum::Json` where `Json` lives in `axum/src/extract.rs`
         // would resolve to an unknown type.
         for crate_id in crate_graph.iter() {
@@ -257,7 +259,7 @@ fn collect_hir_type_map(
                 let name = func.name(db).as_str().to_owned();
                 let is_async = func.is_async(db);
                 // The type-checked return type. For `async fn` this is the
-                // `Future`'s `Output` — otherwise `ret_type` yields the opaque
+                // `Future`'s `Output` - otherwise `ret_type` yields the opaque
                 // `impl Future<...>` and the handler's own trait is hidden.
                 let ret_type = if is_async {
                     func.async_ret_type(db).unwrap_or_else(|| func.ret_type(db))
@@ -325,7 +327,7 @@ fn rust_sink_category(path: &str) -> Option<SinkCategory> {
         .map(|&(_, category)| category)
 }
 
-/// Implementation 3 — answers the semantic questions from the type-checked
+/// Implementation 3 - answers the semantic questions from the type-checked
 /// [`HirTypeMap`]. Shared across files like the other providers; constructed
 /// once per project with the result of [`build_hir_type_map`].
 #[derive(Debug, Clone)]
@@ -360,7 +362,7 @@ impl SemanticProvider for RustHirProvider {
             }
         }
         // Name-based fallback for unannotated parameters.
-        crate::data_flow::classify_param_name_in_context(name, None)
+        frensense_engine::data_flow::classify_param_name_in_context(name, None)
     }
 
     fn classify_sink(
@@ -388,7 +390,7 @@ impl SemanticProvider for RustHirProvider {
 
     fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: the fingerprinted function returns `impl
-        // IntoResponse` according to the HIR — a single signal is sufficient.
+        // IntoResponse` according to the HIR - a single signal is sufficient.
         if let Some(facts) = type_context
             .hir_types
             .and_then(|map| map.function_facts(&fp.file_path, &fp.function_name))
@@ -401,7 +403,8 @@ impl SemanticProvider for RustHirProvider {
         }
         // Fall back to the ≥2 heuristic signals for functions the HIR did not
         // analyse (different target, parse failure, ...).
-        crate::function_role::classify_role_with_imports(fp, None) == FunctionRole::HttpHandler
+        frensense_engine::function_role::classify_role_with_imports(fp, None, None)
+            == FunctionRole::HttpHandler
     }
 
     fn file_imports(&self, _package: &str) -> bool {
@@ -535,7 +538,7 @@ mod tests {
         );
 
         // The handler is recognised from its return type alone.
-        let import_map = crate::import_resolver::ImportMap::new();
+        let import_map = frensense_engine::import_resolver::ImportMap::new();
         let mut ctx = TypeContext::from_import_map(&import_map);
         ctx.hir_types = Some(&map);
         let handler = fingerprint(main_rs.to_str().unwrap(), "handler");

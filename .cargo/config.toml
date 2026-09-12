@@ -1,11 +1,11 @@
 [alias]
-# Core logic tests — run all lib integration tests.
+# Core logic tests - run all lib integration tests.
 test-core = "test --no-default-features --features rust,typescript,fingerprinting,remediation,solidity"
 
 # Doc-test run without node bindings.
 test-doc = "test --no-default-features --features rust,typescript,fingerprinting,remediation,solidity --doc"
 
-# Full linting pass (excludes node crate — clippy on napi cdylib requires napi-build toolchain).
+# Full linting pass (excludes node crate - clippy on napi cdylib requires napi-build toolchain).
 lint = "clippy --all-features -- -W clippy::pedantic -D warnings"
 
 # Build the native .node addon for Node.js consumption.

@@ -123,7 +123,7 @@ fn test_sarif_output_format() {
 }
 
 #[test]
-#[ignore = "baseline file contains mixed output — needs investigation"]
+#[ignore = "baseline file contains mixed output - needs investigation"]
 fn test_emit_and_compare_baseline() {
     let dir = tempdir().unwrap();
     let baseline_path = dir.path().join("baseline.json");
@@ -139,7 +139,7 @@ fn test_emit_and_compare_baseline() {
     ]);
     assert!(baseline_path.exists(), "Baseline file should be created");
 
-    // Read baseline file — extract the JSON array after [SUCCESS] marker
+    // Read baseline file - extract the JSON array after [SUCCESS] marker
     let baseline_content = fs::read_to_string(&baseline_path).unwrap();
     let baseline: Vec<serde_json::Value> = baseline_content
         .split_once("[\n")
@@ -148,7 +148,7 @@ fn test_emit_and_compare_baseline() {
         .unwrap_or_default();
     assert!(!baseline.is_empty(), "Baseline should have findings");
 
-    // Compare — same code should show same findings count (no regression)
+    // Compare - same code should show same findings count (no regression)
     let (stdout, _, _) = run_frensense(&[
         dir.path().to_str().unwrap(),
         "--compare-baseline",
@@ -171,7 +171,7 @@ fn test_language_filter() {
     let dir = tempdir().unwrap();
     write_leaking_file(dir.path());
 
-    // Filter to rust only — should find nothing in the TS file
+    // Filter to rust only - should find nothing in the TS file
     let (stdout, _, _) =
         run_frensense(&[dir.path().to_str().unwrap(), "--language", "rust", "--json"]);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
@@ -185,4 +185,4 @@ fn test_language_filter() {
     );
 }
 
-// test_extra_taint_rules_dir removed — taint rules system was replaced by corpus-based detection
+// test_extra_taint_rules_dir removed - taint rules system was replaced by corpus-based detection

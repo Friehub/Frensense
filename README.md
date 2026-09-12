@@ -5,7 +5,7 @@
 
 <br />
 
-Frensense detects semantic bugs, architectural violations, and AI hallucinations—code that compiles but doesn't do what it says it does. It operates without brittle YAML rules, regex patterns, or handwritten DSLs.
+Frensense detects semantic bugs, architectural violations, and AI hallucinations-code that compiles but doesn't do what it says it does. It operates without brittle YAML rules, regex patterns, or handwritten DSLs.
 
 ```bash
 cargo install frensense
@@ -18,9 +18,9 @@ Starting in `v0.5.0`, Frensense completely abolished manual rule writing. All de
 
 The engine fingerprints every function in your project, scores it against the pre-compiled `.frc` bundle, and emits findings when multiple layers confirm the violation:
 
-1. **Corpus Match (Structural)** — Your function's AST shape mathematically matches a known violation pattern in the corpus.
-2. **Taint Path (DataFlow)** — Tainted data dynamically flows from a source to a vulnerable sink without sanitization.
-3. **Cross-Function Consistency** — Ensures sibling functions do not diverge on the same pattern.
+1. **Corpus Match (Structural)** - Your function's AST shape mathematically matches a known violation pattern in the corpus.
+2. **Taint Path (DataFlow)** - Tainted data dynamically flows from a source to a vulnerable sink without sanitization.
+3. **Cross-Function Consistency** - Ensures sibling functions do not diverge on the same pattern.
 
 A finding only fires when the structural match and dataflow composition agree, guaranteeing a near-zero false positive rate.
 
@@ -147,10 +147,12 @@ frensense src/ --use-compiler
 ## Corpus Quality Guide
 
 The engine is only as good as its corpus. A pattern with a 3-line toy function
-(`function redirect(next) { res.redirect(next); }`) produces near-zero signal —
+(`function redirect(next) { res.redirect(next); }`) produces near-zero signal -
 no imports, no control flow, no taint source. Every Express route handler that
 calls `res.redirect` will match it. A good pattern has real imports, multiple
 functions, explicit taint sources, and a proper `[frensense]` comment block.
+
+> **💡 AI-Assisted Generation:** Creating these pairs manually can be tedious. You can use LLMs to rapidly generate these corpus pairs. See the [Using LLMs to Generate Corpus Examples](FRENSENSE_CORPUS_GUIDE.md#using-llms-to-generate-corpus-examples) section in the Corpus Guide for strict prompt templates.
 
 ### Good Positive Checklist
 
@@ -169,13 +171,13 @@ functions, explicit taint sources, and a proper `[frensense]` comment block.
 
 ```
 ✓  Has a // SAFE: comment explaining the fix
-✓  Same structure as positive (imports, functions, params) — only the fix differs
+✓  Same structure as positive (imports, functions, params) - only the fix differs
 ✓  Uses the REAL fix, not a toy allowlist
-✓  Still has the same sink call — used safely
+✓  Still has the same sink call - used safely
 ✓  Does NOT simply delete the vulnerable call
 ```
 
-### All Metadata Goes in `[frensense]` — No TOML
+### All Metadata Goes in `[frensense]` - No TOML
 
 Frensense does NOT use TOML sidecar files. All per-pattern metadata belongs in
 the `[frensense]` comment block at the top of the positive file:
@@ -237,7 +239,7 @@ export default router;
 
 **`ts_cmdi_exec_shell_negative.ts`** (fix: execFile + allowlist):
 ```typescript
-// SAFE: Replaced exec() with execFile() — arguments passed as array.
+// SAFE: Replaced exec() with execFile() - arguments passed as array.
 
 import { execFile } from "child_process";
 import express from "express";
@@ -275,7 +277,7 @@ mutation guidelines, and the Frensense Hub corpus exchange proposal.
 | `docs/AUTO_FILTER.md` | How the auto-filter learns 6 constraint types from corpus pairs |
 | `docs/CORPUS_CONVENTIONS.md` | Naming, tier requirements, multi-API variant creation |
 | `docs/SCORING_DIMENSIONS.md` | 11-dimensional similarity model, default weights, flow_sim generalization gap |
-| `docs/MATCH_EVIDENCE.md` | Per-dimension evidence breakdown — the equivalent of a compiler telling you which variable has a type error |
+| `docs/MATCH_EVIDENCE.md` | Per-dimension evidence breakdown - the equivalent of a compiler telling you which variable has a type error |
 | `FRENSENSE_CORPUS_GUIDE.md` | Five tiers, CWE mapping table, mutation guidelines |
 | `FRENSENSE_VS_LITERATURE.md` | Comparison against 227 academic studies from the 2025 systematic review |
 
@@ -289,29 +291,27 @@ corpus-quality corpus/targets/  # If installed via cargo, otherwise: cargo run -
 # Includes per-tier breakdown showing how many patterns need work.
 ```
 
-### Latest Benchmark (Sep 2026)
-### Benchmark (NodeGoat, threshold 0.40)
-| Metric | Before | After |
-|--------|--------|-------|
-| TP | 24 | 22 |
-| FP | 252 | 22 |
-| FN | 6 | 8 |
-| Recall | 0.800 | 0.733 |
-| F1 | 0.157 | 0.595 |
-| Wall time | 1:36 | 0:41 |
+### Latest Benchmark (Sep 2026) - v0.6.0 PDG Data-Flow Upgrade
 
-91% FP reduction with only 2 TPs lost. F1 improved 3.8x. Scan time reduced 58%.
+**OWASP Juice Shop** (37 vulnerable files, ground truth: `challengeUtils.solveIf` markers)
 
-### The Juice Shop benchmark results (v0.5.0 engine) with the corrected ground truth and new corpus files:
+| Metric | Results |
+|---|---|
+| True Positives | 112 |
+| False Positives | 112 |
+| **Precision** | **50.00%** |
+| **File Recall** | **54.05%** (20/37) |
 
-|Threshold | True Positives (TP) | False Positives (FP) |	False Negatives (FN) |	Precision	Recall |
-| ---------| --------------------|----------------------|----------------------|-------------------|
-| 0.20	| 3	| 64 |	20 |	0.0448 |	0.1304 |
-| 0.30 |	3	| 58 |	20 |	0.0492 |	0.1304 |
-| 0.40 |	2 |	52 |	21 |	0.0370 |	0.0870 |
-| 0.50 |	1 |	50 |	22 |	0.0196 |	0.0435 |
-| 0.70 |	1 |	47 |	22 |	0.0208 |	0.0435 |
+**NodeGoat** (30 vulnerabilities across 14 files)
 
+| Metric | Results |
+|---|---|
+| True Positives | 74 |
+| False Positives | 11 |
+| **Precision** | **87.06%** |
+| **Recall** | **56.67%** (17/30) |
+
+The exact PDG data-flow improvements allowed the engine to generalize across framework dialects (e.g. `db.query` vs `sequelize.query`) without strict gates. NodeGoat precision reached 87% while maintaining excellent recall.
 
 ## License
 

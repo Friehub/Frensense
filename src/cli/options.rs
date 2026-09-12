@@ -48,6 +48,7 @@ pub struct CliOptions {
     #[cfg(feature = "fingerprinting")]
     pub profile_stats: Flag,
     pub corpus_dir: Option<PathBuf>,
+    pub corpus_bundle_path: Option<PathBuf>,
     pub corpus_threshold: f64,
     pub threshold_overrides: Vec<(String, f64)>,
     pub baseline_path: Option<PathBuf>,
@@ -128,6 +129,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         #[cfg(feature = "fingerprinting")]
         profile_stats: Flag::No,
         corpus_dir: None,
+        corpus_bundle_path: None,
         corpus_threshold: 0.40,
         threshold_overrides: Vec::new(),
         baseline_path: None,
@@ -444,6 +446,12 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                     i += 1;
                 }
             }
+            "--corpus-bundle" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.corpus_bundle_path = Some(PathBuf::from(val));
+                    i += 1;
+                }
+            }
             "--threshold" => {
                 if let Some(val) = args.get(i + 1) {
                     if let Ok(t) = val.parse::<f64>() {
@@ -724,7 +732,7 @@ pub fn get_input_path(args: &[String]) -> PathBuf {
         input_path_buf.canonicalize().unwrap_or(input_path_buf)
     } else {
         eprintln!(
-            "Error: path '{input_path_str}' does not exist — specify a valid file or directory"
+            "Error: path '{input_path_str}' does not exist - specify a valid file or directory"
         );
         eprintln!();
         eprintln!("Run 'frensense --help' for usage information");

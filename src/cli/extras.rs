@@ -73,7 +73,7 @@ fn filter_by_scope(advisories: &mut Vec<Advisory>, scope: &str) {
                 .iter()
                 .any(|t| t == "security" || t == "taint" || t == "hallucination")
         }),
-        _ => {} // "all" — keep everything
+        _ => {} // "all" - keep everything
     }
 }
 

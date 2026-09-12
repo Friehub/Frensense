@@ -7,14 +7,14 @@
 //! pipeline (import resolution, function-role classification, source/sink
 //! detection). Each provider trades accuracy for cost:
 //!
-//! 1. [`ImportMapProvider`] — zero new dependencies. Uses the already-built
+//! 1. [`ImportMapProvider`] - zero new dependencies. Uses the already-built
 //!    per-file [`ImportMap`] to answer "which package does this name come from?",
 //!    so framework-typed parameters and package-owned receivers are classified
 //!    by the import system rather than by guessing from method names. Falls back
 //!    to name matching only for unannotated code.
-//! 2. `OxcProvider` — exact JavaScript/TypeScript resolution via Oxc (the
+//! 2. `OxcProvider` - exact JavaScript/TypeScript resolution via Oxc (the
 //!    `oxc` feature; see [`crate::oxc_provider`]).
-//! 3. `RustHirProvider` — exact Rust types via rust-analyzer (stub).
+//! 3. `RustHirProvider` - exact Rust types via rust-analyzer (stub).
 //!
 //! The old heuristics are intentionally not deleted yet; they are re-exposed
 //! behind the trait so later steps can swap providers without touching every
@@ -78,7 +78,7 @@ pub trait SemanticProvider: Send + Sync {
     }
 }
 
-/// Type information available for a function — ranging from nothing
+/// Type information available for a function - ranging from nothing
 /// (tree-sitter only) to a full symbol table (Oxc) to HIR types
 /// (rust-analyzer).
 #[derive(Debug, Clone, Copy)]
@@ -175,7 +175,7 @@ pub struct FunctionHirFact {
 
     /// Trait names the return type is declared with (`-> impl ...`), e.g.
     /// `["IntoResponse"]` for an axum handler. This is the type-level proof
-    /// that the function is a handler — the single fact the HIR gives us.
+    /// that the function is a handler - the single fact the HIR gives us.
     /// Only populated for `impl Trait` return types; concrete types leave it
     /// empty.
     pub return_trait_bounds: Vec<String>,
@@ -206,14 +206,14 @@ impl HirTypeMap {
 /// of these is user input, and a function with such a parameter is an HTTP
 /// handler. This list grows only when a new framework is adopted, not when a
 /// new method name exists inside any framework.
-pub(crate) const HTTP_FRAMEWORK_PACKAGES: &[&str] = &[
+pub const HTTP_FRAMEWORK_PACKAGES: &[&str] = &[
     "express", "fastify", "koa", "hapi", "hono", "next", "nuxt", "h3", "polka", "elysia", "nest",
 ];
 
 /// Packages whose objects are dangerous by construction: any method call on a
 /// value imported from one of these is a sink in that category, regardless of
 /// the method name (e.g. `db.query(...)` where `db` comes from `pg` needs no
-/// entry for "query"). Kept small and stable — grows only when a new library
+/// entry for "query"). Kept small and stable - grows only when a new library
 /// is adopted.
 pub const PACKAGE_SINK_CATEGORIES: &[(&str, SinkCategory)] = &[
     // SQL / NoSQL database libraries
@@ -269,19 +269,54 @@ static HTTP_FRAMEWORK_SET: std::sync::LazyLock<FxHashSet<&'static str>> =
 
 /// Map a package name to the sink category of anything imported from it.
 /// O(1) lookup via [`PACKAGE_SINK_MAP`].
-pub(crate) fn package_sink_category(pkg: &str) -> Option<SinkCategory> {
+pub fn package_sink_category(pkg: &str) -> Option<SinkCategory> {
     PACKAGE_SINK_MAP.get(pkg).copied()
 }
 
+/// Map a package name to its sink category using the language spec when
+/// available, falling back to the hardcoded [`package_sink_category`] table.
+pub fn package_sink_category_from_spec(
+    pkg: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> Option<SinkCategory> {
+    if let Some(s) = spec {
+        match s.package_category(pkg)? {
+            frensense_lang::PackageCategory::SqlDatabase => Some(SinkCategory::SqlInjection),
+            frensense_lang::PackageCategory::NoSqlDatabase => Some(SinkCategory::NoSqlInjection),
+            frensense_lang::PackageCategory::HttpClient => Some(SinkCategory::Ssrf),
+            frensense_lang::PackageCategory::TemplateEngine => Some(SinkCategory::Xss),
+            frensense_lang::PackageCategory::CommandExecution => {
+                Some(SinkCategory::CommandInjection)
+            }
+            frensense_lang::PackageCategory::FileSystem => Some(SinkCategory::PathTraversal),
+            frensense_lang::PackageCategory::Deserialization => Some(SinkCategory::CodeExecution),
+            _ => None,
+        }
+    } else {
+        package_sink_category(pkg)
+    }
+}
+
 /// Returns true if the package name belongs to a known HTTP framework.
-/// O(1) lookup via [`HTTP_FRAMEWORK_SET`].
-pub(crate) fn is_http_framework_package(pkg: &str) -> bool {
-    HTTP_FRAMEWORK_SET.contains(pkg)
+/// Uses the language spec when available, falling back to the hardcoded
+/// [`HTTP_FRAMEWORK_SET`].
+pub(crate) fn is_http_framework_package(
+    pkg: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> bool {
+    if let Some(s) = spec {
+        matches!(
+            s.package_category(pkg),
+            Some(frensense_lang::PackageCategory::HttpFramework)
+        )
+    } else {
+        HTTP_FRAMEWORK_SET.contains(pkg)
+    }
 }
 
 /// Extract the base type name from a possibly-parameterized annotation.
 /// `"Request"` → `"Request"`, `"Json<User>"` → `"Json"`, `"express.Request"` → `"Request"`.
-pub(crate) fn base_type_name(annotation: &str) -> &str {
+pub fn base_type_name(annotation: &str) -> &str {
     let trimmed = annotation
         .trim()
         .trim_start_matches(|c: char| c == ':' || c.is_whitespace());
@@ -292,7 +327,7 @@ pub(crate) fn base_type_name(annotation: &str) -> &str {
     base.rsplit('.').next().unwrap_or(base)
 }
 
-/// Implementation 1 — zero new dependencies.
+/// Implementation 1 - zero new dependencies.
 ///
 /// Answers the semantic questions using the already-built per-file [`ImportMap`]
 /// plus the corpus-learned source/sink registry. Framework-typed parameters and
@@ -301,11 +336,23 @@ pub(crate) fn base_type_name(annotation: &str) -> &str {
 ///
 /// Constructed per file: it owns that file's [`ImportMap`] and shares the
 /// corpus registry via [`Arc`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ImportMapProvider {
     import_map: ImportMap,
     source_sink: Arc<CorpusSourceSinkRegistry>,
     environment: Option<crate::context::Environment>,
+    spec: Option<Arc<dyn frensense_lang::LanguageSpec>>,
+}
+
+impl std::fmt::Debug for ImportMapProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImportMapProvider")
+            .field("import_map", &self.import_map)
+            .field("source_sink", &self.source_sink)
+            .field("environment", &self.environment)
+            .field("spec", &self.spec.as_ref().map(|s| s.name()))
+            .finish()
+    }
 }
 
 impl ImportMapProvider {
@@ -323,6 +370,26 @@ impl ImportMapProvider {
             import_map,
             source_sink,
             environment,
+            spec: None,
+        }
+    }
+
+    /// Build an import-map-backed provider with a language spec.
+    ///
+    /// When a spec is available, the provider delegates package classification
+    /// and source/sink knowledge to the spec instead of using hardcoded tables.
+    #[must_use]
+    pub fn with_spec(
+        import_map: ImportMap,
+        source_sink: Arc<CorpusSourceSinkRegistry>,
+        environment: Option<crate::context::Environment>,
+        spec: Arc<dyn frensense_lang::LanguageSpec>,
+    ) -> Self {
+        Self {
+            import_map,
+            source_sink,
+            environment,
+            spec: Some(spec),
         }
     }
 
@@ -342,18 +409,23 @@ impl SemanticProvider for ImportMapProvider {
                 return Some(TaintOrigin::UserInput);
             }
         }
-        // 2. A type annotation imported from an HTTP framework is user input —
+        // 2. A type annotation imported from an HTTP framework is user input -
         //    the import system confirms it, no name guessing needed.
         if let Some(annotation) = type_annotation {
             let base = base_type_name(annotation);
             if let Some(package) = self.import_map.resolve(base)
-                && is_http_framework_package(package)
+                && is_http_framework_package(package, self.spec.as_deref())
             {
                 return Some(TaintOrigin::UserInput);
             }
         }
-        // 3. Fall back to name matching for unannotated parameters.
-        crate::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
+        // 3. Fall back to name matching for unannotated parameters, delegating
+        //    to the language spec when available for per-language taint origins.
+        crate::data_flow::classify_param_name_in_context_with_spec(
+            name,
+            self.environment.as_ref(),
+            self.spec.as_deref(),
+        )
     }
 
     fn classify_sink(
@@ -366,13 +438,13 @@ impl SemanticProvider for ImportMapProvider {
         //    "query" ever having to appear in a sink list.
         if let Some(receiver) = call_text.split('.').next()
             && let Some(package) = self.import_map.resolve(receiver)
-            && let Some(category) = package_sink_category(package)
+            && let Some(category) = package_sink_category_from_spec(package, self.spec.as_deref())
         {
             return Some(category);
         }
         // 2. A fully-qualified module (when the caller knows it) works the same way.
         if let Some(module) = resolved_module
-            && let Some(category) = package_sink_category(module)
+            && let Some(category) = package_sink_category_from_spec(module, self.spec.as_deref())
         {
             return Some(category);
         }
@@ -382,19 +454,19 @@ impl SemanticProvider for ImportMapProvider {
 
     fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: if any type used by the function resolves to an HTTP
-        // framework package, the import system has confirmed it — a single
+        // framework package, the import system has confirmed it - a single
         // signal is sufficient, no weak-heuristic vote needed.
         let type_confirmed = fp.type_usages.iter().any(|annotation| {
             type_context
                 .import_map
                 .resolve(annotation)
-                .is_some_and(is_http_framework_package)
+                .is_some_and(|p| is_http_framework_package(p, self.spec.as_deref()))
         });
         if type_confirmed {
             return true;
         }
         // Fall back to the ≥2 heuristic signals for untyped code.
-        crate::function_role::classify_role_with_imports(fp, Some(type_context.import_map))
+        crate::function_role::classify_role_with_imports(fp, Some(type_context.import_map), None)
             == crate::function_role::FunctionRole::HttpHandler
     }
 
@@ -410,13 +482,22 @@ impl SemanticProvider for ImportMapProvider {
     }
 
     fn known_sink_names(&self) -> Vec<(&'static str, SinkCategory)> {
-        // ImportMapProvider uses the same hardcoded list as before — these are
-        // the fallback sinks when OXC is not available.
-        crate::corpus::source_sink::always_register_sinks_with_categories()
+        if let Some(s) = self.spec.as_deref() {
+            s.known_sink_names()
+                .iter()
+                .map(|&(name, _desc)| (name, SinkCategory::from_sink_name(name)))
+                .collect()
+        } else {
+            crate::corpus::source_sink::always_register_sinks_with_categories()
+        }
     }
 
     fn known_source_patterns(&self) -> Vec<&'static str> {
-        crate::corpus::source_sink::always_register_source_patterns()
+        if let Some(s) = self.spec.as_deref() {
+            s.known_source_patterns().to_vec()
+        } else {
+            crate::corpus::source_sink::always_register_source_patterns()
+        }
     }
 }
 
@@ -539,7 +620,7 @@ mod tests {
         let ctx = TypeContext::from_import_map(import_map);
 
         // A typed parameter resolving to an HTTP framework is a handler on its
-        // own — no decorator, no res.send(), no req param name.
+        // own - no decorator, no res.send(), no req param name.
         let handler = FunctionFingerprint {
             type_usages: vec!["Request".to_string()],
             ..empty_fingerprint()

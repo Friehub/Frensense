@@ -104,7 +104,7 @@ pub fn compose_confidence(
     }
 
     // L3 can SUPPRESS L1, but only for genuine validators. A high branch ratio
-    // on input alone is NOT evidence of a validator — real vulnerabilities
+    // on input alone is NOT evidence of a validator - real vulnerabilities
     // (e.g. an IDOR handler that checks `user.role` then still passes
     // `req.params.id` to a DB query) branch on tainted input all the time.
     // Require both a very high ratio (>HIGH_BRANCH_RATIO_THRESHOLD) AND a
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_compose_confidence_high_branch_ratio_below_0_85_not_suppressed() {
-        // Old threshold was 0.6 — a ratio of 0.8 would have crushed the score to 0.24.
+        // Old threshold was 0.6 - a ratio of 0.8 would have crushed the score to 0.24.
         // New behavior: threshold raised to >0.85, so 0.8 no longer suppresses.
         let mut signals = LayerSignals {
             corpus_match: true,
