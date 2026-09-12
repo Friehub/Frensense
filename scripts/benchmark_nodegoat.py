@@ -23,7 +23,7 @@ print(f"[INFO] Ground truth: {len(gt_data)} vulnerabilities across {len(gt_by_fi
 print(f"[INFO] Scanning NodeGoat directory: {NODEGOAT_DIR}")
 
 result = subprocess.run(
-    [FRENSENSE_BIN, NODEGOAT_DIR, "--use-compiler", "--threshold", "0.0", "--min-confidence", "0.0", "--json"],
+    [FRENSENSE_BIN, NODEGOAT_DIR, "--corpus-bundle", "custom.frc", "--use-compiler", "--threshold", "0.0", "--min-confidence", "0.0", "--json"],
     capture_output=True,
     text=True,
     timeout=600

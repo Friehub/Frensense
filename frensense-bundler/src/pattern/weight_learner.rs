@@ -22,7 +22,7 @@ pub type FeatureVec = [f64; 15];
 //                11=config, 12=cf_order
 //
 // flow_sim (0.10) makes data-flow path similarity the primary generalization
-// signal — API-invariant (exec vs spawn vs Command::new all produce the
+// signal - API-invariant (exec vs spawn vs Command::new all produce the
 // same UserInputSource→CommandExecutionSink path). Eliminates need for
 // M1-M15 mutation variants.
 // See docs/SCORING_DIMENSIONS.md for analysis.
@@ -107,15 +107,6 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
 }
 
 pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, FeatureVec> {
-    let mut result = HashMap::new();
-    result.insert("_global".to_string(), DEFAULT_WEIGHTS);
-    for p in patterns {
-        let cat = extract_category(&p.id).to_string();
-        result.insert(cat, DEFAULT_WEIGHTS);
-        result.insert(p.id.clone(), DEFAULT_WEIGHTS);
-    }
-    return result;
-
     let mut by_category: HashMap<String, (Vec<FeatureVec>, Vec<FeatureVec>)> = HashMap::new();
     let mut global_pos = Vec::new();
     let mut global_neg = Vec::new();

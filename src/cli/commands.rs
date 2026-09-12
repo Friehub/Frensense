@@ -18,7 +18,8 @@ pub fn print_help() {
     println!("  path                File or directory to scan (default: current directory)");
     println!();
     println!("Detection Options:");
-    println!("  --corpus <dir>      Load detection patterns from corpus directory");
+    println!("  --corpus <dir>      Load raw detection patterns from a corpus directory");
+    println!("  --corpus-bundle <file> Load a pre-compiled .frc corpus bundle at runtime");
     println!(
         "  --use-compiler      Enable exact semantic resolution (Oxc for TS, rust-analyzer for RS)"
     );

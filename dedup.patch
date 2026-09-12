@@ -1,0 +1,31 @@
+diff --git a/src/engine/project/runner.rs b/src/engine/project/runner.rs
+--- a/src/engine/project/runner.rs
++++ b/src/engine/project/runner.rs
+@@ -858,6 +858,26 @@
+ 
+     all_advisories.extend(new_advisories);
+ 
++    // --- DEDUPLICATION PASS ---
++    let mut dedup_map = std::collections::HashMap::new();
++    for adv in all_advisories.drain(..) {
++        let category = if adv.rule_id.starts_with("CORPUS_") {
++            let parts: Vec<&str> = adv.rule_id.split('_').collect();
++            if parts.len() >= 3 {
++                parts[2].to_string()
++            } else {
++                adv.rule_id.clone()
++            }
++        } else {
++            adv.rule_id.clone()
++        };
++        let key = (adv.path.clone(), adv.content.clone(), category);
++        let existing = dedup_map.entry(key).or_insert(adv.clone());
++        if adv.confidence > existing.confidence {
++            *existing = adv;
++        }
++    }
++    all_advisories.extend(dedup_map.into_values());
++    // --------------------------
++
+     // Update pattern freshness based on scan results
+     // Track which patterns matched and which were taint-verified
