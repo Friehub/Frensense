@@ -6,11 +6,11 @@
 //! this call a sink?" for every file it verifies. There are three
 //! implementations of `SemanticProvider`, chosen here:
 //!
-//! * `ImportMapProvider` (default) — tree-sitter name heuristics. This is the
+//! * `ImportMapProvider` (default) - tree-sitter name heuristics. This is the
 //!   behavioural twin of the legacy inline `is_source_type` + name matching,
 //!   so the default scan path is unchanged.
-//! * `OxcProvider` — real TypeScript/JavaScript type resolution.
-//! * `RustHirProvider` — rust-analyzer backed HIR types for Rust.
+//! * `OxcProvider` - real TypeScript/JavaScript type resolution.
+//! * `RustHirProvider` - rust-analyzer backed HIR types for Rust.
 //!
 //! The compiler-backed providers are only selected under `--use-compiler`
 //! (`use_compiler`), which keeps a clean heuristics-vs-compiler benchmark.
@@ -39,8 +39,8 @@ pub type RustHirMap = ();
 /// Pick the strongest provider available for `path`.
 ///
 /// With `use_compiler`, TS/JS get the Oxc type resolver and Rust gets the
-/// rust-analyzer HIR provider (when `rust_hir` was built). Everything else —
-/// including all files when `use_compiler` is off — falls back to the
+/// rust-analyzer HIR provider (when `rust_hir` was built). Everything else -
+/// including all files when `use_compiler` is off - falls back to the
 /// import-map heuristics.
 #[must_use]
 #[allow(unused_variables)]

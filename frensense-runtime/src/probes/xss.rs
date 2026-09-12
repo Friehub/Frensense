@@ -17,7 +17,7 @@ pub fn template() -> ProbeTemplate {
                     canary: canary.clone(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "Reflected XSS via script tag — canary in response confirms injection"
+                description: "Reflected XSS via script tag - canary in response confirms injection"
                     .to_string(),
             },
             Probe {
@@ -27,7 +27,7 @@ pub fn template() -> ProbeTemplate {
                     canary: canary.clone(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "XSS via img onerror handler — bypasses simple filters".to_string(),
+                description: "XSS via img onerror handler - bypasses simple filters".to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),
@@ -54,7 +54,7 @@ pub fn template() -> ProbeTemplate {
                     patterns: vec!["<script>".to_string(), "alert(1)".to_string()],
                 },
                 risk: ProbeRisk::Safe,
-                description: "Reflected XSS — script tag reflected in response".to_string(),
+                description: "Reflected XSS - script tag reflected in response".to_string(),
             },
         ],
     }

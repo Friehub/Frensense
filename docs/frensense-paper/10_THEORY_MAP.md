@@ -9,8 +9,8 @@ Every significant algorithmic decision in Frensense maps to an established compu
 **CS Field:** Approximate algorithms, similarity search, randomized algorithms
 
 **Where in code:**
-- `frensense-engine/src/minhash.rs` — MinHash computation, LSH banding, `LSHIndex`
-- `frensense-engine/src/corpus/registry.rs` — LSH index construction and candidate retrieval
+- `frensense-engine/src/minhash.rs` - MinHash computation, LSH banding, `LSHIndex`
+- `frensense-engine/src/corpus/registry.rs` - LSH index construction and candidate retrieval
 
 **Theory:**
 
@@ -27,14 +27,14 @@ Banded LSH amplifies the signal: with `b` bands of `r` rows each:
 P[collision in ≥ 1 band] = 1 - (1 - J^r)^b
 ```
 
-This creates an S-curve in collision probability vs. Jaccard — near-zero below the threshold, near-one above it.
+This creates an S-curve in collision probability vs. Jaccard - near-zero below the threshold, near-one above it.
 
 **Current parameters:**
 - 120 hash functions (120-dimensional signature)
 - 40 bands, 12 rows per band
 - Threshold ≈ 0.71 at 50% recall
 
-**Why this matters:** Without LSH, corpus matching would be O(N × P) where N = functions and P = patterns. LSH reduces this to O(N × candidates) where `candidates ≪ P` — enabling sub-second scans on large codebases.
+**Why this matters:** Without LSH, corpus matching would be O(N × P) where N = functions and P = patterns. LSH reduces this to O(N × candidates) where `candidates ≪ P` - enabling sub-second scans on large codebases.
 
 **Key papers:** Broder 1997, Indyk & Motwani 1998.
 
@@ -45,9 +45,9 @@ This creates an S-curve in collision probability vs. Jaccard — near-zero below
 **CS Field:** Program analysis, security, information flow control
 
 **Where in code:**
-- `frensense-engine/src/data_flow/` — 13 modules covering the full taint pipeline
-- `src/semantics/simple_taint.rs` — intraprocedural taint rule
-- `src/semantics/data_flow/` — interprocedural taint rule
+- `frensense-engine/src/data_flow/` - 13 modules covering the full taint pipeline
+- `src/semantics/simple_taint.rs` - intraprocedural taint rule
+- `src/semantics/data_flow/` - interprocedural taint rule
 
 **Theory:**
 
@@ -75,14 +75,14 @@ if (safe) {
 **CS Field:** Compiler construction, program analysis
 
 **Where in code:**
-- `frensense-engine/src/cfg/mod.rs` — `ControlFlowGraph`, `BasicBlock`, `CFEdgeKind`
-- `frensense-engine/src/cfg/def_use.rs` — reaching definitions, def-use chains
+- `frensense-engine/src/cfg/mod.rs` - `ControlFlowGraph`, `BasicBlock`, `CFEdgeKind`
+- `frensense-engine/src/cfg/def_use.rs` - reaching definitions, def-use chains
 
 **Theory:**
 
 A **Control Flow Graph (CFG)** `G = (V, E)` has a vertex per basic block and edges per control transfer. Basic blocks are maximal straight-line sequences with a single entry and single exit.
 
-**Dominance:** Node `d` *dominates* node `n` if every path from the program entry to `n` passes through `d`. Frensense uses dominance to verify that auth checks *must* execute before sensitive operations — if the auth check doesn't dominate the sensitive op, there's a bypass path.
+**Dominance:** Node `d` *dominates* node `n` if every path from the program entry to `n` passes through `d`. Frensense uses dominance to verify that auth checks *must* execute before sensitive operations - if the auth check doesn't dominate the sensitive op, there's a bypass path.
 
 **Reaching Definitions:** A definition `d: x = e` at node `n` *reaches* node `m` if there is a CFG path from `n` to `m` along which `x` is not redefined. Implemented as:
 ```
@@ -99,7 +99,7 @@ OUT[B] = gen[B] ∪ (IN[B] - kill[B])
 **CS Field:** String/tree algorithms, bioinformatics, AST analysis
 
 **Where in code:**
-- `frensense-engine/src/ast_distance.rs` — skeleton extraction and TED computation
+- `frensense-engine/src/ast_distance.rs` - skeleton extraction and TED computation
 
 **Theory:**
 
@@ -121,8 +121,8 @@ The normalization step is essential: without it, `while` and `for` loops would h
 **CS Field:** Information retrieval, text mining
 
 **Where in code:**
-- `frensense-engine/src/fingerprint/types.rs` — `compute_idf_weights()`, `apply_idf_weights()`
-- `frensense-engine/src/corpus/registry.rs` — `idf_weights`, `api_idf_weights`
+- `frensense-engine/src/fingerprint/types.rs` - `compute_idf_weights()`, `apply_idf_weights()`
+- `frensense-engine/src/corpus/registry.rs` - `idf_weights`, `api_idf_weights`
 
 **Theory:**
 
@@ -145,8 +145,8 @@ The weighted Jaccard similarity uses IDF-weighted overlap rather than raw set si
 **CS Field:** Information retrieval, metric learning, pattern recognition
 
 **Where in code:**
-- `frensense-engine/src/pattern/similarity.rs` — `RawDimensions`, `weighted_score()`
-- `frensense-engine/src/pattern/scorer.rs` — `PatternScorer`, `ScorerConfig`
+- `frensense-engine/src/pattern/similarity.rs` - `RawDimensions`, `weighted_score()`
+- `frensense-engine/src/pattern/scorer.rs` - `PatternScorer`, `ScorerConfig`
 
 **Theory:**
 
@@ -164,7 +164,7 @@ final = vuln_score × gate
 
 This is related to **weighted Jaccard similarity** and **multivariate scoring** in retrieval systems.
 
-**Issue visible in code:** The gate formula `identity_gate * 2.5 + 0.1` adds a floor of 0.1, meaning a function with *zero* identity signal still passes 10% of the gate. This is a known FP contributor — see [`12_LIMITATIONS.md`](./12_LIMITATIONS.md).
+**Issue visible in code:** The gate formula `identity_gate * 2.5 + 0.1` adds a floor of 0.1, meaning a function with *zero* identity signal still passes 10% of the gate. This is a known FP contributor - see [`12_LIMITATIONS.md`](./12_LIMITATIONS.md).
 
 ---
 
@@ -173,9 +173,9 @@ This is related to **weighted Jaccard similarity** and **multivariate scoring** 
 **CS Field:** Metric learning, discriminative training
 
 **Where in code:**
-- `frensense-engine/src/pattern/scorer.rs` — contrastive scoring
-- `frensense-bundler/src/pattern/weight_learner.rs` — weight optimization
-- `frensense-bundler/src/auto_filter.rs` — discriminative feature selection
+- `frensense-engine/src/pattern/scorer.rs` - contrastive scoring
+- `frensense-bundler/src/pattern/weight_learner.rs` - weight optimization
+- `frensense-bundler/src/auto_filter.rs` - discriminative feature selection
 
 **Theory:**
 
@@ -191,7 +191,7 @@ This is analogous to:
 - **Discriminative training** in HMMs: maximize `P(vulnerable | features) - P(safe | features)`.
 - **Contrastive loss** (Chopra et al. 2005): minimize distance for same-class pairs, maximize for different-class.
 
-The key insight: the negative example provides the *boundary* — the structurally identical but safe version that defines what "safe" looks like for this pattern. Without the negative, false positives arise from functions that are structurally similar to the positive but are actually safe.
+The key insight: the negative example provides the *boundary* - the structurally identical but safe version that defines what "safe" looks like for this pattern. Without the negative, false positives arise from functions that are structurally similar to the positive but are actually safe.
 
 **Key papers:** Chopra et al. 2005, Schroff et al. 2015 (FaceNet).
 
@@ -202,17 +202,17 @@ The key insight: the negative example provides the *boundary* — the structural
 **CS Field:** Fault-tolerant systems, evidence combination, multi-sensor fusion
 
 **Where in code:**
-- `src/engine/composition.rs` — `compose_confidence()`, `LayerSignals`
+- `src/engine/composition.rs` - `compose_confidence()`, `LayerSignals`
 
 **Theory:**
 
 The composition model is a **4-layer AND-gate**: a finding is only trusted when multiple independent evidence sources agree.
 
 ```
-Layer 1 (L1): Corpus match  — structural similarity
-Layer 2 (L2): Taint flow    — data flow confirmation
-Layer 3 (L3): Validator     — suppressor (negative evidence)
-Layer 4 (L4): Near-dup      — amplifier (consistency evidence)
+Layer 1 (L1): Corpus match  - structural similarity
+Layer 2 (L2): Taint flow    - data flow confirmation
+Layer 3 (L3): Validator     - suppressor (negative evidence)
+Layer 4 (L4): Near-dup      - amplifier (consistency evidence)
 ```
 
 This is related to:
@@ -220,7 +220,7 @@ This is related to:
 - **Dempster-Shafer theory:** combining evidence from independent sources.
 - **Multi-sensor fusion:** in avionics/robotics, critical decisions require agreement from independent sensors.
 
-The deterministic rule implementation (rather than probabilistic Bayesian updating) is intentional for auditability — every score adjustment has a named, documented cause.
+The deterministic rule implementation (rather than probabilistic Bayesian updating) is intentional for auditability - every score adjustment has a named, documented cause.
 
 ---
 
@@ -229,8 +229,8 @@ The deterministic rule implementation (rather than probabilistic Bayesian updati
 **CS Field:** Compiler theory, program analysis
 
 **Where in code:**
-- `frensense-engine/src/graph.rs` — `SemanticGraph` (petgraph DiGraph)
-- `frensense-engine/src/data_flow/cross_file.rs` — interprocedural taint resolver
+- `frensense-engine/src/graph.rs` - `SemanticGraph` (petgraph DiGraph)
+- `frensense-engine/src/data_flow/cross_file.rs` - interprocedural taint resolver
 
 **Theory:**
 
@@ -240,7 +240,7 @@ A **call graph** `CG = (F, E)` where F = functions, E = call relations. For a la
 - Prototype inheritance
 - Event-driven dispatch
 
-Frensense uses a **name-based approximation**: call edges are established by matching call site names to function definitions by name within the project. This is roughly at the precision level of **CHA (Class Hierarchy Analysis)** — fast but may create phantom edges.
+Frensense uses a **name-based approximation**: call edges are established by matching call site names to function definitions by name within the project. This is roughly at the precision level of **CHA (Class Hierarchy Analysis)** - fast but may create phantom edges.
 
 The call graph is used for:
 - Cross-file taint propagation (BFS over `Calls` edges)
@@ -256,18 +256,18 @@ The call graph is used for:
 **CS Field:** Formal verification, model checking
 
 **Where in code:**
-- `src/temporal/analyzer.rs` — sequence property checker
-- `src/temporal/config.rs` — built-in temporal rules
+- `src/temporal/analyzer.rs` - sequence property checker
+- `src/temporal/config.rs` - built-in temporal rules
 
 **Theory:**
 
 **Linear Temporal Logic (LTL)** extends propositional logic with temporal operators:
-- `G φ` — φ holds globally (on all future states)
-- `F φ` — φ holds eventually (on some future state)
-- `X φ` — φ holds in the next state
-- `φ U ψ` — φ holds until ψ holds
+- `G φ` - φ holds globally (on all future states)
+- `F φ` - φ holds eventually (on some future state)
+- `X φ` - φ holds in the next state
+- `φ U ψ` - φ holds until ψ holds
 
-Frensense checks properties of the form: `G(A → F(B))` — "globally, whenever A occurs, B eventually follows." For example:
+Frensense checks properties of the form: `G(A → F(B))` - "globally, whenever A occurs, B eventually follows." For example:
 
 ```
 G(fundWallet → F(createLedgerEntry))
@@ -286,8 +286,8 @@ The implementation is **bounded model checking** restricted to a single function
 **CS Field:** Abstract interpretation, program analysis vocabulary
 
 **Where in code:**
-- `frensense-engine/src/corpus/motifs.rs` — `MOTIFS` static table, `MOTIF_LOOKUP`
-- `frensense-engine/src/corpus/flow_fingerprint.rs` — motif-based source/sink detection
+- `frensense-engine/src/corpus/motifs.rs` - `MOTIFS` static table, `MOTIF_LOOKUP`
+- `frensense-engine/src/corpus/flow_fingerprint.rs` - motif-based source/sink detection
 
 **Theory:**
 
@@ -318,8 +318,8 @@ The key benefit: a pattern trained on one API (`exec`) automatically generalizes
 **CS Field:** Machine learning, statistics
 
 **Where in code:**
-- `frensense-bundler/src/calibration.rs` — sigmoid fitting
-- `frensense-engine/src/corpus/registry.rs` — calibration application
+- `frensense-bundler/src/calibration.rs` - sigmoid fitting
+- `frensense-engine/src/corpus/registry.rs` - calibration application
 
 **Theory:**
 
@@ -342,7 +342,7 @@ Per-pattern calibration accounts for the fact that different patterns have diffe
 **CS Field:** Information retrieval, near-duplicate detection
 
 **Where in code:**
-- `frensense-engine/src/fingerprint/hashing.rs` — `token_ngrams_sorted()`, `token_ngrams_positional()`
+- `frensense-engine/src/fingerprint/hashing.rs` - `token_ngrams_sorted()`, `token_ngrams_positional()`
 
 **Theory:**
 
@@ -352,7 +352,7 @@ Per-pattern calibration accounts for the fact that different patterns have diffe
 shingles = {(t1,t2,t3), (t2,t3,t4), (t3,t4,t5)}
 ```
 
-Frensense hashes each shingle to a `u64` and stores the set as `ngram_hashes`. Jaccard similarity between two shingle sets approximates the probability that a random position in both documents contains the same w-gram — a measure of content overlap.
+Frensense hashes each shingle to a `u64` and stores the set as `ngram_hashes`. Jaccard similarity between two shingle sets approximates the probability that a random position in both documents contains the same w-gram - a measure of content overlap.
 
 Positional n-grams (used for `cf_order_sim`) include the position index: `hash(position, t_i, t_{i+1}, t_{i+2})`. These are not Jaccard-compatible but capture sequence order for cosine similarity computation.
 

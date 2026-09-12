@@ -53,7 +53,7 @@ This means:
 The full `DataFlowEngine` (in `data_flow/engine.rs`) does track intermediate assignments, but it is run at scoring time (after LSH pre-filtering) and is therefore too slow to run during fingerprint extraction for the entire codebase.
 
 **What would fix it:**  
-Compute `tainted_api_calls` from the `SemanticOp` IR during `analyze_file()` using the `TaintRegistry` instead of the parameter-name heuristic. The `SemanticOp` normalisation already exists — the integration is missing.
+Compute `tainted_api_calls` from the `SemanticOp` IR during `analyze_file()` using the `TaintRegistry` instead of the parameter-name heuristic. The `SemanticOp` normalisation already exists - the integration is missing.
 
 ---
 
@@ -64,14 +64,14 @@ Compute `tainted_api_calls` from the `SemanticOp` IR during `analyze_file()` usi
 **Root Cause (Theory):**
 
 The cross-file resolver (`data_flow/cross_file.rs`) builds taint propagation using a **name-based call graph**. Call edges are established by matching callee names to function definitions. This fails when:
-- Functions are passed as callbacks: `router.get('/path', handlerFn)` — the call edge to `handlerFn` is missed if `handlerFn` is defined elsewhere and not obviously called.
-- Dynamic dispatch: `this.service[method]()` — no static edge.
-- Higher-order functions: `arr.map(transform)` — `transform` is not resolved.
+- Functions are passed as callbacks: `router.get('/path', handlerFn)` - the call edge to `handlerFn` is missed if `handlerFn` is defined elsewhere and not obviously called.
+- Dynamic dispatch: `this.service[method]()` - no static edge.
+- Higher-order functions: `arr.map(transform)` - `transform` is not resolved.
 
 At 3+ hops, the chance of at least one name-resolution failure accumulates. The taint propagation chain breaks and the `TaintOrigin` is lost.
 
 **What would fix it:**  
-1. Use `OxcProvider` for JS/TS (exact module resolution already built — just not yet used for call graph construction, only for source/sink classification).
+1. Use `OxcProvider` for JS/TS (exact module resolution already built - just not yet used for call graph construction, only for source/sink classification).
 2. Implement **callback registration tracking**: when `app.get(path, fn)` is seen, add a `Calls` edge from the route to `fn`.
 3. Use **function summary propagation**: if function F returns a value that is tainted from one of its parameters, store this as a summary and use it at call sites.
 
@@ -88,7 +88,7 @@ The L3 suppression logic:
 if branch_ratio > 0.85 AND has_validation_name → suppress × 0.3
 ```
 
-The `has_validation_name` check uses the function name (e.g., `updateUser`, `handleRequest`). "Validator" names include `validate_*`, `check_*`, `verify_*`. But an IDOR-vulnerable handler like `handleUserDataUpdate` does not have a validator name — so this case *should* be fine.
+The `has_validation_name` check uses the function name (e.g., `updateUser`, `handleRequest`). "Validator" names include `validate_*`, `check_*`, `verify_*`. But an IDOR-vulnerable handler like `handleUserDataUpdate` does not have a validator name - so this case *should* be fine.
 
 The actual issue: the branch-ratio threshold of 0.85 was raised from 0.6 in v0.5.3, but there is no test that covers a function with `branch_ratio > 0.85` and `has_validation_name = false` that *does* contain a real vulnerability. The existing test coverage only verifies that genuine validators ARE suppressed and that low-ratio functions are NOT suppressed.
 
@@ -103,14 +103,14 @@ Add an integration test for an IDOR-style function: `branch_ratio = 0.91, has_va
 
 **Root Cause (Theory):**
 
-The Jaccard similarity function on sorted integer sets is not differentiable in the standard sense. It operates on sorted `Vec<u64>` — the intersection/union size is computed via merge-join and is not a continuous function of its inputs. Therefore, standard gradient descent (which requires computing ∂Loss/∂w_i) cannot be applied directly.
+The Jaccard similarity function on sorted integer sets is not differentiable in the standard sense. It operates on sorted `Vec<u64>` - the intersection/union size is computed via merge-join and is not a continuous function of its inputs. Therefore, standard gradient descent (which requires computing ∂Loss/∂w_i) cannot be applied directly.
 
 The current approach (grid search / perceptron update) works for small corpus sizes (100-500 patterns) but becomes computationally expensive at scale. Worse, it may converge to a local optimum rather than the global optimum for the 15-dimensional weight space.
 
 **What would fix it:**  
 1. **Differentiable approximation:** Replace sorted-set Jaccard with soft Jaccard using sigmoid-smoothed set membership functions.
 2. **Pairwise ranking loss:** Use a ranking loss `max(0, 1 - (pos_score - neg_score))` which is subgradient-differentiable.
-3. **Coordinate descent:** For each weight dimension independently, do a 1D grid search — this scales linearly rather than exponentially.
+3. **Coordinate descent:** For each weight dimension independently, do a 1D grid search - this scales linearly rather than exponentially.
 
 ---
 
@@ -131,7 +131,7 @@ Multiply-shift is 2-universal but NOT 4-universal. For LSH quality guarantees, 2
 
 The code comment in `minhash.rs` notes: "prefer `XxHash64::with_seed` if available." XXH3 with per-row seeds would be empirically better with equivalent asymptotic guarantees.
 
-**Impact:** Minor — current precision/recall suggests the hash quality is acceptable at the current corpus size. May become a bottleneck at corpus sizes > 5000 patterns.
+**Impact:** Minor - current precision/recall suggests the hash quality is acceptable at the current corpus size. May become a bottleneck at corpus sizes > 5000 patterns.
 
 ---
 
@@ -143,7 +143,7 @@ The code comment in `minhash.rs` notes: "prefer `XxHash64::with_seed` if availab
 
 **Impact:** Multi-language projects (e.g., a Node.js frontend calling a Rust backend via NAPI) cannot be fully analyzed. The Rust backend functions that receive data from the TypeScript layer are not marked as taint sources.
 
-**What would fix it:** This requires a foreign function interface (FFI) model — essentially annotating NAPI bindings as taint-propagating call edges. No straightforward solution exists without language-specific FFI knowledge.
+**What would fix it:** This requires a foreign function interface (FFI) model - essentially annotating NAPI bindings as taint-propagating call edges. No straightforward solution exists without language-specific FFI knowledge.
 
 ---
 
@@ -158,7 +158,7 @@ Full LTL model checking over an interprocedural call graph is PSPACE-complete. T
 - `fundWallet()` called in one function, `createLedgerEntry()` called in another function called by the first.
 - Any temporal property that requires tracking state across function call boundaries.
 
-**What would fix it:** Bounded interprocedural LTL checking — unroll call chains up to depth N (e.g., 3) and check temporal properties on the resulting inlined sequence. Computationally expensive but feasible at bounded depth.
+**What would fix it:** Bounded interprocedural LTL checking - unroll call chains up to depth N (e.g., 3) and check temporal properties on the resulting inlined sequence. Computationally expensive but feasible at bounded depth.
 
 ---
 
@@ -175,7 +175,7 @@ Logistic regression with no regularization overfits when the training set is sma
 L = -Σ [y log(σ(Ax+B)) + (1-y) log(1-σ(Ax+B))] + λ(A² + B²)
 ```
 
-Or use a Bayesian prior over `(A, B)` centered at `(1, 0)` (identity calibration) — patterns with few examples fall back toward uncalibrated scores rather than overfitting.
+Or use a Bayesian prior over `(A, B)` centered at `(1, 0)` (identity calibration) - patterns with few examples fall back toward uncalibrated scores rather than overfitting.
 
 ---
 

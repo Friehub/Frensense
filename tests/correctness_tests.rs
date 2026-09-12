@@ -89,7 +89,7 @@ fn test_taint_through_destructuring() {
 
     let advisories = analyzer.analyze_block(tree.root_node(), &mut taint_reg);
 
-    // analyze_block now only propagates taint — it no longer emits advisories.
+    // analyze_block now only propagates taint - it no longer emits advisories.
     // Taint verification is handled by the corpus layer (CrossFileVerifier).
     // This test verifies that analyze_block runs without panicking.
     // Full taint detection is tested via corpus patterns.
@@ -198,6 +198,6 @@ fn test_sarif_output_properties() {
     assert_eq!(tags[1].as_str(), Some("rust"));
 }
 
-// test_non_remediated_advisory_is_not_auto_fixable removed —
+// test_non_remediated_advisory_is_not_auto_fixable removed -
 // TAINT_CREDENTIAL_TO_LOG was a taint-as-detection rule that has been removed.
 // Taint detection is now corpus-driven. See corpus/targets/ for detection patterns.

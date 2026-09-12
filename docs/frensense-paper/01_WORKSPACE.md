@@ -37,8 +37,8 @@ frensense (CLI/lib)
       └── frensense-engine
 
 frensense-runtime      (standalone sidecar, no engine dep)
-frensense-frc          (no internal deps — format-only leaf crate)
-frensense-lang         (no internal deps — spec-only leaf crate)
+frensense-frc          (no internal deps - format-only leaf crate)
+frensense-lang         (no internal deps - spec-only leaf crate)
 ```
 
 ---
@@ -170,7 +170,7 @@ Frensense/
 │       │
 │       ├── fingerprint/        Function fingerprint extraction
 │       │   ├── mod.rs          Public API: extract_fingerprints(), IDF weight functions
-│       │   ├── ast_walkers.rs  All AST traversal functions (28KB — the core walker)
+│       │   ├── ast_walkers.rs  All AST traversal functions (28KB - the core walker)
 │       │   ├── extraction.rs   extract_fingerprints_with_nodes() entry point
 │       │   ├── hashing.rs      Token normalization, rolling ngram hash, positional ngrams
 │       │   └── types.rs        FunctionFingerprint struct (27 fields), compute_idf_weights()

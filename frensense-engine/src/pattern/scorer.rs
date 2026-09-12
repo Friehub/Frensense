@@ -149,7 +149,7 @@ const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
 
-/// M1: Weighted Jaccard — IDF-weighted intersection / union.
+/// M1: Weighted Jaccard - IDF-weighted intersection / union.
 pub fn weighted_jaccard(
     a: &rustc_hash::FxHashMap<u64, f32>,
     b: &rustc_hash::FxHashMap<u64, f32>,
@@ -618,7 +618,7 @@ impl PatternScorer {
         let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
             || (moderate_count >= NOISE_GATE_MIN_MODERATE_DIMS && signal_sum > 0.40);
 
-        // Use the weighted sum as the final score — this is the same type of
+        // Use the weighted sum as the final score - this is the same type of
         // score that the Platt scaling calibration was trained on (weighted
         // sums in the 0.3–0.6 range). Using max_signal or a blended score
         // would shift the distribution, making the sigmoid extrapolate
@@ -678,7 +678,7 @@ impl PatternScorer {
     // A lightweight identity-hash for a fingerprint, used as a cache key.
 }
 
-// Computed from a few identifying fields — collisions are astronomically unlikely.
+// Computed from a few identifying fields - collisions are astronomically unlikely.
 
 pub fn fingerprint_id(fp: &FunctionFingerprint) -> u64 {
     use std::hash::{Hash, Hasher};

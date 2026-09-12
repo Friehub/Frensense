@@ -7,14 +7,14 @@
 //! pipeline (import resolution, function-role classification, source/sink
 //! detection). Each provider trades accuracy for cost:
 //!
-//! 1. [`ImportMapProvider`] — zero new dependencies. Uses the already-built
+//! 1. [`ImportMapProvider`] - zero new dependencies. Uses the already-built
 //!    per-file [`ImportMap`] to answer "which package does this name come from?",
 //!    so framework-typed parameters and package-owned receivers are classified
 //!    by the import system rather than by guessing from method names. Falls back
 //!    to name matching only for unannotated code.
-//! 2. `OxcProvider` — exact JavaScript/TypeScript resolution via Oxc (the
+//! 2. `OxcProvider` - exact JavaScript/TypeScript resolution via Oxc (the
 //!    `oxc` feature; see [`crate::oxc_provider`]).
-//! 3. `RustHirProvider` — exact Rust types via rust-analyzer (stub).
+//! 3. `RustHirProvider` - exact Rust types via rust-analyzer (stub).
 //!
 //! The old heuristics are intentionally not deleted yet; they are re-exposed
 //! behind the trait so later steps can swap providers without touching every
@@ -78,7 +78,7 @@ pub trait SemanticProvider: Send + Sync {
     }
 }
 
-/// Type information available for a function — ranging from nothing
+/// Type information available for a function - ranging from nothing
 /// (tree-sitter only) to a full symbol table (Oxc) to HIR types
 /// (rust-analyzer).
 #[derive(Debug, Clone, Copy)]
@@ -175,7 +175,7 @@ pub struct FunctionHirFact {
 
     /// Trait names the return type is declared with (`-> impl ...`), e.g.
     /// `["IntoResponse"]` for an axum handler. This is the type-level proof
-    /// that the function is a handler — the single fact the HIR gives us.
+    /// that the function is a handler - the single fact the HIR gives us.
     /// Only populated for `impl Trait` return types; concrete types leave it
     /// empty.
     pub return_trait_bounds: Vec<String>,
@@ -213,7 +213,7 @@ pub const HTTP_FRAMEWORK_PACKAGES: &[&str] = &[
 /// Packages whose objects are dangerous by construction: any method call on a
 /// value imported from one of these is a sink in that category, regardless of
 /// the method name (e.g. `db.query(...)` where `db` comes from `pg` needs no
-/// entry for "query"). Kept small and stable — grows only when a new library
+/// entry for "query"). Kept small and stable - grows only when a new library
 /// is adopted.
 pub const PACKAGE_SINK_CATEGORIES: &[(&str, SinkCategory)] = &[
     // SQL / NoSQL database libraries
@@ -327,7 +327,7 @@ pub fn base_type_name(annotation: &str) -> &str {
     base.rsplit('.').next().unwrap_or(base)
 }
 
-/// Implementation 1 — zero new dependencies.
+/// Implementation 1 - zero new dependencies.
 ///
 /// Answers the semantic questions using the already-built per-file [`ImportMap`]
 /// plus the corpus-learned source/sink registry. Framework-typed parameters and
@@ -409,7 +409,7 @@ impl SemanticProvider for ImportMapProvider {
                 return Some(TaintOrigin::UserInput);
             }
         }
-        // 2. A type annotation imported from an HTTP framework is user input —
+        // 2. A type annotation imported from an HTTP framework is user input -
         //    the import system confirms it, no name guessing needed.
         if let Some(annotation) = type_annotation {
             let base = base_type_name(annotation);
@@ -454,7 +454,7 @@ impl SemanticProvider for ImportMapProvider {
 
     fn is_http_handler(&self, fp: &FunctionFingerprint, type_context: &TypeContext) -> bool {
         // Type-confirmed: if any type used by the function resolves to an HTTP
-        // framework package, the import system has confirmed it — a single
+        // framework package, the import system has confirmed it - a single
         // signal is sufficient, no weak-heuristic vote needed.
         let type_confirmed = fp.type_usages.iter().any(|annotation| {
             type_context
@@ -620,7 +620,7 @@ mod tests {
         let ctx = TypeContext::from_import_map(import_map);
 
         // A typed parameter resolving to an HTTP framework is a handler on its
-        // own — no decorator, no res.send(), no req param name.
+        // own - no decorator, no res.send(), no req param name.
         let handler = FunctionFingerprint {
             type_usages: vec!["Request".to_string()],
             ..empty_fingerprint()

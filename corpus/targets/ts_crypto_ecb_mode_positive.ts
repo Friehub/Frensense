@@ -10,7 +10,7 @@
 import { createCipheriv, createDecipheriv } from 'node:crypto';
 
 function encryptData(plaintext: string, key: Buffer): Buffer {
-  // VULNERABLE: ECB mode — deterministic, reveals patterns
+  // VULNERABLE: ECB mode - deterministic, reveals patterns
   const cipher = createCipheriv('aes-128-ecb', key, null);
   return Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
 }

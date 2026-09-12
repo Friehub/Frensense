@@ -40,7 +40,7 @@ fn test_e2e_suppress_file_respected() {
         format!("suppressions:\n  - rule_id: {rule_id}\n    path: \"**/vuln.ts\"\n");
     fs::write(suppress_file, suppress_content).unwrap();
 
-    // Run again — should be suppressed
+    // Run again - should be suppressed
     let mut engine2 = engine_with_corpus();
     let advisories2 = engine2.run(root).unwrap();
     assert!(
@@ -111,7 +111,7 @@ fn test_e2e_user_yaml_rule_loaded() {
     fs::write(&rs_file, "fn main() { todo!(); }").unwrap();
 
     let mut engine = Engine::new();
-    // Should not panic — custom rules are silently ignored for now
+    // Should not panic - custom rules are silently ignored for now
     let _advisories = engine.run(root).unwrap();
 }
 
@@ -140,13 +140,13 @@ project_rules:
     .unwrap();
 
     let mut engine = Engine::new();
-    // Should not panic — project rules are silently ignored for now
+    // Should not panic - project rules are silently ignored for now
     let _advisories = engine.run(root).unwrap();
 }
 
 #[test]
 fn test_e2e_project_rule_suppressed_by_disabled_rules() {
-    // Same as above — project rules not wired, but config loading should not crash.
+    // Same as above - project rules not wired, but config loading should not crash.
     let dir = tempdir().unwrap();
     let root = dir.path();
 
@@ -259,7 +259,7 @@ fn test_cli_json_output() {
     assert_eq!(
         parsed.get("clean").and_then(serde_json::Value::as_bool),
         Some(false),
-        "Should not be clean — stderr: {stderr}"
+        "Should not be clean - stderr: {stderr}"
     );
     assert!(
         parsed

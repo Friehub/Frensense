@@ -1,7 +1,7 @@
-# Crate: `frensense-frc` — Binary Bundle Format
+# Crate: `frensense-frc` - Binary Bundle Format
 
 **Path:** `frensense-frc/src/lib.rs`  
-**Role:** Leaf crate. Defines the `.frc` on-disk format envelope. No analysis logic — pure serialization/deserialization.
+**Role:** Leaf crate. Defines the `.frc` on-disk format envelope. No analysis logic - pure serialization/deserialization.
 
 ---
 
@@ -53,7 +53,7 @@ pub fn write_bundle<T: serde::Serialize>(
 ```
 
 1. Serializes `payload` to bytes via `bincode`.
-2. Computes `BLAKE3(payload_bytes)` — a 32-byte cryptographic hash.
+2. Computes `BLAKE3(payload_bytes)` - a 32-byte cryptographic hash.
 3. Builds `BundleHeader` with the hash.
 4. Serializes the header via `bincode`.
 5. Prepends `header_len` as 4-byte little-endian.
@@ -80,7 +80,7 @@ pub fn read_bundle<T: serde::de::DeserializeOwned>(
 
 | Concept | Where Used |
 |---|---|
-| **Content-addressed storage** | BLAKE3 checksum of the payload — the file is self-verifying |
+| **Content-addressed storage** | BLAKE3 checksum of the payload - the file is self-verifying |
 | **Binary serialization** | `bincode` for deterministic, zero-allocation deserialization |
 | **Protocol negotiation** | Magic bytes + version field (analogous to ELF/PNG file signatures) |
 | **Forward compatibility** | Version gate: engine rejects bundles with version > its own |

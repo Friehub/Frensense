@@ -33,6 +33,6 @@ async function deleteProjectFile(projectId: string, fileId: string, session: Ses
     .bind(projectId).first();
   if (!proj || proj.owner_id !== session.customerId) throw new Error('FORBIDDEN');
 
-  // VULNERABLE: fileId not checked against projectId — attacker can delete any file
+  // VULNERABLE: fileId not checked against projectId - attacker can delete any file
   await db.prepare('DELETE FROM project_files WHERE id = ?').bind(fileId).run();
 }

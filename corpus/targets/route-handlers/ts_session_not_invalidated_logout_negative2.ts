@@ -1,4 +1,4 @@
-// SAFE: JWT blacklist approach — token added to denylist on logout
+// SAFE: JWT blacklist approach - token added to denylist on logout
 import { Redis } from 'ioredis';
 
 const redis = new Redis();

@@ -45,13 +45,13 @@ This document traces a single file through the entire Frensense analysis pipelin
                                │
                                ▼ AnalysisResult per file
  ┌─────────────────────────────────────────────────────────────────┐
- │  analyze_project() — cross-file pass                           │
+ │  analyze_project() - cross-file pass                           │
  │  frensense-engine/src/lib.rs                                    │
  │                                                                  │
  │  1. Merge all SemanticGraphs → global_graph                    │
  │  2. cross_file::build_resolver(symbols, graph)                 │
  │  3. Seed HTTP handlers as TaintOrigin::UserInput sources        │
- │  4. resolver.propagate_taint(None) — BFS over Calls edges       │
+ │  4. resolver.propagate_taint(None) - BFS over Calls edges       │
  │  5. For DbQuery/ShellExecutor functions:                        │
  │     resolver.resolve_taint(fn_name, file, depth=10)            │
  │     → if tainted: update fingerprint.tainted_api_calls         │
@@ -63,7 +63,7 @@ This document traces a single file through the entire Frensense analysis pipelin
                                │
                                ▼ ProjectAnalysis
  ┌─────────────────────────────────────────────────────────────────┐
- │  Engine.scan() — per function, per file                        │
+ │  Engine.scan() - per function, per file                        │
  │  src/engine/auditor/                                            │
  │                                                                  │
  │  For each file, for each function fingerprint:                  │
@@ -121,7 +121,7 @@ This document traces a single file through the entire Frensense analysis pipelin
  │  Post-Processing                                                │
  │  src/engine/composition.rs + findings/                         │
  │                                                                  │
- │  1. apply_composition() — AND-gate multi-layer confidence:      │
+ │  1. apply_composition() - AND-gate multi-layer confidence:      │
  │     ├── L1∧L2 (corpus + taint): full confidence                │
  │     ├── L1 only: ×0.6 penalty                                  │
  │     ├── L3: validator suppression (ratio>0.85 + name): ×0.3   │

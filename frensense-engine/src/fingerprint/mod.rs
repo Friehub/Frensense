@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Fingerprint module — split across focused sub-modules.
+//! Fingerprint module - split across focused sub-modules.
 //!
 //! Public API is identical to the old flat `fingerprint.rs`.
 

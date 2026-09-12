@@ -29,7 +29,7 @@ fn classify_go(kind: &str) -> NodeRole {
             params_field: "parameters",
             body_field: "body",
         },
-        // This was the critical missing case — ALL Go struct methods
+        // This was the critical missing case - ALL Go struct methods
         "method_declaration" => NodeRole::Function {
             is_method: true,
             name_field: Some("name"),
@@ -44,7 +44,7 @@ fn classify_go(kind: &str) -> NodeRole {
         },
 
         // ── Declarations / assignments ───────────────────────────────────
-        // Go := operator — was missing everywhere in the engine before this crate
+        // Go := operator - was missing everywhere in the engine before this crate
         "short_var_declaration" => NodeRole::Declaration {
             name_field: "left",
             value_field: "right",
@@ -70,7 +70,7 @@ fn classify_go(kind: &str) -> NodeRole {
             callee_field: "function",
             args_field: "arguments",
         },
-        // pkg.Function or receiver.Method — NOT `member_expression`
+        // pkg.Function or receiver.Method - NOT `member_expression`
         "selector_expression" => NodeRole::MemberAccess {
             object_field: "operand",
             property_field: "field",
@@ -83,7 +83,7 @@ fn classify_go(kind: &str) -> NodeRole {
         // type switch and expression switch
         "expression_switch_statement" | "type_switch_statement" => NodeRole::Branch,
         "return_statement" => NodeRole::Return,
-        // Go has no try/catch — but defer/recover pattern exists
+        // Go has no try/catch - but defer/recover pattern exists
         "defer_statement" => NodeRole::Await, // closest analogue
         "go_statement" => NodeRole::Await,    // goroutine launch
         "send_statement" => NodeRole::Other,
@@ -265,13 +265,13 @@ fn go_classify_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintOrigi
 
 fn go_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     match call_last_segment(call) {
-        // Numeric coercion — kills injection risk
+        // Numeric coercion - kills injection risk
         "Atoi" | "ParseInt" | "ParseUint" | "ParseFloat" | "ParseBool" => Some(SanitizerKind::Full),
         // HTML escaping
         "EscapeString" | "HTMLEscapeString" | "HTMLEscape" => Some(SanitizerKind::HtmlEscape),
         // URL encoding
         "QueryEscape" | "PathEscape" | "PathUnescape" => Some(SanitizerKind::UrlEncode),
-        // Path cleaning — partial mitigation for path traversal
+        // Path cleaning - partial mitigation for path traversal
         "Clean" | "Abs" | "EvalSymlinks" => Some(SanitizerKind::PathNormalize),
         _ => None,
     }
@@ -280,7 +280,7 @@ fn go_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
 // ── Propagators ───────────────────────────────────────────────────────────────
 
 static GO_PROPAGATORS: &[PropagatorRule] = &[
-    // fmt — format string propagates taint from args
+    // fmt - format string propagates taint from args
     PropagatorRule {
         call: "Sprintf",
         tainted_arg: None,
@@ -301,7 +301,7 @@ static GO_PROPAGATORS: &[PropagatorRule] = &[
         tainted_arg: None,
         tainted_receiver: false,
     },
-    // strings — receiver taints return
+    // strings - receiver taints return
     PropagatorRule {
         call: "Join",
         tainted_arg: None,
@@ -362,7 +362,7 @@ static GO_PROPAGATORS: &[PropagatorRule] = &[
         tainted_arg: Some(0),
         tainted_receiver: false,
     },
-    // strconv — propagates taint (type conversion, not sanitization)
+    // strconv - propagates taint (type conversion, not sanitization)
     PropagatorRule {
         call: "Itoa",
         tainted_arg: Some(0),
@@ -378,7 +378,7 @@ static GO_PROPAGATORS: &[PropagatorRule] = &[
         tainted_arg: Some(0),
         tainted_receiver: false,
     },
-    // path/filepath — path building propagates traversal risk
+    // path/filepath - path building propagates traversal risk
     PropagatorRule {
         call: "Join",
         tainted_arg: None,
@@ -592,7 +592,7 @@ impl LanguageSpec for GoSpec {
             ("document.write", "XssDom"),
             ("document.writeln", "XssDom"),
             ("dangerouslySetInnerHTML", "XssDom"),
-            // SSTI — Template engine renders
+            // SSTI - Template engine renders
             ("ExecuteTemplate", "TemplateSsti"),
             ("render_template", "TemplateSsti"),
             ("render_template_string", "TemplateSsti"),

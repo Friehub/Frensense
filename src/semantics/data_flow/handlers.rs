@@ -56,7 +56,7 @@ impl<'a> DataFlowAnalyzer<'a, '_> {
     ) -> Option<TaintOrigin> {
         let kind = node.kind();
 
-        // Skip literal content — cannot carry taint by reference.
+        // Skip literal content - cannot carry taint by reference.
         if matches!(
             kind,
             "string"

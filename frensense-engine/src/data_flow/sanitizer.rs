@@ -21,7 +21,7 @@ pub struct SanitizerRegistry {
 impl SanitizerRegistry {
     pub fn default_ts() -> Self {
         let mut r = Self::default();
-        // Numeric coercion — clears all injection risk
+        // Numeric coercion - clears all injection risk
         r.full_sanitizers.extend([
             "parseInt".into(),
             "parseFloat".into(),
@@ -33,7 +33,7 @@ impl SanitizerRegistry {
             "Math.abs".into(),
             "Boolean".into(),
         ]);
-        // Parameterized binding — clears SQL injection specifically
+        // Parameterized binding - clears SQL injection specifically
         r.context_sanitizers.insert("bind".into(), SinkContext::Sql);
         r.context_sanitizers
             .insert("$1_placeholder".into(), SinkContext::Sql);
@@ -50,7 +50,7 @@ impl SanitizerRegistry {
             "validator.escape".into(),
             "xss".into(),
         ]);
-        // URL encoding — clears SSRF/redirect but not SQL
+        // URL encoding - clears SSRF/redirect but not SQL
         r.context_sanitizers
             .insert("encodeURIComponent".into(), SinkContext::Url);
         r.context_sanitizers
@@ -60,12 +60,12 @@ impl SanitizerRegistry {
             .insert("new URL".into(), SinkContext::Url);
         r.context_sanitizers
             .insert("url.pathname".into(), SinkContext::Url);
-        // UUID generation — replaces user input with safe value
+        // UUID generation - replaces user input with safe value
         r.full_sanitizers
             .extend(["crypto.randomUUID".into(), "uuidv4".into(), "nanoid".into()]);
-        // Buffer clearing — only clears binary encoding confusion
+        // Buffer clearing - only clears binary encoding confusion
         r.full_sanitizers.extend(["Buffer.from".into()]);
-        // Path safety (partial — path.normalize does NOT sanitize traversal)
+        // Path safety (partial - path.normalize does NOT sanitize traversal)
         r.context_sanitizers
             .insert("path.basename".into(), SinkContext::FilePath);
         r

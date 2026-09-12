@@ -1,5 +1,5 @@
 // [frensense]
-// observation: The idempotency key is checked in the database, and then the operation is performed using that key — but the check and write are not in a single atomic transaction. A concurrent request with the same key can pass the check before either write completes.
+// observation: The idempotency key is checked in the database, and then the operation is performed using that key - but the check and write are not in a single atomic transaction. A concurrent request with the same key can pass the check before either write completes.
 // impact: Duplicate processing of the same idempotent operation (e.g., double charge, duplicate order, double webhook processing).
 // improvement: Use a single atomic INSERT with a unique constraint on the idempotency key, or wrap the check+write in a database transaction with proper isolation.
 // cwe: CWE-754

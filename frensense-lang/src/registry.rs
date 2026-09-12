@@ -10,7 +10,7 @@
 //!
 //! let reg = LanguageRegistry::global();
 //! let spec = reg.for_extension("ts").expect("TypeScript not registered");
-//! // spec is &dyn LanguageSpec — call any trait method
+//! // spec is &dyn LanguageSpec - call any trait method
 //! ```
 //!
 //! ## Adding a new language
@@ -91,7 +91,7 @@ impl LanguageRegistry {
 
     /// Look up the spec for a file extension (lowercase, no leading dot).
     ///
-    /// Returns `None` when the extension is unknown — the engine should skip
+    /// Returns `None` when the extension is unknown - the engine should skip
     /// or fall back gracefully.
     #[must_use]
     pub fn for_extension(&self, ext: &str) -> Option<&dyn LanguageSpec> {

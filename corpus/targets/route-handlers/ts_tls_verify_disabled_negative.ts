@@ -1,4 +1,4 @@
-// SAFE: TLS verification enabled — rejectUnauthorized defaults to true
+// SAFE: TLS verification enabled - rejectUnauthorized defaults to true
 import https from 'node:https';
 
 function fetchSecure(url: string): Promise<string> {

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A React Context provider wraps the entire application with sensitive data such as auth tokens, API keys, or full user records.
-// impact: Any consumer of the context — including deeply nested, low-trust components — can access sensitive information. Third-party scripts or compromised components can exfiltrate auth tokens. This violates the principle of least privilege.
+// impact: Any consumer of the context - including deeply nested, low-trust components - can access sensitive information. Third-party scripts or compromised components can exfiltrate auth tokens. This violates the principle of least privilege.
 // improvement: Provide only the minimum required data through context. Keep sensitive credentials behind a dedicated auth hook that exposes only non-sensitive metadata.
 
 import { createContext, useContext, useState, type ReactNode } from 'react';

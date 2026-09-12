@@ -4,7 +4,7 @@
 //!
 //! Express, Fastify, Koa, and Hono register HTTP handlers by passing
 //! a function reference to a router method. The registration itself
-//! is definitive evidence that the function is an HttpHandler — no
+//! is definitive evidence that the function is an HttpHandler - no
 //! type annotations or response-call signals needed.
 //!
 //! This module walks the AST looking for call expressions that match
@@ -18,11 +18,11 @@ use tree_sitter::Node;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HandlerPosition {
     /// Handler is the last non-punctuation argument.
-    /// Express: `app.get(path, handler)` — handler is the last arg.
-    /// Middleware: `app.use(handler)` — handler is the last arg.
+    /// Express: `app.get(path, handler)` - handler is the last arg.
+    /// Middleware: `app.use(handler)` - handler is the last arg.
     LastArg,
     /// Handler is a field inside an options object.
-    /// Fastify: `fastify.get(path, { handler: fn, schema: ... })` — `handler` field.
+    /// Fastify: `fastify.get(path, { handler: fn, schema: ... })` - `handler` field.
     ObjectField(&'static str),
 }
 
@@ -316,7 +316,7 @@ fn find_object_field_value_raw(obj_node: Node, source: &str, field: &str) -> Opt
 }
 
 /// Check if an arrow function is passed as a direct argument to a router registration.
-/// If so, the inline function IS the handler — classify it as HttpHandler without a name lookup.
+/// If so, the inline function IS the handler - classify it as HttpHandler without a name lookup.
 pub fn is_inline_registered_handler(fn_node: Node, source: &str) -> bool {
     if fn_node.kind() != "arrow_function" {
         return false;
@@ -382,7 +382,7 @@ pub fn infer_function_name(fn_node: Node, source: &str) -> Option<String> {
         }
     }
 
-    // Case 5: declaration — `function foo(req, res) { ... }`
+    // Case 5: declaration - `function foo(req, res) { ... }`
     if kind == "function_declaration" || kind == "lexical_declaration" {
         if let Some(name_node) = parent.child_by_field_name("name") {
             return Some(source[name_node.start_byte()..name_node.end_byte()].to_string());

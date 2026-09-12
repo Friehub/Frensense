@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Cursor-based pagination accepts an opaque cursor string from the user and passes it directly into a database query without validation, enabling SQL injection via crafted cursors.
-// impact: SQL injection through cursor parameter — an attacker can inject UNION or OR clauses via a base64-encoded cursor, extracting arbitrary data from the database.
+// impact: SQL injection through cursor parameter - an attacker can inject UNION or OR clauses via a base64-encoded cursor, extracting arbitrary data from the database.
 // improvement: Always validate and decode cursors server-side; never pass raw user input into query parameters.
 
 import { Request, Response } from 'express';

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `React.memo` with a comparison function that always returns `false` forces the component to re-render on every parent render, bypassing memoization entirely
-// impact: performance degradation — expensive component re-renders every time, negating the benefit of `React.memo`
+// impact: performance degradation - expensive component re-renders every time, negating the benefit of `React.memo`
 // improvement: use a correct comparison function (or none for shallow comparison)
 
 'use client'

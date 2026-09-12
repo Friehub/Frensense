@@ -1,5 +1,5 @@
 // [frensense]
-// observation: fetch result is cached by Next.js but never revalidated after the mutation — subsequent reads return stale data
+// observation: fetch result is cached by Next.js but never revalidated after the mutation - subsequent reads return stale data
 // impact: users see stale content after data mutations; if this involves auth state, privileges or billing, it's a security bypass
 // improvement: call `revalidatePath()` or `revalidateTag()` after mutations
 

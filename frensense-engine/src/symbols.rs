@@ -277,8 +277,8 @@ impl SymbolRegistry {
     /// Extract call edges from a tree-sitter tree using the given call query.
     ///
     /// The query must expose two captures per match:
-    ///   `@caller` — the enclosing function / method name
-    ///   `@call`   — the callee being invoked
+    ///   `@caller` - the enclosing function / method name
+    ///   `@call`   - the callee being invoked
     ///
     /// If a match is missing either capture it is skipped silently.
     pub fn extract_edges_from_tree(
@@ -307,7 +307,7 @@ impl SymbolRegistry {
             .map(|i| i as u32);
 
         // Both captures must be present in the query; if either is absent the
-        // query string is malformed — skip the whole file without panicking.
+        // query string is malformed - skip the whole file without panicking.
         let (Some(caller_idx), Some(call_idx)) = (caller_idx, call_idx) else {
             return;
         };

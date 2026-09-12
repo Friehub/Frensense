@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `cloneElement` is used to inject `dangerouslySetInnerHTML` into a child, allowing XSS when child content comes from user input
-// impact: cross-site scripting (XSS) — attacker-controlled HTML is rendered unsanitized into the DOM
+// impact: cross-site scripting (XSS) - attacker-controlled HTML is rendered unsanitized into the DOM
 // improvement: avoid `dangerouslySetInnerHTML` in cloned elements; use safe content projection instead
 
 'use client'

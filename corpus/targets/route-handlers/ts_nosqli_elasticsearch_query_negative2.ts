@@ -1,4 +1,4 @@
-// SAFE: Used Elasticsearch query DSL builder with explicit allowed query types — never accepts raw body from request.
+// SAFE: Used Elasticsearch query DSL builder with explicit allowed query types - never accepts raw body from request.
 
 import { Client } from "@elastic/elasticsearch";
 

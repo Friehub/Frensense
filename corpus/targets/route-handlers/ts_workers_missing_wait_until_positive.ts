@@ -8,7 +8,7 @@ export default {
     const url = new URL(request.url);
     const data = await env.KV.get(url.pathname);
 
-    // VULNERABLE: background tasks not wrapped — may be killed
+    // VULNERABLE: background tasks not wrapped - may be killed
     logRequest(request);
     warmCache(url.pathname, data);
 

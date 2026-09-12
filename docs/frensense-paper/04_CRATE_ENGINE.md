@@ -1,7 +1,7 @@
-# Crate: `frensense-engine` — Core Analysis Library
+# Crate: `frensense-engine` - Core Analysis Library
 
 **Path:** `frensense-engine/src/`  
-**Role:** The analytical heart. Pure library — no CLI, no binary. Everything else depends on it.
+**Role:** The analytical heart. Pure library - no CLI, no binary. Everything else depends on it.
 
 This document covers all modules inside the engine crate. For each module, the purpose, key types, and CS theory are documented.
 
@@ -15,10 +15,10 @@ Analyzes a single source file. Steps:
 
 1. Load the tree-sitter grammar for the language.
 2. Parse the source into a concrete syntax tree (CST).
-3. Build `ImportMap` — maps local alias names to package names.
-4. Build `HandlerRegistry` — discovers route registrations.
+3. Build `ImportMap` - maps local alias names to package names.
+4. Build `HandlerRegistry` - discovers route registrations.
 5. Extract `FunctionFingerprint`s for every function in the file.
-6. Build `SymbolRegistry` — function/class symbol table.
+6. Build `SymbolRegistry` - function/class symbol table.
 7. Extract `SemanticOp` normalized IR for taint analysis.
 8. (feature-gated) Build `SemanticGraph` and extract temporal events.
 
@@ -58,7 +58,7 @@ pub struct AnalysisResult {
 ### Purpose
 Convert a function's AST subtree into a compact multi-resolution vector representation called `FunctionFingerprint`.
 
-### `types.rs` — `FunctionFingerprint`
+### `types.rs` - `FunctionFingerprint`
 
 27-field struct. See [`11_DATA_STRUCTURES.md`](./11_DATA_STRUCTURES.md) for the full annotated table.
 
@@ -74,13 +74,13 @@ Key groups:
 | Flow | `data_flow_path_hashes`, `control_flow_hashes` | Source→sink paths |
 | Meta | `has_http_decorator`, `is_registered_handler` | Handler classification |
 
-### `hashing.rs` — Token Normalization
+### `hashing.rs` - Token Normalization
 
 - `normalize_token(tok)`: lowercases, strips sigils, collapses string literals to `"__str__"`, numbers to `"__num__"`. This makes `req.body.userId` and `request.body.user_id` hash to the same token.
-- `token_ngrams_sorted(tokens, w)`: emit sorted n-gram hashes — permutation-invariant (for Jaccard).
-- `token_ngrams_positional(tokens, w)`: emit positionally-keyed n-gram hashes — order-sensitive (for sequence similarity).
+- `token_ngrams_sorted(tokens, w)`: emit sorted n-gram hashes - permutation-invariant (for Jaccard).
+- `token_ngrams_positional(tokens, w)`: emit positionally-keyed n-gram hashes - order-sensitive (for sequence similarity).
 
-### `ast_walkers.rs` — Feature Extractors
+### `ast_walkers.rs` - Feature Extractors
 
 One function per feature group. Called by `extraction.rs`:
 
@@ -158,7 +158,7 @@ pub struct LSHIndex {
 
 ## Module: `cfg/`
 
-### `mod.rs` — Control Flow Graph
+### `mod.rs` - Control Flow Graph
 
 ```rust
 pub enum CFEdgeKind { Unconditional, Branch, Merge, BackEdge, Exception }
@@ -182,13 +182,13 @@ pub struct ControlFlowGraph<'a> {
 ```
 
 Key methods:
-- `is_reachable(from, to)` — BFS reachability check.
-- `dominates(a, b)` — does block `a` dominate block `b`?
-- `find_post_dominator(node)` — finds the post-dominator (common successor on all paths).
+- `is_reachable(from, to)` - BFS reachability check.
+- `dominates(a, b)` - does block `a` dominate block `b`?
+- `find_post_dominator(node)` - finds the post-dominator (common successor on all paths).
 
 **CS Theory:** Basic block construction, dominator tree computation via iterative dataflow (Cooper et al. 2001 "A Simple, Fast Dominance Algorithm"), CFG reachability.
 
-### `def_use.rs` — Reaching Definitions
+### `def_use.rs` - Reaching Definitions
 
 Implements the classical *reaching definitions* dataflow problem:
 
@@ -205,7 +205,7 @@ Used by taint analysis to determine which variable definitions reach a given use
 
 ## Module: `data_flow/`
 
-### `mod.rs` — `TaintOrigin` and `TaintRegistry`
+### `mod.rs` - `TaintOrigin` and `TaintRegistry`
 
 `TaintOrigin` enumerates where untrusted data can originate:
 
@@ -236,7 +236,7 @@ pub struct TaintRegistry {
 
 **CS Theory:** May-taint analysis (sound, not complete), monotone dataflow framework, scope-stack lattice where join of tainted and untainted is tainted.
 
-### `normalization.rs` — `SemanticOp`
+### `normalization.rs` - `SemanticOp`
 
 A normalized intermediate representation for taint propagation, generated from the AST without a full IR compilation step:
 
@@ -250,13 +250,13 @@ pub enum SemanticOp {
 }
 ```
 
-`ByteRange` carries `start_byte` and `end_byte`. The return-value taint propagation in `analyze_project` uses these ranges to find "the binding whose value range encompasses the call range" — the variable that receives the return value of a tainted function.
+`ByteRange` carries `start_byte` and `end_byte`. The return-value taint propagation in `analyze_project` uses these ranges to find "the binding whose value range encompasses the call range" - the variable that receives the return value of a tainted function.
 
-### `alias.rs` — `AliasTracker`
+### `alias.rs` - `AliasTracker`
 
-Tracks pointer/reference aliases: when `let a = b` and `b` is tainted, `a` becomes tainted. The alias graph is a simple `HashMap<String, Vec<String>>` — good enough for the single-assignment-per-scope pattern common in JS/TS.
+Tracks pointer/reference aliases: when `let a = b` and `b` is tainted, `a` becomes tainted. The alias graph is a simple `HashMap<String, Vec<String>>` - good enough for the single-assignment-per-scope pattern common in JS/TS.
 
-### `engine.rs` — `DataFlowEngine`
+### `engine.rs` - `DataFlowEngine`
 
 The per-function taint walker. Walks the function's AST subtree, consulting `TaintRegistry` and `SanitizerRegistry` at each node:
 
@@ -264,19 +264,19 @@ The per-function taint walker. Walks the function's AST subtree, consulting `Tai
 - At call nodes: if any argument is tainted and the callee is a sink, emit a taint finding.
 - At call nodes: if the callee is a known sanitizer, untaint the first argument's binding.
 
-Returns a `FunctionTaintSummary` — whether the function propagates taint from any of its parameters to its return value (used by interprocedural analysis).
+Returns a `FunctionTaintSummary` - whether the function propagates taint from any of its parameters to its return value (used by interprocedural analysis).
 
-### `cross_file.rs` — Interprocedural Taint Resolver
+### `cross_file.rs` - Interprocedural Taint Resolver
 
 Builds a cross-file taint summary using the global call graph:
 
-1. `register_exposed_taint(key, file, origin)` — mark HTTP handler functions as taint sources.
-2. `propagate_taint(depth_limit)` — BFS over the call graph, propagating taint from sources through callees.
-3. `resolve_taint(fn_name, file, max_depth)` — query whether a given function is reachable from a taint source.
+1. `register_exposed_taint(key, file, origin)` - mark HTTP handler functions as taint sources.
+2. `propagate_taint(depth_limit)` - BFS over the call graph, propagating taint from sources through callees.
+3. `resolve_taint(fn_name, file, max_depth)` - query whether a given function is reachable from a taint source.
 
 **CS Theory:** Interprocedural taint analysis, function summary approach, call graph BFS propagation.
 
-### `taint_metrics.rs` — `TaintMetrics`
+### `taint_metrics.rs` - `TaintMetrics`
 
 Computes two metrics from a function's taint walk:
 
@@ -285,7 +285,7 @@ Computes two metrics from a function's taint walk:
 
 These feed into the `composition` layer's L3 suppression logic.
 
-### `sanitizer.rs` — `SanitizerRegistry`
+### `sanitizer.rs` - `SanitizerRegistry`
 
 Hardcoded list of known sanitizer functions per language:
 
@@ -303,7 +303,7 @@ html_escape::encode_text, ammonia::clean, sqlx::query!, diesel::sql_query, ...
 
 ## Module: `corpus/`
 
-### `pattern.rs` — `CorpusPattern`
+### `pattern.rs` - `CorpusPattern`
 
 ```rust
 pub struct CorpusPattern {
@@ -323,7 +323,7 @@ pub struct CorpusPattern {
 }
 ```
 
-### `semantic.rs` — `SemanticFilter`
+### `semantic.rs` - `SemanticFilter`
 
 Pre-match gate. If the candidate function fails any constraint, scoring is skipped entirely. This is the primary O(1) false-positive guard.
 
@@ -342,7 +342,7 @@ pub struct SemanticFilter {
 }
 ```
 
-### `motifs.rs` — Semantic Motif Table
+### `motifs.rs` - Semantic Motif Table
 
 Motifs are **semantic equivalence classes** of API calls. Registered at compile time as `&'static` slices. At fingerprint extraction time, every call that matches a motif member is hashed under `hash(motif_name)` instead of (or in addition to) `hash(literal_name)`.
 
@@ -357,9 +357,9 @@ Selected motifs:
 | `PathSink` | `fs.readFile`, `path.join`, `open`, `std::fs::read` |
 | `NetworkFetchSink` | `fetch`, `axios.get`, `got`, `request`, `http.get` |
 
-This makes a pattern trained on Express's `exec()` automatically detect the same pattern in Node's `spawn()` and Rust's `Command::new()` — cross-framework generalization without extra corpus examples.
+This makes a pattern trained on Express's `exec()` automatically detect the same pattern in Node's `spawn()` and Rust's `Command::new()` - cross-framework generalization without extra corpus examples.
 
-### `flow_fingerprint.rs` — Intra-Function Flow Path Hashing
+### `flow_fingerprint.rs` - Intra-Function Flow Path Hashing
 
 Extracts abstract source-to-sink data flow paths from a function body without building a full program dependence graph.
 
@@ -367,20 +367,20 @@ Algorithm (O(n²) in function body size):
 1. Find all assignments where RHS touches a `UserInputSource` motif → `tainted_vars: HashMap<var_name, source_motif>`.
 2. For each tainted variable, find call sites in the body where it appears as an argument and the callee matches a sink motif.
 3. Record the abstract path `[source_motif, ..., sink_motif]` as a `FlowPath`.
-4. Hash each `FlowPath` with FxHasher — the result is variable-renaming invariant.
+4. Hash each `FlowPath` with FxHasher - the result is variable-renaming invariant.
 
 **CS Theory:** Lightweight program slicing, alpha-equivalence invariance, abstract taint paths.
 
-### `registry.rs` — `PatternRegistry`
+### `registry.rs` - `PatternRegistry`
 
 The matching index. See [`11_DATA_STRUCTURES.md`](./11_DATA_STRUCTURES.md) for the full struct. Core methods:
 
-- `scan_function(fp, context)` — run the full matching pipeline for one function.
-- `lsh_candidates(fp)` — retrieve candidate patterns from the LSH index.
-- `score_against(fp, pattern, config)` — compute 15-D similarity + contrastive score.
-- `verify_taint(fp, context)` — run the DataFlowEngine and return `FunctionTaintSummary`.
+- `scan_function(fp, context)` - run the full matching pipeline for one function.
+- `lsh_candidates(fp)` - retrieve candidate patterns from the LSH index.
+- `score_against(fp, pattern, config)` - compute 15-D similarity + contrastive score.
+- `verify_taint(fp, context)` - run the DataFlowEngine and return `FunctionTaintSummary`.
 
-### `source_sink.rs` — `CorpusSourceSinkRegistry`
+### `source_sink.rs` - `CorpusSourceSinkRegistry`
 
 Stores the source and sink function lists extracted from the corpus patterns themselves. At bundle build time, the bundler scans every positive corpus file and extracts calls to known sink functions, building a per-pattern list. At scan time, this list supplements the hardcoded `SanitizerRegistry` and `motifs.rs` definitions.
 
@@ -388,9 +388,9 @@ Stores the source and sink function lists extracted from the corpus patterns the
 
 ## Module: `pattern/`
 
-### `scorer.rs` — `PatternScorer` and `ScorerConfig`
+### `scorer.rs` - `PatternScorer` and `ScorerConfig`
 
-`ScorerConfig` holds every tunable scoring parameter as named fields with documented defaults. Nothing is hardcoded in logic — all constants live in `ScorerConfig::default()`.
+`ScorerConfig` holds every tunable scoring parameter as named fields with documented defaults. Nothing is hardcoded in logic - all constants live in `ScorerConfig::default()`.
 
 Key scoring stages:
 1. Compute `RawDimensions` (15 Jaccard/cosine similarities).
@@ -402,7 +402,7 @@ Key scoring stages:
 7. Apply per-context penalty (cross-lingual penalty if languages differ).
 8. Apply sigmoid calibration: `confidence = σ(A * score + B)`.
 
-### `similarity.rs` — `RawDimensions`
+### `similarity.rs` - `RawDimensions`
 
 Computes each of the 15 similarity values using sorted-set Jaccard:
 
@@ -414,9 +414,9 @@ For sorted vectors: `intersect_sorted(a, b)` (merge-join O(n+m)), `union_size = 
 
 `weighted_score(weights)` applies the gate formula above and returns the final scalar.
 
-### `evidence.rs` — `MatchEvidence`
+### `evidence.rs` - `MatchEvidence`
 
-The per-dimension breakdown attached to every corpus finding. Makes findings interpretable — the equivalent of a compiler telling you which variable has a type error.
+The per-dimension breakdown attached to every corpus finding. Makes findings interpretable - the equivalent of a compiler telling you which variable has a type error.
 
 ```rust
 pub struct MatchEvidence {
@@ -438,7 +438,7 @@ pub struct MatchEvidence {
 
 ---
 
-## Module: `graph.rs` — `SemanticGraph`
+## Module: `graph.rs` - `SemanticGraph`
 
 Directed call graph backed by `petgraph::DiGraph<SemanticNode, EdgeKind>`.
 
@@ -463,7 +463,7 @@ Built incrementally per-file, merged into a global graph in `analyze_project`. U
 
 ---
 
-## Module: `semantic.rs` — `SemanticProvider`
+## Module: `semantic.rs` - `SemanticProvider`
 
 Trait with three concrete implementations:
 
@@ -477,9 +477,9 @@ The engine asks the provider: "Is this parameter a taint source?" and "Is this c
 
 ---
 
-## Module: `profile.rs` — `ProjectProfile`
+## Module: `profile.rs` - `ProjectProfile`
 
-Computes the frequency distribution of n-gram hashes across all functions in a project. Used to compute per-project IDF weights — n-grams that appear in many of the project's functions are down-weighted (they are likely boilerplate, not vulnerability signals).
+Computes the frequency distribution of n-gram hashes across all functions in a project. Used to compute per-project IDF weights - n-grams that appear in many of the project's functions are down-weighted (they are likely boilerplate, not vulnerability signals).
 
 ```rust
 pub struct ProjectProfile {
@@ -498,7 +498,7 @@ pub struct LanguageProfile {
 
 ---
 
-## Module: `function_role.rs` — `FunctionRole`
+## Module: `function_role.rs` - `FunctionRole`
 
 A lightweight pre-filter that classifies a function by its role before corpus matching. If the candidate's role is incompatible with a pattern's expected role, scoring is skipped.
 
@@ -512,4 +512,4 @@ pub enum FunctionRole {
 }
 ```
 
-Classification uses fingerprint fields only — no AST re-traversal. Zero cost.
+Classification uses fingerprint fields only - no AST re-traversal. Zero cost.

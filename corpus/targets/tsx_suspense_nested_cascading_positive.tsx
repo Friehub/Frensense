@@ -1,5 +1,5 @@
 // [frensense]
-// observation: Deeply nested Suspense boundaries (3+ levels) cause cascading sequential loading — each level waits for its parent to resolve before starting its own fetch
+// observation: Deeply nested Suspense boundaries (3+ levels) cause cascading sequential loading - each level waits for its parent to resolve before starting its own fetch
 // impact: slow page loads as data fetching waterfall increases perceived latency linearly with nesting depth
 // improvement: flatten Suspense boundaries or use parallel data fetching with a single Suspense at the top level
 // cwe: CWE-79

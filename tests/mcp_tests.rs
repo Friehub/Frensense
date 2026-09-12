@@ -2,7 +2,7 @@
 //! Integration tests for the MCP server binary.
 //!
 //! All tests spawn the binary as a child process to verify real stdin/stdout
-//! JSON-RPC behaviour.  Each test is isolated — a new process per test.
+//! JSON-RPC behaviour.  Each test is isolated - a new process per test.
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -276,7 +276,7 @@ fn test_mcp_rules_filter() {
 fn test_mcp_notification_produces_no_response() {
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
-    // Send a notification (no id) — server MUST NOT write a response
+    // Send a notification (no id) - server MUST NOT write a response
     send_request(
         &mut stdin,
         r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
@@ -575,7 +575,7 @@ fn test_mcp_shutdown_then_tools_list_graceful() {
 
     // Send shutdown (id=1) then immediately a tools/list (id=2).
     // The server should respond to shutdown first, then MAY respond to
-    // tools/list or close gracefully — but it must not panic.
+    // tools/list or close gracefully - but it must not panic.
     send_request(
         &mut stdin,
         r#"{"jsonrpc":"2.0","id":1,"method":"shutdown","params":{}}"#,
@@ -588,7 +588,7 @@ fn test_mcp_shutdown_then_tools_list_graceful() {
         r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#,
     );
     let resp = read_response(&mut stdout);
-    // After shutdown the server can either respond or close — we just ensure
+    // After shutdown the server can either respond or close - we just ensure
     // there's no crash.
     assert!(resp.get("error").is_none() || resp["error"]["code"] == -32601);
 
@@ -789,7 +789,7 @@ fn test_mcp_audit_symlink_loop_does_not_infinite_loop() {
 
 #[test]
 fn test_mcp_invalid_version_string() {
-    // The JSON-RPC spec requires "2.0" — an invalid value shouldn't crash
+    // The JSON-RPC spec requires "2.0" - an invalid value shouldn't crash
     let (child, mut stdin, mut stdout) = spawn_mcp();
 
     send_request(

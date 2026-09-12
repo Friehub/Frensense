@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `startTransition` is called but the UI never checks the `isPending` flag, leaving users with no visual feedback during slow transitions
-// impact: UI appears stuck or unresponsive — users may click repeatedly, submit forms twice, or navigate away thinking the app is broken
+// impact: UI appears stuck or unresponsive - users may click repeatedly, submit forms twice, or navigate away thinking the app is broken
 // improvement: wire `isPending` from `useTransition` to a loading indicator or disabled state
 
 'use client'

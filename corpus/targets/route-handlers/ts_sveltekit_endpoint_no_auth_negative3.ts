@@ -1,4 +1,4 @@
-// NOT a SvelteKit endpoint — plain Express route handler without auth.
+// NOT a SvelteKit endpoint - plain Express route handler without auth.
 // This negative teaches the contrastive scorer that generic route handler
 // structure (req/res parameters, db calls, JSON response) is NOT sufficient
 // to match the SvelteKit pattern. Only actual SvelteKit imports + event.locals

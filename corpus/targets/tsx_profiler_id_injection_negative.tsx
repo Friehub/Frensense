@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `<Profiler>` `id` prop is set directly from user input, allowing DOM injection or XSS when the id is rendered into the DOM
-// impact: cross-site scripting (XSS) — malicious `id` values like `"><img src=x onerror=alert(1)>` can be injected into the DOM
+// impact: cross-site scripting (XSS) - malicious `id` values like `"><img src=x onerror=alert(1)>` can be injected into the DOM
 // improvement: validate or sanitize the id prop, or use a fixed allowlist of profiler IDs
 
 'use client'

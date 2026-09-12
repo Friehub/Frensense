@@ -214,7 +214,7 @@ fn collect_binding_names_from_pattern(pattern: Node, source: &str, names: &mut V
                         names.push(source[child.start_byte()..child.end_byte()].to_string());
                     }
                     "pair_pattern" => {
-                        // { key: bindingName } — take the value (right side)
+                        // { key: bindingName } - take the value (right side)
                         if let Some(val) = child.child_by_field_name("value") {
                             collect_binding_names_from_pattern(val, source, names);
                         }

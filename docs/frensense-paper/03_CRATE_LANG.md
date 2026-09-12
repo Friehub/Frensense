@@ -1,4 +1,4 @@
-# Crate: `frensense-lang` — Language Abstraction Layer
+# Crate: `frensense-lang` - Language Abstraction Layer
 
 **Path:** `frensense-lang/src/`  
 **Role:** Leaf crate. Defines the single `LanguageSpec` trait that every engine subsystem calls instead of containing hardcoded language-specific `match` arms.
@@ -9,13 +9,13 @@
 
 Previous versions of the engine had nine independent hardcoding sites where each subsystem (fingerprint, CFG, def-use, flow-fingerprint, import resolver, etc.) contained its own `match kind { "call_expression" | "method_call" | ... }` arms for each language. Adding a new language required patching all nine sites.
 
-`frensense-lang` consolidates this into one trait with one implementation per language. Any engine subsystem that needs a language-specific fact calls `spec.classify(node_kind)` or `spec.is_sink(call_text)` — never string literals.
+`frensense-lang` consolidates this into one trait with one implementation per language. Any engine subsystem that needs a language-specific fact calls `spec.classify(node_kind)` or `spec.is_sink(call_text)` - never string literals.
 
 ---
 
 ## `NodeRole` Enum
 
-The `NodeRole` enum encodes what role a tree-sitter node plays in the program. Variants carry the **field names** needed to walk child nodes, so callers never need a second lookup. All `*_field` values are `&'static str` — they come from tree-sitter grammar constants and never allocate.
+The `NodeRole` enum encodes what role a tree-sitter node plays in the program. Variants carry the **field names** needed to walk child nodes, so callers never need a second lookup. All `*_field` values are `&'static str` - they come from tree-sitter grammar constants and never allocate.
 
 ```rust
 pub enum NodeRole {
@@ -178,9 +178,9 @@ import_declaration         → Import
 | Concept | Application |
 |---|---|
 | **Strategy Pattern** | `LanguageSpec` is the strategy interface; each language is a concrete strategy |
-| **Polymorphic dispatch** | `dyn LanguageSpec` — runtime dispatch over language implementations |
+| **Polymorphic dispatch** | `dyn LanguageSpec` - runtime dispatch over language implementations |
 | **Grammar abstraction** | `NodeRole` is the abstract grammar; tree-sitter node kinds are the concrete grammar |
-| **Open/Closed Principle** | Adding a new language only requires a new `LanguageSpec` impl — no existing code changes |
+| **Open/Closed Principle** | Adding a new language only requires a new `LanguageSpec` impl - no existing code changes |
 
 ---
 
@@ -190,4 +190,4 @@ import_declaration         → Import
 Previous analysis showed nine separate hardcoding sites. Splitting the fix across nine small traits creates nine places a new language author can forget to implement. A single trait with good defaults makes the "forgot to implement" case a compile error, not a silent empty result.
 
 **Why `&'static dyn LanguageSpec` and not `Box<dyn LanguageSpec>`?**  
-Language specs are stateless singletons — all their data is in `&'static str` grammar constants. Using static references avoids heap allocation on the hot path (every fingerprint extraction call goes through `spec_for_ext`).
+Language specs are stateless singletons - all their data is in `&'static str` grammar constants. Using static references avoids heap allocation on the hot path (every fingerprint extraction call goes through `spec_for_ext`).

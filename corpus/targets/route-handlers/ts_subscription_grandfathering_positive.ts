@@ -28,7 +28,7 @@ export async function updatePlanPrice(req: Request, res: Response) {
     await prisma.invoiceItem.create({
       data: {
         subscriptionId: sub.id,
-        description: `Plan charge — ${plan.name}`,
+        description: `Plan charge - ${plan.name}`,
         amount: newPrice,
       },
     });

@@ -6,7 +6,7 @@ All benchmarks were run against publicly available vulnerable applications. Numb
 
 ## OWASP Juice Shop (September 2026)
 
-**Target:** OWASP Juice Shop — the canonical web application security training benchmark.  
+**Target:** OWASP Juice Shop - the canonical web application security training benchmark.  
 **Language:** TypeScript + Node.js  
 **Vulnerable files:** 37 (CWE-89, CWE-918, CWE-22, CWE-78, CWE-79)  
 **Corpus version:** frensense-corpus.frc v0.5.3 (17 MB)
@@ -30,19 +30,19 @@ The large drop in findings from v0.5.1 to v0.5.3 reflects intentional changes:
 3. **Taint penalty** (structural-only matches down-weighted 40%).
 4. **Validator suppression refinement** (threshold raised from 0.60 to 0.85).
 
-The precision improvement (+8.45 pp) comes at the cost of recall (-10.82 pp). This is the standard precision-recall tradeoff — the current tuning favors precision over recall, appropriate for a developer-facing tool where false positives are more disruptive than false negatives.
+The precision improvement (+8.45 pp) comes at the cost of recall (-10.82 pp). This is the standard precision-recall tradeoff - the current tuning favors precision over recall, appropriate for a developer-facing tool where false positives are more disruptive than false negatives.
 
 ### Missing True Positives in v0.5.3
 
 The 10 TPs lost vs. v0.5.1 are mostly:
-- Functions where taint verification failed (cross-file taint at 3+ hops — see [`12_LIMITATIONS.md#L3`](./12_LIMITATIONS.md)).
+- Functions where taint verification failed (cross-file taint at 3+ hops - see [`12_LIMITATIONS.md#L3`](./12_LIMITATIONS.md)).
 - Functions with low n-gram overlap but high semantic similarity (the raised LSH threshold cut these from the candidate set).
 
 ---
 
 ## NodeGoat (v0.5.3)
 
-**Target:** OWASP NodeGoat — MongoDB/Express vulnerable application.  
+**Target:** OWASP NodeGoat - MongoDB/Express vulnerable application.  
 **Language:** JavaScript (CommonJS)  
 **Known vulnerabilities:** 30 (across 14 files)
 
@@ -56,9 +56,9 @@ The 10 TPs lost vs. v0.5.1 are mostly:
 ### NodeGoat vs Juice Shop Precision Gap
 
 NodeGoat achieves 41% precision vs. Juice Shop's 34%. Reasons:
-1. NodeGoat uses MongoDB — the corpus has more MongoDB-specific patterns (NoSQL injection, unvalidated MongoDB operators).
-2. NodeGoat's vulnerable functions are less structurally similar to common safe functions — the identity gate is more effective.
-3. NodeGoat's codebase is smaller (~5000 LOC vs. ~35000 LOC for Juice Shop) — fewer innocent functions that could be false-matched.
+1. NodeGoat uses MongoDB - the corpus has more MongoDB-specific patterns (NoSQL injection, unvalidated MongoDB operators).
+2. NodeGoat's vulnerable functions are less structurally similar to common safe functions - the identity gate is more effective.
+3. NodeGoat's codebase is smaller (~5000 LOC vs. ~35000 LOC for Juice Shop) - fewer innocent functions that could be false-matched.
 
 ---
 
@@ -93,7 +93,7 @@ Load time includes BLAKE3 verification and LSH index construction.
 | Taint verification (when triggered) | ~2-5ms |
 | Total per function | ~1-6ms |
 
-The dominant cost is taint verification. Taint is triggered only for functions that score above threshold — typically 5-15% of all functions in a codebase.
+The dominant cost is taint verification. Taint is triggered only for functions that score above threshold - typically 5-15% of all functions in a codebase.
 
 ---
 
@@ -120,7 +120,7 @@ Semgrep was run against Juice Shop with the official Semgrep security rules repo
 
 ## Honest Interpretation of the Semgrep Comparison
 
-**Frensense is not competitive with Semgrep on this benchmark.** Semgrep is strictly better on both metrics simultaneously: higher precision (38.3% vs. 34.4%) and significantly higher recall (48.6% vs. 29.7%). Frensense emits fewer total findings — which is not an advantage, it means it both makes fewer correct calls and misses more real bugs.
+**Frensense is not competitive with Semgrep on this benchmark.** Semgrep is strictly better on both metrics simultaneously: higher precision (38.3% vs. 34.4%) and significantly higher recall (48.6% vs. 29.7%). Frensense emits fewer total findings - which is not an advantage, it means it both makes fewer correct calls and misses more real bugs.
 
 ### Why the gap exists
 
@@ -130,21 +130,21 @@ Frensense v0.5.3 ships 312 corpus pattern pairs. Semgrep's security rules reposi
 
 **2. Generalization is not free**
 
-The corpus-driven thesis — "learn from examples, generalize to unseen code" — assumes the training distribution covers the structural patterns present in the target codebase. Juice Shop uses specific Express.js route shapes, specific Mongoose query constructions, and specific auth bypass idioms that the general corpus never saw. Semgrep's rules are written *against* those specific frameworks and match exactly.
+The corpus-driven thesis - "learn from examples, generalize to unseen code" - assumes the training distribution covers the structural patterns present in the target codebase. Juice Shop uses specific Express.js route shapes, specific Mongoose query constructions, and specific auth bypass idioms that the general corpus never saw. Semgrep's rules are written *against* those specific frameworks and match exactly.
 
 **3. Contrastive scoring degrades when the target differs from both positive and negative**
 
-The contrastive score (`pos_score - neg_penalty × neg_score`) works well when the target code is structurally close to either the positive or negative corpus example. When the target code uses different variable names, different middleware chaining, or a different framework version from any corpus example, both `pos_score` and `neg_score` drop — and the contrastive signal collapses. This is a fundamental limitation of the fixed-corpus approach, not a tuning problem.
+The contrastive score (`pos_score - neg_penalty × neg_score`) works well when the target code is structurally close to either the positive or negative corpus example. When the target code uses different variable names, different middleware chaining, or a different framework version from any corpus example, both `pos_score` and `neg_score` drop - and the contrastive signal collapses. This is a fundamental limitation of the fixed-corpus approach, not a tuning problem.
 
 **4. The taint-required row is not a net win**
 
-`Frensense + taint required` achieves 50% precision — the only row above Semgrep's precision. But at 24.3% recall, it misses 3 in 4 real bugs. A tool that achieves 50% precision at 24% recall is less useful than one that achieves 38% precision at 48% recall, because the first misses far more actionable vulnerabilities. Precision without recall is not a useful operating point for a security scanner.
+`Frensense + taint required` achieves 50% precision - the only row above Semgrep's precision. But at 24.3% recall, it misses 3 in 4 real bugs. A tool that achieves 50% precision at 24% recall is less useful than one that achieves 38% precision at 48% recall, because the first misses far more actionable vulnerabilities. Precision without recall is not a useful operating point for a security scanner.
 
 ### What this means for the system
 
 The benchmark exposes a structural problem: **the corpus is the binding constraint, not the algorithm**. The MinHash LSH + 15D scoring + composition pipeline is sound, but sound machinery applied to insufficient training data produces insufficient results.
 
-The correct path forward is not to tune thresholds — it is to grow the corpus. A corpus of ~3,000 well-authored pattern pairs would give the engine a realistic chance of matching Semgrep's recall. Combined with taint verification (which Semgrep does not have natively), it could then exceed Semgrep's precision at the same recall level.
+The correct path forward is not to tune thresholds - it is to grow the corpus. A corpus of ~3,000 well-authored pattern pairs would give the engine a realistic chance of matching Semgrep's recall. Combined with taint verification (which Semgrep does not have natively), it could then exceed Semgrep's precision at the same recall level.
 
 **The current system should be understood as a proof of concept for the detection architecture, not a production-ready replacement for rule-based tools.**
 
@@ -156,7 +156,7 @@ Categories where Frensense misses vulnerabilities systematically:
 
 | Category | Miss Rate | Reason |
 |---|---|---|
-| Template injection (SSTI) | ~80% | Sparse corpus coverage — few example pairs |
+| Template injection (SSTI) | ~80% | Sparse corpus coverage - few example pairs |
 | Logic bugs (auth bypass via race condition) | ~100% | Cannot be detected statically without temporal analysis |
 | Deserialization vulnerabilities | ~60% | Framework-specific, hard to generalize |
 | Second-order injection | ~70% | Requires multi-function taint path (cross-file limitation) |

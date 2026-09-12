@@ -32,7 +32,7 @@ use rustc_hash::FxHashMap;
 /// `runner.rs` and `semantics/data_flow/cross_file.rs`.
 ///
 /// `"name"` and `"data"` are intentionally excluded from the broad `UserInput`
-/// list — they are extremely common in non-HTTP contexts (crypto functions,
+/// list - they are extremely common in non-HTTP contexts (crypto functions,
 /// display formatters, etc.). Use `classify_param_name_in_context` instead
 /// when a `FileContext` (specifically `Environment`) is available.
 pub fn classify_param_origin(name: &str) -> Option<TaintOrigin> {
@@ -61,7 +61,7 @@ pub fn classify_param_origin_with_spec(
 
 /// Heuristic name-based taint origin classification.
 ///
-/// The names `"name"` and `"data"` are intentionally excluded here — they
+/// The names `"name"` and `"data"` are intentionally excluded here - they
 /// are extremely common in non-HTTP contexts. Use
 /// `classify_param_name_in_context` when a `FileContext` is available.
 fn classify_param_origin_heuristic(name: &str) -> Option<TaintOrigin> {

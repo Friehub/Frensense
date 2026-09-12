@@ -10,7 +10,7 @@ function processOrder(req, res) {
   try {
     var order = findOrder(req.params.orderId);
     if (!order) {
-      throw new Error('Order ' + req.params.orderId + ' not found — stack: ' + new Error().stack);
+      throw new Error('Order ' + req.params.orderId + ' not found - stack: ' + new Error().stack);
     }
     res.json(order);
   } catch (e) {

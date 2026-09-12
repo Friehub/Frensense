@@ -46,7 +46,7 @@ pub fn minhash_signature(hashes: &[u64], num_hashes: usize) -> Vec<u64> {
     }
 
     // Transposed loop: iterate over hashes once, updating all signature
-    // minimums in a single pass.  Cache-friendly — 1 sweep instead of
+    // minimums in a single pass.  Cache-friendly - 1 sweep instead of
     // num_hashes sweeps over the input vector.
     let mut signature = vec![u64::MAX; num_hashes];
     for &h in hashes {
@@ -123,7 +123,7 @@ pub fn signature_similarity(a: &[u64], b: &[u64]) -> f64 {
 pub struct LSHIndex {
     /// Each band has a HashMap from bucket-hash → list of pattern IDs.
     /// Unlike the old fixed-size bucket array (which collapsed all items
-    /// into `num_bands` slots), this scales naturally with item count —
+    /// into `num_bands` slots), this scales naturally with item count -
     /// essential for the target 45k+ corpus scale.
     bands: Vec<FxHashMap<u64, Vec<u64>>>,
     num_bands: usize,
@@ -201,7 +201,7 @@ impl LSHIndex {
     }
 
     /// Returns the total number of stored (band, bucket) entries across all bands.
-    /// Useful for diagnostics — at 45k patterns each band has ~bucket_count entries.
+    /// Useful for diagnostics - at 45k patterns each band has ~bucket_count entries.
     pub fn bucket_count(&self) -> usize {
         self.bands.iter().map(|b| b.len()).sum()
     }

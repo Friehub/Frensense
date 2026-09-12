@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A state value is concatenated before being used inside useEffect with empty deps.
-// impact: Stale closure — captures initial value via the concatenation chain.
+// impact: Stale closure - captures initial value via the concatenation chain.
 // improvement: Include source state in the dependency array.
 import { useEffect, useState } from 'react';
 export function Counter() {

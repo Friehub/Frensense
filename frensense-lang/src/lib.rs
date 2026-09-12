@@ -41,7 +41,7 @@
 //!     match spec.classify(node.kind()) {
 //!         NodeRole::Function { name_field, params_field, body_field, .. } => {
 //!             // Works for Go method_declaration, Python function_definition,
-//!             // Rust function_item, JS arrow_function — all correct.
+//!             // Rust function_item, JS arrow_function - all correct.
 //!             let name = name_field.and_then(|f| node.child_by_field_name(f));
 //!         }
 //!         NodeRole::Declaration { name_field, value_field } => {
@@ -62,7 +62,7 @@
 //!
 //! ## Migration Guide for Each Engine Subsystem
 //!
-//! ### 1. `fingerprint.rs` — function detection
+//! ### 1. `fingerprint.rs` - function detection
 //!
 //! **Before:**
 //! ```rust
@@ -89,7 +89,7 @@
 //! let code = spec.wrap_region(src);
 //! ```
 //!
-//! ### 2. `corpus/flow_fingerprint.rs` — taint propagation
+//! ### 2. `corpus/flow_fingerprint.rs` - taint propagation
 //!
 //! **Before:**
 //! ```rust
@@ -113,14 +113,14 @@
 //!     NodeRole::Call { callee_field, args_field } => { … }
 //!     NodeRole::MemberAccess { object_field, property_field } => { … }
 //!     NodeRole::ContextManager => {
-//!         // Python `with open(path) as f:` — new, was invisible before
+//!         // Python `with open(path) as f:` - new, was invisible before
 //!         if let Some(path_text) = spec.context_manager_call(node, source) { … }
 //!     }
 //!     _ => {}
 //! }
 //! ```
 //!
-//! ### 3. `cfg/mod.rs` — CFG construction
+//! ### 3. `cfg/mod.rs` - CFG construction
 //!
 //! **Before:**
 //! ```rust
@@ -141,17 +141,17 @@
 //!     NodeRole::Catch           => { /* exception handler entry */ }
 //!     NodeRole::Finally         => { /* finally block */ }
 //!     NodeRole::ErrorGuard      => {
-//!         // Go `if err != nil { return }` — confirmed via spec.is_error_guard()
+//!         // Go `if err != nil { return }` - confirmed via spec.is_error_guard()
 //!         if spec.is_error_guard(node, source) { /* exception-like edge */ }
 //!     }
 //!     NodeRole::ErrorPropagation => {
-//!         // Rust `?` operator — propagates error out of current scope
+//!         // Rust `?` operator - propagates error out of current scope
 //!     }
 //!     _ => {}
 //! }
 //! ```
 //!
-//! ### 4. `cfg/def_use.rs` — def-use chains
+//! ### 4. `cfg/def_use.rs` - def-use chains
 //!
 //! **Before:**
 //! ```rust
@@ -170,13 +170,13 @@
 //!     NodeRole::Call        { callee_field, args_field }=> { … }
 //!     NodeRole::MemberAccess{ object_field, .. }        => {
 //!         // Now covers selector_expression (Go), attribute (Python),
-//!         // field_expression (Rust) — all were silently skipped before.
+//!         // field_expression (Rust) - all were silently skipped before.
 //!     }
 //!     _ => {}
 //! }
 //! ```
 //!
-//! ### 5. `import_resolver.rs` — import extraction
+//! ### 5. `import_resolver.rs` - import extraction
 //!
 //! **Before:** only `import_statement` (ESM) and `require()` (CJS).
 //!
@@ -191,7 +191,7 @@
 //! Go `import_declaration`, Python `import_from_statement`, Rust `use_declaration`
 //! are all handled by the respective spec's `extract_imports` implementation.
 //!
-//! ### 6. `parser.rs` — tree-sitter queries
+//! ### 6. `parser.rs` - tree-sitter queries
 //!
 //! **Before:**
 //! ```rust
@@ -240,21 +240,21 @@
 //!
 //! **After:**
 //! ```rust
-//! // Context detection — replaces ROUTE_ENV_KEYWORDS static array
+//! // Context detection - replaces ROUTE_ENV_KEYWORDS static array
 //! let hints = spec.route_context_hints();
 //! let is_route_context = hints.iter().any(|h| file_source.contains(h));
 //!
-//! // Decorator detection — replaces hardcoded NestJS decorator list
+//! // Decorator detection - replaces hardcoded NestJS decorator list
 //! let is_route = spec.is_http_route_decorator(decorator_name);
 //!
-//! // Parameter taint — replaces REQUEST_PARAM_NAMES
+//! // Parameter taint - replaces REQUEST_PARAM_NAMES
 //! let origin = spec.classify_param_taint(Some(param_name), type_annotation);
 //! ```
 //!
 //! ### 9. Motif call-name collection (`fingerprint.rs::collect_raw_call_names`)
 //!
 //! **Before:** only extracted call names from `call_expression` and
-//! `member_expression` — Python `call` and Go `selector_expression` were silently
+//! `member_expression` - Python `call` and Go `selector_expression` were silently
 //! skipped, so motif hashes were never computed for those languages.
 //!
 //! **After:**

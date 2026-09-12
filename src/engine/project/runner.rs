@@ -403,7 +403,7 @@ fn run_corpus_scan(
                 }
                 Ok(_) => {}
                 Err(_e) => {
-                    // Bundle format mismatch — fall through to corpus directory
+                    // Bundle format mismatch - fall through to corpus directory
                 }
             }
         }
@@ -573,7 +573,7 @@ fn run_corpus_scan(
         let use_data_flow = engine.use_data_flow;
         let mut result = Vec::new();
 
-        // Score once — all group members share the same fingerprint hash
+        // Score once - all group members share the same fingerprint hash
         let (ref fp, func_node, ref snap, ref actual_context) = group[0];
 
         // Merge learned semantic markers into the fingerprint.
@@ -636,7 +636,7 @@ fn run_corpus_scan(
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
                 // Apply per-category or global calibration to the raw pattern score.
                 // NOTE: per_pattern_calibration::calibrate is already applied inside
-                // registry::score_candidate. Do NOT apply it again here — double sigmoid
+                // registry::score_candidate. Do NOT apply it again here - double sigmoid
                 // application compresses all scores toward 1.0 and inflates FP confidence.
                 let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
@@ -651,7 +651,7 @@ fn run_corpus_scan(
                 if let Some(ref evidence) = m.matched_evidence {
                     let _ngram_low = evidence.ngram_sim < 0.05;
                     let _sig_low = evidence.signature_sim < 0.05;                    // Skip if both ngram AND signature are near-zero (no textual/structural match).
-                    // API similarity alone is insufficient — generic calls like `console.log`
+                    // API similarity alone is insufficient - generic calls like `console.log`
                     // match many patterns without real vulnerability overlap.
                     // FIXME: We temporarily disable this gate because Juice Shop's 78-line functions 
                     // vs Corpus 15-line functions naturally drop below 5% textual overlap.
@@ -832,7 +832,7 @@ fn run_corpus_scan(
                 advisory.taint_branch_ratio = m.taint_branch_ratio;
                 advisory.has_validation_name = Some(m.has_validation_name);
 
-                // Skip frontend code for SQLi/NoSQLi patterns — Angular RxJS and frontend
+                // Skip frontend code for SQLi/NoSQLi patterns - Angular RxJS and frontend
                 // code cannot execute SQL, so matches are always false positives.
                 let path_str = snap_i.path.to_string_lossy();
                 let is_injection_pattern = advisory.rule_id.contains("SQLI") || advisory.rule_id.contains("NOSQLI");
@@ -890,7 +890,7 @@ fn compute_fp_hash(fp: &frensense_engine::fingerprint::FunctionFingerprint) -> u
 
 /// Standalone taint mode: scan ALL functions for source→sink flows
 /// without requiring a corpus match. This is the "trained to find a bug"
-/// mode — the engine uses compiler info + name heuristics to trace taint
+/// mode - the engine uses compiler info + name heuristics to trace taint
 /// through the full code and reports verified flows.
 fn run_standalone_taint(
     engine: &Engine,
@@ -1246,7 +1246,7 @@ fn precompute_taint_summaries_for_file(
                         }
                         if !pname.is_empty() {
                             param_names.push(pname.clone());
-                            // Seed every param as UserInput — we want to answer
+                            // Seed every param as UserInput - we want to answer
                             // "does this function propagate taint if any param is tainted?"
                             registry.taint(&pname, TaintOrigin::UserInput);
                         }
@@ -1475,7 +1475,7 @@ impl Engine {
             );
         }
 
-        // Shared dependency resolver — created once, used by both stages
+        // Shared dependency resolver - created once, used by both stages
         let mut dep_resolver =
             frensense_engine::deps::DependencyResolver::with_check_deps(self.check_deps);
         dep_resolver.load_project(root);
@@ -1514,7 +1514,7 @@ impl Engine {
 
         // Standalone taint mode: scan ALL functions for source→sink flows
         // without requiring a corpus match. This is the "trained to find a bug"
-        // mode — the engine uses compiler info + name heuristics to trace taint.
+        // mode - the engine uses compiler info + name heuristics to trace taint.
         if self.use_taint_only {
             run_standalone_taint(
                 self,
@@ -1680,7 +1680,7 @@ impl Engine {
             );
         }
 
-        // Shared dependency resolver — created once, used by both stages
+        // Shared dependency resolver - created once, used by both stages
         let mut dep_resolver =
             frensense_engine::deps::DependencyResolver::with_check_deps(self.check_deps);
         dep_resolver.load_project(root);
@@ -1796,7 +1796,7 @@ impl Engine {
                         .with_line(u32::try_from(fp.line).unwrap_or(u32::MAX))
                         .with_content(fp.function_name.clone())
                         .with_enclosing_symbol(fp.function_name.clone())
-                        .with_impact("LLM-generated code often violates project conventions — wrong casing, unfamiliar boilerplate, or types never used in this codebase.")
+                        .with_impact("LLM-generated code often violates project conventions - wrong casing, unfamiliar boilerplate, or types never used in this codebase.")
                         .with_improvement("Review the function against project patterns. Consider using established conventions."),
                 );
             }
@@ -1835,7 +1835,7 @@ impl Engine {
                 .with_line(u32::try_from(first.line).unwrap_or(u32::MAX))
                 .with_content(first.function_name.clone())
                 .with_impact(
-                    "Copy-pasted code diverges over time — one copy may lack security fixes.",
+                    "Copy-pasted code diverges over time - one copy may lack security fixes.",
                 )
                 .with_improvement("Consider extracting shared logic into a common function.")
                 .with_tags(["copy-paste", "duplicate", "cluster"]),

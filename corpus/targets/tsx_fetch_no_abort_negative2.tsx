@@ -54,7 +54,7 @@ export function ProductList({ category }: { category: string }) {
   return (
     <ul>
       {products?.map((p) => (
-        <li key={p.id}>{p.name} — ${p.price}</li>
+        <li key={p.id}>{p.name} - ${p.price}</li>
       ))}
     </ul>
   );

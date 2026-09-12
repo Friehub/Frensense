@@ -25,7 +25,7 @@ pub fn compute_auto_filters(
 
     // === Per-pattern negative-exclusivity learning ===
     // For each pattern, identify calls and node types that appear in ALL
-    // negatives but NOT in any positive — these become must_not_contain constraints.
+    // negatives but NOT in any positive - these become must_not_contain constraints.
     let mut must_not_contain_call_to: HashMap<String, Vec<String>> = HashMap::new();
     let mut must_not_contain_node_type: HashMap<String, Vec<String>> = HashMap::new();
     let mut must_not_match_function_name: HashMap<String, Vec<String>> = HashMap::new();
@@ -43,7 +43,7 @@ pub fn compute_auto_filters(
         // "present in all" rather than "present in any" prevents a single unusual
         // positive from adding spurious required-call constraints.
         let pos_call_sets: Vec<std::collections::HashSet<String>> = {
-            // Split source_pos by file if multiple positives — but we only have one
+            // Split source_pos by file if multiple positives - but we only have one
             // concatenated string here, so treat it as one set.
             vec![extract_call_targets(src_pos).into_iter().collect()]
         };
@@ -95,7 +95,7 @@ pub fn compute_auto_filters(
 
         // --- Excludes function name ---
         // Only exclude if the name appears in ≥80% of negatives and is absent from positives.
-        // Skip "anonymous" — it's the default for unnamed arrow functions and will block
+        // Skip "anonymous" - it's the default for unnamed arrow functions and will block
         // every named function if learned.
         let neg_fname_counts: std::collections::HashMap<&str, usize> =
             p.negatives
@@ -115,7 +115,7 @@ pub fn compute_auto_filters(
             .filter(|(name, count)| {
                 *count >= neg_fname_threshold
                     && !pos_fname_set.contains(name)
-                    // Never learn "anonymous" as an exclusion — it's the default
+                    // Never learn "anonymous" as an exclusion - it's the default
                     // name for unnamed arrow functions in fingerprint extraction,
                     // and excluding it would reject all legitimate anonymous callbacks.
                     && *name != "anonymous"
@@ -135,7 +135,7 @@ pub fn compute_auto_filters(
         //
         // If a pattern needs a function-name constraint, it must be set explicitly
         // via the hand-authored SemanticFilter in the corpus TOML, not auto-learned.
-        let _ = &function_name_regex; // suppress unused warning — field populated only by hand-authored filters
+        let _ = &function_name_regex; // suppress unused warning - field populated only by hand-authored filters
     }
 
     AutoFilterStats {

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Portal adds a global event listener (e.g., mousedown, keydown) in a useEffect but never removes it on unmount
-// impact: memory leak — the event listener and portal DOM node persist after the component unmounts, causing stale callbacks and resource buildup
+// impact: memory leak - the event listener and portal DOM node persist after the component unmounts, causing stale callbacks and resource buildup
 // improvement: return a cleanup function from useEffect that removes the event listener and portal DOM node
 // cwe: CWE-79
 // cvss: 6.1

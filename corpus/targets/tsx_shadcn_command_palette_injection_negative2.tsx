@@ -1,6 +1,6 @@
 // [frensense]
 // observation: shadcn command palette search value is used directly in an API call without sanitization, allowing injection attacks
-// impact: command injection — attacker can craft search input that executes arbitrary API queries, potentially accessing unauthorized data
+// impact: command injection - attacker can craft search input that executes arbitrary API queries, potentially accessing unauthorized data
 // improvement: sanitize or encode search input before using it in API requests
 
 'use client'

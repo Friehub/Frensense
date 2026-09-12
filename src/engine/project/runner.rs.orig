@@ -656,19 +656,19 @@ fn run_corpus_scan(
                 //
                 // Fix: two-stage hard gate applied in order.
                 //
-                // Stage 1 — Negative example gate (two thresholds):
+                // Stage 1 - Negative example gate (two thresholds):
                 //   1a. UNCONDITIONAL at >= 0.95: if the candidate is >= 95% structurally
                 //       identical to a known-safe negative example, drop regardless of taint
-                //       or matched calls. The engine itself computed the similarity — it knows
+                //       or matched calls. The engine itself computed the similarity - it knows
                 //       this code looks like safe code. A genuine vulnerability (e.g. eval(input))
                 //       will NOT have a high negative_sim because the corpus negative examples
-                //       never call eval/exec/$where — only safe utility functions do.
+                //       never call eval/exec/$where - only safe utility functions do.
                 //   1b. CONDITIONAL at >= 0.90: if negative_sim is high but not extreme, only
                 //       drop when no pattern API calls were matched at all (pure taint-only match).
                 //
-                // Stage 2 — Structural floor:
+                // Stage 2 - Structural floor:
                 //   If BOTH ngram_sim < 0.08 AND api_sim < 0.10 AND no matched call was
-                //   found, the match has zero structural anchor — drop unconditionally.
+                //   found, the match has zero structural anchor - drop unconditionally.
                 if let Some(ref evidence) = m.matched_evidence {
                     let has_matched_call = !evidence.matched_calls.is_empty();
 
@@ -677,17 +677,17 @@ fn run_corpus_scan(
                         eprintln!("DEBUG: Rule={} Fn={} matched_calls={:?} missing={:?} ngram={:.2} api={:.2} neg_sim={:.2}", m.rule_id, fp_i.function_name, evidence.matched_calls, evidence.missing_calls, evidence.ngram_sim, evidence.api_sim, evidence.negative_sim);
                     }
 
-                    // Stage 1a: near-perfect safe match — hard drop always.
+                    // Stage 1a: near-perfect safe match - hard drop always.
                     if evidence.negative_sim >= 0.95 {
                         continue;
                     }
 
-                    // Stage 1b: probably safe + no structural API anchor — drop.
+                    // Stage 1b: probably safe + no structural API anchor - drop.
                     if !has_matched_call && evidence.negative_sim >= 0.90 {
                         continue;
                     }
 
-                    // Stage 2: zero structural anchor at all — taint path alone is insufficient.
+                    // Stage 2: zero structural anchor at all - taint path alone is insufficient.
                     let structurally_empty = evidence.ngram_sim < 0.08 && evidence.api_sim < 0.10;
                     if structurally_empty && !has_matched_call {
                         continue;

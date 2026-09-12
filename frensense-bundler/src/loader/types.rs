@@ -19,7 +19,7 @@ pub struct CorpusPattern {
 }
 
 /// A non-fatal diagnostic produced during corpus loading.
-/// Callers must surface these to the user — silent coverage gaps are a production risk.
+/// Callers must surface these to the user - silent coverage gaps are a production risk.
 #[derive(Debug, Clone)]
 pub struct LoadWarning {
     pub pattern_id: String,

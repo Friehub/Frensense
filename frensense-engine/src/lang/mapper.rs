@@ -111,7 +111,7 @@ fn node_role_to_abstract_kind(role: NodeRole, ts_kind: &str, language: Language)
     }
 }
 
-/// Fallback handler for `NodeRole::Other` — maps a small set of language-
+/// Fallback handler for `NodeRole::Other` - maps a small set of language-
 /// specific node kinds that `AbstractKind` tracks but `NodeRole` doesn't have
 /// a variant for (e.g. struct/enum/trait definitions, unsafe blocks).
 fn other_to_abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {

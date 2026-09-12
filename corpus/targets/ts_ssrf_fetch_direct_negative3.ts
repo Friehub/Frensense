@@ -1,4 +1,4 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
+// SAFE: Negative3 - alternate fix approach. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
 
 import express from "express";
 import { Router } from "express";

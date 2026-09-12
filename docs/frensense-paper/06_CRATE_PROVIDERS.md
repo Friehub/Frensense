@@ -1,4 +1,4 @@
-# Crate: `frensense-providers` — Compiler Backends
+# Crate: `frensense-providers` - Compiler Backends
 
 **Path:** `frensense-providers/src/`  
 **Role:** Optional crate. Provides exact semantic resolution by mounting real language compilers, replacing heuristic name-matching with type-resolved answers.
@@ -59,9 +59,9 @@ pub trait SemanticProvider: Send + Sync {
 
 ---
 
-## Module: `oxc_provider.rs` — OXC TypeScript/JavaScript Provider
+## Module: `oxc_provider.rs` - OXC TypeScript/JavaScript Provider
 
-**File size:** 37 KB — the largest single source file in the workspace.
+**File size:** 37 KB - the largest single source file in the workspace.
 
 ### What OXC Gives Us
 
@@ -145,7 +145,7 @@ A function is classified as an HTTP handler if any of its parameters resolves to
 
 ---
 
-## Module: `rust_hir_provider.rs` — Rust HIR Provider
+## Module: `rust_hir_provider.rs` - Rust HIR Provider
 
 **File size:** 23 KB.
 
@@ -153,7 +153,7 @@ Uses `rust-analyzer`'s High-Level Intermediate Representation (HIR) to answer se
 
 ### What HIR Gives Us
 
-- Trait resolution: `impl Deref for MyReq<T>` — the provider knows `MyReq` dereferences to `axum::extract::Request`.
+- Trait resolution: `impl Deref for MyReq<T>` - the provider knows `MyReq` dereferences to `axum::extract::Request`.
 - Macro expansion: `#[derive(Deserialize)]` on a struct → the struct's fields are taint sources when received via `Json<MyStruct>`.
 - Lifetime and borrow checker integration: can identify when a tainted reference escapes a function scope.
 
@@ -172,7 +172,7 @@ The provider communicates with rust-analyzer via its LSP-style API, spawning it 
 
 ### Known Limitation
 
-This provider is currently a stub in the codebase — the architecture is defined and the trait implementation is wired up, but the HIR query logic is incomplete. Rust analysis falls back to `ImportMapProvider` in practice.
+This provider is currently a stub in the codebase - the architecture is defined and the trait implementation is wired up, but the HIR query logic is incomplete. Rust analysis falls back to `ImportMapProvider` in practice.
 
 ---
 
@@ -180,6 +180,6 @@ This provider is currently a stub in the codebase — the architecture is define
 
 `frensense-providers` is intentionally a separate crate rather than modules inside `frensense-engine` because:
 
-1. **Heavy dependencies:** Oxc brings in `oxc_allocator`, `oxc_ast`, `oxc_parser`, `oxc_resolver`, `oxc_span`, `oxc_syntax` — a significant compile-time cost. Users who don't use `--use-compiler` should not pay for this.
+1. **Heavy dependencies:** Oxc brings in `oxc_allocator`, `oxc_ast`, `oxc_parser`, `oxc_resolver`, `oxc_span`, `oxc_syntax` - a significant compile-time cost. Users who don't use `--use-compiler` should not pay for this.
 2. **Optional compilation:** The `oxc` and `rust-hir` features are off by default. The default binary compiles without Oxc or rust-analyzer.
 3. **Version isolation:** Oxc evolves rapidly. Isolating it prevents Oxc API changes from cascading into the engine crate.

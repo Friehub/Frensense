@@ -27,7 +27,7 @@ const MAX_HOPS: usize = 3;
 const CONFIDENCE_ADJUSTER_FLOOR: f32 = 0.35;
 
 /// Graduated multipliers by def-hop distance to a confirmed source:
-/// direct def is a confirmed source — no penalty.
+/// direct def is a confirmed source - no penalty.
 const DIRECT_SOURCE_MULTIPLIER: f32 = 1.0;
 /// One intermediate def hop to a confirmed source.
 const ONE_HOP_MULTIPLIER: f32 = 0.8;
@@ -35,7 +35,7 @@ const ONE_HOP_MULTIPLIER: f32 = 0.8;
 const TWO_HOP_MULTIPLIER: f32 = 0.75;
 /// Three or more def hops to a confirmed source.
 const THREE_PLUS_HOP_MULTIPLIER: f32 = 0.7;
-/// No real source confirmed within `MAX_HOPS` — unresolvable.
+/// No real source confirmed within `MAX_HOPS` - unresolvable.
 const UNRESOLVABLE_MULTIPLIER: f32 = 0.6;
 
 /// Byte window around a sink use within which a reaching def must fall.
@@ -133,11 +133,11 @@ impl TaintConfidenceAdjuster {
         }
 
         let multiplier = match min_hops {
-            Some(0) => DIRECT_SOURCE_MULTIPLIER, // direct def is a confirmed source — no penalty
+            Some(0) => DIRECT_SOURCE_MULTIPLIER, // direct def is a confirmed source - no penalty
             Some(1) => ONE_HOP_MULTIPLIER,
             Some(2) => TWO_HOP_MULTIPLIER,
             Some(_) => THREE_PLUS_HOP_MULTIPLIER,
-            None => UNRESOLVABLE_MULTIPLIER, // unresolvable — could not confirm any real source
+            None => UNRESOLVABLE_MULTIPLIER, // unresolvable - could not confirm any real source
         };
 
         (original_confidence * multiplier).max(CONFIDENCE_ADJUSTER_FLOOR)

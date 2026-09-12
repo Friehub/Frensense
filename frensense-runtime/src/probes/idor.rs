@@ -17,7 +17,7 @@ pub fn template() -> ProbeTemplate {
                     min_divergence_score: 0.3,
                 },
                 risk: ProbeRisk::Safe,
-                description: "IDOR — increment resource ID, check if unauthorized data is returned"
+                description: "IDOR - increment resource ID, check if unauthorized data is returned"
                     .to_string(),
             },
             Probe {
@@ -28,7 +28,7 @@ pub fn template() -> ProbeTemplate {
                     trigger_different: true,
                 },
                 risk: ProbeRisk::Safe,
-                description: "IDOR — high resource ID may return 403/404 if properly protected"
+                description: "IDOR - high resource ID may return 403/404 if properly protected"
                     .to_string(),
             },
             Probe {
@@ -39,7 +39,7 @@ pub fn template() -> ProbeTemplate {
                     trigger_different: true,
                 },
                 risk: ProbeRisk::Safe,
-                description: "IDOR — negative ID may trigger different error handling".to_string(),
+                description: "IDOR - negative ID may trigger different error handling".to_string(),
             },
         ],
     }

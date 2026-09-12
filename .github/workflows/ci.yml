@@ -16,7 +16,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
-# Top-level default — most restrictive
+# Top-level default - most restrictive
 permissions:
   contents: read
 
@@ -99,7 +99,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      # Use strict ci — do not fall back to npm install
+      # Use strict ci - do not fall back to npm install
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
 
@@ -295,10 +295,10 @@ jobs:
       - name: Verify benchmark data exists
         run: |
           if [ ! -f dev/bench/index.html ]; then
-            echo "No benchmark data found — first run, this is expected"
+            echo "No benchmark data found - first run, this is expected"
             exit 0
           fi
-          echo "Benchmark dashboard at dev/bench/index.html — $(wc -l < dev/bench/index.html) lines"
+          echo "Benchmark dashboard at dev/bench/index.html - $(wc -l < dev/bench/index.html) lines"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

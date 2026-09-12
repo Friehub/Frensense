@@ -174,7 +174,7 @@ fn extract_import_clause(node: Node<'_>, source: &str, package: &str, out: &mut 
         let child = node.named_child(i).unwrap();
         match child.kind() {
             "identifier" => {
-                // `import { Foo }` — no alias
+                // `import { Foo }` - no alias
                 out.push(Import {
                     local_name: node_text(child, source).to_owned(),
                     package: package.to_owned(),
@@ -279,7 +279,7 @@ fn js_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
         // URL encode
         "encodeURIComponent" | "encodeURI" | "encode" => Some(SanitizerKind::UrlEncode),
 
-        // Numeric coercion — input is definitely a number after this
+        // Numeric coercion - input is definitely a number after this
         "parseInt" | "parseFloat" | "Number" | "BigInt" | "toFixed" | "toPrecision" => {
             Some(SanitizerKind::Full)
         }
@@ -297,7 +297,7 @@ fn js_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
 }
 
 static JS_PROPAGATORS: &[PropagatorRule] = &[
-    // String methods — receiver taints return
+    // String methods - receiver taints return
     PropagatorRule {
         call: "concat",
         tainted_arg: None,
@@ -373,7 +373,7 @@ static JS_PROPAGATORS: &[PropagatorRule] = &[
         tainted_arg: None,
         tainted_receiver: true,
     },
-    // Array methods — receiver taints return
+    // Array methods - receiver taints return
     PropagatorRule {
         call: "map",
         tainted_arg: None,
@@ -916,7 +916,7 @@ static JS_SINK_NAMES: &[(&str, &str)] = &[
     ("error", "LogLeak"),
     ("info", "LogLeak"),
     ("debug", "LogLeak"),
-    // SSTI — Template engine renders
+    // SSTI - Template engine renders
     ("ejs.render", "TemplateSsti"),
     ("ejs.renderFile", "TemplateSsti"),
     ("pug.compile", "TemplateSsti"),

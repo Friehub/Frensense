@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 //! Pure AST walker helpers used during fingerprint extraction.
-//! All functions here are side-effect free — they take an AST node
+//! All functions here are side-effect free - they take an AST node
 //! and return derived data without mutating any shared state.
 
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};

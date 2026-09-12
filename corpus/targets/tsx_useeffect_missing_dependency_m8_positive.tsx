@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A state value is accessed via array index before being used inside useEffect with empty deps.
-// impact: Stale closure — array captures initial value.
+// impact: Stale closure - array captures initial value.
 // improvement: Include the array-source in deps or use ref.
 import { useEffect, useState } from 'react';
 export function Counter() {

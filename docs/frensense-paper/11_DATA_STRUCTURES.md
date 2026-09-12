@@ -1,6 +1,6 @@
 # Key Data Structures
 
-This document annotates the most important data structures in the codebase — what every field means, why it exists, and what CS concept it serves.
+This document annotates the most important data structures in the codebase - what every field means, why it exists, and what CS concept it serves.
 
 ---
 
@@ -36,7 +36,7 @@ pub struct FunctionFingerprint {
 
     // ── API call representations ─────────────────────────────────────────
     pub api_calls:         Vec<u64>,   // hashes of full callee expressions ("db.query", "exec")
-    pub api_call_segments: Vec<u64>,   // last-segment hashes ("query", "exec") — method names only
+    pub api_call_segments: Vec<u64>,   // last-segment hashes ("query", "exec") - method names only
     pub raw_call_names:    Vec<String>, // literal callee strings (used for cross-file taint update)
     pub motif_hashes:      Vec<u64>,   // canonical motif name hashes (e.g. hash("CommandExecutionSink"))
     pub property_accesses: Vec<u64>,   // hashes of object.property access names
@@ -145,7 +145,7 @@ pub struct PatternRegistry {
 
 **File:** [`src/lib.rs`](file:///home/oxisrael/Friehub/Taas/Frensene_main/Frensense/src/lib.rs)
 
-The unified finding type. Every detection mechanism — corpus matching, rule checks, taint analysis, temporal checking — produces `Advisory` instances.
+The unified finding type. Every detection mechanism - corpus matching, rule checks, taint analysis, temporal checking - produces `Advisory` instances.
 
 ```rust
 pub struct Advisory {
@@ -257,12 +257,12 @@ pub struct TaintRegistry {
 }
 ```
 
-- `push_scope()` / `pop_scope()` — enter/leave a block. Pop is conservative: taint survives scope exit.
-- `taint(var, origin)` — mark variable as tainted.
-- `untaint(var)` — remove taint (only after unconditional sanitizer).
-- `taint_field(var, field, origin)` — field-level granularity (`req.body.userId`).
-- `is_tainted(var)` — checks both variable and field taint.
-- `get_origin(var)` — retrieve taint origin (enables "what is the source?" in advisories).
+- `push_scope()` / `pop_scope()` - enter/leave a block. Pop is conservative: taint survives scope exit.
+- `taint(var, origin)` - mark variable as tainted.
+- `untaint(var)` - remove taint (only after unconditional sanitizer).
+- `taint_field(var, field, origin)` - field-level granularity (`req.body.userId`).
+- `is_tainted(var)` - checks both variable and field taint.
+- `get_origin(var)` - retrieve taint origin (enables "what is the source?" in advisories).
 
 ---
 
@@ -270,7 +270,7 @@ pub struct TaintRegistry {
 
 **File:** [`frensense-engine/src/corpus/semantic.rs`](file:///home/oxisrael/Friehub/Taas/Frensene_main/Frensense/frensense-engine/src/corpus/semantic.rs)
 
-Pre-match gate checked before any scoring. If any constraint fails, the pattern is skipped — no scoring computation.
+Pre-match gate checked before any scoring. If any constraint fails, the pattern is skipped - no scoring computation.
 
 ```rust
 pub struct SemanticFilter {
@@ -369,8 +369,8 @@ pub struct CompositionConfig {
     pub high_branch_ratio_suppression_factor: f64, // default: 0.3
 
     // L4: near-duplicate boost
-    pub boost_rate: f64, // default: 0.10 — score × (1 + boost_rate)
-    pub boost_max:  f64, // default: 0.30 — max absolute lift from L4
+    pub boost_rate: f64, // default: 0.10 - score × (1 + boost_rate)
+    pub boost_max:  f64, // default: 0.30 - max absolute lift from L4
 }
 ```
 
@@ -380,21 +380,21 @@ pub struct CompositionConfig {
 
 **File:** [`frensense-engine/src/pattern/scorer.rs`](file:///home/oxisrael/Friehub/Taas/Frensene_main/Frensense/frensense-engine/src/pattern/scorer.rs)
 
-All scoring constants as named fields — nothing hardcoded in logic.
+All scoring constants as named fields - nothing hardcoded in logic.
 
 Selected fields:
 
 ```rust
 pub struct ScorerConfig {
     // Similarity
-    pub empty_similarity_default: f64,    // 0.5 — neutral when both sides are empty
-    pub cross_lingual_penalty: f32,       // 0.20 — penalty when pattern lang ≠ file lang
+    pub empty_similarity_default: f64,    // 0.5 - neutral when both sides are empty
+    pub cross_lingual_penalty: f32,       // 0.20 - penalty when pattern lang ≠ file lang
     pub semantic_zero_penalty: f64,       // penalty when zero semantic marker overlap
     pub semantic_match_boost: f64,        // boost when semantic markers match
 
     // Noise gate
-    pub noise_gate_moderate_signal: f64,  // 0.2 — moderate signal threshold
-    pub noise_gate_strong_signal: f64,    // 0.4 — strong signal threshold
+    pub noise_gate_moderate_signal: f64,  // 0.2 - moderate signal threshold
+    pub noise_gate_strong_signal: f64,    // 0.4 - strong signal threshold
     pub noise_gate_min_moderate_dims: usize, // minimum moderate-signal dimensions required
 
     // Negative contrastive
@@ -402,10 +402,10 @@ pub struct ScorerConfig {
     pub neg_penalty_weight: f64,          // weight of negative similarity
 
     // Taint verification boost/penalty
-    pub taint_verified_boost: f64,        // 1.20 — score × 1.2 when taint confirmed
-    pub cross_file_taint_boost: f64,      // 1.15 — score × 1.15 for cross-file taint
-    pub taint_boost_cap: f64,             // 0.95 — maximum confidence after taint boost
-    pub score_suppression_floor: f64,     // 0.20 — minimum score for untainted matches
+    pub taint_verified_boost: f64,        // 1.20 - score × 1.2 when taint confirmed
+    pub cross_file_taint_boost: f64,      // 1.15 - score × 1.15 for cross-file taint
+    pub taint_boost_cap: f64,             // 0.95 - maximum confidence after taint boost
+    pub score_suppression_floor: f64,     // 0.20 - minimum score for untainted matches
 
     // LSH
     pub lsh_num_hashes: usize,            // 128

@@ -19,7 +19,7 @@ use tree_sitter::Node;
 /// What role does a tree-sitter node play in the language?
 ///
 /// Variants carry the **field names** needed to walk child nodes so callers
-/// never need a second lookup.  All `*_field` values are `'static str` — they
+/// never need a second lookup.  All `*_field` values are `'static str` - they
 /// come from tree-sitter grammar constants and never allocate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeRole {
@@ -75,14 +75,14 @@ pub enum NodeRole {
     Throw,   // throw / raise
 
     // ── Special language patterns ─────────────────────────────────────────
-    /// Go: `if err != nil { return … }` — structurally a Branch but semantically
+    /// Go: `if err != nil { return … }` - structurally a Branch but semantically
     /// an error propagation guard; the engine needs to detect it for auth-guard
     /// dominator analysis.
     ErrorGuard,
-    /// Python: `with expr as var:` — a context-manager entry; the callee
+    /// Python: `with expr as var:` - a context-manager entry; the callee
     /// may be a path/file sink.
     ContextManager,
-    /// Rust: the `?` postfix operator — propagates errors, terminates the
+    /// Rust: the `?` postfix operator - propagates errors, terminates the
     /// current scope if the value is `Err`.
     ErrorPropagation,
     /// Rust async block, JS/TS `await`, Python `await`.
@@ -108,9 +108,9 @@ pub enum SanitizerKind {
     HtmlEscape,
     /// Defeats URL-based attacks only.
     UrlEncode,
-    /// Parameterised query — defeats SQL injection only.
+    /// Parameterised query - defeats SQL injection only.
     SqlParameterize,
-    /// Path canonicalization — defeats path traversal only.
+    /// Path canonicalization - defeats path traversal only.
     PathNormalize,
 }
 
@@ -142,7 +142,7 @@ pub enum TaintOrigin {
 
 /// A propagator rule describes how taint flows through a specific call.
 ///
-/// Example: `fmt.Sprintf` in Go — the format string is not tainted, but
+/// Example: `fmt.Sprintf` in Go - the format string is not tainted, but
 /// if *any argument* is tainted the return value is tainted.
 #[derive(Debug, Clone)]
 pub struct PropagatorRule {

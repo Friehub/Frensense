@@ -1,5 +1,5 @@
 // [frensense]
-// observation: spawn is called inside an async handler with user-controlled input, using async iteration to read output — the async context does not prevent injection.
+// observation: spawn is called inside an async handler with user-controlled input, using async iteration to read output - the async context does not prevent injection.
 // impact: An attacker can execute arbitrary commands through the spawned process despite the async/await wrapper.
 // improvement: Fix the binary path to a known safe executable and pass user input as array arguments only.
 // cwe: CWE-78

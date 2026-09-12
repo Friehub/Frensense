@@ -1,5 +1,5 @@
 // [frensense]
-// observation: A path traversal check is bypassed using Unicode normalization tricks — encoded characters like %2F, %252F, or Unicode characters that normalize to ".." after decoding.
+// observation: A path traversal check is bypassed using Unicode normalization tricks - encoded characters like %2F, %252F, or Unicode characters that normalize to ".." after decoding.
 // impact: An attacker can bypass simple string-based ".." filters and traverse outside the allowed directory, reading arbitrary files.
 // improvement: Normalize and decode the path before checking for traversal; use path.basename() or resolve + prefix check instead.
 // cwe: CWE-22

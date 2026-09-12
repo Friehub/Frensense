@@ -16,7 +16,7 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                     probe_id: "ssrf_callback".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "SSRF callback to canary server — inbound connection confirms fetch"
+                description: "SSRF callback to canary server - inbound connection confirms fetch"
                     .to_string(),
             },
             Probe {
@@ -28,7 +28,7 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                 },
                 risk: ProbeRisk::Safe,
                 description:
-                    "AWS metadata endpoint — response body confirms internal network access"
+                    "AWS metadata endpoint - response body confirms internal network access"
                         .to_string(),
             },
             Probe {
@@ -38,7 +38,7 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                     probe_id: "ssrf_dns".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "SSRF via DNS lookup — canary DNS resolution confirms fetch attempt"
+                description: "SSRF via DNS lookup - canary DNS resolution confirms fetch attempt"
                     .to_string(),
             },
         ],

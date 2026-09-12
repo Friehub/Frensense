@@ -1,4 +1,4 @@
-// SAFE: refactors the computation to a simple variable since there are no dependencies — no useMemo needed
+// SAFE: refactors the computation to a simple variable since there are no dependencies - no useMemo needed
 
 'use client'
 

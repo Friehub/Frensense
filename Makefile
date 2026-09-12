@@ -21,7 +21,7 @@ audit:
 
 ## Correctness
 test:
-	@echo "[TEST] Running full regression suite (excludes node feature — requires Node.js runtime)..."
+	@echo "[TEST] Running full regression suite (excludes node feature - requires Node.js runtime)..."
 	cargo test --all-features
 
 test-update:

@@ -29,7 +29,7 @@ pub struct PatternMatch {
     pub owasp: Option<String>,
     pub severity: Option<String>,
     pub runtime_probe: Option<String>,
-    /// Taint branch ratio from `TaintMetrics` — fraction of tainted accesses
+    /// Taint branch ratio from `TaintMetrics` - fraction of tainted accesses
     /// that are branched on. Propagated to the composition layer.
     pub taint_branch_ratio: Option<f64>,
     /// Whether the function name suggests a validator/sanitizer.
@@ -348,14 +348,14 @@ impl PatternRegistry {
             return;
         }
         // Use default LSH parameters from minhash module.
-        // Threshold = (1/40)^(1/12) ≈ 0.71 — filters candidates to ~30-70 per function.
+        // Threshold = (1/40)^(1/12) ≈ 0.71 - filters candidates to ~30-70 per function.
         let num_hashes = crate::minhash::DEFAULT_NUM_HASHES;
         let num_bands = crate::minhash::DEFAULT_BANDS;
         let rows_per_band = crate::minhash::DEFAULT_ROWS_PER_BAND;
 
         // Structural LSH (existing)
         let mut struct_index = LSHIndex::new(num_bands, rows_per_band);
-        // API-call LSH (new — helps distinguish patterns by what they call)
+        // API-call LSH (new - helps distinguish patterns by what they call)
         let mut api_index = LSHIndex::new(num_bands, rows_per_band);
         let mut flow_index: FxHashMap<u64, Vec<usize>> = FxHashMap::default();
 

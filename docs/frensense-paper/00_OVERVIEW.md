@@ -1,4 +1,4 @@
-# Frensense — System Overview
+# Frensense - System Overview
 
 **Version:** 0.5.x  
 **Authors:** Friehub Developers  
@@ -8,9 +8,9 @@
 
 ## Abstract
 
-Frensense is a high-performance static analysis system for Rust, TypeScript, and JavaScript that detects security vulnerabilities, architectural violations, and AI-generated code hallucinations — without hand-written rules, DSLs, or regular expressions.
+Frensense is a high-performance static analysis system for Rust, TypeScript, and JavaScript that detects security vulnerabilities, architectural violations, and AI-generated code hallucinations - without hand-written rules, DSLs, or regular expressions.
 
-The core thesis: **code patterns are best expressed as pairs of concrete examples** — a vulnerable function and its corrected counterpart. These pairs carry richer signal than any YAML rule because they encode structural shape, control flow, API usage, and data flow simultaneously. The engine fingerprints corpus pairs at build time and performs fast, multi-dimensional similarity search at scan time.
+The core thesis: **code patterns are best expressed as pairs of concrete examples** - a vulnerable function and its corrected counterpart. These pairs carry richer signal than any YAML rule because they encode structural shape, control flow, API usage, and data flow simultaneously. The engine fingerprints corpus pairs at build time and performs fast, multi-dimensional similarity search at scan time.
 
 Findings fire only when multiple independent layers agree: structural corpus match, taint data-flow confirmation, and (optionally) cross-function consistency. This AND-gate architecture is what drives the system's low false-positive rate.
 
@@ -73,7 +73,7 @@ Given the same source, corpus, and thresholds, the engine produces identical out
 - Function-level granularity avoids re-analyzing unchanged code
 
 ### 5. Extensible Without Recompilation
-New patterns compile into the `.frc` bundle. The scanner loads the bundle at startup — no code changes needed to extend detection coverage.
+New patterns compile into the `.frc` bundle. The scanner loads the bundle at startup - no code changes needed to extend detection coverage.
 
 ---
 
@@ -81,15 +81,15 @@ New patterns compile into the `.frc` bundle. The scanner loads the bundle at sta
 
 | File | What It Covers |
 |---|---|
-| [`00_OVERVIEW.md`](./00_OVERVIEW.md) | This file — abstract, goals, design principles |
+| [`00_OVERVIEW.md`](./00_OVERVIEW.md) | This file - abstract, goals, design principles |
 | [`01_WORKSPACE.md`](./01_WORKSPACE.md) | Full annotated workspace and file tree |
-| [`02_CRATE_FRC.md`](./02_CRATE_FRC.md) | `frensense-frc` — binary bundle format |
-| [`03_CRATE_LANG.md`](./03_CRATE_LANG.md) | `frensense-lang` — language abstraction layer |
-| [`04_CRATE_ENGINE.md`](./04_CRATE_ENGINE.md) | `frensense-engine` — core analysis library |
-| [`05_CRATE_BUNDLER.md`](./05_CRATE_BUNDLER.md) | `frensense-bundler` — corpus compiler |
-| [`06_CRATE_PROVIDERS.md`](./06_CRATE_PROVIDERS.md) | `frensense-providers` — compiler backends |
-| [`07_CRATE_RUNTIME.md`](./07_CRATE_RUNTIME.md) | `frensense-runtime` — dynamic instrumentation |
-| [`08_CRATE_ROOT.md`](./08_CRATE_ROOT.md) | Root crate — CLI, orchestration, MCP server |
+| [`02_CRATE_FRC.md`](./02_CRATE_FRC.md) | `frensense-frc` - binary bundle format |
+| [`03_CRATE_LANG.md`](./03_CRATE_LANG.md) | `frensense-lang` - language abstraction layer |
+| [`04_CRATE_ENGINE.md`](./04_CRATE_ENGINE.md) | `frensense-engine` - core analysis library |
+| [`05_CRATE_BUNDLER.md`](./05_CRATE_BUNDLER.md) | `frensense-bundler` - corpus compiler |
+| [`06_CRATE_PROVIDERS.md`](./06_CRATE_PROVIDERS.md) | `frensense-providers` - compiler backends |
+| [`07_CRATE_RUNTIME.md`](./07_CRATE_RUNTIME.md) | `frensense-runtime` - dynamic instrumentation |
+| [`08_CRATE_ROOT.md`](./08_CRATE_ROOT.md) | Root crate - CLI, orchestration, MCP server |
 | [`09_PIPELINE.md`](./09_PIPELINE.md) | End-to-end analysis pipeline |
 | [`10_THEORY_MAP.md`](./10_THEORY_MAP.md) | CS theory mapped to every module |
 | [`11_DATA_STRUCTURES.md`](./11_DATA_STRUCTURES.md) | Key data structures annotated |

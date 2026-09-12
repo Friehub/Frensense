@@ -1,6 +1,6 @@
 // [frensense]
 // observation: The error boundary's fallback component itself throws an error during rendering (e.g., accessing a missing property on the error object)
-// impact: infinite error loop — React repeatedly tries to render the fallback, which keeps throwing, eventually causing a browser tab crash or process OOM
+// impact: infinite error loop - React repeatedly tries to render the fallback, which keeps throwing, eventually causing a browser tab crash or process OOM
 // improvement: ensure the fallback component is robust and does not assume properties exist on the error object
 
 'use client'

@@ -1,5 +1,5 @@
 // SAFE: Uses crypto.randomBytes instead of Math.random for tokens.
-// NOT an LLM/NodeGoat-style token generator — Express route handler with secure random.
+// NOT an LLM/NodeGoat-style token generator - Express route handler with secure random.
 
 const crypto = require("crypto");
 const express = require("express");

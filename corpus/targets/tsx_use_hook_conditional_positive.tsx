@@ -1,6 +1,6 @@
 // [frensense]
 // observation: the `use()` hook is called inside a conditional block, violating the rules of hooks
-// impact: React may crash or produce inconsistent renders because hooks must not be called conditionally — the promise resource may not be registered
+// impact: React may crash or produce inconsistent renders because hooks must not be called conditionally - the promise resource may not be registered
 // improvement: move `use()` outside the conditional or use a Suspense boundary at the parent level
 
 'use client'

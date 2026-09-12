@@ -99,7 +99,7 @@ impl SemanticFilter {
             }
         }
 
-        // Check contains_import — scan file source for import statements (case-insensitive)
+        // Check contains_import - scan file source for import statements (case-insensitive)
         if !self.contains_import.is_empty() {
             let source_lower = source.to_lowercase();
             let has_import = self.contains_import.iter().any(|pkg| {
@@ -118,7 +118,7 @@ impl SemanticFilter {
             }
         }
 
-        // Check must_not_contain_import — reject if file imports any of these packages (case-insensitive)
+        // Check must_not_contain_import - reject if file imports any of these packages (case-insensitive)
         if !self.must_not_contain_import.is_empty() {
             let source_lower = source.to_lowercase();
             let has_forbidden_import = self.must_not_contain_import.iter().any(|pkg| {
@@ -163,7 +163,7 @@ impl SemanticFilter {
 
         let _func_src = &source[func_node.start_byte()..func_node.end_byte()];
 
-        // Check contains_call_to — uses the same text-based extractor as the
+        // Check contains_call_to - uses the same text-based extractor as the
         // auto-filter (extract_call_targets) which skips comments and non-call
         // text. This keeps the filter consistent with what the auto-filter learned.
         if !self.contains_call_to.is_empty() {

@@ -150,7 +150,7 @@ impl FrensenseAuditor {
                             _ => continue,
                         }
                     } else if func.kind() == "arrow_function" {
-                        // Arrow function without a name — try to find the
+                        // Arrow function without a name - try to find the
                         // assignment parent: `this.methodName = () => {}`
                         if let Some(parent) = func.parent() {
                             if parent.kind() == "assignment_expression" {
@@ -284,7 +284,7 @@ impl FrensenseAuditor {
                 "function_item" | "function_declaration" | "method_definition" => {
                     return Some(parent);
                 }
-                // Arrow functions without a name — skip and keep looking for
+                // Arrow functions without a name - skip and keep looking for
                 // the enclosing named function (e.g. `this.method = () => {}`
                 // inside `function UserDAO(db) { ... }`).
                 "arrow_function" => {

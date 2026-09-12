@@ -26,7 +26,7 @@ pub struct CrossFileTaintResolver {
     call_graph: FxHashMap<String, Vec<String>>,
     reverse_call_graph: FxHashMap<String, Vec<String>>,
     module_map: FxHashMap<String, Vec<String>>,
-    /// Key: `"{file_path}:{symbol_name}"` — O(1) lookup.
+    /// Key: `"{file_path}:{symbol_name}"` - O(1) lookup.
     /// Previously keyed by `(symbol, file)` tuple which required O(n) scan in `find_taint_source`.
     exposed_taint: FxHashMap<String, TaintOrigin>,
 }
@@ -84,7 +84,7 @@ impl CrossFileTaintResolver {
     /// BFS forward from each registered source up to `PROPAGATE_MAX_DEPTH`.
     /// Call this once after all initial `register_exposed_taint` calls.
     pub fn propagate_taint(&mut self, sanitizers: Option<&crate::data_flow::SanitizerRegistry>) {
-        // exposed_taint is now keyed by "{file}:{symbol}" directly — no reconstruction needed.
+        // exposed_taint is now keyed by "{file}:{symbol}" directly - no reconstruction needed.
         let seeds: Vec<(String, TaintOrigin)> = self
             .exposed_taint
             .iter()
@@ -180,7 +180,7 @@ impl CrossFileTaintResolver {
     }
 
     fn find_taint_source(&self, key: &str) -> Option<(TaintOrigin, String)> {
-        // O(1) direct lookup — the key is stored as "{file_path}:{symbol_name}".
+        // O(1) direct lookup - the key is stored as "{file_path}:{symbol_name}".
         self.exposed_taint
             .get(key)
             .map(|origin| (origin.clone(), key.to_string()))

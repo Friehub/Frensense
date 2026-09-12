@@ -1,4 +1,4 @@
-// SAFE: Hardcoded the query field and operator, only accepting the value from user input — preventing operator injection.
+// SAFE: Hardcoded the query field and operator, only accepting the value from user input - preventing operator injection.
 
 import { Firestore } from "@google-cloud/firestore";
 

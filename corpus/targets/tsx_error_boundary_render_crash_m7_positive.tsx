@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Error property is destructured before rendering, crashing when code does not exist.
-// impact: Fallback crash — destructuring undefined causes TypeError.
+// impact: Fallback crash - destructuring undefined causes TypeError.
 // improvement: Provide default value in destructuring pattern.
 // cwe: CWE-209
 // cvss: 4.3

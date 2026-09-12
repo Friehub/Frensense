@@ -67,7 +67,7 @@ pub(crate) fn parse_frensense_block(source: &str) -> AdvisoryText {
         };
 
         let Some(text) = content else {
-            // Non-comment line — block is over
+            // Non-comment line - block is over
             break;
         };
 

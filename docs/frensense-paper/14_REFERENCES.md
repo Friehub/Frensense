@@ -65,7 +65,7 @@ This document lists all academic papers, datasets, and software libraries refere
 
 **Cooper, K. D., Harvey, T. J., and Kennedy, K. (2001)**  
 "A simple, fast dominance algorithm."  
-*Software—Practice and Experience*, 4(1):1–10. Rice University Technical Report CS-06-33406.  
+*Software-Practice and Experience*, 4(1):1–10. Rice University Technical Report CS-06-33406.  
 → The iterative dominance algorithm used in `cfg/mod.rs::BasicBlock.dominators` computation.
 
 ### Reaching Definitions and Def-Use Chains

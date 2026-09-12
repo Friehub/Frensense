@@ -223,7 +223,7 @@ async fn main() {
                     }
                 });
 
-                // Learn injection points from advisory content — same principle as
+                // Learn injection points from advisory content - same principle as
                 // Frensense static learning sources from the corpus: extract param
                 // names from the source code rather than guessing.
                 let mut route_binding = route_binding;
@@ -250,7 +250,7 @@ async fn main() {
                     .map(|token| (&auth_convention, token.as_str()));
 
                 tracing::info!(
-                    "Probing: {} — {}:{} ({})",
+                    "Probing: {} - {}:{} ({})",
                     advisory.rule_id,
                     advisory.file_path,
                     advisory.line,
@@ -271,7 +271,7 @@ async fn main() {
 
                 if result.is_confirmed() {
                     tracing::info!(
-                        "[CONFIRMED] {} — combined confidence: {:.1}%",
+                        "[CONFIRMED] {} - combined confidence: {:.1}%",
                         advisory.rule_id,
                         result.combined_confidence() * 100.0
                     );
@@ -283,7 +283,7 @@ async fn main() {
             ProbeStrategy::ConcurrentStress(prober) => {
                 let url = format!("{}/", config.base_url.trim_end_matches('/'));
                 tracing::info!(
-                    "Stress testing: {} — {} (concurrency: {}, duration: {}ms)",
+                    "Stress testing: {} - {} (concurrency: {}, duration: {}ms)",
                     advisory.rule_id,
                     advisory.file_path,
                     prober.concurrency,
@@ -298,14 +298,14 @@ async fn main() {
                         degradation_ratio,
                     } => {
                         tracing::info!(
-                            "[CONFIRMED] {} — p50={}ms p99={}ms ratio={:.1}x",
+                            "[CONFIRMED] {} - p50={}ms p99={}ms ratio={:.1}x",
                             advisory.rule_id,
                             p50_ms,
                             p99_ms,
                             degradation_ratio
                         );
                         let adv = format!(
-                            "[CONFIRMED] {} — {}:{}\n\
+                            "[CONFIRMED] {} - {}:{}\n\
                              Concurrent stress confirmed degradation\n\
                              p50: {}ms, p99: {}ms, ratio: {:.1}x",
                             advisory.rule_id,
@@ -319,7 +319,7 @@ async fn main() {
                     }
                     ConcurrencyVerdict::NotConfirmed => {
                         let adv = format!(
-                            "[UNCONFIRMED] {} — {}:{}\n\
+                            "[UNCONFIRMED] {} - {}:{}\n\
                              Concurrent stress: no significant degradation detected",
                             advisory.rule_id, advisory.file_path, advisory.line,
                         );
@@ -327,7 +327,7 @@ async fn main() {
                     }
                     ConcurrencyVerdict::Error(e) => {
                         let adv = format!(
-                            "[INCONCLUSIVE] {} — {}:{}\n{}",
+                            "[INCONCLUSIVE] {} - {}:{}\n{}",
                             advisory.rule_id, advisory.file_path, advisory.line, e,
                         );
                         println!("{adv}");
@@ -340,7 +340,7 @@ async fn main() {
             }
             ProbeStrategy::CannotProbeAtRuntime { reason } => {
                 tracing::info!(
-                    "[SKIP] {} — {}:{} — {}",
+                    "[SKIP] {} - {}:{} - {}",
                     advisory.rule_id,
                     advisory.file_path,
                     advisory.line,

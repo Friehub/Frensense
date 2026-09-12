@@ -1,4 +1,4 @@
-// SAFE: Menu items are built from a hardcoded configuration with no dynamic onSelect — all handlers are explicitly defined in code
+// SAFE: Menu items are built from a hardcoded configuration with no dynamic onSelect - all handlers are explicitly defined in code
 
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Button } from '@/components/ui/button';

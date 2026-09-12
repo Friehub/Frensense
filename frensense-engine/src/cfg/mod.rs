@@ -125,7 +125,7 @@ impl<'a> ControlFlowGraph<'a> {
     pub fn dominates_all_exits_from(&self, before_block: usize, after_block: usize) -> bool {
         let exits = self.exit_nodes();
         if exits.is_empty() {
-            return true; // No exits — vacuously true
+            return true; // No exits - vacuously true
         }
 
         // Find all exit nodes reachable from before_block
@@ -135,7 +135,7 @@ impl<'a> ControlFlowGraph<'a> {
             .collect();
 
         if reachable_exits.is_empty() {
-            return true; // No reachable exits — vacuously true
+            return true; // No reachable exits - vacuously true
         }
 
         // Check if after_block dominates all reachable exits
@@ -681,7 +681,7 @@ pub fn has_auth_guard_dominator(cfg: &ControlFlowGraph, sink_block: usize, sourc
 }
 
 /// Known auth-related identifier patterns. Only matched against AST identifier
-/// and call nodes — not raw text — so comments cannot trigger false positives.
+/// and call nodes - not raw text - so comments cannot trigger false positives.
 const AUTH_GUARD_PATTERNS: &[&str] = &[
     "authenticate",
     "authorize",
@@ -708,7 +708,7 @@ const AUTH_GUARD_PATTERNS: &[&str] = &[
 ///   2. At least one non-comment, non-string AST node in the block contains
 ///      a substring from [`AUTH_GUARD_PATTERNS`].
 ///
-/// Unlike the previous implementation, this does not match raw block text —
+/// Unlike the previous implementation, this does not match raw block text -
 /// it restricts matching to tree-sitter AST node kinds, which excludes
 /// comments and string literal contents from triggering the guard.
 pub fn block_looks_like_auth_guard(block: &BasicBlock<'_>, source: &str) -> bool {

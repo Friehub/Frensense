@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Portal content (modal/tooltip) is rendered with a fixed z-index value that conflicts with other portal layers, causing stacking order issues
-// impact: clickjacking — lower-z-index portal content can be transparently overlaid by higher-z-index content, tricking users into clicking unintended elements
+// impact: clickjacking - lower-z-index portal content can be transparently overlaid by higher-z-index content, tricking users into clicking unintended elements
 // improvement: use a z-index management system (e.g., stack context counter) to ensure proper stacking order
 // cwe: CWE-79
 // cvss: 6.1

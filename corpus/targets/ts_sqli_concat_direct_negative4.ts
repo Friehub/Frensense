@@ -1,4 +1,4 @@
-// SAFE: Negative4 — different allowlist approach. Input is validated before reaching the sensitive call. concatenated into a SQL query with parameterization.
+// SAFE: Negative4 - different allowlist approach. Input is validated before reaching the sensitive call. concatenated into a SQL query with parameterization.
 
 import express from "express";
 import { Router } from "express";

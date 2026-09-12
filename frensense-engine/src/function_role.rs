@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Function role classifier — identifies what a function DOES from its fingerprint.
+//! Function role classifier - identifies what a function DOES from its fingerprint.
 //!
 //! A lightweight structural classifier that assigns one of 5 roles with zero
 //! corpus lookup.  Used as a pre-filter before scoring: if the candidate's role
@@ -179,7 +179,7 @@ const SHELL_API: &[&str] = &[
 /// - `api_calls` / `api_call_segments` for method-level detection
 /// - `signature_ngrams` / `param_type_ngrams` for parameter shape
 ///
-/// The checks are ordered by priority — HttpHandler is checked first
+/// The checks are ordered by priority - HttpHandler is checked first
 /// because its signal (res.json/send/redirect) is the strongest.
 pub fn classify_role(fp: &FunctionFingerprint) -> FunctionRole {
     classify_role_with_imports(fp, None, None)
@@ -229,15 +229,15 @@ pub fn classify_role_with_imports(
 ///
 /// Requires at least **two** of the following signals:
 ///
-///   (a) Response call — function calls `res.send`, `.json`, `.redirect`, etc.
-///   (b) Request-shaped parameters — param names include `req`, `request`, `ctx`, etc.
-///   (c) Route-registration context — function body contains `app.get`, `router.post`, etc.
-///   (d) [import-aware] Typed parameters — `type_usages` contain `Request`/`Response`
+///   (a) Response call - function calls `res.send`, `.json`, `.redirect`, etc.
+///   (b) Request-shaped parameters - param names include `req`, `request`, `ctx`, etc.
+///   (c) Route-registration context - function body contains `app.get`, `router.post`, etc.
+///   (d) [import-aware] Typed parameters - `type_usages` contain `Request`/`Response`
 ///       confirmed by the import map to come from an HTTP framework package.
-///   (e) Routing decorator — function has `@Get`, `@Post`, `@Put`, etc. (NestJS / tsoa / type-graphql)
-///   (f) Route registration — function is referenced in `app.get('/path', fn)`
+///   (e) Routing decorator - function has `@Get`, `@Post`, `@Put`, etc. (NestJS / tsoa / type-graphql)
+///   (f) Route registration - function is referenced in `app.get('/path', fn)`
 ///       or is an inline arrow passed to a router method.
-///   (g) File export — function is a file-level export matching framework conventions
+///   (g) File export - function is a file-level export matching framework conventions
 ///       (Next.js App/Pages Router, SvelteKit, Cloudflare Workers, AWS Lambda).
 fn is_http_handler(
     fp: &FunctionFingerprint,
@@ -427,8 +427,8 @@ mod tests {
             vec![20, 21, 22, 23, 24, 25],               // structural
             vec![30, 31],                               // sig
             vec![40, 41],                               // param_types
-            vec!["res.send".to_string()],               // raw_call_names — signal (a)
-            vec!["req".to_string(), "res".to_string()], // param_names — signal (b)
+            vec!["res.send".to_string()],               // raw_call_names - signal (a)
+            vec!["req".to_string(), "res".to_string()], // param_names - signal (b)
         );
         assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
     }
@@ -443,7 +443,7 @@ mod tests {
             vec![20, 21, 22, 23, 24, 25],
             vec![30],
             vec![],
-            vec!["res.send".to_string()], // raw_call_names — signal (a) only
+            vec!["res.send".to_string()], // raw_call_names - signal (a) only
             vec![],
         );
         assert_eq!(classify_role(&fp), FunctionRole::Unknown);
@@ -468,7 +468,7 @@ mod tests {
     #[test]
     fn test_decorator_only_handler_is_http_handler() {
         // NestJS-style: `@Get('/users') async getUsers() { return this.svc.findAll(); }`
-        // has ONLY the HTTP decorator signal — no req/res params, no res.send(),
+        // has ONLY the HTTP decorator signal - no req/res params, no res.send(),
         // no app.get() route registration. The decorator must count as two
         // signals so it still clears the >= 2 threshold.
         let mut fp = make_fp(

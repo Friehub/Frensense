@@ -1,6 +1,6 @@
 // [frensense]
 // observation: User input flows through a promise chain before reaching exec(), obfuscating the taint path but providing no security.
-// impact: The promise wrapper does not sanitize the input — same exploitation as direct execSync injection.
+// impact: The promise wrapper does not sanitize the input - same exploitation as direct execSync injection.
 // improvement: Sanitize input at the earliest point. Use execFile with array arguments after validation.
 // cwe: CWE-78
 // cvss: 9.8

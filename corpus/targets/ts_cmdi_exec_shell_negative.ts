@@ -1,4 +1,4 @@
-// SAFE: Replaced exec() with execFile() — arguments are passed as an array,
+// SAFE: Replaced exec() with execFile() - arguments are passed as an array,
 //       preventing shell interpretation. Script names validated against allowlist.
 
 import { execFile } from "child_process";

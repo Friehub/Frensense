@@ -13,9 +13,9 @@ use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SinkTier {
-    HighConfidence, // min_occurrences: 1 — known dangerous, no FP risk
-    Standard,       // min_occurrences: 2 — current default
-    Suspicious,     // min_occurrences: 3 — novel patterns, need more evidence
+    HighConfidence, // min_occurrences: 1 - known dangerous, no FP risk
+    Standard,       // min_occurrences: 2 - current default
+    Suspicious,     // min_occurrences: 3 - novel patterns, need more evidence
 }
 
 impl SinkTier {
@@ -163,7 +163,7 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     "D1Database.prepare",
     "DurableObjectStub.fetch",
     "Queue.send",
-    // SSTI — Template engine renders
+    // SSTI - Template engine renders
     "ejs.render",
     "ejs.renderFile",
     "pug.compile",
@@ -203,7 +203,7 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
     "jQuery.extend",
     "angular.merge",
     "setPrototypeOf",
-    // XXE — XML parsers
+    // XXE - XML parsers
     "DOMParser",
     "libxml2",
     "SAXParser",
@@ -234,7 +234,7 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
 /// - Framework-specific sinks that can't be resolved through imports
 /// - MongoDB operators (property keys, not function calls)
 pub const ALWAYS_REGISTER_SINKS_COMPILER_AWARE: &[&str] = &[
-    // Code Execution — truly dangerous bare calls
+    // Code Execution - truly dangerous bare calls
     "eval",
     "exec",
     "execSync",
@@ -264,7 +264,7 @@ pub const ALWAYS_REGISTER_SINKS_COMPILER_AWARE: &[&str] = &[
     "$expr",
     "$function",
     "$accumulator",
-    // Framework Specific — can't be resolved through imports
+    // Framework Specific - can't be resolved through imports
     "c.redirect",
     "env.KV.put",
     "KVNamespace.put",
@@ -281,7 +281,7 @@ pub const ALWAYS_REGISTER_SINKS_COMPILER_AWARE: &[&str] = &[
     "D1Database.prepare",
     "DurableObjectStub.fetch",
     "Queue.send",
-    // SSTI — template engine renders (module-qualified, keep as fallback)
+    // SSTI - template engine renders (module-qualified, keep as fallback)
     "ejs.render",
     "ejs.renderFile",
     "pug.compile",
@@ -321,7 +321,7 @@ pub const ALWAYS_REGISTER_SINKS_COMPILER_AWARE: &[&str] = &[
     "jQuery.extend",
     "angular.merge",
     "setPrototypeOf",
-    // XXE — XML parsers
+    // XXE - XML parsers
     "DOMParser",
     "libxml2",
     "SAXParser",
@@ -492,7 +492,7 @@ pub fn sink_taint_relevance(category: SinkCategory, origin: &TaintOrigin) -> f64
 }
 
 /// Infer the likely SinkCategory from a pattern ID string.
-/// Pattern IDs follow `{lang}_{category}_{name}` convention — the name segment
+/// Pattern IDs follow `{lang}_{category}_{name}` convention - the name segment
 /// often contains keywords like "sql", "cmd", "xss", etc.
 #[must_use]
 pub fn infer_sink_category(pattern_id: &str) -> Option<SinkCategory> {
@@ -634,7 +634,7 @@ impl CorpusSourceSinkRegistry {
             return Some(*cat);
         }
 
-        // Safe built-in object prefixes — never a sink regardless of method name
+        // Safe built-in object prefixes - never a sink regardless of method name
         const SAFE_PREFIXES: &[&str] = &[
             "Object.", "Array.", "String.", "Number.", "Math.", "JSON.", "console.", "process.",
             "Promise.",
@@ -666,7 +666,7 @@ impl CorpusSourceSinkRegistry {
         if self.sanitizer_names.contains_key(expr) {
             return true;
         }
-        // Built-in heuristics — stable regardless of corpus content
+        // Built-in heuristics - stable regardless of corpus content
         const SANITIZER_FRAGMENTS: &[&str] = &[
             "escape",
             "sanitize",

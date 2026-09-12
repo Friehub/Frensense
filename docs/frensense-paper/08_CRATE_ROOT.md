@@ -1,11 +1,11 @@
-# Root Crate: `frensense` — CLI, Orchestration, and MCP Server
+# Root Crate: `frensense` - CLI, Orchestration, and MCP Server
 
 **Path:** `src/`  
 **Role:** The user-facing layer. Wires all crates together, provides the CLI, manages scan orchestration, and exposes the MCP JSON-RPC server.
 
 ---
 
-## `src/lib.rs` — Public API Layer
+## `src/lib.rs` - Public API Layer
 
 The root lib exports the types and traits shared across all rule implementations.
 
@@ -36,9 +36,9 @@ pub trait FrensenseRule: Send + Sync {
 }
 ```
 
-**CS Theory:** Visitor pattern — rules visit AST nodes via the `check` callback. The engine dispatches each node to all applicable rules, collecting advisories.
+**CS Theory:** Visitor pattern - rules visit AST nodes via the `check` callback. The engine dispatches each node to all applicable rules, collecting advisories.
 
-### `Advisory` — A Single Finding
+### `Advisory` - A Single Finding
 
 The unified finding type. Carries full provenance:
 
@@ -73,7 +73,7 @@ pub struct Advisory {
 }
 ```
 
-### `FrensenseContext<'a>` — Analysis Context
+### `FrensenseContext<'a>` - Analysis Context
 
 Passed to every rule's `check` call. Contains everything a rule might need:
 
@@ -100,7 +100,7 @@ pub struct FrensenseContext<'a> {
 
 `for_interprocedural()` creates a derived context for cross-file analysis, inheriting taint parameters from the parent while pointing to a different file.
 
-### `TaintCache` — LRU Cache for Taint Results
+### `TaintCache` - LRU Cache for Taint Results
 
 Bounded LRU cache (capacity 1024) preventing redundant taint walks on large files:
 
@@ -114,13 +114,13 @@ pub struct TaintCache {
 }
 ```
 
-Uses `RefCell` for interior mutability — the cache is logically immutable from the rule's perspective (reading it shouldn't require `&mut self`).
+Uses `RefCell` for interior mutability - the cache is logically immutable from the rule's perspective (reading it shouldn't require `&mut self`).
 
 ---
 
-## `src/engine/` — Scan Orchestration
+## `src/engine/` - Scan Orchestration
 
-### `auditor/` — `FrensenseAuditor`
+### `auditor/` - `FrensenseAuditor`
 
 The top-level scanner. Core API:
 
@@ -145,17 +145,17 @@ impl FrensenseAuditor {
 
 **File walking:** Uses `walkdir` for recursive directory traversal with exclusion rules (test files, build dirs, large files). Files are dispatched to `rayon`'s thread pool for parallel scanning.
 
-**Rule dispatch:** For each file, for each AST node, for each applicable rule — call `rule.check(node, context)`. Collect all advisories.
+**Rule dispatch:** For each file, for each AST node, for each applicable rule - call `rule.check(node, context)`. Collect all advisories.
 
 **Corpus scanning:** Simultaneously, the `PatternRegistry::scan_function` pipeline runs for each fingerprinted function.
 
 **Post-processing:**
-1. `apply_composition()` — multi-layer confidence adjustment.
-2. Deduplication — same rule_id + file + line collapses to one.
-3. Baseline suppression — advisories matching `.frensense-suppress.yml` entries are removed.
-4. Severity/confidence filtering — apply `--severity` and `--min-confidence` thresholds.
+1. `apply_composition()` - multi-layer confidence adjustment.
+2. Deduplication - same rule_id + file + line collapses to one.
+3. Baseline suppression - advisories matching `.frensense-suppress.yml` entries are removed.
+4. Severity/confidence filtering - apply `--severity` and `--min-confidence` thresholds.
 
-### `composition.rs` — Multi-Layer AND-Gate
+### `composition.rs` - Multi-Layer AND-Gate
 
 Implements the 4-layer confidence composition model:
 
@@ -195,25 +195,25 @@ pub fn compose_confidence(signals: &LayerSignals, base_score: f64, config: &Comp
 
 **CS Theory:** Evidence combination, Bayesian updating (deterministic rule approximation), AND-gate multi-layer verification.
 
-### `learn.rs` — Pattern Learning
+### `learn.rs` - Pattern Learning
 
 Implements `learn_pattern(positive_path, negative_path, pattern_id, output_dir)`:
 
 1. Read positive and negative source files.
-2. Run `diff_ast()` — tree-sitter AST diff to identify what changed between positive and negative.
-3. `extract_patterns_from_diff()` — generate pattern metadata from the diff structure.
+2. Run `diff_ast()` - tree-sitter AST diff to identify what changed between positive and negative.
+3. `extract_patterns_from_diff()` - generate pattern metadata from the diff structure.
 4. Infer `expected_context` from the positive file's path and imports.
 5. Copy the files to `output_dir` with the standard naming convention.
 
 This enables the `frensense --learn` command: a developer provides a bug/fix pair and Frensense generates the corpus entry automatically.
 
-### `clustering.rs` — Near-Duplicate Detection
+### `clustering.rs` - Near-Duplicate Detection
 
-Detects functionally near-duplicate functions within the same project — functions that share the same vulnerability but differ only in variable names or minor structural variations. Near-duplicates boost each other's confidence (L4 in the composition model).
+Detects functionally near-duplicate functions within the same project - functions that share the same vulnerability but differ only in variable names or minor structural variations. Near-duplicates boost each other's confidence (L4 in the composition model).
 
 Uses MinHash Jaccard similarity across `ngram_hashes` fields. Two functions with `J > 0.85` are considered near-duplicates.
 
-### `ast_diff.rs` — AST-Level Diff
+### `ast_diff.rs` - AST-Level Diff
 
 Computes a semantic diff between two source files using tree-sitter parse trees. Unlike `git diff` (line-based), this captures structural changes: "a conditional branch was added," "a sanitizer call was inserted," "the function signature parameter changed from `string` to `sanitized_string`."
 
@@ -221,9 +221,9 @@ Used by `learn.rs` to understand what the fix changed, enabling automatic metada
 
 ---
 
-## `src/semantics/` — Semantic Rule Implementations
+## `src/semantics/` - Semantic Rule Implementations
 
-### `simple_taint.rs` — Intraprocedural Taint Rule
+### `simple_taint.rs` - Intraprocedural Taint Rule
 
 ```
 Rule ID: TAINT_*
@@ -232,7 +232,7 @@ Scope: single file
 
 Walks a function's AST, tracks taint with `TaintRegistry`, and emits an advisory when tainted data reaches a sink. Generates rule IDs like `TAINT_INPUT_TO_EXEC`, `TAINT_INPUT_TO_SQL`.
 
-### `consistency.rs` — Cross-Function Consistency Checker
+### `consistency.rs` - Cross-Function Consistency Checker
 
 ```
 Rule ID: CONSISTENCY_*
@@ -243,7 +243,7 @@ Identifies groups of sibling functions (same name prefix, e.g., `handleUserCreat
 
 **CS Theory:** Program consistency analysis, cross-function property checking, ownership invariant verification.
 
-### `data_flow/` — Interprocedural Taint
+### `data_flow/` - Interprocedural Taint
 
 ```
 Rule ID: CROSS_FILE_TAINT
@@ -254,7 +254,7 @@ Uses the `analyze_project` cross-file resolver to find taint paths that span mul
 
 ---
 
-## `src/temporal/` — Temporal Property Checker
+## `src/temporal/` - Temporal Property Checker
 
 ### `analyzer.rs`
 
@@ -271,7 +271,7 @@ pub struct TemporalRule {
 
 For each function, extract the ordered sequence of matching API calls and verify the temporal rule's sequence is satisfied (subsequence check). Failure emits a `TEMPORAL_*` advisory.
 
-### `config.rs` — Built-in Temporal Rules
+### `config.rs` - Built-in Temporal Rules
 
 Hardcoded rules for financial operations (largest and most risky domain):
 
@@ -286,7 +286,7 @@ Hardcoded rules for financial operations (largest and most risky domain):
 
 ---
 
-## `src/mcp/` — Model Context Protocol Server
+## `src/mcp/` - Model Context Protocol Server
 
 ### Architecture
 
@@ -325,7 +325,7 @@ AI agents generating code can call `frensense/validate` before committing a chan
 
 ---
 
-## `src/reporter.rs` — Output Formatters
+## `src/reporter.rs` - Output Formatters
 
 Three output formats:
 

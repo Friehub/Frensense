@@ -13,7 +13,7 @@ corpus/baselines/targets.json  ← expected advisories
 
 **CI runs**: `frensense corpus/targets --json --compare-baseline corpus/baselines/targets.json`
 
-12 files (6 rules × positive/negative). The baseline contains 4 findings — only the positive variants that currently fire. Negative variants exist to document "should stay silent."
+12 files (6 rules × positive/negative). The baseline contains 4 findings - only the positive variants that currently fire. Negative variants exist to document "should stay silent."
 
 The CI step **fails** if:
 - A new finding appears in any target (potential FP regression)

@@ -1,5 +1,5 @@
 // [frensense]
-// observation: component uses both 'use client' and 'use server' directives — this is ambiguous and one will silently override the other
+// observation: component uses both 'use client' and 'use server' directives - this is ambiguous and one will silently override the other
 // impact: directive precedence causes unexpected server-only or client-only behaviour, potentially leaking server context to client bundle
 // improvement: pick one directive; use a separate server action file for server-only logic
 

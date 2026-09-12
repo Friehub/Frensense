@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Suspense fallback renders user-controlled content (e.g., search query, URL parameter) without sanitization
-// impact: XSS before hydration — the fallback HTML is server-rendered with unescaped user input, allowing script injection before React hydrates
+// impact: XSS before hydration - the fallback HTML is server-rendered with unescaped user input, allowing script injection before React hydrates
 // improvement: sanitize or escape user input before rendering it in the fallback
 
 'use client'

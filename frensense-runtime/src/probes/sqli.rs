@@ -29,7 +29,7 @@ pub fn template() -> ProbeTemplate {
                     ],
                 },
                 risk: ProbeRisk::Safe,
-                description: "SQL single-quote — triggers syntax error on unparameterized query"
+                description: "SQL single-quote - triggers syntax error on unparameterized query"
                     .to_string(),
             },
             Probe {
@@ -39,7 +39,7 @@ pub fn template() -> ProbeTemplate {
                     min_divergence_score: 0.3,
                 },
                 risk: ProbeRisk::Safe,
-                description: "Boolean injection — changes result set (compare to baseline)"
+                description: "Boolean injection - changes result set (compare to baseline)"
                     .to_string(),
             },
             Probe {
@@ -47,21 +47,21 @@ pub fn template() -> ProbeTemplate {
                 payload: "'; SELECT pg_sleep(5)--".to_string(),
                 oracle: OracleKind::TimingDelta { threshold_ms: 4500 },
                 risk: ProbeRisk::Safe,
-                description: "PostgreSQL sleep injection — timing confirms injection".to_string(),
+                description: "PostgreSQL sleep injection - timing confirms injection".to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),
                 payload: "' AND SLEEP(5)--".to_string(),
                 oracle: OracleKind::TimingDelta { threshold_ms: 4500 },
                 risk: ProbeRisk::Safe,
-                description: "MySQL sleep injection — timing confirms injection".to_string(),
+                description: "MySQL sleep injection - timing confirms injection".to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),
                 payload: "'; WAITFOR DELAY '0:0:5'--".to_string(),
                 oracle: OracleKind::TimingDelta { threshold_ms: 4500 },
                 risk: ProbeRisk::Safe,
-                description: "MSSQL wait-for injection — timing confirms injection".to_string(),
+                description: "MSSQL wait-for injection - timing confirms injection".to_string(),
             },
         ],
     }

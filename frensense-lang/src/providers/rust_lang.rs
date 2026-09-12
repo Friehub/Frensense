@@ -183,7 +183,7 @@ fn rust_package_category(pkg: &str) -> Option<PackageCategory> {
             Some(PackageCategory::NoSqlDatabase)
         }
 
-        "tokio" => None, // runtime — tokio::process is a sink but tokio itself is not
+        "tokio" => None, // runtime - tokio::process is a sink but tokio itself is not
         "std" => None,   // std::process::Command handled via known_sink_names
 
         "reqwest" | "hyper" | "ureq" | "surf" | "isahc" | "attohttpc" => {
@@ -231,7 +231,7 @@ fn rust_classify_param(_name: Option<&str>, ann: Option<&str>) -> Option<TaintOr
 
 fn rust_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     match call_last_segment(call) {
-        // Numeric parse: `"42".parse::<u64>()` — kills injection
+        // Numeric parse: `"42".parse::<u64>()` - kills injection
         "parse" => Some(SanitizerKind::Full),
         // HTML
         "clean" | "ammonia" | "escape_html" => Some(SanitizerKind::HtmlEscape),
@@ -246,7 +246,7 @@ fn rust_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
 // ── Propagators ───────────────────────────────────────────────────────────────
 
 static RUST_PROPAGATORS: &[PropagatorRule] = &[
-    // format! — any arg taints the return
+    // format! - any arg taints the return
     PropagatorRule {
         call: "format",
         tainted_arg: None,
@@ -272,7 +272,7 @@ static RUST_PROPAGATORS: &[PropagatorRule] = &[
         tainted_arg: None,
         tainted_receiver: false,
     },
-    // String conversions — receiver taints return
+    // String conversions - receiver taints return
     PropagatorRule {
         call: "to_string",
         tainted_arg: None,

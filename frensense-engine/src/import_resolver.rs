@@ -49,8 +49,8 @@ impl ImportMap {
     /// - `import { A as B } from 'pkg'`       (aliased named import → stores both `B` and `A`)
     /// - `import A from 'pkg'`                (default import → stores `A`)
     /// - `import * as A from 'pkg'`           (namespace import → stores `A`)
-    /// - `import type { A } from 'pkg'`       (type import — same shape as named)
-    /// - `import 'pkg'`                       (side-effect — no bindings, skipped)
+    /// - `import type { A } from 'pkg'`       (type import - same shape as named)
+    /// - `import 'pkg'`                       (side-effect - no bindings, skipped)
     pub fn build_from_tree(ext: &str, source: &str, root: Node) -> Self {
         let mut map = Self::new();
         if let Some(spec) = frensense_lang::spec_for_ext(ext) {

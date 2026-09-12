@@ -48,7 +48,7 @@ fn classify_python(kind: &str) -> NodeRole {
         },
 
         // ── Assignments ──────────────────────────────────────────────────
-        // Python has no separate "declaration" concept — `x = expr` is both.
+        // Python has no separate "declaration" concept - `x = expr` is both.
         "assignment" | "annotated_assignment" => NodeRole::Declaration {
             name_field: "left",
             value_field: "right",
@@ -57,7 +57,7 @@ fn classify_python(kind: &str) -> NodeRole {
             lhs_field: "left",
             rhs_field: "right",
         },
-        // Walrus operator `:=` — e.g. `if (m := re.match(...))`
+        // Walrus operator `:=` - e.g. `if (m := re.match(...))`
         "named_expression" => NodeRole::Declaration {
             name_field: "name",
             value_field: "value",
@@ -89,7 +89,7 @@ fn classify_python(kind: &str) -> NodeRole {
         "finally_clause" => NodeRole::Finally,
         "raise_statement" => NodeRole::Throw,
         "await" => NodeRole::Await,
-        // `with` statement — needs special context_manager_call handling
+        // `with` statement - needs special context_manager_call handling
         "with_statement" => NodeRole::ContextManager,
 
         // ── Structural ───────────────────────────────────────────────────
@@ -228,7 +228,7 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<Import> {
                                 });
                             }
                             "wildcard_import" => {
-                                // `from flask import *` — bind the module itself
+                                // `from flask import *` - bind the module itself
                                 imports.push(Import {
                                     local_name: module_name
                                         .split('.')
@@ -335,7 +335,7 @@ fn python_classify_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintO
         // We can't distinguish from annotation alone; handled by propagators.
     }
 
-    // Flask / Django: `request` is always a global taint source — no param needed.
+    // Flask / Django: `request` is always a global taint source - no param needed.
     // FastAPI: named params from URL path / query are taint sources by framework convention.
     match name? {
         "request" | "req" => Some(TaintOrigin::UserInput),
@@ -366,7 +366,7 @@ fn python_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
 // ── Propagators ───────────────────────────────────────────────────────────────
 
 static PYTHON_PROPAGATORS: &[PropagatorRule] = &[
-    // str methods — receiver taints return
+    // str methods - receiver taints return
     PropagatorRule {
         call: "format",
         tainted_arg: None,
@@ -500,7 +500,7 @@ static PYTHON_PROPAGATORS: &[PropagatorRule] = &[
     // flow_fingerprint's is_interpolation_node check, not propagator rules.
     // Listed here for documentation completeness.
 
-    // % formatting: `"SELECT %s" % user` — treated as format propagation
+    // % formatting: `"SELECT %s" % user` - treated as format propagation
     // This is a BinaryOp in the AST, not a call. The flow fingerprinter
     // checks for `binary_operator` with operator `%` and a tainted RHS.
 ];
@@ -575,7 +575,7 @@ impl LanguageSpec for PythonSpec {
         classify_python(kind)
     }
 
-    /// Python `with open(path) as f:` — extracts the path argument.
+    /// Python `with open(path) as f:` - extracts the path argument.
     fn context_manager_call<'s>(&self, node: Node<'_>, source: &'s str) -> Option<&'s str> {
         python_context_manager_call(node, source)
     }
@@ -686,7 +686,7 @@ impl LanguageSpec for PythonSpec {
             ("outerHTML", "XssDom"),
             ("document.write", "XssDom"),
             ("dangerouslySetInnerHTML", "XssDom"),
-            // SSTI — Template engine renders
+            // SSTI - Template engine renders
             ("render_template", "TemplateSsti"),
             ("render_template_string", "TemplateSsti"),
             ("from_string", "TemplateSsti"),
@@ -767,7 +767,7 @@ impl LanguageSpec for PythonSpec {
             "request.META",
             "request.FILES",
             "request.COOKIES",
-            // FastAPI — these are parameter names, recognised via classify_param_taint
+            // FastAPI - these are parameter names, recognised via classify_param_taint
             // but listed here for motif matching
             "Query",
             "Path",

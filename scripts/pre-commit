@@ -12,8 +12,8 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(md|
 
 if [ -n "$STAGED_FILES" ]; then
     for FILE in $STAGED_FILES; do
-        if grep -q "—" "$FILE"; then
-            sed -i 's/—/-/g' "$FILE"
+        if grep -q "-" "$FILE"; then
+            sed -i 's/-/-/g' "$FILE"
             git add "$FILE"
         fi
     done

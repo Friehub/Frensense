@@ -4,7 +4,7 @@ FROM rust:1.88-slim-bookworm AS builder
 WORKDIR /usr/src/frensense
 COPY . .
 
-# Build with optimizations — produces both frensense and frensense-mcp binaries
+# Build with optimizations - produces both frensense and frensense-mcp binaries
 RUN cargo build --release
 
 # --- Final Stage ---

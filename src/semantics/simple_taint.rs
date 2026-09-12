@@ -2,7 +2,7 @@
 
 //! Simple AST-direct taint checker for consistency validation.
 //!
-//! This is Path B in the consistency check — a simplified analysis that
+//! This is Path B in the consistency check - a simplified analysis that
 //! detects source→sink patterns without interprocedural tracking or
 //! semantic graph traversal. Used to verify that the full pipeline
 //! (Path A) doesn't lose findings.

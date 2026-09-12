@@ -11,7 +11,7 @@ import { logger } from './logger';
 
 app.post('/api/login', async (req, res) => {
   const { username } = req.body;
-  // VULNERABLE: username logged directly — CRLF injection possible
+  // VULNERABLE: username logged directly - CRLF injection possible
   logger.info(`Login attempt for user: ${username}`);
   // ...
 });

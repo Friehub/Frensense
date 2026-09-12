@@ -22,7 +22,7 @@ const CHECKS: &[MiddlewareCheck] = &[
     MiddlewareCheck {
         rule_id: "A5-HELMET_MISSING",
         cwe: "CWE-1021",
-        observation: "HTTP security headers are not set — helmet() middleware is commented out or missing",
+        observation: "HTTP security headers are not set - helmet() middleware is commented out or missing",
         impact: "Missing helmet headers (X-Frame-Options, X-XSS-Protection, etc.) expose the app to clickjacking, XSS, and other browser-level attacks.",
         improvement: "Uncomment or add app.use(helmet()) and configure the desired policies for frameguard, xssFilter, noSniff, etc.",
         active_patterns: &["helmet("],
@@ -39,7 +39,7 @@ const CHECKS: &[MiddlewareCheck] = &[
     MiddlewareCheck {
         rule_id: "A5-X_POWERED_BY",
         cwe: "CWE-200",
-        observation: "X-Powered-By header is not disabled — app.disable('x-powered-by') is commented out or missing",
+        observation: "X-Powered-By header is not disabled - app.disable('x-powered-by') is commented out or missing",
         impact: "The X-Powered-By header leaks Express.js version information to attackers, aiding fingerprinting.",
         improvement: "Uncomment or add app.disable('x-powered-by') to remove the header.",
         active_patterns: &[
@@ -52,7 +52,7 @@ const CHECKS: &[MiddlewareCheck] = &[
     MiddlewareCheck {
         rule_id: "A5-NOSNIFF",
         cwe: "CWE-200",
-        observation: "MIME-sniffing protection is not enabled — nosniff() middleware is commented out or missing",
+        observation: "MIME-sniffing protection is not enabled - nosniff() middleware is commented out or missing",
         impact: "Browsers may sniff and misinterpret content types, leading to XSS or drive-by download attacks.",
         improvement: "Uncomment or add app.use(nosniff()) or helmet.noSniff() to set X-Content-Type-Options: nosniff.",
         active_patterns: &["nosniff(", "noSniff(", "dont-sniff"],
@@ -61,7 +61,7 @@ const CHECKS: &[MiddlewareCheck] = &[
     MiddlewareCheck {
         rule_id: "A5-COOKIE_NAME",
         cwe: "CWE-200",
-        observation: "Session cookie uses default Express name 'connect.sid' — session key name override is commented out",
+        observation: "Session cookie uses default Express name 'connect.sid' - session key name override is commented out",
         impact: "Using the default session cookie name makes the app more identifiable to attackers and aids session fingerprinting.",
         improvement: "Set a generic session key name as 'key: \"sessionId\"' in the session configuration.",
         active_patterns: &["key:", "key :"],
@@ -75,7 +75,7 @@ const CHECKS: &[MiddlewareCheck] = &[
     MiddlewareCheck {
         rule_id: "A8-CSRF_MIDDLEWARE",
         cwe: "CWE-352",
-        observation: "CSRF protection middleware is not enabled — csrf()/csurf() is commented out or missing",
+        observation: "CSRF protection middleware is not enabled - csrf()/csurf() is commented out or missing",
         impact: "Without CSRF protection, an attacker can forge requests on behalf of authenticated users, triggering state-changing operations.",
         improvement: "Uncomment or add app.use(csurf()) and make the CSRF token available in templates via res.locals.csrftoken.",
         active_patterns: &["csrf(", "csurf(", "xsrf("],
@@ -135,7 +135,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         if let Some(line) = find_insecure_http(source) {
             advisories.push(
                 Advisory::bare("A5-HTTP", Severity::Critical, snap.id, &snap.path,
-                    "Application uses plain HTTP instead of HTTPS — http.createServer() is active, https is commented out")
+                    "Application uses plain HTTP instead of HTTPS - http.createServer() is active, https is commented out")
                     .with_line(line)
                     .with_impact("All traffic including session cookies and sensitive data is transmitted in cleartext, enabling MITM attacks.")
                     .with_improvement("Use https.createServer() with a valid TLS certificate instead of http.createServer().")
@@ -164,11 +164,11 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
             );
         }
 
-        // Check: A5-COOKIE_FLAGS — missing httpOnly, secure, sameSite on session cookie
+        // Check: A5-COOKIE_FLAGS - missing httpOnly, secure, sameSite on session cookie
         if let Some(line) = find_missing_cookie_flags(source) {
             advisories.push(
                 Advisory::bare("A5-COOKIE_FLAGS", Severity::Warning, snap.id, &snap.path,
-                    "Session cookie is missing security flags — httpOnly, secure, or sameSite are commented out or not configured")
+                    "Session cookie is missing security flags - httpOnly, secure, or sameSite are commented out or not configured")
                     .with_line(line)
                     .with_impact("Without httpOnly, JavaScript can access the cookie (XSS). Without secure, the cookie is sent over HTTP. Without sameSite, the cookie is vulnerable to CSRF.")
                     .with_improvement("Add cookie: { httpOnly: true, secure: true, sameSite: 'strict' } to the session configuration.")
@@ -176,7 +176,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A2-USER_ENUM — login error message reveals whether user exists
+    // Check: A2-USER_ENUM - login error message reveals whether user exists
     if fname.ends_with("-dao.js")
         || fname.ends_with("_dao.js")
         || fname.ends_with("session.js")
@@ -197,7 +197,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A2-WEAK_PW — no password minimum length in config (on password-handling files)
+    // Check: A2-WEAK_PW - no password minimum length in config (on password-handling files)
     if fname.ends_with("-dao.js")
         || fname.ends_with("_dao.js")
         || fname.ends_with("session.js")
@@ -218,7 +218,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A2-NO_SESSION_REGENERATE — session not regenerated on login (any file)
+    // Check: A2-NO_SESSION_REGENERATE - session not regenerated on login (any file)
     if fname.ends_with("-dao.js")
         || fname.ends_with("_dao.js")
         || fname.ends_with("session.js")
@@ -228,7 +228,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         if let Some(line) = find_no_session_regenerate(source) {
             advisories.push(
                 Advisory::bare("A2-NO_SESSION_REGENERATE", Severity::Warning, snap.id, &snap.path,
-                    "Session is not regenerated after login — session.regenerate() or req.session.regenerate() is missing")
+                    "Session is not regenerated after login - session.regenerate() or req.session.regenerate() is missing")
                     .with_line(line)
                     .with_impact("Without session regeneration, an attacker who obtains a pre-login session ID can hijack the session after the user logs in (session fixation).")
                     .with_improvement("Call req.session.regenerate() after successful authentication to issue a new session ID.")
@@ -236,7 +236,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A7-NO_ADMIN_CHECK — admin routes missing authorization
+    // Check: A7-NO_ADMIN_CHECK - admin routes missing authorization
     if fname.ends_with("index.js") || fname.ends_with("admin.js") || fname.ends_with("routes.js") {
         if let Some(line) = find_no_admin_check(source) {
             advisories.push(
@@ -249,7 +249,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A1-LOG_INJECTION — user input logged without sanitization
+    // Check: A1-LOG_INJECTION - user input logged without sanitization
     if fname.ends_with("session.js") || fname.ends_with("auth.js") || fname.ends_with("login.js") {
         if let Some(line) = find_active_line_number(source, "console.log(\"Error:") {
             advisories.push(
@@ -262,7 +262,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A3-WRONG_ENCODING — output encoding in wrong context (HTML vs URL)
+    // Check: A3-WRONG_ENCODING - output encoding in wrong context (HTML vs URL)
     if fname == "profile.js" || fname == "user.js" {
         for line in find_active_lines(source, |l| {
             l.contains("encodeForHTML") && (l.contains("website") || l.contains("url"))
@@ -277,7 +277,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A4-IDOR_PARAM — sensitive ID from URL params instead of session
+    // Check: A4-IDOR_PARAM - sensitive ID from URL params instead of session
     if fname.ends_with("allocations.js")
         || fname.ends_with("profile.js")
         || fname.ends_with("users.js")
@@ -298,7 +298,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: A10-SSRF — user-controlled URL passed to HTTP client
+    // Check: A10-SSRF - user-controlled URL passed to HTTP client
     if fname.ends_with("research.js") || fname.ends_with("proxy.js") || fname.ends_with("fetch.js")
     {
         if let Some(line) = find_active_line_number(source, "needle.get(") {
@@ -312,7 +312,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: REDOS — regex with nested quantifier causing catastrophic backtracking
+    // Check: REDOS - regex with nested quantifier causing catastrophic backtracking
     if fname.ends_with("profile.js")
         || fname.ends_with("validate.js")
         || fname.ends_with("regex.js")
@@ -330,7 +330,7 @@ pub fn find(snap: &FileSnapshot, _ctx: &FindingContext<'_>) -> Vec<Advisory> {
         }
     }
 
-    // Check: HPP_DOS — calling string methods (.trim()) on unchecked input vulnerable to HPP
+    // Check: HPP_DOS - calling string methods (.trim()) on unchecked input vulnerable to HPP
     if fname.ends_with("profile.js") || fname.ends_with("user.js") || fname.ends_with("auth.js") {
         for line in find_active_lines(source, |l| {
             l.contains(".trim(")
@@ -554,12 +554,12 @@ fn find_missing_cookie_flags(source: &str) -> Option<u32> {
     let active = strip_comments(source);
     // Check if there's a session cookie config block
     if !active.contains("cookie:") && !active.contains("cookie :") {
-        // No cookie config at all — flag the session config
+        // No cookie config at all - flag the session config
         return find_active_line_number(source, "saveUninitialized")
             .or_else(|| find_active_line_number(source, "secret"))
             .or_else(|| find_active_line_number(source, "session({"));
     }
-    // Cookie config exists — check flags
+    // Cookie config exists - check flags
     let has_http_only = active.contains("httpOnly: true") || active.contains("httpOnly : true");
     let has_secure = active.contains("secure: true") || active.contains("secure : true");
     // Check for commented-out secure flag
@@ -605,7 +605,7 @@ fn find_no_session_regenerate(source: &str) -> Option<u32> {
         }
 
         if line.contains("req.session") && line.contains("= ") {
-            // Found an active session assignment — check N preceding lines for regenerate
+            // Found an active session assignment - check N preceding lines for regenerate
             let start = if i >= 5 { i - 5 } else { 0 };
             let mut has_regenerate = false;
             let mut in_block2 = false;
@@ -668,7 +668,7 @@ fn find_no_admin_check(source: &str) -> Option<u32> {
             && !line.contains("import ")
             && !line.contains("from ")
         {
-            // Found a route — check if this same line uses `isAdmin` auth middleware
+            // Found a route - check if this same line uses `isAdmin` auth middleware
             if !line.contains("isAdmin")
                 && !line.contains("is_admin")
                 && !line.contains("requireAdmin")

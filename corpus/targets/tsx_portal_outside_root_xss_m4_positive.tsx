@@ -1,6 +1,6 @@
 // [frensense]
 // observation: User-controlled message passes through a helper that does not sanitize before portaling with dangerouslySetInnerHTML.
-// impact: XSS — helper returns unsanitized HTML to portal.
+// impact: XSS - helper returns unsanitized HTML to portal.
 // improvement: Sanitize helper output or avoid dangerouslySetInnerHTML.
 // cwe: CWE-79
 // cvss: 6.1

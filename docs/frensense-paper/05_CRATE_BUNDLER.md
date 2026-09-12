@@ -1,4 +1,4 @@
-# Crate: `frensense-bundler` — Corpus Compiler
+# Crate: `frensense-bundler` - Corpus Compiler
 
 **Path:** `frensense-bundler/src/`  
 **Role:** Offline tool. Converts a directory of `*_positive.*` / `*_negative.*` file pairs into a `.frc` binary bundle.
@@ -30,25 +30,25 @@ frensense --build-bundle --corpus corpus/targets/
 corpus/targets/
       │
       ▼
-1. load_corpus() — scan directory, pair positive/negative files by naming convention
+1. load_corpus() - scan directory, pair positive/negative files by naming convention
       │
       ▼
 2. analyze_file() for every corpus file → Vec<FunctionFingerprint>
       │
       ▼
-3. compute_bundle_api_idf() — IDF weights for API call hashes across all corpus fingerprints
+3. compute_bundle_api_idf() - IDF weights for API call hashes across all corpus fingerprints
       │
       ▼
-4. learn_category_weights() — per-category 15-d weight optimization
+4. learn_category_weights() - per-category 15-d weight optimization
       │
       ▼
-5. compute_auto_filters() — derive SemanticFilter constraints from positive/negative contrast
+5. compute_auto_filters() - derive SemanticFilter constraints from positive/negative contrast
       │
       ▼
-6. fit calibration — per-pattern sigmoid A, B parameters
+6. fit calibration - per-pattern sigmoid A, B parameters
       │
       ▼
-7. learned_semantic_markers — discover which API calls appear in which vulnerability categories
+7. learned_semantic_markers - discover which API calls appear in which vulnerability categories
       │
       ▼
 8. BundlePayload { patterns, weights, filters, calibration, markers, idf_weights }
@@ -103,7 +103,7 @@ Template interpolation is supported: `{{ source }}` and `{{ sink }}` are replace
 
 ---
 
-## Module: `auto_filter.rs` — Discriminative Filter Learning
+## Module: `auto_filter.rs` - Discriminative Filter Learning
 
 ### What It Does
 
@@ -132,15 +132,15 @@ The category-level cross-pattern exclusivity loop was removed. Grouping patterns
 
 ### CS Theory
 
-This is **discriminative feature selection** — finding features that distinguish class A (positive/vulnerable) from class B (negative/safe). Analogous to:
+This is **discriminative feature selection** - finding features that distinguish class A (positive/vulnerable) from class B (negative/safe). Analogous to:
 - Naive Bayes feature selection: keep features with high mutual information with the class label.
 - SVM support vectors: the constraints act as the margin boundary.
 
-The key difference from supervised ML: the "features" here are boolean (call present/absent), and the "classifier" is a conjunction of constraints — no probability distribution needed.
+The key difference from supervised ML: the "features" here are boolean (call present/absent), and the "classifier" is a conjunction of constraints - no probability distribution needed.
 
 ---
 
-## Module: `pattern/weight_learner.rs` — Per-Category Weight Learning
+## Module: `pattern/weight_learner.rs` - Per-Category Weight Learning
 
 ### What It Does
 
@@ -168,7 +168,7 @@ Gradient descent requires differentiating through the Jaccard similarity functio
 
 ---
 
-## Module: `calibration.rs` — Sigmoid Calibration
+## Module: `calibration.rs` - Sigmoid Calibration
 
 ### Purpose
 

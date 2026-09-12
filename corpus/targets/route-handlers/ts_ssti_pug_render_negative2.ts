@@ -1,4 +1,4 @@
-// SAFE: Used Pug with a restricted locals scope — only allows specific variables in the template context.
+// SAFE: Used Pug with a restricted locals scope - only allows specific variables in the template context.
 
 import pug from "pug";
 

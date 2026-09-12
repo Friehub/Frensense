@@ -1,4 +1,4 @@
-// SAFE: Cursor validation always runs the query — invalid cursors return empty results, not an error.
+// SAFE: Cursor validation always runs the query - invalid cursors return empty results, not an error.
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 

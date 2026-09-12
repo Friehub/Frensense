@@ -79,10 +79,10 @@ def scan_repo(name: str, repo: dict) -> list:
     """Scan a repo and return findings with IDs."""
     scan_path = WORKDIR / name / repo["scan"]
     if not scan_path.exists():
-        print(f"[scan] {name} — path missing: {scan_path}")
+        print(f"[scan] {name} - path missing: {scan_path}")
         return []
 
-    print(f"[scan] {name} — {scan_path} ...")
+    print(f"[scan] {name} - {scan_path} ...")
     findings = run_frensense(scan_path)
     print(f"  -> {len(findings)} findings")
 

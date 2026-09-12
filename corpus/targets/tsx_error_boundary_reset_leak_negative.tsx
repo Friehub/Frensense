@@ -1,4 +1,4 @@
-// SAFE: onReset does not log or expose the error — it simply resets the state
+// SAFE: onReset does not log or expose the error - it simply resets the state
 
 'use client'
 

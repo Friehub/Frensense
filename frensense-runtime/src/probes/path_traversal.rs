@@ -17,7 +17,7 @@ pub fn template() -> ProbeTemplate {
                     canary: "root:x:0:0".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "Path traversal to /etc/passwd — root line confirms file read"
+                description: "Path traversal to /etc/passwd - root line confirms file read"
                     .to_string(),
             },
             Probe {
@@ -27,7 +27,7 @@ pub fn template() -> ProbeTemplate {
                     canary: "root:x:0:0".to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "URL-encoded traversal — bypasses naive string filters".to_string(),
+                description: "URL-encoded traversal - bypasses naive string filters".to_string(),
             },
             Probe {
                 id: Uuid::new_v4().to_string(),

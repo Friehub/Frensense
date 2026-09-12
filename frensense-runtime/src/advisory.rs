@@ -51,7 +51,7 @@ impl RuntimeAdvisory {
                 evidence,
                 confirming_probe,
             } => format!(
-                "[CONFIRMED] {rule} — {file}:{line}\n\
+                "[CONFIRMED] {rule} - {file}:{line}\n\
                  Static confidence:  {sc:.0}%\n\
                  Runtime confidence: {rc:.0}%\n\
                  Combined:           {cc:.0}%\n\n\
@@ -75,7 +75,7 @@ impl RuntimeAdvisory {
                 fix = static_adv.improvement,
             ),
             ConfirmationStatus::SanitizationDetected => format!(
-                "[SANITIZED] {rule} — {file}:{line}\n\
+                "[SANITIZED] {rule} - {file}:{line}\n\
                  Static found suspicious code; runtime probes showed input is sanitized.\n\
                  This may be a false positive from the static pass.",
                 rule = static_adv.rule_id,
@@ -83,7 +83,7 @@ impl RuntimeAdvisory {
                 line = static_adv.line,
             ),
             ConfirmationStatus::Unconfirmed => format!(
-                "[UNCONFIRMED] {rule} — {file}:{line}\n\
+                "[UNCONFIRMED] {rule} - {file}:{line}\n\
                  {n} probes attempted. No oracle fired.\n\
                  The vulnerability may require authentication, specific state, or\n\
                  a different injection vector not covered by the probe library.",
@@ -93,7 +93,7 @@ impl RuntimeAdvisory {
                 n = self.probes_attempted.len(),
             ),
             ConfirmationStatus::Inconclusive { reason } => format!(
-                "[INCONCLUSIVE] {rule} — {file}:{line}\n\
+                "[INCONCLUSIVE] {rule} - {file}:{line}\n\
                  {reason}",
                 rule = static_adv.rule_id,
                 file = static_adv.file_path,

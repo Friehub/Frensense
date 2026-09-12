@@ -1,4 +1,4 @@
-// SAFE: Uses consistent response format — no distinction between "not yours" and "doesn't exist"
+// SAFE: Uses consistent response format - no distinction between "not yours" and "doesn't exist"
 export async function getSharedDocument(req: Request, db: DB): Promise<Response> {
   const session = getSession(req);
   const { docId } = req.params;

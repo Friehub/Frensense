@@ -12,13 +12,13 @@ import { createCipheriv } from 'node:crypto';
 const FIXED_IV = Buffer.from('0123456789abcdef', 'hex');
 
 function encrypt(plaintext: string, key: Buffer): Buffer {
-  // VULNERABLE: IV never changes — identical key + IV produces identical ciphertext
+  // VULNERABLE: IV never changes - identical key + IV produces identical ciphertext
   const cipher = createCipheriv('aes-256-cbc', key, FIXED_IV);
   return Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
 }
 
 function encryptGcm(plaintext: string, key: Buffer): Buffer {
-  // VULNERABLE: GCM with fixed nonce — catastrophic
+  // VULNERABLE: GCM with fixed nonce - catastrophic
   const cipher = createCipheriv('aes-256-gcm', key, Buffer.alloc(12));
   return Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
 }

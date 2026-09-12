@@ -18,7 +18,7 @@ app.get('/api/users/:id', (req, res) => {
 
 function getUserById(id: number): { name: string } {
   if (id <= 0) {
-    throw new Error(`Invalid user ID: ${id} — stack: ${new Error().stack}`);
+    throw new Error(`Invalid user ID: ${id} - stack: ${new Error().stack}`);
   }
   return { name: 'Alice' };
 }

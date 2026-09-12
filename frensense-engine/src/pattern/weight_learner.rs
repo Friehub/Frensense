@@ -3,7 +3,7 @@ use std::collections::HashMap;
 pub type FeatureVec = [f64; 15];
 
 // [ngram, ast, sig, ptype, tuse, sem, cf, API, taint, motif, flow, cfg, cfOrd, argT, litC]
-// Prior: API=0.25 + taint=0.30 = 0.55 — too dominant for TS/Node frameworks where these calls
+// Prior: API=0.25 + taint=0.30 = 0.55 - too dominant for TS/Node frameworks where these calls
 // appear in clean code as frequently as in vulnerable code.
 // Rebalanced: API=0.14 + taint=0.13 = 0.27, with weight redistributed to structural dims.
 pub const DEFAULT_WEIGHTS: FeatureVec = [

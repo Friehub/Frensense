@@ -13,7 +13,7 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                     canary_host: canary_host.to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "Open redirect to external host — Location header confirms"
+                description: "Open redirect to external host - Location header confirms"
                     .to_string(),
             },
             Probe {
@@ -23,7 +23,7 @@ pub fn template(canary_host: &str) -> ProbeTemplate {
                     canary_host: canary_host.to_string(),
                 },
                 risk: ProbeRisk::Safe,
-                description: "Protocol-relative redirect — bypasses http:// prefix check"
+                description: "Protocol-relative redirect - bypasses http:// prefix check"
                     .to_string(),
             },
         ],

@@ -1,4 +1,4 @@
-// SAFE: server component fetches data and passes it as props to the client component — no server-only imports in client bundle
+// SAFE: server component fetches data and passes it as props to the client component - no server-only imports in client bundle
 
 'use client'
 

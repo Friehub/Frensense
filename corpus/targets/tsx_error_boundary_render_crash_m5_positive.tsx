@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Error property is rendered via template literal that throws when property is missing.
-// impact: Fallback crash — error.code is undefined, template literal throws in strict mode.
+// impact: Fallback crash - error.code is undefined, template literal throws in strict mode.
 // improvement: Use optional chaining in template expression.
 // cwe: CWE-209
 // cvss: 4.3
