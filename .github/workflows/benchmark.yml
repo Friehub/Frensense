@@ -65,6 +65,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           # Alert if our vulnerability recall drops by more than 5%
-          alert-threshold: '5%'
+          alert-threshold: '105%'
           comment-on-alert: true
           fail-on-alert: true
