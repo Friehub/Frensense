@@ -46,31 +46,36 @@ pub fn build_bundle_from_patterns(
                 .unwrap_or_default()
         });
     // Recursively find a corpus file by its pattern ID and variant.
-    fn find_corpus_file(id: &str, variant: &str, dir: &Path) -> Option<String> {
-        for ext in &["ts", "tsx", "js", "jsx", "rs", "py", "go"] {
-            let target = format!("{}_{}.{}", id, variant, ext);
-            let result = find_file_recursive(dir, &target);
-            if result.is_some() {
-                return result;
+
+    fn collect_corpus_files(dir: &Path, map: &mut std::collections::HashMap<String, String>) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    collect_corpus_files(&path, map);
+                } else if path.is_file() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            map.insert(name.to_string(), content);
+                        }
+                    }
+                }
             }
         }
-        None
     }
 
-    fn find_file_recursive(dir: &Path, target: &str) -> Option<String> {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return None;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(src) = find_file_recursive(&path, target) {
-                    return Some(src);
-                }
-            } else if path.is_file() {
-                if path.file_name().and_then(|n| n.to_str()) == Some(target) {
-                    return std::fs::read_to_string(&path).ok();
-                }
+    let mut corpus_files = std::collections::HashMap::new();
+    collect_corpus_files(corpus_dir.as_path(), &mut corpus_files);
+
+    fn find_corpus_file(
+        id: &str,
+        variant: &str,
+        corpus_files: &std::collections::HashMap<String, String>,
+    ) -> Option<String> {
+        for ext in &["ts", "tsx", "js", "jsx", "rs", "py", "go"] {
+            let target = format!("{}_{}.{}", id, variant, ext);
+            if let Some(content) = corpus_files.get(&target) {
+                return Some(content.clone());
             }
         }
         None
@@ -78,20 +83,19 @@ pub fn build_bundle_from_patterns(
 
     let mut pattern_source_texts = std::collections::HashMap::new();
     for bp in patterns {
-        // Read positive and up to 4 negative source files for auto-filter learning.
-        // Files may be in any subdirectory under corpus_dir.
-        if let Some(src) = find_corpus_file(&bp.id, "positive", corpus_dir.as_path()) {
+        if let Some(src) = find_corpus_file(&bp.id, "positive", &corpus_files) {
             pattern_source_texts.insert(bp.id.clone(), src);
         }
         for (i, variant) in ["negative", "negative2", "negative3", "negative4"]
             .iter()
             .enumerate()
         {
-            if let Some(src) = find_corpus_file(&bp.id, variant, corpus_dir.as_path()) {
+            if let Some(src) = find_corpus_file(&bp.id, variant, &corpus_files) {
                 pattern_source_texts.insert(format!("{}_neg_{}", bp.id, i), src);
             }
         }
     }
+
     let auto_stats = crate::auto_filter::compute_auto_filters(patterns, &pattern_source_texts);
     // Serialize auto-derived filter stats.  Each entry is:
     // (pid, imports, calls, must_not_contain_call_to, function_name_regex, excludes_nodes, excludes_fnames)

@@ -402,7 +402,8 @@ fn run_corpus_scan(
                     corpus_loaded = true;
                 }
                 Ok(_) => {}
-                Err(_e) => {
+                Err(e) => {
+                    eprintln!("Error loading bundle: {}", e);
                     // Bundle format mismatch - fall through to corpus directory
                 }
             }

@@ -45,8 +45,9 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
     for path in entries {
         processed_count += 1;
         if processed_count % 500 == 0 {
-            println!("Processed {} / {} files...", processed_count, total_files);
+            eprintln!("Processed {} / {} files...", processed_count, total_files);
         }
+
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
@@ -242,7 +243,7 @@ mod tests {
             .iter()
             .filter(|p| p.id.contains("sqli") && p.id.contains("models"))
             .collect();
-        eprintln!("Found {} sqli+models patterns", sqli_patterns.len());
+        eeprintln!("Found {} sqli+models patterns", sqli_patterns.len());
         for pat in &sqli_patterns {
             eprintln!(
                 "  Pattern: {} ({} positives, {} negatives)",
