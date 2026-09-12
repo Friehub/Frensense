@@ -1,6 +1,6 @@
 // [frensense]
 // observation: 2FA bypass occurs when a "device trust" flag is set without re-verifying the second factor. After initial MFA, the trusted-device cookie allows permanent bypass.
-// impact: An attacker who steals a device-trust cookie can bypass 2FA entirely — they only need the password, not the OTP. All MFA protection is lost for that device.
+// impact: An attacker who steals a device-trust cookie can bypass 2FA entirely - they only need the password, not the OTP. All MFA protection is lost for that device.
 // improvement: Always require MFA re-verification at regular intervals, even for trusted devices. Use short-lived device trust with rotation.
 // cwe: CWE-287
 // cvss: 9.8

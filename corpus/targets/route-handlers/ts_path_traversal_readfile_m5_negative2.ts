@@ -1,4 +1,4 @@
-// SAFE: Template literal not used for file path — uses sanitize-filename
+// SAFE: Template literal not used for file path - uses sanitize-filename
 import sanitize from "sanitize-filename";
 import * as path from "path";
 

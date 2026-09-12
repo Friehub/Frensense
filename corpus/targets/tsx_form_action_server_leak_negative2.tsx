@@ -1,4 +1,4 @@
-// SAFE: server action reference is passed via a server component wrapper — the action ID is never client-accessible
+// SAFE: server action reference is passed via a server component wrapper - the action ID is never client-accessible
 
 'use client'
 

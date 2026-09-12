@@ -1,6 +1,6 @@
 // [frensense]
 // observation: "Remember me" token stored as a plaintext cookie value (e.g., `remember_me=userId:token`) without encryption or HMAC, enabling session forging.
-// impact: Persistent session theft — an attacker who steals the cookie file or sniffs the network can forge remember-me tokens for any user by modifying the userId portion.
+// impact: Persistent session theft - an attacker who steals the cookie file or sniffs the network can forge remember-me tokens for any user by modifying the userId portion.
 // improvement: Store a cryptographically random opaque token in the cookie, mapped server-side to the user session.
 // cwe: CWE-287
 // cvss: 9.8

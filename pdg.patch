@@ -1,0 +1,16 @@
+diff --git a/frensense-engine/src/fingerprint/ast_walkers.rs b/frensense-engine/src/fingerprint/ast_walkers.rs
+--- a/frensense-engine/src/fingerprint/ast_walkers.rs
++++ b/frensense-engine/src/fingerprint/ast_walkers.rs
+@@ -213,7 +213,11 @@
+                     && n.child_by_field_name("right").is_some()
+                 {
+                     let right = n.child_by_field_name("right").unwrap();
+-                    if right.kind() == "identifier" {
++                    if right.kind() == "identifier"
++                        || right.kind() == "IdentifierReference"
++                        || right.kind() == "BindingIdentifier"
++                        || right.kind() == "property_identifier"
++                    {
+                         let var_name = get_text(&right, source_code);
+                         let scope = current_scope.clone();
+                         def_use.entry(var_name).or_default().push(VarUsage {

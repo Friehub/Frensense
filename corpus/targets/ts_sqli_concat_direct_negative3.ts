@@ -1,4 +1,4 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. concatenated into a SQL query with parameterization.
+// SAFE: Negative3 - alternate fix approach. Input is validated before reaching the sensitive call. concatenated into a SQL query with parameterization.
 
 import express from "express";
 import { Router } from "express";

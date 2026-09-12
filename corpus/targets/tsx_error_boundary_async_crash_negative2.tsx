@@ -29,7 +29,7 @@ function AsyncSafe() {
     return () => { cancelled = true }
   }, [])
 
-  if (state === 'error') throw new Error('Async fetch failed — caught by boundary')
+  if (state === 'error') throw new Error('Async fetch failed - caught by boundary')
   if (state === 'loading') return <div>Loading...</div>
   return <div>Data loaded</div>
 }

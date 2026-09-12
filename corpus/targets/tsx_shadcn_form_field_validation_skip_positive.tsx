@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A shadcn/ui Form component is rendered with `form.handleSubmit` but the form is created without a Zod resolver validation schema, so required fields, type constraints, and custom validations are never checked before submission.
-// impact: Invalid or malicious data can be submitted — missing required fields, wrong types, or values exceeding allowed ranges — bypassing client-side validation entirely. If server-side validation is also weak, this leads to data corruption or injection attacks.
+// impact: Invalid or malicious data can be submitted - missing required fields, wrong types, or values exceeding allowed ranges - bypassing client-side validation entirely. If server-side validation is also weak, this leads to data corruption or injection attacks.
 // improvement: Pass a zod resolver (or any validation schema) to `useForm` via the `resolver` option to enforce field-level validation before submit.
 
 'use client';

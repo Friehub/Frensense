@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `React.Children.map` is used over children that contain user content, and the mapped output is rendered without sanitization
-// impact: XSS — user-controlled child content containing malicious HTML/JS is rendered into the DOM
+// impact: XSS - user-controlled child content containing malicious HTML/JS is rendered into the DOM
 // improvement: sanitize rendered content or use React's built-in text escaping by passing children as text nodes
 
 'use client'

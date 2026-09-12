@@ -18,8 +18,12 @@ pub fn print_help() {
     println!("  path                File or directory to scan (default: current directory)");
     println!();
     println!("Detection Options:");
-    println!("  --corpus <dir>      Load detection patterns from corpus directory");
-    println!("  --use-compiler      Enable exact semantic resolution (Oxc for TS, rust-analyzer for RS)");
+    println!("  --corpus <dir>      Load raw detection patterns from a corpus directory");
+    println!("  --corpus-bundle <file> Load a pre-compiled .frc corpus bundle at runtime");
+    println!(
+        "  --use-compiler      Enable exact semantic resolution (Oxc for TS, rust-analyzer for RS)"
+    );
+
     println!("  --threshold <0-1>   Corpus match threshold (default: 0.40)");
     println!("  --language <lang>   Language filter: rust, typescript, javascript, yaml");
     println!("  --diff-only         Only scan files changed since the last git commit");
@@ -58,7 +62,9 @@ pub fn print_help() {
     println!();
     println!("Corpus Development:");
     println!("  --build-bundle       Compile the corpus into a binary .frc bundle");
-    println!("  --build-bundle-output <file>  Output path for the bundle (default: frensense-corpus.frc)");
+    println!(
+        "  --build-bundle-output <file>  Output path for the bundle (default: frensense-corpus.frc)"
+    );
     println!();
     println!("Information:");
     println!("  --version           Display version and enabled features");
@@ -71,13 +77,17 @@ pub fn print_help() {
     println!("  frensense                            Scan current directory");
     println!("  frensense src/                       Scan a specific directory");
     println!("  frensense main.rs                    Scan a single file");
-    println!("  frensense --language rust .           Scan Rust files only");
-    println!("  frensense --diff-only --strict        Check changed files, fail on any finding");
-    println!("  frensense --json --suite extended     Export extended scan as JSON");
-    println!("  frensense --disable-rule RUST_STD_OUTPUT .    Disable a specific rule");
-    println!("  frensense --override-severity FILE_TOO_LONG:info .  Change rule severity");
-    println!("  frensense --emit-baseline baseline.json   Save baseline");
-    println!("  frensense --compare-baseline baseline.json  Check for regressions");
+    println!(
+        "  frensense src/ --use-compiler        Scan with exact semantic resolution (Oxc/rust-analyzer)"
+    );
+    println!("  frensense --diff-only --strict       Check changed files, fail on any finding");
+    println!("  frensense --json                     Export scan results as JSON");
+    println!("  frensense --corpus-bundle custom.frc Use a specific compiled corpus bundle");
+    println!("  frensense corpus/targets/ --build-bundle  Compile training pairs into .frc bundle");
+    println!("  frensense --emit-baseline baseline.json   Save current findings as a baseline");
+    println!(
+        "  frensense --compare-baseline baseline.json  Check for regressions against baseline"
+    );
     println!();
     println!("Learn Mode:");
     println!("  frensense --learn positive.ts negative.ts    Learn patterns from examples");
@@ -116,7 +126,7 @@ pub fn handle_list_rules() -> Result<()> {
 }
 
 pub fn handle_list_patterns(corpus_dir: Option<&str>) -> Result<()> {
-    use frensense_engine::corpus::loader::load_corpus;
+    use frensense_bundler::loader::load_corpus;
     let dir = corpus_dir.unwrap_or("corpus/targets");
     let path = std::path::Path::new(dir);
     if !path.exists() {

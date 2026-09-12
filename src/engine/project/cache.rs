@@ -13,7 +13,7 @@ pub fn corpus_bundle_hash(bundle_bytes: Option<&[u8]>) -> Option<String> {
 /// Content-hash cache stored at `<project_root>/.frensense/cache.json`.
 ///
 /// Maps file paths to blake3 hex hashes of their content. On subsequent runs,
-/// files whose hash matches the cache are skipped entirely — no parse, no audit.
+/// files whose hash matches the cache are skipped entirely - no parse, no audit.
 ///
 /// Safe because: unchanged content → same findings as last run.
 /// The cache is invalidated when the engine version changes (version field) or

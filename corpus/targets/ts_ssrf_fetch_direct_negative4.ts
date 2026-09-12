@@ -1,4 +1,4 @@
-// SAFE: Negative4 — different allowlist approach. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
+// SAFE: Negative4 - different allowlist approach. Input is validated before reaching the sensitive call. passed to fetch() with host validation.
 
 import express from "express";
 import { Router } from "express";

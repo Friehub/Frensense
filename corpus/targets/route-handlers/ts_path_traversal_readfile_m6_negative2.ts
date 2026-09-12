@@ -1,4 +1,4 @@
-// SAFE: Concatenation avoided — uses sanitize-filename and path.join
+// SAFE: Concatenation avoided - uses sanitize-filename and path.join
 import sanitize from "sanitize-filename";
 import * as path from "path";
 

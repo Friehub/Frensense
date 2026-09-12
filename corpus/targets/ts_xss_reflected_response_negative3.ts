@@ -1,4 +1,4 @@
-// SAFE: Negative3 — alternate fix approach. Input is validated before reaching the sensitive call. reflected in the HTML response with escaping.
+// SAFE: Negative3 - alternate fix approach. Input is validated before reaching the sensitive call. reflected in the HTML response with escaping.
 
 import express from "express";
 import { Router } from "express";

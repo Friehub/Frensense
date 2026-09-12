@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A state value flows through two assignments before being used inside useEffect with empty deps.
-// impact: Stale closure — multi-hop variable captures initial value only.
+// impact: Stale closure - multi-hop variable captures initial value only.
 // improvement: Include the source state in the dependency array.
 import { useEffect, useState } from 'react';
 export function Counter() {

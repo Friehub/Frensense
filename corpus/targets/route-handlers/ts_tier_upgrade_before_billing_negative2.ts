@@ -1,4 +1,4 @@
-// SAFE: Uses a pending_upgrade pattern — feature gating still checks old tier until payment confirmed
+// SAFE: Uses a pending_upgrade pattern - feature gating still checks old tier until payment confirmed
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

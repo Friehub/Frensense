@@ -1,4 +1,4 @@
-// SAFE alternative: Whitelist approach — only return explicitly allowed fields
+// SAFE alternative: Whitelist approach - only return explicitly allowed fields
 
 var express = require('express');
 

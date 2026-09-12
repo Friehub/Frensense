@@ -1,4 +1,4 @@
-// SAFE: Uses visibility-based filtering — only includes docs where user is owner or explicit collaborator
+// SAFE: Uses visibility-based filtering - only includes docs where user is owner or explicit collaborator
 
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';

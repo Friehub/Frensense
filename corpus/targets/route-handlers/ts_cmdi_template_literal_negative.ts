@@ -1,4 +1,4 @@
-// SAFE: Replaced exec with spawn, passing user input as separate arguments in an arguments array — no shell interpretation.
+// SAFE: Replaced exec with spawn, passing user input as separate arguments in an arguments array - no shell interpretation.
 
 import { spawn, execSync } from "child_process";
 

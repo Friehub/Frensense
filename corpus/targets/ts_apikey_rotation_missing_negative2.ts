@@ -1,4 +1,4 @@
-// SAFE: Rotation enforced via key versioning — old versions are auto-revoked
+// SAFE: Rotation enforced via key versioning - old versions are auto-revoked
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

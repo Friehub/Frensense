@@ -13,7 +13,7 @@ function generateCsrfToken(): string {
 }
 
 function createPasswordResetToken(userId: string): string {
-  // VULNERABLE: token derived from timestamp — guessable
+  // VULNERABLE: token derived from timestamp - guessable
   const timestamp = new Date().getTime();
   return `${userId}_${timestamp}_${Math.random().toString(36).slice(2)}`;
 }

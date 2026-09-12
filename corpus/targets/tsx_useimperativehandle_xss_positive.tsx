@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `useImperativeHandle` exposes a setter for `innerHTML`, allowing a parent component to inject arbitrary HTML into the child
-// impact: cross-site scripting (XSS) — parent can set malicious HTML like `<img src=x onerror=alert(1)>`
+// impact: cross-site scripting (XSS) - parent can set malicious HTML like `<img src=x onerror=alert(1)>`
 // improvement: expose only safe setters like `textContent` or validate HTML before assignment
 
 'use client'

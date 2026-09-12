@@ -1,6 +1,6 @@
 // [frensense]
 // observation: X-Frame-Options or CSP frame-ancestors header is missing.
-// impact: Attackers can perform clickjacking — overlay invisible frames.
+// impact: Attackers can perform clickjacking - overlay invisible frames.
 // improvement: Set X-Frame-Options: DENY or use CSP frame-ancestors.
 // cwe: CWE-1021
 // cvss: 5.4

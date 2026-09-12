@@ -1,5 +1,5 @@
 // [frensense]
-// observation: intercepted route `(..)photo/[id]` receives `params.id` from the wrong router context — the parent route's param instead of the intercepted route's param
+// observation: intercepted route `(..)photo/[id]` receives `params.id` from the wrong router context - the parent route's param instead of the intercepted route's param
 // impact: wrong data is fetched and displayed to the user; if params are user-controllable it can leak other users' data
 // improvement: validate that the intercepted params match the expected route segment
 

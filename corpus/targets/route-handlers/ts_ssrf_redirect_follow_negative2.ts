@@ -1,4 +1,4 @@
-// SAFE: Redirect targets are validated before following — only HTTPS to allowed hosts are permitted
+// SAFE: Redirect targets are validated before following - only HTTPS to allowed hosts are permitted
 import express from "express";
 
 const ALLOWED_DOMAINS = new Set(["api.trusted.com", "data.trusted.com"]);

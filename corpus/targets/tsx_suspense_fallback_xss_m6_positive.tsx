@@ -1,6 +1,6 @@
 // [frensense]
 // observation: User input is concatenated before rendering in Suspense fallback.
-// impact: XSS before hydration — concatenation does not sanitize.
+// impact: XSS before hydration - concatenation does not sanitize.
 // improvement: Escape or sanitize before fallback rendering.
 // cwe: CWE-79
 // cvss: 6.1

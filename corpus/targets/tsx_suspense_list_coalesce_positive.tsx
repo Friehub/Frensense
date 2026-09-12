@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `<SuspenseList>` with `revealOrder="together"` incorrectly coalesces multiple Suspense boundaries, hiding individual loading states until all are ready
-// impact: poor UX — users see nothing until the slowest child resolves, even when faster siblings could have been shown progressively
+// impact: poor UX - users see nothing until the slowest child resolves, even when faster siblings could have been shown progressively
 // improvement: use `revealOrder="forwards"` or `revealOrder="backwards"` for progressive loading, or avoid SuspenseList when independent loading is acceptable
 // cwe: CWE-79
 // cvss: 6.1

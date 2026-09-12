@@ -1,5 +1,5 @@
 // SAFE: Wraps background async work in ctx.waitUntil().
-// This is NOT a Cloudflare Worker — it's an Express handler that uses await properly.
+// This is NOT a Cloudflare Worker - it's an Express handler that uses await properly.
 
 const express = require("express");
 

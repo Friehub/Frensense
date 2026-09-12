@@ -1,4 +1,4 @@
-// SAFE: Access-controlled content is gated by server-side condition — the content is never rendered in the DOM for non-premium users
+// SAFE: Access-controlled content is gated by server-side condition - the content is never rendered in the DOM for non-premium users
 
 export function PremiumContent({ isPremium }: { isPremium: boolean }) {
   return (

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: Headless UI Dialog uses a portal but fails to trap focus within the dialog, allowing interaction with background elements.
-// impact: Clickjacking — attackers can overlay invisible dialog elements over legitimate UI, tricking users into clicking actions they did not intend.
+// impact: Clickjacking - attackers can overlay invisible dialog elements over legitimate UI, tricking users into clicking actions they did not intend.
 // improvement: Use the Dialog's built-in focus trapping via initialFocus and properly manage portal rendering with aria-modal.
 
 import { Dialog } from "@headlessui/react";

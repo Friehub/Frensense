@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A state value is destructured before being used inside useEffect with empty deps.
-// impact: Stale closure — destructured value captures initial render value.
+// impact: Stale closure - destructured value captures initial render value.
 // improvement: Include the destructured value in deps.
 import { useEffect, useState } from 'react';
 export function Counter() {

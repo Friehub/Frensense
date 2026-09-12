@@ -1,5 +1,5 @@
 // [frensense]
-// observation: The middleware mutates req.query.page directly (req.query.page = x). In Express 5.2.1, req.query is a getter — the returned object is immutable and mutations are silently ignored.
+// observation: The middleware mutates req.query.page directly (req.query.page = x). In Express 5.2.1, req.query is a getter - the returned object is immutable and mutations are silently ignored.
 // impact: Default pagination values set in middleware are never applied. The route handler may receive NaN or undefined for page/limit, leading to skipped validation, unexpected query results, or potential NoSQL injection if the raw value is passed to a database.
 // improvement: Copy req.query into a mutable object before modification, or apply defaults at the handler level.
 // cwe: CWE-754

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: User input is destructured before rendering in Suspense fallback.
-// impact: XSS before hydration — destructuring does not sanitize.
+// impact: XSS before hydration - destructuring does not sanitize.
 // improvement: Escape or sanitize after destructuring.
 // cwe: CWE-79
 // cvss: 6.1

@@ -1,5 +1,5 @@
 // [frensense]
-// observation: `useMemo` is called without a dependency array, so it recomputes on every render — the compiler cannot optimize it
+// observation: `useMemo` is called without a dependency array, so it recomputes on every render - the compiler cannot optimize it
 // impact: expensive computations run on every render cycle, causing jank and defeating compiler memoization
 // improvement: provide a proper dependency array so the compiler can cache the result between renders
 

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: User-controlled input is destructured from req.body, renamed through intermediate assignments, and reaches exec() without sanitization.
-// impact: The variable renaming obfuscates the taint path but does not prevent injection — same exploitation as direct exec().
+// impact: The variable renaming obfuscates the taint path but does not prevent injection - same exploitation as direct exec().
 // improvement: Avoid renaming tainted variables without sanitizing. Apply validation at the earliest point of input receipt.
 // cwe: CWE-78
 // cvss: 9.8

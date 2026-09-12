@@ -32,7 +32,7 @@ export default function ProductList() {
       <p>Showing results for: {committedSearch} {isPending && <span className="loading">...</span>}</p>
       <ul>
         {products.map((p) => (
-          <li key={p.id}>{p.name} — ${p.price}</li>
+          <li key={p.id}>{p.name} - ${p.price}</li>
         ))}
       </ul>
     </div>

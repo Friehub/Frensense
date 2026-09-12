@@ -38,7 +38,7 @@ def run_scan():
 
 def find_pattern_file(pid):
     """Find the positive file for a corpus pattern ID."""
-    # pid is like "CORPUS_TS_LLM_INSECURE_RANDOM" — strip prefix
+    # pid is like "CORPUS_TS_LLM_INSECURE_RANDOM" - strip prefix
     base = pid.lower().replace("corpus_", "", 1)
     for root, dirs, files in os.walk(Corpus):
         for f in files:
@@ -145,7 +145,7 @@ def main():
     for pid, count in candidates:
         pattern_file = find_pattern_file(pid)
         if not pattern_file:
-            print(f"  {pid:55} — pattern file not found, skipping")
+            print(f"  {pid:55} - pattern file not found, skipping")
             continue
         result = generate_negative(pid, pattern_file)
         if result:
@@ -155,7 +155,7 @@ def main():
             print(f"  {pid:55} ({count:2} FPs) → {os.path.relpath(neg_path, Corpus)}")
             generated += 1
         else:
-            print(f"  {pid:55} ({count:2} FPs) — already has negatives, skipping")
+            print(f"  {pid:55} ({count:2} FPs) - already has negatives, skipping")
 
     print(f"\nGenerated {generated} new Express-style negatives.")
     print("Run 'cargo run --bin build-corpus-bundle' to rebuild the bundle.")

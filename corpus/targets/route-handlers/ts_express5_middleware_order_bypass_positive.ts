@@ -1,5 +1,5 @@
 // [frensense]
-// observation: Authentication middleware is registered AFTER route handlers using app.use(). Express 5.2.1 processes middleware in registration order — routes registered first are matched and processed before subsequent middleware runs.
+// observation: Authentication middleware is registered AFTER route handlers using app.use(). Express 5.2.1 processes middleware in registration order - routes registered first are matched and processed before subsequent middleware runs.
 // impact: The /api/users route is accessible without any authentication check. Anyone can access all user data without credentials, leading to mass information disclosure.
 // improvement: Register authentication middleware before any protected route definitions.
 // cwe: CWE-754

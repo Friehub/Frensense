@@ -1,7 +1,7 @@
 // [frensense]
 // observation: An error handling block for an authorization or quota check safely fails closed.
-// impact: None — security and quotas are enforced even when downstream systems are unavailable.
-// improvement: N/A — this is the correct pattern.
+// impact: None - security and quotas are enforced even when downstream systems are unavailable.
+// improvement: N/A - this is the correct pattern.
 
 export async function checkAndConsumeQuota(env: any, userId: string): Promise<{ allowed: boolean, remaining?: number, reason?: string }> {
     try {

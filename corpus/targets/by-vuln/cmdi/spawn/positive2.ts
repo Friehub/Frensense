@@ -1,6 +1,6 @@
 // [frensense]
 // observation: spawn is called with shell: true and user-controlled input from req.body.cmd, executing arbitrary shell commands despite using spawn instead of exec.
-// impact: Setting shell: true makes spawn behave like exec — shell metacharacters in the input enable arbitrary command execution.
+// impact: Setting shell: true makes spawn behave like exec - shell metacharacters in the input enable arbitrary command execution.
 // improvement: Avoid shell: true when passing user input. Pass arguments as an array to the spawned process.
 // cwe: CWE-78
 // cvss: 9.8

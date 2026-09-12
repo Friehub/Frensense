@@ -1,6 +1,6 @@
 // [frensense]
 // observation: `ref.current` is mutated directly during the render phase (inside the component body, not in useEffect)
-// impact: side effect during render causes inconsistent UI state and breaks React's pure render guarantee — may lead to tearing or infinite re-renders
+// impact: side effect during render causes inconsistent UI state and breaks React's pure render guarantee - may lead to tearing or infinite re-renders
 // improvement: move ref mutations to useEffect or event handlers
 
 'use client'

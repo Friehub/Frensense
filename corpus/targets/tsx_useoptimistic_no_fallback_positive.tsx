@@ -29,7 +29,7 @@ export default function ChatRoom() {
     })
 
     if (!res.ok) {
-      // No rollback — optimistic message stays in UI permanently
+      // No rollback - optimistic message stays in UI permanently
       console.error('Failed to send message')
     }
 

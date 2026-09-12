@@ -1,4 +1,4 @@
-// SAFE: Rate limit counter is never reset on success — only time-based expiry clears it
+// SAFE: Rate limit counter is never reset on success - only time-based expiry clears it
 import { Request, Response } from 'express';
 import { createClient } from 'redis';
 

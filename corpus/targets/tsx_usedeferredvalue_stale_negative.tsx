@@ -24,7 +24,7 @@ export default function ProductList() {
       <p>Showing results for: {deferredSearch} {isStale && <span className="pending">(refining...)</span>}</p>
       <ul>
         {products.map((p) => (
-          <li key={p.id}>{p.name} — ${p.price}</li>
+          <li key={p.id}>{p.name} - ${p.price}</li>
         ))}
       </ul>
     </div>

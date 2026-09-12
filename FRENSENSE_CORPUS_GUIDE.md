@@ -56,3 +56,43 @@ First, it passes the node to Layer 2: **The DataFlowEngine**.
 The engine dynamically verifies the Taint Path. It checks if the tainted data flows from a Source (e.g. `req.body`) into a vulnerable Sink (e.g. `db.query()`), without being sanitized.
 
 If your code *looks* like a SQL injection, but the data is safely hardcoded or sanitized, the DataFlowEngine kills the finding instantly. This multi-layered composition guarantees a significant reduction in false positives.
+
+## Using LLMs to Generate Corpus Examples
+
+Creating high-quality corpus pairs (positive and negative) manually can be tedious. You can leverage Large Language Models (LLMs) like GPT-4, Claude, or Gemini to rapidly generate realistic corpus examples that meet the Frensense quality standards.
+
+### The LLM Prompt Template
+
+When asking an LLM to generate a corpus pattern, provide it with this strict prompt to ensure the output aligns with Frensense requirements:
+
+```markdown
+You are an expert security engineer building training data for Frensense, an AST-based static analysis engine. 
+Frensense learns vulnerabilities from pairs of files: a `_positive` file containing the vulnerable code, and a `_negative` file containing the remediated safe code.
+
+I need you to generate a Frensense corpus pair for the following vulnerability:
+[INSERT VULNERABILITY DESCRIPTION HERE - e.g., "SQL Injection in Node.js using pg library"]
+
+Follow these STRICT rules:
+1. Provide exactly TWO files in your response: `pattern_name_positive.ts` and `pattern_name_negative.ts`.
+2. The `_positive` file MUST start with a `// [frensense]` frontmatter block containing:
+   - observation: <what is happening>
+   - impact: <what the attacker can do>
+   - improvement: <how to fix it>
+   - cwe: <CWE-ID>
+3. The code MUST be realistic:
+   - Include realistic imports (e.g., `import express from "express"`, `import { Client } from "pg"`).
+   - Use proper HTTP handler signatures (e.g., `req, res`).
+   - Include 2-3 helper functions or surrounding business logic, do NOT just provide a single 3-line function.
+   - The vulnerability must involve a clear taint source (e.g., `req.body.id`) flowing into a sink (e.g., `db.query`).
+4. The `_negative` file MUST NOT contain the `[frensense]` block, but SHOULD start with a `// SAFE: <explanation of fix>` comment.
+5. The `_negative` file must have the exact same structure, imports, and surrounding code as the positive file, but the vulnerable line must be properly remediated (e.g., using parameterized queries instead of string concatenation). Do NOT just delete the sink call.
+```
+
+### Example Usage Flow
+1. Copy the prompt above and paste it into your LLM.
+2. Fill in the vulnerability description (e.g., "Path Traversal using fs.readFile in Express").
+3. The LLM will output the two TypeScript/Rust files.
+4. Save them into `corpus/targets/` as `ts_path_traversal_readfile_positive.ts` and `ts_path_traversal_readfile_negative.ts`.
+5. Rebuild your bundle using: `frensense corpus/targets/ --build-bundle`
+
+By using this template, you ensure the LLM includes the necessary context, imports, and data-flow sources/sinks that the Frensense AST parser needs to extract high-signal n-gram fingerprints.

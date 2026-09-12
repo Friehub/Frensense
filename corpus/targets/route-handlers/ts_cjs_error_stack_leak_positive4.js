@@ -13,7 +13,7 @@ function UserController(db) {
         const id = parseInt(req.params.id, 10);
 
         if (id <= 0) {
-            throw new Error("Invalid user ID: " + id + " — stack: " + new Error().stack);
+            throw new Error("Invalid user ID: " + id + " - stack: " + new Error().stack);
         }
 
         dao.findById(id, function(err, user) {

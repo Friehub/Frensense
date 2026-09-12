@@ -1,4 +1,4 @@
-// SAFE: reducer is pure — side effects are handled in useEffect
+// SAFE: reducer is pure - side effects are handled in useEffect
 
 import { useEffect, useReducer } from 'react';
 

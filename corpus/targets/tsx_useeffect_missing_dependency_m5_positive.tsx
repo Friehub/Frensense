@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A state value flows through a template literal before being used in useEffect with empty deps.
-// impact: Stale closure — the numeric conversion captures initial value.
+// impact: Stale closure - the numeric conversion captures initial value.
 // improvement: Include the source state in deps array.
 import { useEffect, useState } from 'react';
 export function Counter() {

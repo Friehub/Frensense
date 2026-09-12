@@ -1,6 +1,6 @@
 // [frensense]
 // observation: A Server Component receives and renders an RSC payload object without validating its component tree structure, allowing an attacker-controlled component to be instantiated.
-// impact: Remote code execution via crafted RSC payload — attacker can inject arbitrary server components that execute in the privileged RSC context (CVE-2025-66478, CVSS 10.0).
+// impact: Remote code execution via crafted RSC payload - attacker can inject arbitrary server components that execute in the privileged RSC context (CVE-2025-66478, CVSS 10.0).
 // improvement: Validate the RSC payload against a schema that only allows known, safe component types before rendering.
 // CVE: CVE-2025-66478
 

@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use crate::Advisory;
 
 /// Extract the function source from the original file around the finding's line.
-/// Returns a best-effort snippet — may be truncated or empty if the file is
+/// Returns a best-effort snippet - may be truncated or empty if the file is
 /// unreadable or the line is out of range.
 fn extract_function_snippet(file_path: &Path, line: u32) -> String {
     let content = match fs::read_to_string(file_path) {

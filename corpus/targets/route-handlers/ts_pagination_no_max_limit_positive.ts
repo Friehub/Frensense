@@ -1,5 +1,5 @@
 // [frensense]
-// observation: Pagination endpoint has no maximum page size enforced — an attacker can set `limit=1000000` to trigger a full table scan, exhausting database connections.
+// observation: Pagination endpoint has no maximum page size enforced - an attacker can set `limit=1000000` to trigger a full table scan, exhausting database connections.
 // impact: Denial of service via resource exhaustion. A single request can lock the database for minutes or crash the application server by consuming all available memory.
 // improvement: Always enforce a hard upper bound on page size, validate limit parameter as a positive integer.
 

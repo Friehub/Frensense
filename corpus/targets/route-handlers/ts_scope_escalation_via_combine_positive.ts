@@ -1,5 +1,5 @@
 // [frensense]
-// observation: The authorization system grants scopes additively — combining two low-privilege scopes produces a permission set that includes high-privilege capabilities neither scope individually possessed.
+// observation: The authorization system grants scopes additively - combining two low-privilege scopes produces a permission set that includes high-privilege capabilities neither scope individually possessed.
 // impact: An attacker with access to two restricted API keys can combine their scopes to perform operations that should require admin-level authorization.
 // improvement: Validate scopes independently rather than merging them. Implement an allowlist that explicitly defines which scope combinations are valid.
 

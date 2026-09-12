@@ -1,7 +1,7 @@
 // [frensense]
 // observation: A reducer function performs side effects such as API calls, modifying external state, or mutating its input, violating the reducer purity contract.
 // impact: React calls reducers multiple times during development to detect side effects. Impure reducers cause inconsistent state, double API calls, or data corruption when the same action is replayed. Debugging and time-travel become unreliable.
-// improvement: Keep reducers pure — they should compute the next state based only on the current state and action. Move side effects to event handlers, useEffect, or middleware.
+// improvement: Keep reducers pure - they should compute the next state based only on the current state and action. Move side effects to event handlers, useEffect, or middleware.
 
 import { useReducer } from 'react';
 

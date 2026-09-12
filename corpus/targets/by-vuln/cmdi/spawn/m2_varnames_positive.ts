@@ -1,5 +1,5 @@
 // [frensense]
-// observation: req.query.tool is passed through multiple intermediate variables before reaching spawn() — the indirection does not sanitize the input.
+// observation: req.query.tool is passed through multiple intermediate variables before reaching spawn() - the indirection does not sanitize the input.
 // impact: The extra variable assignments only obscure the taint flow; the spawn call is still vulnerable to command injection.
 // improvement: Validate the input at the earliest point. Use a mapping of allowed tools to fixed binary paths.
 // cwe: CWE-78

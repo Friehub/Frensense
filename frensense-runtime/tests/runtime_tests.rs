@@ -18,12 +18,12 @@ fn free_port() -> u16 {
 
 /// A minimal HTTP server that echoes back the request body / query params / headers
 /// based on the URL path. Supports:
-///   POST /echo-body        — returns request body as response
-///   GET /echo-query        — returns query params as JSON
-///   GET /echo-header       — returns a specific header value
-///   POST /canary-in-body   — reflects a canary string in response
-///   POST /sleep            — sleeps for `ms` ms
-///   GET /status/:code      — returns given status code
+///   POST /echo-body        - returns request body as response
+///   GET /echo-query        - returns query params as JSON
+///   GET /echo-header       - returns a specific header value
+///   POST /canary-in-body   - reflects a canary string in response
+///   POST /sleep            - sleeps for `ms` ms
+///   GET /status/:code      - returns given status code
 async fn run_mock_server(port: u16) {
     let addr: SocketAddr = ([127, 0, 0, 1], port).into();
     let listener = TcpListener::bind(addr).await.unwrap();

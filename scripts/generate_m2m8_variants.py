@@ -15,7 +15,7 @@ def w(fname: str, content: str):
 # =======================================================================
 BASE1 = "tsx_dangerously_set_inner_html_untrusted"
 
-# M2 — Intermediate variable
+# M2 - Intermediate variable
 w(f"{BASE1}_m2_positive.tsx", """
 // [frensense]
 // observation: User-controlled HTML is assigned to an intermediate variable before passing to dangerouslySetInnerHTML.
@@ -44,7 +44,7 @@ export function UserBio({ bioHtml }: { bioHtml: string }) {
 }
 """)
 
-# M3 — Multi-hop
+# M3 - Multi-hop
 w(f"{BASE1}_m3_positive.tsx", """
 // [frensense]
 // observation: User input flows through two assignments before reaching dangerouslySetInnerHTML.
@@ -76,7 +76,7 @@ export function UserBio({ bioHtml }: { bioHtml: string }) {
 }
 """)
 
-# M4 — Via helper function
+# M4 - Via helper function
 w(f"{BASE1}_m4_positive.tsx", """
 // [frensense]
 // observation: User input passes through a helper function that does not sanitize before reaching dangerouslySetInnerHTML.
@@ -108,11 +108,11 @@ export function UserBio({ bioHtml }: { bioHtml: string }) {
 }
 """)
 
-# M5 — Via template literal
+# M5 - Via template literal
 w(f"{BASE1}_m5_positive.tsx", """
 // [frensense]
 // observation: User input is injected via template literal into dangerouslySetInnerHTML.
-// impact: XSS — template literal does not sanitize HTML.
+// impact: XSS - template literal does not sanitize HTML.
 // improvement: Sanitize the template literal output or avoid dangerouslySetInnerHTML.
 export function UserBio({ bioHtml }: { bioHtml: string }) {
   return <div className="bio-container" dangerouslySetInnerHTML={{ __html: `${bioHtml}` }} />;
@@ -135,11 +135,11 @@ export function UserBio({ bioHtml }: { bioHtml: string }) {
 }
 """)
 
-# M6 — Via concatenation
+# M6 - Via concatenation
 w(f"{BASE1}_m6_positive.tsx", """
 // [frensense]
 // observation: User input is concatenated into an HTML string passed to dangerouslySetInnerHTML.
-// impact: XSS — string concatenation does not sanitize embedded HTML/script.
+// impact: XSS - string concatenation does not sanitize embedded HTML/script.
 // improvement: Sanitize the concatenated result or avoid dangerouslySetInnerHTML.
 export function UserBio({ bioHtml }: { bioHtml: string }) {
   const html = "<div class='card'>" + bioHtml + "</div>";
@@ -163,11 +163,11 @@ export function UserBio({ bioHtml }: { bioHtml: string }) {
 }
 """)
 
-# M7 — Via destructuring
+# M7 - Via destructuring
 w(f"{BASE1}_m7_positive.tsx", """
 // [frensense]
 // observation: User input is destructured before being passed to dangerouslySetInnerHTML.
-// impact: XSS — destructuring does not sanitize the extracted value.
+// impact: XSS - destructuring does not sanitize the extracted value.
 // improvement: Sanitize after destructuring or avoid dangerouslySetInnerHTML.
 export function UserBio({ bioHtml }: { bioHtml: string }) {
   const { content } = { content: bioHtml };
@@ -192,11 +192,11 @@ export function UserBio({ bioHtml }: { bioHtml: string }) {
 }
 """)
 
-# M8 — Via array
+# M8 - Via array
 w(f"{BASE1}_m8_positive.tsx", """
 // [frensense]
 // observation: User input is accessed via array index before passing to dangerouslySetInnerHTML.
-// impact: XSS — array access does not sanitize the value.
+// impact: XSS - array access does not sanitize the value.
 // improvement: Sanitize the array element before injection.
 export function UserBio({ bioHtml }: { bioHtml: string[] }) {
   return <div className="bio-container" dangerouslySetInnerHTML={{ __html: bioHtml[0] }} />;
@@ -473,7 +473,7 @@ BASE3 = "tsx_xss_ref_dom_write"
 w(f"{BASE3}_m2_positive.tsx", """
 // [frensense]
 // observation: User content is assigned to an intermediate variable before being written via ref.innerHTML.
-// impact: XSS — intermediate variable carries unsanitized HTML to innerHTML.
+// impact: XSS - intermediate variable carries unsanitized HTML to innerHTML.
 // improvement: Sanitize or use React JSX instead of ref innerHTML.
 import React, { useRef, useEffect } from "react";
 export function CommentRenderer({ comment }: { comment: { body: string } }) {
@@ -599,7 +599,7 @@ export function CommentRenderer({ comment }: { comment: { body: string } }) {
 w(f"{BASE3}_m5_positive.tsx", """
 // [frensense]
 // observation: User content is injected via template literal into ref.innerHTML.
-// impact: XSS — template literal does not sanitize HTML.
+// impact: XSS - template literal does not sanitize HTML.
 // improvement: Sanitize template output or use React JSX.
 import React, { useRef, useEffect } from "react";
 export function CommentRenderer({ comment }: { comment: { body: string } }) {
@@ -636,7 +636,7 @@ export function CommentRenderer({ comment }: { comment: { body: string } }) {
 w(f"{BASE3}_m6_positive.tsx", """
 // [frensense]
 // observation: User content is concatenated before being written via ref.innerHTML.
-// impact: XSS — concatenation does not sanitize embedded HTML.
+// impact: XSS - concatenation does not sanitize embedded HTML.
 // improvement: Sanitize the concatenated result or use React JSX.
 import React, { useRef, useEffect } from "react";
 export function CommentRenderer({ comment }: { comment: { body: string } }) {
@@ -673,7 +673,7 @@ export function CommentRenderer({ comment }: { comment: { body: string } }) {
 w(f"{BASE3}_m7_positive.tsx", """
 // [frensense]
 // observation: User content is destructured before being written via ref.innerHTML.
-// impact: XSS — destructuring does not sanitize the extracted value.
+// impact: XSS - destructuring does not sanitize the extracted value.
 // improvement: Sanitize after destructuring or use React JSX.
 import React, { useRef, useEffect } from "react";
 export function CommentRenderer({ comment }: { comment: { body: string } }) {
@@ -713,7 +713,7 @@ export function CommentRenderer({ comment }: { comment: { body: string } }) {
 w(f"{BASE3}_m8_positive.tsx", """
 // [frensense]
 // observation: User content is accessed via array index before ref.innerHTML write.
-// impact: XSS — array element is not sanitized.
+// impact: XSS - array element is not sanitized.
 // improvement: Sanitize the array element or use React JSX.
 import React, { useRef, useEffect } from "react";
 export function CommentRenderer({ comment }: { comment: { body: string[] } }) {
@@ -756,7 +756,7 @@ BASE4 = "tsx_useeffect_missing_dependency"
 w(f"{BASE4}_m2_positive.tsx", """
 // [frensense]
 // observation: An intermediate variable captures a state value but is missing from useEffect deps.
-// impact: Stale closure — the effect uses the captured value from the initial render.
+// impact: Stale closure - the effect uses the captured value from the initial render.
 // improvement: Include the intermediate variable's source in the dependency array.
 import { useEffect, useState } from 'react';
 export function Counter() {
@@ -806,7 +806,7 @@ export function Counter() {
 w(f"{BASE4}_m3_positive.tsx", """
 // [frensense]
 // observation: A state value flows through two assignments before being used inside useEffect with empty deps.
-// impact: Stale closure — multi-hop variable captures initial value only.
+// impact: Stale closure - multi-hop variable captures initial value only.
 // improvement: Include the source state in the dependency array.
 import { useEffect, useState } from 'react';
 export function Counter() {
@@ -858,7 +858,7 @@ export function Counter() {
 w(f"{BASE4}_m4_positive.tsx", """
 // [frensense]
 // observation: A helper function returns a state-derived value that is used inside useEffect with empty deps.
-// impact: Stale closure — the helper return is captured at initial render.
+// impact: Stale closure - the helper return is captured at initial render.
 // improvement: Include the return value in the dependency array.
 import { useEffect, useState } from 'react';
 function getStep(s: number): number { return s; }
@@ -910,7 +910,7 @@ export function Counter() {
 w(f"{BASE4}_m5_positive.tsx", """
 // [frensense]
 // observation: A state value flows through a template literal before being used in useEffect with empty deps.
-// impact: Stale closure — the numeric conversion captures initial value.
+// impact: Stale closure - the numeric conversion captures initial value.
 // improvement: Include the source state in deps array.
 import { useEffect, useState } from 'react';
 export function Counter() {
@@ -960,7 +960,7 @@ export function Counter() {
 w(f"{BASE4}_m6_positive.tsx", """
 // [frensense]
 // observation: A state value is concatenated before being used inside useEffect with empty deps.
-// impact: Stale closure — captures initial value via the concatenation chain.
+// impact: Stale closure - captures initial value via the concatenation chain.
 // improvement: Include source state in the dependency array.
 import { useEffect, useState } from 'react';
 export function Counter() {
@@ -1010,7 +1010,7 @@ export function Counter() {
 w(f"{BASE4}_m7_positive.tsx", """
 // [frensense]
 // observation: A state value is destructured before being used inside useEffect with empty deps.
-// impact: Stale closure — destructured value captures initial render value.
+// impact: Stale closure - destructured value captures initial render value.
 // improvement: Include the destructured value in deps.
 import { useEffect, useState } from 'react';
 export function Counter() {
@@ -1060,7 +1060,7 @@ export function Counter() {
 w(f"{BASE4}_m8_positive.tsx", """
 // [frensense]
 // observation: A state value is accessed via array index before being used inside useEffect with empty deps.
-// impact: Stale closure — array captures initial value.
+// impact: Stale closure - array captures initial value.
 // improvement: Include the array-source in deps or use ref.
 import { useEffect, useState } from 'react';
 export function Counter() {
@@ -1246,7 +1246,7 @@ async function SearchResults({ query }: { query: string }) {
 w(f"{BASE5}_m4_positive.tsx", """
 // [frensense]
 // observation: User input passes through a helper function before rendering in Suspense fallback.
-// impact: XSS before hydration — helper does not sanitize.
+// impact: XSS before hydration - helper does not sanitize.
 // improvement: Sanitize helper output or escape in fallback.
 'use client'
 import { Suspense } from 'react'
@@ -1375,7 +1375,7 @@ async function SearchResults({ query }: { query: string }) {
 w(f"{BASE5}_m6_positive.tsx", """
 // [frensense]
 // observation: User input is concatenated before rendering in Suspense fallback.
-// impact: XSS before hydration — concatenation does not sanitize.
+// impact: XSS before hydration - concatenation does not sanitize.
 // improvement: Escape or sanitize before fallback rendering.
 'use client'
 import { Suspense } from 'react'
@@ -1437,7 +1437,7 @@ async function SearchResults({ query }: { query: string }) {
 w(f"{BASE5}_m7_positive.tsx", """
 // [frensense]
 // observation: User input is destructured before rendering in Suspense fallback.
-// impact: XSS before hydration — destructuring does not sanitize.
+// impact: XSS before hydration - destructuring does not sanitize.
 // improvement: Escape or sanitize after destructuring.
 'use client'
 import { Suspense } from 'react'
@@ -1501,7 +1501,7 @@ async function SearchResults({ query }: { query: string }) {
 w(f"{BASE5}_m8_positive.tsx", """
 // [frensense]
 // observation: User input is accessed via array index before rendering in Suspense fallback.
-// impact: XSS before hydration — array element unsanitized.
+// impact: XSS before hydration - array element unsanitized.
 // improvement: Escape or sanitize before fallback rendering.
 'use client'
 import { Suspense } from 'react'
@@ -1569,7 +1569,7 @@ BASE6 = "tsx_portal_outside_root_xss"
 w(f"{BASE6}_m2_positive.tsx", """
 // [frensense]
 // observation: User-controlled message is assigned to an intermediate variable before being rendered in a portal with dangerouslySetInnerHTML.
-// impact: XSS — portaled content escapes React's DOM control.
+// impact: XSS - portaled content escapes React's DOM control.
 // improvement: Sanitize the intermediate variable or avoid dangerouslySetInnerHTML in portals.
 'use client'
 import { createPortal } from 'react'
@@ -1678,7 +1678,7 @@ export default function ToastPortal({ message }: { message: string }) {
 w(f"{BASE6}_m4_positive.tsx", """
 // [frensense]
 // observation: User-controlled message passes through a helper that does not sanitize before portaling with dangerouslySetInnerHTML.
-// impact: XSS — helper returns unsanitized HTML to portal.
+// impact: XSS - helper returns unsanitized HTML to portal.
 // improvement: Sanitize helper output or avoid dangerouslySetInnerHTML.
 'use client'
 import { createPortal } from 'react'
@@ -1734,7 +1734,7 @@ export default function ToastPortal({ message }: { message: string }) {
 w(f"{BASE6}_m5_positive.tsx", """
 // [frensense]
 // observation: User-controlled message is injected via template literal into portal dangerouslySetInnerHTML.
-// impact: XSS — template literal does not sanitize HTML.
+// impact: XSS - template literal does not sanitize HTML.
 // improvement: Sanitize template output or avoid dangerouslySetInnerHTML.
 'use client'
 import { createPortal } from 'react'
@@ -1785,7 +1785,7 @@ export default function ToastPortal({ message }: { message: string }) {
 w(f"{BASE6}_m6_positive.tsx", """
 // [frensense]
 // observation: User-controlled message is concatenated before portal dangerouslySetInnerHTML.
-// impact: XSS — concatenation prefix does not sanitize embedded HTML.
+// impact: XSS - concatenation prefix does not sanitize embedded HTML.
 // improvement: Sanitize concatenated result or avoid dangerouslySetInnerHTML.
 'use client'
 import { createPortal } from 'react'
@@ -1837,7 +1837,7 @@ export default function ToastPortal({ message }: { message: string }) {
 w(f"{BASE6}_m7_positive.tsx", """
 // [frensense]
 // observation: User-controlled message is destructured before portal dangerouslySetInnerHTML.
-// impact: XSS — destructuring does not sanitize.
+// impact: XSS - destructuring does not sanitize.
 // improvement: Sanitize after destructuring or avoid dangerouslySetInnerHTML.
 'use client'
 import { createPortal } from 'react'
@@ -1890,7 +1890,7 @@ export default function ToastPortal({ message }: { message: string }) {
 w(f"{BASE6}_m8_positive.tsx", """
 // [frensense]
 // observation: User-controlled message is accessed via array index before portal dangerouslySetInnerHTML.
-// impact: XSS — array element unsanitized in portal.
+// impact: XSS - array element unsanitized in portal.
 // improvement: Sanitize array element or avoid dangerouslySetInnerHTML.
 'use client'
 import { createPortal } from 'react'
@@ -2122,7 +2122,7 @@ export default function App() {
 w(f"{BASE7}_m5_positive.tsx", """
 // [frensense]
 // observation: Error property is rendered via template literal that throws when property is missing.
-// impact: Fallback crash — error.code is undefined, template literal throws in strict mode.
+// impact: Fallback crash - error.code is undefined, template literal throws in strict mode.
 // improvement: Use optional chaining in template expression.
 'use client'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -2234,7 +2234,7 @@ export default function App() {
 w(f"{BASE7}_m7_positive.tsx", """
 // [frensense]
 // observation: Error property is destructured before rendering, crashing when code does not exist.
-// impact: Fallback crash — destructuring undefined causes TypeError.
+// impact: Fallback crash - destructuring undefined causes TypeError.
 // improvement: Provide default value in destructuring pattern.
 'use client'
 import { ErrorBoundary } from 'react-error-boundary'

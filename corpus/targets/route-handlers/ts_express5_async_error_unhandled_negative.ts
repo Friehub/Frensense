@@ -1,4 +1,4 @@
-// SAFE: Remove the try-catch — Express 5.2.1 auto-forwards async rejections to the error handler.
+// SAFE: Remove the try-catch - Express 5.2.1 auto-forwards async rejections to the error handler.
 
 import express, { Request, Response, NextFunction } from 'express';
 

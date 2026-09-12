@@ -1,4 +1,4 @@
-// SAFE: AES-256-GCM with random IV — authenticated encryption
+// SAFE: AES-256-GCM with random IV - authenticated encryption
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const ALGORITHM = 'aes-256-gcm';

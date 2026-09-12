@@ -1,7 +1,7 @@
 // [frensense]
 // observation: The application validates the destination URL against an allowlist before attaching sensitive credentials.
-// impact: None — credentials are only sent to trusted internal endpoints.
-// improvement: N/A — this is the correct pattern.
+// impact: None - credentials are only sent to trusted internal endpoints.
+// improvement: N/A - this is the correct pattern.
 
 export async function proxySandboxRequest(url: string, token: string): Promise<Response> {
     const parsedUrl = new URL(url);

@@ -48,7 +48,7 @@ impl DependencyResolver {
             if !vulns.is_empty() {
                 return vulns;
             }
-            // npm audit found nothing — still return empty (don't fall through to hardcoded)
+            // npm audit found nothing - still return empty (don't fall through to hardcoded)
             return Vec::new();
         }
 

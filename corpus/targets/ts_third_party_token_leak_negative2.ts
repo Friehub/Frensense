@@ -1,7 +1,7 @@
 // [frensense]
 // observation: An HTTP request is made to a potentially dynamic URL, but no sensitive authentication tokens or credentials are included in the headers.
-// impact: None — since no credentials are sent, an attacker cannot steal internal tokens even if they control the destination URL.
-// improvement: N/A — this is the correct pattern.
+// impact: None - since no credentials are sent, an attacker cannot steal internal tokens even if they control the destination URL.
+// improvement: N/A - this is the correct pattern.
 
 export async function proxyPublicRequest(url: string, userAgent: string): Promise<Response> {
     // Good: Sending harmless headers like User-Agent or Content-Type is safe

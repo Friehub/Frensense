@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Function role classifier — identifies what a function DOES from its fingerprint.
+//! Function role classifier - identifies what a function DOES from its fingerprint.
 //!
 //! A lightweight structural classifier that assigns one of 5 roles with zero
 //! corpus lookup.  Used as a pre-filter before scoring: if the candidate's role
@@ -8,6 +8,8 @@
 
 use crate::fingerprint::FunctionFingerprint;
 use crate::import_resolver::ImportMap;
+
+use frensense_lang::LanguageSpec;
 
 /// High-level role a function plays in the codebase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,10 +179,10 @@ const SHELL_API: &[&str] = &[
 /// - `api_calls` / `api_call_segments` for method-level detection
 /// - `signature_ngrams` / `param_type_ngrams` for parameter shape
 ///
-/// The checks are ordered by priority — HttpHandler is checked first
+/// The checks are ordered by priority - HttpHandler is checked first
 /// because its signal (res.json/send/redirect) is the strongest.
 pub fn classify_role(fp: &FunctionFingerprint) -> FunctionRole {
-    classify_role_with_imports(fp, None)
+    classify_role_with_imports(fp, None, None)
 }
 
 /// Like `classify_role` but also uses the per-file import map to resolve
@@ -190,21 +192,26 @@ pub fn classify_role(fp: &FunctionFingerprint) -> FunctionRole {
 /// annotations (like `Request` or `Response`) are confirmed to come from
 /// an HTTP framework package gets an additional HttpHandler signal,
 /// reducing false negatives from unconventional parameter naming.
+///
+/// When a language spec is available, its methods are consulted first for
+/// response names, request params, route registrations, DB APIs, and shell
+/// APIs, with the hardcoded lists as fallback.
 pub fn classify_role_with_imports(
     fp: &FunctionFingerprint,
     import_map: Option<&ImportMap>,
+    spec: Option<&dyn LanguageSpec>,
 ) -> FunctionRole {
     let _all_calls = &fp.raw_call_names;
 
-    if is_http_handler(fp, import_map) {
+    if is_http_handler(fp, import_map, spec) {
         return FunctionRole::HttpHandler;
     }
 
-    if is_shell_executor(fp) {
+    if is_shell_executor(fp, spec) {
         return FunctionRole::ShellExecutor;
     }
 
-    if is_db_query(fp) {
+    if is_db_query(fp, spec) {
         return FunctionRole::DbQuery;
     }
 
@@ -222,21 +229,31 @@ pub fn classify_role_with_imports(
 ///
 /// Requires at least **two** of the following signals:
 ///
-///   (a) Response call — function calls `res.send`, `.json`, `.redirect`, etc.
-///   (b) Request-shaped parameters — param names include `req`, `request`, `ctx`, etc.
-///   (c) Route-registration context — function body contains `app.get`, `router.post`, etc.
-///   (d) [import-aware] Typed parameters — `type_usages` contain `Request`/`Response`
+///   (a) Response call - function calls `res.send`, `.json`, `.redirect`, etc.
+///   (b) Request-shaped parameters - param names include `req`, `request`, `ctx`, etc.
+///   (c) Route-registration context - function body contains `app.get`, `router.post`, etc.
+///   (d) [import-aware] Typed parameters - `type_usages` contain `Request`/`Response`
 ///       confirmed by the import map to come from an HTTP framework package.
-///   (e) Routing decorator — function has `@Get`, `@Post`, `@Put`, etc. (NestJS / tsoa / type-graphql)
-///   (f) Route registration — function is referenced in `app.get('/path', fn)`
+///   (e) Routing decorator - function has `@Get`, `@Post`, `@Put`, etc. (NestJS / tsoa / type-graphql)
+///   (f) Route registration - function is referenced in `app.get('/path', fn)`
 ///       or is an inline arrow passed to a router method.
-///   (g) File export — function is a file-level export matching framework conventions
+///   (g) File export - function is a file-level export matching framework conventions
 ///       (Next.js App/Pages Router, SvelteKit, Cloudflare Workers, AWS Lambda).
-fn is_http_handler(fp: &FunctionFingerprint, import_map: Option<&ImportMap>) -> bool {
+fn is_http_handler(
+    fp: &FunctionFingerprint,
+    import_map: Option<&ImportMap>,
+    spec: Option<&dyn LanguageSpec>,
+) -> bool {
     let mut signals = 0u8;
 
     let has_response = fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
+        // Prefer spec-provided names when available
+        if let Some(s) = spec {
+            if s.response_method_names().iter().any(|m| lower.ends_with(m)) {
+                return true;
+            }
+        }
         HTTP_METHODS.iter().any(|m| lower.ends_with(m))
     });
     if has_response {
@@ -245,6 +262,11 @@ fn is_http_handler(fp: &FunctionFingerprint, import_map: Option<&ImportMap>) -> 
 
     let has_request_param = fp.param_names.iter().any(|n| {
         let lower = n.to_lowercase();
+        if let Some(s) = spec {
+            if s.request_param_names().iter().any(|p| lower == *p) {
+                return true;
+            }
+        }
         REQUEST_PARAM_NAMES.iter().any(|p| lower == *p)
     });
     if has_request_param {
@@ -253,6 +275,14 @@ fn is_http_handler(fp: &FunctionFingerprint, import_map: Option<&ImportMap>) -> 
 
     let has_route_reg = fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
+        if let Some(s) = spec {
+            if s.route_registration_patterns()
+                .iter()
+                .any(|r| lower.ends_with(r))
+            {
+                return true;
+            }
+        }
         ROUTE_REGISTRATIONS.iter().any(|r| lower.ends_with(r))
     });
     if has_route_reg {
@@ -290,17 +320,33 @@ fn is_http_handler(fp: &FunctionFingerprint, import_map: Option<&ImportMap>) -> 
 }
 
 /// Check if fingerprint matches a shell executor.
-fn is_shell_executor(fp: &FunctionFingerprint) -> bool {
+fn is_shell_executor(fp: &FunctionFingerprint, spec: Option<&dyn LanguageSpec>) -> bool {
     fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
+        if let Some(s) = spec {
+            if s.shell_api_method_names()
+                .iter()
+                .any(|api| lower.ends_with(api))
+            {
+                return true;
+            }
+        }
         SHELL_API.iter().any(|api| lower.ends_with(api))
     })
 }
 
 /// Check if fingerprint matches a database query function.
-fn is_db_query(fp: &FunctionFingerprint) -> bool {
+fn is_db_query(fp: &FunctionFingerprint, spec: Option<&dyn LanguageSpec>) -> bool {
     fp.raw_call_names.iter().any(|c| {
         let lower = c.to_lowercase();
+        if let Some(s) = spec {
+            if s.db_api_method_names()
+                .iter()
+                .any(|api| lower.ends_with(api))
+            {
+                return true;
+            }
+        }
         DB_API.iter().any(|api| lower.ends_with(api))
     })
 }
@@ -312,10 +358,14 @@ fn is_db_query(fp: &FunctionFingerprint) -> bool {
 /// - Unknown is compatible with everything (no information)
 pub fn roles_are_incompatible(role_a: FunctionRole, role_b: FunctionRole) -> bool {
     use FunctionRole::*;
-    matches!(
-        (role_a, role_b),
-        (HttpHandler, ShellExecutor | DbQuery) | (ShellExecutor | DbQuery, HttpHandler)
-    )
+    if role_a == Unknown
+        || role_b == Unknown
+        || role_a == DataTransformer
+        || role_b == DataTransformer
+    {
+        return false;
+    }
+    role_a != role_b
 }
 
 #[cfg(test)]
@@ -377,8 +427,8 @@ mod tests {
             vec![20, 21, 22, 23, 24, 25],               // structural
             vec![30, 31],                               // sig
             vec![40, 41],                               // param_types
-            vec!["res.send".to_string()],               // raw_call_names — signal (a)
-            vec!["req".to_string(), "res".to_string()], // param_names — signal (b)
+            vec!["res.send".to_string()],               // raw_call_names - signal (a)
+            vec!["req".to_string(), "res".to_string()], // param_names - signal (b)
         );
         assert_eq!(classify_role(&fp), FunctionRole::HttpHandler);
     }
@@ -393,7 +443,7 @@ mod tests {
             vec![20, 21, 22, 23, 24, 25],
             vec![30],
             vec![],
-            vec!["res.send".to_string()], // raw_call_names — signal (a) only
+            vec!["res.send".to_string()], // raw_call_names - signal (a) only
             vec![],
         );
         assert_eq!(classify_role(&fp), FunctionRole::Unknown);
@@ -418,7 +468,7 @@ mod tests {
     #[test]
     fn test_decorator_only_handler_is_http_handler() {
         // NestJS-style: `@Get('/users') async getUsers() { return this.svc.findAll(); }`
-        // has ONLY the HTTP decorator signal — no req/res params, no res.send(),
+        // has ONLY the HTTP decorator signal - no req/res params, no res.send(),
         // no app.get() route registration. The decorator must count as two
         // signals so it still clears the >= 2 threshold.
         let mut fp = make_fp(

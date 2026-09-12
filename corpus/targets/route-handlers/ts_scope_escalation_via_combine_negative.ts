@@ -1,4 +1,4 @@
-// SAFE: Scopes are intersected, not merged — the user only gets permissions common to all scope sets
+// SAFE: Scopes are intersected, not merged - the user only gets permissions common to all scope sets
 import { Request, Response, NextFunction } from 'express';
 
 export function checkAccess(req: Request, res: Response, next: NextFunction): void {

@@ -1,4 +1,4 @@
-// SAFE: The filename is sanitized — only alphanumeric chars and safe punctuation are allowed
+// SAFE: The filename is sanitized - only alphanumeric chars and safe punctuation are allowed
 import express from "express";
 import multer from "multer";
 

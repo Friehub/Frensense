@@ -1,4 +1,4 @@
-// SAFE: items array is defined outside the component — stable reference allows compiler memoization
+// SAFE: items array is defined outside the component - stable reference allows compiler memoization
 
 'use client'
 

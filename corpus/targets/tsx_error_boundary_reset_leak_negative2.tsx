@@ -1,4 +1,4 @@
-// SAFE: onReset only resets the key without logging — error logging is done server-side instead
+// SAFE: onReset only resets the key without logging - error logging is done server-side instead
 
 'use client'
 

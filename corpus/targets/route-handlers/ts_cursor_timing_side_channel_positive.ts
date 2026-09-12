@@ -1,7 +1,7 @@
 // [frensense]
-// observation: Cursor-based pagination leaks whether a cursor is valid or invalid through response timing — valid cursors return faster (DB hit) vs invalid cursors (immediate 400).
+// observation: Cursor-based pagination leaks whether a cursor is valid or invalid through response timing - valid cursors return faster (DB hit) vs invalid cursors (immediate 400).
 // impact: Timing side channel allows an attacker to enumerate valid cursor values, enabling data enumeration even when UUIDs are used as cursors.
-// improvement: Always respond with identical timing regardless of cursor validity — validate asynchronously or use constant-time checks.
+// improvement: Always respond with identical timing regardless of cursor validity - validate asynchronously or use constant-time checks.
 
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';

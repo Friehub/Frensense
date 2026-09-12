@@ -1,4 +1,4 @@
-// SAFE: no sensitive data in context at all — uses a dedicated module for auth tokens
+// SAFE: no sensitive data in context at all - uses a dedicated module for auth tokens
 
 import { createContext, useContext, type ReactNode } from 'react';
 

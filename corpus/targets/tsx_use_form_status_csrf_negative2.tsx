@@ -1,4 +1,4 @@
-// SAFE: validates the Origin/Referer header on the server — server-side CSRF protection via header check
+// SAFE: validates the Origin/Referer header on the server - server-side CSRF protection via header check
 
 'use client'
 

@@ -98,7 +98,7 @@ pub async fn run_probe_campaign(
                 min_divergence_score: 99.0,
             },
             risk: ProbeRisk::Safe,
-            description: "Baseline — benign input to establish normal response".to_string(),
+            description: "Baseline - benign input to establish normal response".to_string(),
         },
         canary_server,
     )

@@ -1,6 +1,6 @@
 // [frensense]
 // observation: a server action performs a privileged operation (e.g., delete user, change role) without verifying the user's authentication or authorization server-side
-// impact: privilege escalation — an unauthenticated or low-privilege user can invoke the server action to perform admin-level operations
+// impact: privilege escalation - an unauthenticated or low-privilege user can invoke the server action to perform admin-level operations
 // improvement: add authentication and authorization checks at the top of every server action before executing the operation
 // cwe: CWE-287
 // cvss: 9.8

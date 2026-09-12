@@ -1,4 +1,4 @@
-// SAFE: Concatenation avoided — uses EJS template auto-escaping
+// SAFE: Concatenation avoided - uses EJS template auto-escaping
 import express from "express";
 
 const app = express();

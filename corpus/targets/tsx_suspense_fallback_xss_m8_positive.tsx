@@ -1,6 +1,6 @@
 // [frensense]
 // observation: User input is accessed via array index before rendering in Suspense fallback.
-// impact: XSS before hydration — array element unsanitized.
+// impact: XSS before hydration - array element unsanitized.
 // improvement: Escape or sanitize before fallback rendering.
 // cwe: CWE-79
 // cvss: 6.1
