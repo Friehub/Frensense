@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789236280922,
+  "lastUpdate": 1789237728752,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -2737,6 +2737,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/d26ea72ee12bf5faf2502aea1a047952aafbb808"
         },
         "date": 1789236279796,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 1671,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 1682,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "committer": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "distinct": false,
+          "id": "ecc1fb0709e4414b8e286b46269d38c9fbc5e5d7",
+          "message": "fix(ci): fix benchmark alert threshold configuration",
+          "timestamp": "2026-09-12T19:22:16+01:00",
+          "tree_id": "c506e14445b31f5c1810cd5e3842e510ebd30cc1",
+          "url": "https://github.com/Friehub/Frensense/commit/ecc1fb0709e4414b8e286b46269d38c9fbc5e5d7"
+        },
+        "date": 1789237727344,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
