@@ -286,12 +286,11 @@ jobs:
 
       - name: Test NPM package before publish
         run: |
-          PACKAGE=$(npm pack --silent 2>&1 | tail -1)
-          echo "Package: $PACKAGE"
+          npm pack
           TESTDIR=$(mktemp -d)
           cd "$TESTDIR"
           npm init -y > /dev/null
-          npm install "$GITHUB_WORKSPACE/$PACKAGE" > /dev/null 2>&1
+          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
           npx frensense --version
           echo 'fn main() { let x = 1; }' > test.rs
           npx frensense test.rs --json > /dev/null
@@ -307,14 +306,14 @@ jobs:
 
       - name: Test Genesense NPM Wrapper before publish
         run: |
-          MAIN_PACKAGE=$(npm pack --silent 2>&1 | tail -1)
+          npm pack
           cd genesense-npm
-          WRAPPER_PACKAGE=$(npm pack --silent 2>&1 | tail -1)
+          npm pack
           TESTDIR=$(mktemp -d)
           cd "$TESTDIR"
           npm init -y > /dev/null
-          npm install "$GITHUB_WORKSPACE/$MAIN_PACKAGE" > /dev/null 2>&1
-          npm install "$GITHUB_WORKSPACE/genesense-npm/$WRAPPER_PACKAGE" > /dev/null 2>&1
+          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/genesense-npm/genesense-*.tgz
           npx genesense --version
           echo "fn main() { let y = 2; }" > test2.rs
           npx genesense test2.rs --json > /dev/null
