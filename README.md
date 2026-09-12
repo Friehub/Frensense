@@ -5,7 +5,7 @@
 
 <br />
 
-Frensense detects semantic bugs, architectural violations, and AI hallucinations—code that compiles but doesn't do what it says it does. It operates without brittle YAML rules, regex patterns, or handwritten DSLs.
+Frensense detects semantic bugs, architectural violations, and AI hallucinations-code that compiles but doesn't do what it says it does. It operates without brittle YAML rules, regex patterns, or handwritten DSLs.
 
 ```bash
 cargo install frensense
@@ -18,9 +18,9 @@ Starting in `v0.5.0`, Frensense completely abolished manual rule writing. All de
 
 The engine fingerprints every function in your project, scores it against the pre-compiled `.frc` bundle, and emits findings when multiple layers confirm the violation:
 
-1. **Corpus Match (Structural)** — Your function's AST shape mathematically matches a known violation pattern in the corpus.
-2. **Taint Path (DataFlow)** — Tainted data dynamically flows from a source to a vulnerable sink without sanitization.
-3. **Cross-Function Consistency** — Ensures sibling functions do not diverge on the same pattern.
+1. **Corpus Match (Structural)** - Your function's AST shape mathematically matches a known violation pattern in the corpus.
+2. **Taint Path (DataFlow)** - Tainted data dynamically flows from a source to a vulnerable sink without sanitization.
+3. **Cross-Function Consistency** - Ensures sibling functions do not diverge on the same pattern.
 
 A finding only fires when the structural match and dataflow composition agree, guaranteeing a near-zero false positive rate.
 
@@ -109,11 +109,20 @@ export async function handleDataSync(req: Request, db: Database) {
 }
 ```
 
-Run the builder to compile your new custom `.frc` bundle:
+### Building and Loading Custom Bundles
+You don't need the `frensense-bundler` source code or a Rust compiler to build and use custom rules. The main `frensense` CLI includes the bundler built-in.
+
+**1. Compile your custom `.frc` bundle:**
 ```bash
-frensense --build-bundle --corpus corpus/targets/
+frensense --build-bundle ./corpus/targets/ --build-bundle-output custom.frc
 ```
-Frensense parses your comment block straight from the AST and bakes it into the `.frc` bundle.
+Frensense parses your comment blocks straight from the AST, runs Machine Learning calibration to learn optimal feature weights, generates structural mutations (e.g. async, try/catch), and bakes it all into a highly optimized binary `.frc` file.
+
+**2. Scan your project using your custom bundle at runtime:**
+```bash
+frensense ./my-project/ --corpus-bundle custom.frc
+```
+*Note: By default, Frensense uses the pre-compiled bundle embedded in the binary. The `--corpus-bundle` flag allows you to instantly override this at runtime without recompiling the Rust engine.*
 
 ## AI Agent Integration (MCP)
 
@@ -147,7 +156,7 @@ frensense src/ --use-compiler
 ## Corpus Quality Guide
 
 The engine is only as good as its corpus. A pattern with a 3-line toy function
-(`function redirect(next) { res.redirect(next); }`) produces near-zero signal —
+(`function redirect(next) { res.redirect(next); }`) produces near-zero signal -
 no imports, no control flow, no taint source. Every Express route handler that
 calls `res.redirect` will match it. A good pattern has real imports, multiple
 functions, explicit taint sources, and a proper `[frensense]` comment block.
@@ -169,13 +178,13 @@ functions, explicit taint sources, and a proper `[frensense]` comment block.
 
 ```
 ✓  Has a // SAFE: comment explaining the fix
-✓  Same structure as positive (imports, functions, params) — only the fix differs
+✓  Same structure as positive (imports, functions, params) - only the fix differs
 ✓  Uses the REAL fix, not a toy allowlist
-✓  Still has the same sink call — used safely
+✓  Still has the same sink call - used safely
 ✓  Does NOT simply delete the vulnerable call
 ```
 
-### All Metadata Goes in `[frensense]` — No TOML
+### All Metadata Goes in `[frensense]` - No TOML
 
 Frensense does NOT use TOML sidecar files. All per-pattern metadata belongs in
 the `[frensense]` comment block at the top of the positive file:
@@ -237,7 +246,7 @@ export default router;
 
 **`ts_cmdi_exec_shell_negative.ts`** (fix: execFile + allowlist):
 ```typescript
-// SAFE: Replaced exec() with execFile() — arguments passed as array.
+// SAFE: Replaced exec() with execFile() - arguments passed as array.
 
 import { execFile } from "child_process";
 import express from "express";
@@ -275,7 +284,7 @@ mutation guidelines, and the Frensense Hub corpus exchange proposal.
 | `docs/AUTO_FILTER.md` | How the auto-filter learns 6 constraint types from corpus pairs |
 | `docs/CORPUS_CONVENTIONS.md` | Naming, tier requirements, multi-API variant creation |
 | `docs/SCORING_DIMENSIONS.md` | 11-dimensional similarity model, default weights, flow_sim generalization gap |
-| `docs/MATCH_EVIDENCE.md` | Per-dimension evidence breakdown — the equivalent of a compiler telling you which variable has a type error |
+| `docs/MATCH_EVIDENCE.md` | Per-dimension evidence breakdown - the equivalent of a compiler telling you which variable has a type error |
 | `FRENSENSE_CORPUS_GUIDE.md` | Five tiers, CWE mapping table, mutation guidelines |
 | `FRENSENSE_VS_LITERATURE.md` | Comparison against 227 academic studies from the 2025 systematic review |
 
@@ -289,7 +298,7 @@ corpus-quality corpus/targets/  # If installed via cargo, otherwise: cargo run -
 # Includes per-tier breakdown showing how many patterns need work.
 ```
 
-### Latest Benchmark (Sep 2026) — v0.6.0 PDG Data-Flow Upgrade
+### Latest Benchmark (Sep 2026) - v0.6.0 PDG Data-Flow Upgrade
 
 **OWASP Juice Shop** (37 vulnerable files, ground truth: `challengeUtils.solveIf` markers)
 
