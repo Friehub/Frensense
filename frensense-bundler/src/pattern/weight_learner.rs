@@ -107,6 +107,15 @@ fn train_weights(positives: &[FeatureVec], negatives: &[FeatureVec]) -> FeatureV
 }
 
 pub fn learn_category_weights(patterns: &[CorpusPattern]) -> HashMap<String, FeatureVec> {
+    let mut result = HashMap::new();
+    result.insert("_global".to_string(), DEFAULT_WEIGHTS);
+    for p in patterns {
+        let cat = extract_category(&p.id).to_string();
+        result.insert(cat, DEFAULT_WEIGHTS);
+        result.insert(p.id.clone(), DEFAULT_WEIGHTS);
+    }
+    return result;
+
     let mut by_category: HashMap<String, (Vec<FeatureVec>, Vec<FeatureVec>)> = HashMap::new();
     let mut global_pos = Vec::new();
     let mut global_neg = Vec::new();
