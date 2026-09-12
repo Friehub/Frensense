@@ -17,14 +17,25 @@ const CORPUS_BUNDLE: &[u8] = include_bytes!("../../frensense-corpus.frc");
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(tracing::Level::INFO.into())
-                .from_env_lossy(),
-        )
-        .with_writer(std::io::stderr)
-        .init();
+    let use_debug = env::var("RUST_LOG").is_ok();
+    let env_filter = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(tracing::Level::INFO.into())
+        .from_env_lossy();
+
+    if use_debug {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_writer(std::io::stderr)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .without_time()
+            .with_target(false)
+            .with_level(false)
+            .with_writer(std::io::stderr)
+            .init();
+    }
     // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = env::args().collect();
     if handle_early_args(&args) {

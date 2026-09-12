@@ -35,9 +35,18 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         ));
     }
     let entries = collect_corpus_files(corpus_dir);
+    let total_files = entries.len();
+    println!(
+        "Found {} source files in corpus. Building AST features...",
+        total_files
+    );
     let mut warnings: Vec<LoadWarning> = Vec::new();
+    let mut processed_count = 0;
     for path in entries {
-        println!("Processing {:?}", path);
+        processed_count += 1;
+        if processed_count % 500 == 0 {
+            println!("Processed {} / {} files...", processed_count, total_files);
+        }
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
@@ -84,11 +93,11 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         if is_positive {
             entry.0.extend(fps);
             entry.3.extend(all_features);
-            // Extract [frensense] block from positive file — primary source of advisory text
+            // Extract [frensense] block from positive file - primary source of advisory text
             if entry.2.observation.is_none() {
                 entry.2 = parse_frensense_block(&source);
             }
-            // M4: Auto-infer expected_context from the positive file path+content — no TOML needed
+            // M4: Auto-infer expected_context from the positive file path+content - no TOML needed
             if entry.2.expected_context.is_none() {
                 entry.2.expected_context = Some(frensense_engine::context::FileContext::extract(
                     &path, &source,
@@ -110,7 +119,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             warnings.push(LoadWarning {
                 pattern_id: name.clone(),
                 message:
-                    "has negative examples but no positive example — pattern skipped, coverage gap"
+                    "has negative examples but no positive example - pattern skipped, coverage gap"
                         .to_string(),
             });
             continue;
@@ -118,13 +127,13 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         if neg.is_empty() {
             warnings.push(LoadWarning {
                 pattern_id: name.clone(),
-                message: "has positive example but no negative example — pattern skipped, cannot learn boundary".to_string(),
+                message: "has positive example but no negative example - pattern skipped, cannot learn boundary".to_string(),
             });
             continue;
         }
 
         // Priority: comment block > sidecar TOML (optional override) > synthesized
-        // The sidecar TOML is NEVER required — it is only an escape hatch for edge cases.
+        // The sidecar TOML is NEVER required - it is only an escape hatch for edge cases.
         let toml_advisory = load_sidecar_toml(corpus_dir, &name);
 
         // Learn semantic constraints from positive/negative examples
@@ -435,7 +444,7 @@ mod tests {
     #[test]
     fn test_no_function_body_skipped_silently() {
         let dir = tempfile::tempdir().unwrap();
-        // Type declaration only — no function body
+        // Type declaration only - no function body
         std::fs::write(
             dir.path().join("test_positive.ts"),
             "interface Config { host: string; }",
