@@ -234,6 +234,10 @@ jobs:
             --token ${{ secrets.CARGO_REGISTRY_TOKEN }} \
             --no-default-features \
             --features rust,typescript,fingerprinting
+      - name: Publish Genesense Wrapper
+        run: |
+          cargo publish -p genesense \
+            --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # 5. Publish to NPM
   publish-npm:
@@ -303,6 +307,13 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Genesense NPM Wrapper
+        run: |
+          cd genesense-npm
+          npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
