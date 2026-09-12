@@ -32,8 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Known Architectural Limitations
-- **Corpus Recompilation**: As currently designed, the Frensense engine embeds the compiled `.frc` corpus bundle directly into the binary at compile time via `include_bytes!`. Consequently, users who use the bundler to create custom vulnerability signatures cannot load them at runtime (e.g., no `--load-bundle` CLI flag). Users must currently execute a full `cargo build --release` after building a new corpus to embed it into the scanner.
+### Features
+- **Runtime Corpus Loading**: Users can now load external compiled corpus bundles (`.frc` files) directly at runtime using the new `--corpus-bundle <PATH>` CLI flag, bypassing the previously hardcoded `include_bytes!` compile-time requirement. This enables users to build custom rule bundles with `frensense --build-bundle` and immediately scan targets without recompiling the Rust engine.
 
 
 ### Performance & Noise Reduction

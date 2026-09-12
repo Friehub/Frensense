@@ -70,7 +70,20 @@ fn main() -> Result<()> {
     }
 
     let mut engine = Engine::new();
-    engine.set_corpus_bundle(CORPUS_BUNDLE);
+    if let Some(bundle_path) = &options.corpus_bundle_path {
+        let buffer = std::fs::read(bundle_path).unwrap_or_else(|e| {
+            eprintln!(
+                "Failed to read corpus bundle {}: {}",
+                bundle_path.display(),
+                e
+            );
+            std::process::exit(1);
+        });
+        let leaked: &'static [u8] = Box::leak(buffer.into_boxed_slice());
+        engine.set_corpus_bundle(leaked);
+    } else {
+        engine.set_corpus_bundle(CORPUS_BUNDLE);
+    }
     engine.set_suite(options.suite);
     engine.set_severity_filter(options.severity_filter);
 

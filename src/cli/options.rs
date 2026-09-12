@@ -60,6 +60,7 @@ pub struct CliOptions {
     pub learn_output: Option<PathBuf>,
     pub build_bundle: Flag,
     pub build_bundle_output: Option<PathBuf>,
+    pub corpus_bundle_path: Option<PathBuf>,
     pub scan_mode: String,
     pub use_compiler: bool,
     pub ngram_sim_threshold: Option<f64>,
@@ -140,6 +141,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         learn_output: None,
         build_bundle: Flag::No,
         build_bundle_output: None,
+        corpus_bundle_path: None,
         scan_mode: "fast".to_string(),
         use_compiler: false,
         ngram_sim_threshold: None,
@@ -525,6 +527,12 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 }
             }
             "--build-bundle" => options.build_bundle = Flag::Yes,
+            "--corpus-bundle" => {
+                if let Some(val) = args.get(i + 1) {
+                    options.corpus_bundle_path = Some(PathBuf::from(val));
+                    i += 1;
+                }
+            }
             "--build-bundle-output" => {
                 if let Some(val) = args.get(i + 1) {
                     options.build_bundle_output = Some(PathBuf::from(val));
@@ -724,7 +732,7 @@ pub fn get_input_path(args: &[String]) -> PathBuf {
         input_path_buf.canonicalize().unwrap_or(input_path_buf)
     } else {
         eprintln!(
-            "Error: path '{input_path_str}' does not exist — specify a valid file or directory"
+            "Error: path '{input_path_str}' does not exist - specify a valid file or directory"
         );
         eprintln!();
         eprintln!("Run 'frensense --help' for usage information");

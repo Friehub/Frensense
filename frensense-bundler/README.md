@@ -25,5 +25,5 @@ To maximize recall across wildly different real-world coding styles, the bundler
 - Packages the patterns, multi-scale hashes, learned weights, and semantic hints into a tightly packed binary `.frc` (Frensense Rule Corpus) file.
 - The compiled `.frc` bundle is embedded directly into the Frensense release binary using `include_bytes!`.
 
-### Important Note on Custom Corpora
-Because the bundle is embedded via `include_bytes!`, the engine operates strictly on the corpus it was compiled with. Currently, **there is no runtime flag to load an external `.frc` file.** Therefore, if users write their own custom rules and build a new bundle (`frensense --build-bundle`), they **must** recompile the entire Frensense Rust binary (`cargo build --release`) for the engine to recognize and use the new patterns.
+### Custom Corpora
+By default, the compiled `.frc` bundle is embedded into the engine at compile time via `include_bytes!`. However, users who write custom rules and build a new bundle using `frensense --build-bundle` can load their custom `.frc` file instantly at runtime using the `--corpus-bundle <PATH>` flag, without needing to recompile the Frensense Rust binary.
