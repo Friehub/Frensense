@@ -135,7 +135,7 @@ jobs:
 
       - name: Build FRC Bundle
         if: matrix.settings.host == 'ubuntu-latest'
-        run: cargo run --release --bin frensense-bundler -- -c corpus/targets -o frensense-corpus.frc
+        run: cargo run --release -p frensense-bundler --bin frensense-bundler -- -c corpus/targets -o frensense-corpus.frc
 
       - name: Upload FRC Artifact
         if: matrix.settings.host == 'ubuntu-latest'
