@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789237728752,
+  "lastUpdate": 1789237899014,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Gensense Engine Benchmarks": [
@@ -2811,6 +2811,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/ecc1fb0709e4414b8e286b46269d38c9fbc5e5d7"
         },
         "date": 1789237727344,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 2234,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 1836,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 1671,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 1691,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 1682,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "committer": {
+            "email": "action@github.com",
+            "name": "Friehub Developers",
+            "username": "actions-user"
+          },
+          "distinct": false,
+          "id": "1bd8beabfba5c69c87b5e95537b7119ded0346b8",
+          "message": "chore(ci): add Swatinem/rust-cache to all github action workflows to drastically speed up CI builds",
+          "timestamp": "2026-09-12T19:25:07+01:00",
+          "tree_id": "d9f7578024bf6d74bec76ed6e0efea9200b33566",
+          "url": "https://github.com/Friehub/Frensense/commit/1bd8beabfba5c69c87b5e95537b7119ded0346b8"
+        },
+        "date": 1789237897723,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
