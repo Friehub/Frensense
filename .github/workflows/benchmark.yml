@@ -22,6 +22,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust Cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Build Frensense
         run: cargo build --release
