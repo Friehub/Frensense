@@ -1,6 +1,6 @@
 [package]
 name = "frensense-frc"
-version = "0.6.1"
+version = "0.6.0"
 license = "MIT"
 edition = "2021"
 description = "Frensense corpus format library"
