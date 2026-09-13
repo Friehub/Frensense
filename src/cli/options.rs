@@ -130,7 +130,7 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         profile_stats: Flag::No,
         corpus_dir: None,
         corpus_bundle_path: None,
-        corpus_threshold: 0.40,
+        corpus_threshold: 0.78,
         threshold_overrides: Vec::new(),
         baseline_path: None,
         update_baseline: Flag::No,

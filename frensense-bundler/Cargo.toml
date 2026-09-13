@@ -7,14 +7,14 @@ description = "Frensense corpus bundler library"
 
 [dependencies]
 blake3 = "1.5"
-frensense-frc = { path = "../frensense-frc" }
+frensense-frc = { version = "0.6.0", path = "../frensense-frc" }
 
 tree-sitter = "0.23"
 toml = "0.8"
 regex = "1"
 rustc-hash = "1.1"
 serde = { version = "1.0", features = ["derive"] }
-frensense-lang = { path = "../frensense-lang" }
-frensense-engine = { path = "../frensense-engine" }
+frensense-lang = { version = "0.6.0", path = "../frensense-lang" }
+frensense-engine = { version = "0.6.0", path = "../frensense-engine" }
 
 tree-sitter-typescript = "0.23"
