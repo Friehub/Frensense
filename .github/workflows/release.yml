@@ -225,6 +225,8 @@ jobs:
           else
             cargo publish -p frensense-lang --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
           fi
+      - name: Wait for crates.io index
+        run: sleep 30
       - name: Publish frensense-frc
         run: |
           VERSION=$(grep '^version' frensense-frc/Cargo.toml | head -1 | cut -d'"' -f2)
@@ -233,6 +235,8 @@ jobs:
           else
             cargo publish -p frensense-frc --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
           fi
+      - name: Wait for crates.io index
+        run: sleep 30
       - name: Publish frensense-engine
         run: |
           VERSION=$(grep '^version' frensense-engine/Cargo.toml | head -1 | cut -d'"' -f2)
@@ -241,6 +245,8 @@ jobs:
           else
             cargo publish -p frensense-engine --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
           fi
+      - name: Wait for crates.io index
+        run: sleep 30
       - name: Publish frensense-providers
         run: |
           VERSION=$(grep '^version' frensense-providers/Cargo.toml | head -1 | cut -d'"' -f2)
@@ -249,6 +255,8 @@ jobs:
           else
             cargo publish -p frensense-providers --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
           fi
+      - name: Wait for crates.io index
+        run: sleep 30
       - name: Publish frensense-bundler
         run: |
           VERSION=$(grep '^version' frensense-bundler/Cargo.toml | head -1 | cut -d'"' -f2)
@@ -265,6 +273,8 @@ jobs:
           else
             cargo publish -p frensense --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --no-default-features --features rust,typescript,fingerprinting
           fi
+      - name: Wait for crates.io index
+        run: sleep 30
       - name: Publish genesense wrapper
         run: |
           VERSION=$(grep '^version' genesense-wrapper/Cargo.toml | head -1 | cut -d'"' -f2)
@@ -312,12 +322,12 @@ jobs:
           mkdir -p dist/binaries
 
           # CLI binaries (platform-named for the postinstall resolver)
+          # The .frc corpus is embedded in the binary via include_bytes! — no need to ship it
           cp artifacts/cli-x86_64-unknown-linux-gnu/frensense    ./dist/frensense
           cp artifacts/cli-x86_64-unknown-linux-gnu/frensense    ./dist/binaries/frensense-linux-x64
           cp artifacts/cli-x86_64-apple-darwin/frensense          ./dist/binaries/frensense-macos-x64
           cp artifacts/cli-aarch64-apple-darwin/frensense          ./dist/binaries/frensense-macos-arm64
           cp artifacts/cli-x86_64-pc-windows-msvc/frensense.exe   ./dist/binaries/frensense-windows-x64.exe
-          cp artifacts/frensense-corpus/frensense-corpus.frc      ./dist/frensense-corpus.frc
 
       - name: Test NPM package before publish
         run: |
@@ -359,14 +369,14 @@ jobs:
           echo "Genesense NPM wrapper OK"
 
       - name: Publish to NPM
-        run: npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
+        run: npm publish --tag latest --registry https://registry.npmjs.org/ --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish Genesense NPM Wrapper
         run: |
           cd genesense-npm
-          npm publish --tag latest --registry https://registry.npmjs.org/ --access public --provenance
+          npm publish --tag latest --registry https://registry.npmjs.org/ --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
