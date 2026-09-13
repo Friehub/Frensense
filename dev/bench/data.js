@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789324055851,
+  "lastUpdate": 1789330362011,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Benchmark": [
@@ -541,6 +541,80 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/Friehub/Frensense/commit/212e4db4e865d4d06192020491481d7d7c0aa150"
         },
         "date": 1789324054088,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 376,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 376,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 345,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 345,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 345,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 345,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ade342ece37c77b14907a9fd1b97d55c4bb704b9",
+          "message": "fix(release): add cargo publish delays, remove .frc from npm, drop --provenance (#87)\n\n- Add sleep 30 between each cargo publish to wait for crates.io index\n- Remove frensense-corpus.frc from npm dist/ (binary embeds it via include_bytes!)\n- Remove --provenance from npm publish (causes ERR_INVALID_URL)\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-09-13T20:07:47Z",
+          "tree_id": "c46fc40e7bd42d471a7db61ced8a4d3a75e9f006",
+          "url": "https://github.com/Friehub/Frensense/commit/ade342ece37c77b14907a9fd1b97d55c4bb704b9"
+        },
+        "date": 1789330360270,
         "tool": "customBiggerIsBetter",
         "benches": [
           {
