@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789318640250,
+  "lastUpdate": 1789321726309,
   "repoUrl": "https://github.com/Friehub/Frensense",
   "entries": {
     "Benchmark": [
@@ -369,6 +369,80 @@ window.BENCHMARK_DATA = {
           {
             "name": "Juice Shop v20.2.0",
             "value": 1682,
+            "unit": "advisories"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76975899+0xademola@users.noreply.github.com",
+            "name": "0xademola",
+            "username": "0xademola"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a0eb0087911dae4977b9286cc614e3ff23e8505c",
+          "message": "Fix/release issues (#85)\n\n* fix(release): fix crates.io version deps, npm package bloat, and ERR_INVALID_URL\n\ncrates.io fixes:\n- frensense-providers: add version='0.6.0' to frensense-engine dependency\n- frensense-bundler: add version='0.6.0' to frensense-frc, frensense-lang,\n  frensense-engine dependencies (all were path-only)\n\nnpm fixes:\n- package.json: add files field (bin/frensense.js, dist/) to exclude source\n- package.json: remove git+ prefix from repository.url (caused ERR_INVALID_URL)\n- package.json: remove unnecessary runtime deps (@google/genai, openai)\n  and devDependencies (vitepress) - not needed for binary wrapper\n- package-lock.json: clean up to match\n- genesense-npm/package.json: add files field to exclude .tgz from pack\n- Reduced npm package from 31MB/2271 files to 2.4MB/4 files\n\nCleanup:\n- Remove stale .tgz files from git tracking\n- Remove merge artifacts (.orig, .rej) from tracking\n- Remove dump_filter scratch files from tracking\n- Add *.tgz, *.orig, *.rej, dump_filter*.rs to .gitignore\n\n* feat(cli): raise default corpus threshold from 0.40 to 0.78\n\nThe previous default was too loose, producing too many low-confidence\nfindings. Raising to 0.78 reduces noise while keeping high-confidence\nmatches.\n\n---------\n\nCo-authored-by: Friehub Developers <action@github.com>",
+          "timestamp": "2026-09-13T17:43:30Z",
+          "tree_id": "44478d7866cb2e57abd583668231adc44080ee7f",
+          "url": "https://github.com/Friehub/Frensense/commit/a0eb0087911dae4977b9286cc614e3ff23e8505c"
+        },
+        "date": 1789321724936,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Juice Shop v18.0.0",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.0.0",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.0",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.1.1",
+            "value": 417,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.0",
+            "value": 376,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v19.2.1",
+            "value": 376,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.0.0",
+            "value": 345,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.0",
+            "value": 345,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.1.1",
+            "value": 345,
+            "unit": "advisories"
+          },
+          {
+            "name": "Juice Shop v20.2.0",
+            "value": 345,
             "unit": "advisories"
           }
         ]
