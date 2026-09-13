@@ -10,7 +10,7 @@ blake3 = "1.5"
 frensense-frc = { path = "../frensense-frc" }
 
 tree-sitter = "0.23"
-toml = "0.8"
+toml = "1.1"
 regex = "1"
 rustc-hash = "1.1"
 serde = { version = "1.0", features = ["derive"] }
