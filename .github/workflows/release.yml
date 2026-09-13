@@ -323,7 +323,7 @@ jobs:
 
           # CLI binaries (platform-named for the postinstall resolver)
           # The .frc corpus is embedded in the binary via include_bytes! — no need to ship it
-          cp artifacts/cli-x86_64-unknown-linux-gnu/frensense    ./dist/frensense
+          # Do NOT copy to ./dist/frensense — bin/frensense.js looks in dist/binaries/
           cp artifacts/cli-x86_64-unknown-linux-gnu/frensense    ./dist/binaries/frensense-linux-x64
           cp artifacts/cli-x86_64-apple-darwin/frensense          ./dist/binaries/frensense-macos-x64
           cp artifacts/cli-aarch64-apple-darwin/frensense          ./dist/binaries/frensense-macos-arm64
