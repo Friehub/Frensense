@@ -2,6 +2,10 @@
   "name": "@friehub/frensense",
   "version": "0.6.0",
   "description": "Frensense: Deterministic, corpus-driven security and diagnostic engine.",
+  "files": [
+    "bin/frensense.js",
+    "dist/"
+  ],
   "bin": {
     "frensense": "bin/frensense.js"
   },
@@ -9,14 +13,9 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "scripts": {
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
-  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Friehub/Frensense.git"
+    "url": "https://github.com/Friehub/Frensense.git"
   },
   "keywords": [
     "frensense",
@@ -31,12 +30,5 @@
   "bugs": {
     "url": "https://github.com/Friehub/Frensense/issues"
   },
-  "homepage": "https://friehub.github.io/frensense/",
-  "devDependencies": {
-    "vitepress": "^1.6.4"
-  },
-  "dependencies": {
-    "@google/genai": "^2.12.0",
-    "openai": "^6.48.0"
-  }
+  "homepage": "https://friehub.github.io/frensense/"
 }
