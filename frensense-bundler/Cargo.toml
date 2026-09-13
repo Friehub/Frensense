@@ -3,6 +3,7 @@ name = "frensense-bundler"
 version = "0.6.0"
 license = "MIT"
 edition = "2021"
+description = "Frensense corpus bundler library"
 
 [dependencies]
 blake3 = "1.5"

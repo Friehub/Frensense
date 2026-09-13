@@ -5,14 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Fixed
-- **ML Gradient Descent - Sigmoid Saturation (Bug 1)**: `predict()` in `frensense-bundler/src/pattern/weight_learner.rs` previously computed `sigmoid(w·x)` where both the weight vector and feature vector live in `[0, 1]`, constraining sigmoid output to `[0.50, 0.73]`. The gradient `(pred - label)` was always ~0.5 in magnitude for both classes, making discrimination impossible. Fixed by centering and scaling features before the dot product: `Σ wᵢ·(xᵢ - 0.5)·4`, giving sigmoid outputs in `[0.12, 0.88]`.
-- **ML Gradient Descent - Missing L2 Regularization (Bug 2)**: No regularization meant individual noisy training examples could dominate the gradient on small corpora. Fixed by adding an L2 penalty anchored to `DEFAULT_WEIGHTS` (`λ=0.01`): `grad[i] += λ·(w[i] - DEFAULT_WEIGHTS[i])`. This blends data signal with the hand-tuned prior instead of regularizing toward zero.
-- **ML Gradient Descent - Degenerate Label=1 Training Pairs (Bug 3)**: Label=1 examples were constructed as all `(posᵢ, posⱼ)` intra-positive pairs, measuring similarity between two different shapes of the same bug. These pairs produce low similarity vectors, the opposite of what the scorer sees at inference time when it takes `max(candidate, positives)`. Fixed with leave-one-out: for each positive `pᵢ`, find its best-matching counterpart among all other positives and use that feature vector as the label=1 example.
-- **ML Gradient Descent - `MIN_TRAINING_PAIRS` Too Low (Bug 4)**: Threshold was 5. A 15-parameter model trained on 5 feature vectors is severely underdetermined. Raised to 20. Patterns with fewer pairs now fall back to the global learned weights instead of per-pattern overfitted weights.
-- **ML Gradient Descent - Dead `result` HashMap + Early Return (Bug 5)**: The function allocated a first `HashMap`, populated it with `DEFAULT_WEIGHTS` for every pattern, and returned early - the second `HashMap` and all real training logic below was unreachable dead code. The early return and dead first block are now removed; training is re-enabled.
-- **ML Gradient Descent - Explicit `return` Idiom Violation (Bug 6)**: `compute_features` used an explicit `return` on its last expression. Fixed to use implicit return consistent with the rest of the codebase.
-- **Gradient Descent Weight Init (prior session)**: `train_weights` now initializes `w` from `DEFAULT_WEIGHTS` instead of `[0.0; 15]`, so poor convergence degrades gracefully to the known-good prior.
 
 ## [0.6.0] - 2026-09-10
 ### Architecture & Core Engine
@@ -22,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Benchmark Validated**: The structural PDG upgrade increased True Positives on NodeGoat and Juice Shop by 145% (from 11 to 27) compared to the baseline heuristic.
 
 ### Fixed
+- **ML Gradient Descent - Sigmoid Saturation (Bug 1)**: `predict()` in `frensense-bundler/src/pattern/weight_learner.rs` previously computed `sigmoid(w·x)` where both the weight vector and feature vector live in `[0, 1]`, constraining sigmoid output to `[0.50, 0.73]`. The gradient `(pred - label)` was always ~0.5 in magnitude for both classes, making discrimination impossible. Fixed by centering and scaling features before the dot product: `Σ wᵢ·(xᵢ - 0.5)·4`, giving sigmoid outputs in `[0.12, 0.88]`.
+- **ML Gradient Descent - Missing L2 Regularization (Bug 2)**: No regularization meant individual noisy training examples could dominate the gradient on small corpora. Fixed by adding an L2 penalty anchored to `DEFAULT_WEIGHTS` (`λ=0.01`): `grad[i] += λ·(w[i] - DEFAULT_WEIGHTS[i])`. This blends data signal with the hand-tuned prior instead of regularizing toward zero.
+- **ML Gradient Descent - Degenerate Label=1 Training Pairs (Bug 3)**: Label=1 examples were constructed as all `(posᵢ, posⱼ)` intra-positive pairs, measuring similarity between two different shapes of the same bug. These pairs produce low similarity vectors, the opposite of what the scorer sees at inference time when it takes `max(candidate, positives)`. Fixed with leave-one-out: for each positive `pᵢ`, find its best-matching counterpart among all other positives and use that feature vector as the label=1 example.
+- **ML Gradient Descent - `MIN_TRAINING_PAIRS` Too Low (Bug 4)**: Threshold was 5. A 15-parameter model trained on 5 feature vectors is severely underdetermined. Raised to 20. Patterns with fewer pairs now fall back to the global learned weights instead of per-pattern overfitted weights.
+- **ML Gradient Descent - Dead `result` HashMap + Early Return (Bug 5)**: The function allocated a first `HashMap`, populated it with `DEFAULT_WEIGHTS` for every pattern, and returned early - the second `HashMap` and all real training logic below was unreachable dead code. The early return and dead first block are now removed; training is re-enabled.
+- **ML Gradient Descent - Explicit `return` Idiom Violation (Bug 6)**: `compute_features` used an explicit `return` on its last expression. Fixed to use implicit return consistent with the rest of the codebase.
+- **Gradient Descent Weight Init (prior session)**: `train_weights` now initializes `w` from `DEFAULT_WEIGHTS` instead of `[0.0; 15]`, so poor convergence degrades gracefully to the known-good prior.
+- **Engine Divergence (Regex to AST for Call Targets)**: Completely eliminated a severe divergence bug between `frensense-bundler` (which learns node rules via AST) and `frensense-engine` (which was enforcing them via naive Regex).
+  - **The Problem:** The engine previously used `crate::auto_filter::extract_call_targets` (which relied on `regex::Regex::new(r"([a-zA-Z0-9_]+)\s*\(")`). This anti-pattern stripped namespaces (e.g. `vm.runInContext` was captured only as `runInContext`) and hallucinated function calls on control flow structures like `if (` and `while (`.
+  - **The Fix:** Refactored `SemanticFilter::matches` in `frensense-engine/src/corpus/semantic.rs` to implement a full Tree-sitter AST pre-order traversal (`extract_ast_call_targets`). We now walk `call_expression` nodes directly and extract the `callee` using `std::str::from_utf8`.
+  - **The Result:** False Positives on the OWASP Juice Shop benchmark plummeted from 38 down to 18. Notorious false positives like `CORPUS_TS_RCE_VM_CONTEXT` and `CORPUS_TS_PERM_CACHE_STALE_ELEVATION` were completely eliminated because the scanner now enforces context rules with 100% fidelity to the bundler.
 - **Weight Learner Bias Fix**: Fixed a critical gradient descent bug in `frensense-bundler` where missing dimensions (like cross-file `flow_sim`) maintained their `0.5` initialization weight and stole up to 50% of the overall classification weight from valid dimensions during normalization. Dimensions are now initialized to `0.0`.
 - **AST Extraction for Semantic Rules**: Replaced the fragile `extract_call_targets` regex in both the bundler and engine with a robust Tree-sitter AST walk, completely eliminating mismatches where the bundler learned structural motifs that the inference engine failed to extract.
 - **OOM during LCS similarity**: Replaced the unbounded `O(N*M)` matrix allocation in `lcs_similarity` with an `O(min(N, M))` two-row approach and a length cap, fixing fatal out-of-memory panics when the bundler processed control-flow graphs with 20,000+ paths.
@@ -39,24 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NodeGoat Recall**: 56.67% (17/30 vulnerabilities hit)
 - *Note: These results were achieved without strict gates, allowing the engine's data-flow improvements to generalize across different ORMs.*
 
-
-## [Unreleased]
-
-### Fixed
-
-- **Engine Divergence (Regex to AST for Call Targets)**: Completely eliminated a severe divergence bug between `frensense-bundler` (which learns node rules via AST) and `frensense-engine` (which was enforcing them via naive Regex).
-  - **The Problem:** The engine previously used `crate::auto_filter::extract_call_targets` (which relied on `regex::Regex::new(r"([a-zA-Z0-9_]+)\s*\(")`). This anti-pattern stripped namespaces (e.g. `vm.runInContext` was captured only as `runInContext`) and hallucinated function calls on control flow structures like `if (` and `while (`.
-  - **The Fix:** Refactored `SemanticFilter::matches` in `frensense-engine/src/corpus/semantic.rs` to implement a full Tree-sitter AST pre-order traversal (`extract_ast_call_targets`). We now walk `call_expression` nodes directly and extract the `callee` using `std::str::from_utf8`.
-  - **The Result:** False Positives on the OWASP Juice Shop benchmark plummeted from 38 down to 18. Notorious false positives like `CORPUS_TS_RCE_VM_CONTEXT` and `CORPUS_TS_PERM_CACHE_STALE_ELEVATION` were completely eliminated because the scanner now enforces context rules with 100% fidelity to the bundler.
-  - **The Benchmark:** Note that while False Positives fell significantly, True Positives also fell as the engine strictly enforced the learned AST rules against the benchmark targets:
-    ```text
-    === FRENSENSE OWASP JUICE SHOP BENCHMARK ===
-    Ground truth:      37 vulnerable files
-    True Positives:    2  (findings on known-vuln files)
-    False Positives:   18  (findings on clean files)
-    Precision:         10.00%
-    File Recall:       5.41%  (2/37 vuln files hit)
-    ```
 
 ## [0.5.3-fp-fix] - 2026-09-08
 
