@@ -59,6 +59,9 @@ TODO.md
 # Other
 *.cast
 test-*.js
+*.orig
+*.rej
+dump_filter*.rs
 
 # Large files
 *.zip
@@ -72,3 +75,6 @@ tests/benchmarks/samples/
 # Secrets
 .env
 corpus/archived/
+
+# npm tarballs
+*.tgz

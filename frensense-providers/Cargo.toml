@@ -9,7 +9,7 @@ description = "Compiler-backed semantic providers for Frensense"
 name = "frensense_providers"
 
 [dependencies]
-frensense-engine = { path = "../frensense-engine" }
+frensense-engine = { version = "0.6.0", path = "../frensense-engine" }
 rustc-hash = "1.1"
 
 # Oxc (JS/TS)
