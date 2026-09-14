@@ -281,7 +281,7 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
           ./node_modules/.bin/frensense --version
           echo 'fn main() { let x = 1; }' > test.rs
           ./node_modules/.bin/frensense test.rs --json > /dev/null
@@ -295,7 +295,7 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
           npm install "$GITHUB_WORKSPACE"/genesense-npm/genesense-*.tgz
           ./node_modules/.bin/genesense --version
           echo "fn main() { let y = 2; }" > test2.rs
