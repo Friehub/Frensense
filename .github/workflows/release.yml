@@ -223,12 +223,12 @@ jobs:
       - name: Publish genesense wrapper
         run: |
           VERSION=$(grep '^version' genesense-wrapper/Cargo.toml | head -1 | cut -d'"' -f2)
-          EXISTS=$(curl -sf -H "User-Agent: frensense-release" "https://crates.io/api/v1/crates/genesense" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          EXISTS=$(curl -sf -H "User-Agent: frensense-release" "https://crates.io/api/v1/crates/gensense" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
           if [ "$EXISTS" = "$VERSION" ]; then
-            echo "genesense@$VERSION already published. Skipping."
+            echo "gensense@$VERSION already published. Skipping."
           else
-            echo "Publishing genesense@$VERSION to crates.io..."
-            cargo publish -p genesense --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
+            echo "Publishing gensense@$VERSION to crates.io..."
+            cargo publish -p gensense --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
           fi
 
   # 5. Publish to NPM
@@ -281,7 +281,7 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
           ./node_modules/.bin/frensense --version
           echo 'fn main() { let x = 1; }' > test.rs
           ./node_modules/.bin/frensense test.rs --json > /dev/null
@@ -295,11 +295,11 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
           npm install "$GITHUB_WORKSPACE"/genesense-npm/genesense-*.tgz
-          ./node_modules/.bin/genesense --version
+          ./node_modules/.bin/gensense --version
           echo "fn main() { let y = 2; }" > test2.rs
-          ./node_modules/.bin/genesense test2.rs --json > /dev/null
+          ./node_modules/.bin/gensense test2.rs --json > /dev/null
           echo "Genesense NPM wrapper OK"
 
       - name: Check version not already published
