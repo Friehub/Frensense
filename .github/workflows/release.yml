@@ -281,7 +281,7 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
           ./node_modules/.bin/frensense --version
           echo 'fn main() { let x = 1; }' > test.rs
           ./node_modules/.bin/frensense test.rs --json > /dev/null
@@ -295,7 +295,7 @@ jobs:
           cd "$TESTDIR"
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/friehub-frensense-*.tgz
           npm install "$GITHUB_WORKSPACE"/genesense-npm/gensense-*.tgz
           ./node_modules/.bin/gensense --version
           echo "fn main() { let y = 2; }" > test2.rs
@@ -305,7 +305,7 @@ jobs:
       - name: Check version not already published
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/frensense/$VERSION")
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/@friehub/frensense/$VERSION")
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "Version $VERSION already exists on NPM. Skipping."
             echo "already_published=true" >> $GITHUB_OUTPUT

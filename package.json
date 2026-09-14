@@ -1,5 +1,5 @@
 {
-  "name": "frensense",
+  "name": "@friehub/frensense",
   "version": "0.6.0",
   "description": "Frensense: Deterministic, corpus-driven security and diagnostic engine.",
   "files": [
@@ -8,6 +8,10 @@
   ],
   "bin": {
     "frensense": "bin/run.js"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "repository": {
     "type": "git",
