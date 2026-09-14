@@ -220,7 +220,8 @@ jobs:
       - name: Publish frensense-lang
         run: |
           VERSION=$(grep '^version' frensense-lang/Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search frensense-lang --limit 10 2>/dev/null | grep -q "^frensense-lang = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/frensense-lang" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "frensense-lang@$VERSION already published. Skipping."
           else
             cargo publish -p frensense-lang --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -230,7 +231,8 @@ jobs:
       - name: Publish frensense-frc
         run: |
           VERSION=$(grep '^version' frensense-frc/Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search frensense-frc --limit 10 2>/dev/null | grep -q "^frensense-frc = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/frensense-frc" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "frensense-frc@$VERSION already published. Skipping."
           else
             cargo publish -p frensense-frc --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -240,7 +242,8 @@ jobs:
       - name: Publish frensense-engine
         run: |
           VERSION=$(grep '^version' frensense-engine/Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search frensense-engine --limit 10 2>/dev/null | grep -q "^frensense-engine = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/frensense-engine" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "frensense-engine@$VERSION already published. Skipping."
           else
             cargo publish -p frensense-engine --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -250,7 +253,8 @@ jobs:
       - name: Publish frensense-providers
         run: |
           VERSION=$(grep '^version' frensense-providers/Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search frensense-providers --limit 10 2>/dev/null | grep -q "^frensense-providers = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/frensense-providers" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "frensense-providers@$VERSION already published. Skipping."
           else
             cargo publish -p frensense-providers --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -260,7 +264,8 @@ jobs:
       - name: Publish frensense-bundler
         run: |
           VERSION=$(grep '^version' frensense-bundler/Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search frensense-bundler --limit 10 2>/dev/null | grep -q "^frensense-bundler = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/frensense-bundler" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "frensense-bundler@$VERSION already published. Skipping."
           else
             cargo publish -p frensense-bundler --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -268,7 +273,8 @@ jobs:
       - name: Publish frensense
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search frensense --limit 10 2>/dev/null | grep -q "^frensense = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/frensense" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "frensense@$VERSION already published. Skipping."
           else
             cargo publish -p frensense --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --no-default-features --features rust,typescript,fingerprinting
@@ -278,7 +284,8 @@ jobs:
       - name: Publish genesense wrapper
         run: |
           VERSION=$(grep '^version' genesense-wrapper/Cargo.toml | head -1 | cut -d'"' -f2)
-          if cargo search genesense --limit 10 2>/dev/null | grep -q "^genesense = \"${VERSION}\""; then
+          EXISTS=$(curl -sf "https://crates.io/api/v1/crates/genesense" | python3 -c "import json,sys; print(json.load(sys.stdin).get('crate',{}).get('max_version',''))" 2>/dev/null || echo "")
+          if [ "$EXISTS" = "$VERSION" ]; then
             echo "genesense@$VERSION already published. Skipping."
           else
             cargo publish -p genesense --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
