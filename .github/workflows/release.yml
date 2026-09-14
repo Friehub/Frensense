@@ -296,7 +296,7 @@ jobs:
           npm init -y > /dev/null
           echo "registry=https://registry.npmjs.org/" > .npmrc
           npm install "$GITHUB_WORKSPACE"/frensense-*.tgz
-          npm install "$GITHUB_WORKSPACE"/genesense-npm/genesense-*.tgz
+          npm install "$GITHUB_WORKSPACE"/genesense-npm/gensense-*.tgz
           ./node_modules/.bin/gensense --version
           echo "fn main() { let y = 2; }" > test2.rs
           ./node_modules/.bin/gensense test2.rs --json > /dev/null
