@@ -1,5 +1,5 @@
 [package]
-name = "genesense"
+name = "gensense"
 version = "0.6.0"
 authors = ["Friehub Developers"]
 edition = "2024"
@@ -10,7 +10,7 @@ license = "MIT"
 publish = true
 
 [[bin]]
-name = "genesense"
+name = "gensense"
 path = "src/main.rs"
 
 [dependencies]
