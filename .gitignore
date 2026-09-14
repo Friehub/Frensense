@@ -13,6 +13,7 @@ frensense
 frensense.exe
 frensense.d.ts
 frensense.js
+!bin/frensense.js
 index.js
 index.d.ts
 
