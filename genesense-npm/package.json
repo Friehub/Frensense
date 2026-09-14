@@ -1,5 +1,5 @@
 {
-  "name": "genesense",
+  "name": "gensense",
   "version": "0.6.0",
   "description": "Deprecated. The project has been renamed to frensense. Please install frensense instead.",
   "files": [
@@ -16,6 +16,6 @@
     "postinstall": "echo '\n\nWARNING: The genesense package has been renamed to frensense.\nPlease update your dependencies to use frensense!\n\n'"
   },
   "bin": {
-    "genesense": "bin/genesense.js"
+    "gensense": "bin/genesense.js"
   }
 }
