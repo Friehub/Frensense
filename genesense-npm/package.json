@@ -1,7 +1,7 @@
 {
   "name": "genesense",
   "version": "0.6.0",
-  "description": "Deprecated. The project has been renamed to frensense. Please install @friehub/frensense instead.",
+  "description": "Deprecated. The project has been renamed to frensense. Please install frensense instead.",
   "files": [
     "bin/genesense.js"
   ],
@@ -10,10 +10,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@friehub/frensense": "^0.6.0"
+    "frensense": "^0.6.0"
   },
   "scripts": {
-    "postinstall": "echo '\n\nWARNING: The genesense package has been renamed to @friehub/frensense.\nPlease update your dependencies to use @friehub/frensense!\n\n'"
+    "postinstall": "echo '\n\nWARNING: The genesense package has been renamed to frensense.\nPlease update your dependencies to use frensense!\n\n'"
   },
   "bin": {
     "genesense": "bin/genesense.js"
