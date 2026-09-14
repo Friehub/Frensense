@@ -305,7 +305,7 @@ jobs:
       - name: Check version not already published
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/@friehub/frensense/$VERSION")
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/frensense/$VERSION")
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "Version $VERSION already exists on NPM. Skipping."
             echo "already_published=true" >> $GITHUB_OUTPUT
