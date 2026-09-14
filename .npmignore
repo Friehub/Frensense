@@ -1,8 +1,0 @@
-# Only bin/frensense.js and dist/ are needed (see files field in package.json)
-# Everything else excluded
-*
-!bin/
-!dist/
-!README.md
-!package.json
-!LICENSE
