@@ -55,7 +55,7 @@ fn extract_skeleton_recursive(
     skeleton: &mut Vec<String>,
     spec: Option<&dyn frensense_lang::LanguageSpec>,
 ) {
-    if skeleton.len() > 256 {
+    if skeleton.len() >= 256 {
         return;
     }
 
