@@ -128,10 +128,18 @@ fn collect_tainted_vars(
 ) {
     let kind = node.kind();
 
-    if kind == "identifier" || kind == "variable_declarator" {
+    if kind == "identifier" {
         let name = &source[node.start_byte()..node.end_byte()];
         if registry.is_tainted(name) {
             vars.insert(name.to_string());
+        }
+    } else if kind == "variable_declarator" {
+        // Extract just the name field, not the full declaration text
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = &source[name_node.start_byte()..name_node.end_byte()];
+            if registry.is_tainted(name) {
+                vars.insert(name.to_string());
+            }
         }
     }
 
