@@ -259,21 +259,7 @@ impl SemanticGraph {
     }
 
     pub fn record_taint_flow(&mut self, record: TaintFlowRecord) {
-        let func_name = record.function_name.clone();
-        let file_path = record.file_path.clone();
         self.taint_flows.push(record);
-
-        if let Some(node_id) = self.name_index.get(&func_name).and_then(|indices| {
-            indices.iter().find(|&&idx| {
-                if let Some(SemanticNode::Declaration(s)) = self.graph.node_weight(idx) {
-                    s.file_path == file_path
-                } else {
-                    false
-                }
-            })
-        }) {
-            self.graph.add_edge(*node_id, *node_id, EdgeKind::TaintFlow);
-        }
     }
 
     pub fn taint_flows(&self) -> &[TaintFlowRecord] {
