@@ -123,13 +123,6 @@ pub fn merge_filters(
                 merged.function_name_regex = Some(re.clone());
             }
         }
-        if let Some(nodes) = stats.must_not_contain_node_type.get(pattern_id) {
-            for node in nodes {
-                if !merged.must_not_contain_node_type.contains(node) {
-                    merged.must_not_contain_node_type.push(node.clone());
-                }
-            }
-        }
         if let Some(fnames) = stats.must_not_match_function_name.get(pattern_id) {
             for fname in fnames {
                 if !merged.must_not_match_function_name.contains(fname) {
