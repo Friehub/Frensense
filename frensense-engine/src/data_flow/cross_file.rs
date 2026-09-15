@@ -36,16 +36,28 @@ impl CrossFileTaintResolver {
         Self::default()
     }
 
+    /// Create a key from file path and symbol name using `::` delimiter.
+    /// Using `::` instead of `:` avoids breaking on Windows drive letters (C:\...).
+    fn make_key(file_path: &str, symbol_name: &str) -> String {
+        format!("{file_path}::{symbol_name}")
+    }
+
+    /// Split a key into (file_path, symbol_name). Returns None if malformed.
+    fn split_key(key: &str) -> Option<(&str, &str)> {
+        // Find "::" delimiter; on Windows, avoid matching drive letter ":" (pos 1)
+        key.find("::").map(|idx| (&key[..idx], &key[idx + 2..]))
+    }
+
     #[cfg(feature = "full-analysis")]
     pub fn build_from_symbols(&mut self, all_symbols: &[&Symbol], graph: &SemanticGraph) {
         for sym in all_symbols {
-            let sym_key = format!("{}:{}", sym.file_path, sym.name);
+            let sym_key = Self::make_key(&sym.file_path, &sym.name);
             let callees = graph
                 .find_nodes(&sym.name)
                 .into_iter()
                 .flat_map(|node_id| graph.neighbors_of(node_id, EdgeKind::Calls))
                 .filter_map(|callee_id| graph.get_symbol(callee_id))
-                .map(|callee| format!("{}:{}", callee.file_path, callee.name));
+                .map(|callee| Self::make_key(&callee.file_path, &callee.name));
 
             let callee_list: Vec<String> = callees.collect();
             if !callee_list.is_empty() {
@@ -69,9 +81,9 @@ impl CrossFileTaintResolver {
         file_path: &str,
         origin: TaintOrigin,
     ) {
-        // Key is "{file_path}:{symbol_key}" for O(1) lookup in find_taint_source.
+        // Key uses "::" delimiter to avoid breaking on Windows drive letters.
         self.exposed_taint
-            .insert(format!("{file_path}:{symbol_key}"), origin);
+            .insert(Self::make_key(file_path, symbol_key), origin);
     }
 
     /// Propagate taint forward through the call graph.
@@ -105,14 +117,14 @@ impl CrossFileTaintResolver {
                 if let Some(callees) = self.call_graph.get(&current) {
                     for callee in callees {
                         if let Some(reg) = sanitizers {
-                            let callee_name = callee.split(':').last().unwrap_or(callee.as_str());
+                            let callee_name = callee.split("::").last().unwrap_or(callee.as_str());
                             if reg.is_full_sanitizer(callee_name) {
                                 continue;
                             }
                         }
                         if visited.insert(callee.clone()) {
                             // Register the intermediate function as a taint source
-                            // using the flat "{file}:{symbol}" key format.
+                            // using the flat "{file}::{symbol}" key format.
                             self.exposed_taint
                                 .entry(callee.clone())
                                 .or_insert_with(|| origin.clone());
@@ -130,7 +142,7 @@ impl CrossFileTaintResolver {
         sink_file: &str,
         max_depth: usize,
     ) -> Vec<CrossFileTaint> {
-        let sink_key = format!("{sink_file}:{sink_symbol}");
+        let sink_key = Self::make_key(sink_file, sink_symbol);
         let mut results = Vec::new();
         let mut visited = FxHashSet::default();
         let mut queue = VecDeque::new();
@@ -143,12 +155,9 @@ impl CrossFileTaintResolver {
             }
 
             if let Some((origin, source_key)) = self.find_taint_source(&current) {
-                let mut source_file = source_key.clone();
-                let mut source_symbol = source_key.clone();
-                if let Some(idx) = source_key.find(':') {
-                    source_file = source_key[..idx].to_string();
-                    source_symbol = source_key[idx + 1..].to_string();
-                }
+                let (source_file, source_symbol) = Self::split_key(&source_key)
+                    .map(|(f, s)| (f.to_string(), s.to_string()))
+                    .unwrap_or_else(|| (source_key.clone(), source_key.clone()));
                 results.push(CrossFileTaint {
                     source_file,
                     sink_file: sink_file.to_string(),
@@ -189,9 +198,7 @@ impl CrossFileTaintResolver {
     pub fn all_taint_paths(&self, max_depth: usize) -> Vec<CrossFileTaint> {
         let mut results = Vec::new();
         for sink_key in self.call_graph.keys() {
-            if let Some(idx) = sink_key.find(':') {
-                let sink_file = &sink_key[..idx];
-                let sink_symbol = &sink_key[idx + 1..];
+            if let Some((sink_file, sink_symbol)) = Self::split_key(sink_key) {
                 let paths = self.resolve_taint(sink_symbol, sink_file, max_depth);
                 results.extend(paths);
             }
@@ -248,20 +255,20 @@ mod tests {
         let mut resolver = CrossFileTaintResolver::new();
         // Build a call graph: source → intermediate → sink
         resolver.call_graph.insert(
-            "a.rs:source".to_string(),
-            vec!["a.rs:intermediate".to_string()],
+            "a.rs::source".to_string(),
+            vec!["a.rs::intermediate".to_string()],
         );
         resolver.call_graph.insert(
-            "a.rs:intermediate".to_string(),
-            vec!["a.rs:sink".to_string()],
+            "a.rs::intermediate".to_string(),
+            vec!["a.rs::sink".to_string()],
         );
         resolver.reverse_call_graph.insert(
-            "a.rs:intermediate".to_string(),
-            vec!["a.rs:source".to_string()],
+            "a.rs::intermediate".to_string(),
+            vec!["a.rs::source".to_string()],
         );
         resolver.reverse_call_graph.insert(
-            "a.rs:sink".to_string(),
-            vec!["a.rs:intermediate".to_string()],
+            "a.rs::sink".to_string(),
+            vec!["a.rs::intermediate".to_string()],
         );
 
         // Seed only the source
@@ -278,7 +285,7 @@ mod tests {
         // After propagation: intermediate is transitively seeded
         resolver.propagate_taint(None);
         assert!(
-            resolver.exposed_taint.contains_key("a.rs:intermediate"),
+            resolver.exposed_taint.contains_key("a.rs::intermediate"),
             "propagate_taint should register intermediate as a taint source"
         );
 
@@ -297,26 +304,26 @@ mod tests {
         // Chain longer than PROPAGATE_MAX_DEPTH
         resolver
             .call_graph
-            .insert("a.rs:f0".to_string(), vec!["a.rs:f1".to_string()]);
+            .insert("a.rs::f0".to_string(), vec!["a.rs::f1".to_string()]);
         resolver
             .call_graph
-            .insert("a.rs:f1".to_string(), vec!["a.rs:f2".to_string()]);
+            .insert("a.rs::f1".to_string(), vec!["a.rs::f2".to_string()]);
         resolver
             .call_graph
-            .insert("a.rs:f2".to_string(), vec!["a.rs:f3".to_string()]);
+            .insert("a.rs::f2".to_string(), vec!["a.rs::f3".to_string()]);
         resolver
             .call_graph
-            .insert("a.rs:f3".to_string(), vec!["a.rs:f4".to_string()]);
+            .insert("a.rs::f3".to_string(), vec!["a.rs::f4".to_string()]);
         resolver
             .call_graph
-            .insert("a.rs:f4".to_string(), vec!["a.rs:f5".to_string()]);
+            .insert("a.rs::f4".to_string(), vec!["a.rs::f5".to_string()]);
         resolver
             .call_graph
-            .insert("a.rs:f5".to_string(), vec!["a.rs:f6".to_string()]);
+            .insert("a.rs::f5".to_string(), vec!["a.rs::f6".to_string()]);
         for i in 1..=6 {
             resolver
                 .reverse_call_graph
-                .insert(format!("a.rs:f{i}"), vec![format!("a.rs:f{}", i - 1)]);
+                .insert(format!("a.rs::f{i}"), vec![format!("a.rs::f{}", i - 1)]);
         }
 
         resolver.register_exposed_taint("f0", "a.rs", TaintOrigin::UserInput);
@@ -325,12 +332,12 @@ mod tests {
         // f1-f5 should be seeded, f6 should not (depth 6 > PROPAGATE_MAX_DEPTH=5)
         for i in 1..=5 {
             assert!(
-                resolver.exposed_taint.contains_key(&format!("a.rs:f{i}")),
+                resolver.exposed_taint.contains_key(&format!("a.rs::f{i}")),
                 "f{i} should be seeded within propagation depth"
             );
         }
         assert!(
-            !resolver.exposed_taint.contains_key("a.rs:f6"),
+            !resolver.exposed_taint.contains_key("a.rs::f6"),
             "f6 beyond PROPAGATE_MAX_DEPTH should not be seeded"
         );
     }
