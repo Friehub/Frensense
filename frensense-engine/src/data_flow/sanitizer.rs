@@ -104,9 +104,15 @@ impl SanitizerRegistry {
         // Reclassify every existing entry through the spec instead of probing
         // a hardcoded candidate list.  This ensures the registry stays in sync
         // with the spec's full sanitizer catalogue.
+        // If the spec has no opinion on a sanitizer, preserve it in its original
+        // classification so hardcoded defaults are not silently dropped.
 
         let full_names: Vec<String> = self.full_sanitizers.iter().cloned().collect();
-        let ctx_names: Vec<String> = self.context_sanitizers.keys().cloned().collect();
+        let ctx_names: Vec<(String, SinkContext)> = self
+            .context_sanitizers
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
 
         // Full sanitizers → reclassify
         for name in &full_names {
@@ -133,11 +139,14 @@ impl SanitizerRegistry {
                             .insert(name.clone(), SinkContext::FilePath);
                     }
                 }
+            } else {
+                // Spec doesn't know about this sanitizer — keep as full sanitizer
+                self.full_sanitizers.insert(name.clone());
             }
         }
 
         // Context sanitizers → reclassify
-        for name in &ctx_names {
+        for (name, original_ctx) in &ctx_names {
             self.context_sanitizers.remove(name);
             if let Some(kind) = spec.classify_sanitizer(name) {
                 match kind {
@@ -161,6 +170,10 @@ impl SanitizerRegistry {
                             .insert(name.clone(), SinkContext::FilePath);
                     }
                 }
+            } else {
+                // Spec doesn't know about this sanitizer — preserve original classification
+                self.context_sanitizers
+                    .insert(name.clone(), original_ctx.clone());
             }
         }
     }
