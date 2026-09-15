@@ -201,8 +201,6 @@ pub fn classify_role_with_imports(
     import_map: Option<&ImportMap>,
     spec: Option<&dyn LanguageSpec>,
 ) -> FunctionRole {
-    let _all_calls = &fp.raw_call_names;
-
     if is_http_handler(fp, import_map, spec) {
         return FunctionRole::HttpHandler;
     }
@@ -218,6 +216,7 @@ pub fn classify_role_with_imports(
     if fp.control_flow_hashes.is_empty()
         && fp.api_calls.is_empty()
         && fp.api_call_segments.is_empty()
+        && fp.raw_call_names.is_empty()
     {
         return FunctionRole::DataTransformer;
     }
