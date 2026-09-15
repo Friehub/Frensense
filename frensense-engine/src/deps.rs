@@ -494,19 +494,6 @@ impl DependencyResolver {
         }
     }
 
-    fn _find_package_json_upward(start: &Path) -> Option<PathBuf> {
-        let mut current = start.to_path_buf();
-        for _ in 0..10 {
-            if current.join("package.json").exists() {
-                return Some(current);
-            }
-            if !current.pop() {
-                break;
-            }
-        }
-        None
-    }
-
     fn find_workspace_root(root: &Path) -> Option<PathBuf> {
         let mut current = root.to_path_buf();
         for _ in 0..5 {
