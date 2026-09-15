@@ -271,7 +271,7 @@ pub fn compute_dimensions(
     // Mutual empty MUST be 1.0 so that weights don't zero out!
     let tainted_api_sim =
         if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
-            0.0
+            1.0
         } else if candidate.tainted_api_calls.is_empty() {
             0.0
         } else if target.tainted_api_calls.is_empty() {
