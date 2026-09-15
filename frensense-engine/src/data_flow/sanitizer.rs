@@ -7,6 +7,7 @@ pub enum SinkContext {
     Sql,
     Url,
     FilePath,
+    Xss,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -115,8 +116,11 @@ impl SanitizerRegistry {
                     frensense_lang::SanitizerKind::Full => {
                         self.full_sanitizers.insert(name.clone());
                     }
-                    frensense_lang::SanitizerKind::HtmlEscape
-                    | frensense_lang::SanitizerKind::UrlEncode => {
+                    frensense_lang::SanitizerKind::HtmlEscape => {
+                        self.context_sanitizers
+                            .insert(name.clone(), SinkContext::Xss);
+                    }
+                    frensense_lang::SanitizerKind::UrlEncode => {
                         self.context_sanitizers
                             .insert(name.clone(), SinkContext::Url);
                     }
@@ -140,8 +144,11 @@ impl SanitizerRegistry {
                     frensense_lang::SanitizerKind::Full => {
                         self.full_sanitizers.insert(name.clone());
                     }
-                    frensense_lang::SanitizerKind::HtmlEscape
-                    | frensense_lang::SanitizerKind::UrlEncode => {
+                    frensense_lang::SanitizerKind::HtmlEscape => {
+                        self.context_sanitizers
+                            .insert(name.clone(), SinkContext::Xss);
+                    }
+                    frensense_lang::SanitizerKind::UrlEncode => {
                         self.context_sanitizers
                             .insert(name.clone(), SinkContext::Url);
                     }

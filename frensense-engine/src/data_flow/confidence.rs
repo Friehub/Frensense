@@ -61,22 +61,18 @@ impl TaintConfidenceAdjuster {
         let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
         let lang_name = crate::parser::ext_to_language(ext);
         if lang_name == "unknown" {
-            println!("lang_name is unknown");
             return original_confidence;
         }
 
         let mut parser = tree_sitter::Parser::new();
         let lang = crate::parser::ParserRegistry::get_language_by_name(lang_name);
         let Ok(lang) = lang else {
-            println!("get_language failed");
             return original_confidence;
         };
         if parser.set_language(&lang).is_err() {
-            println!("set_language failed");
             return original_confidence;
         }
         let Some(tree) = parser.parse(source, None) else {
-            println!("parse failed");
             return original_confidence;
         };
         let root = tree.root_node();
@@ -89,7 +85,6 @@ impl TaintConfidenceAdjuster {
 
         let var_name = extract_sink_var_from_ast(root, source, sink_byte, spec);
         if var_name.is_empty() {
-            println!("var_name is empty for sink_byte {}", sink_byte);
             return original_confidence;
         }
 
@@ -107,7 +102,6 @@ impl TaintConfidenceAdjuster {
             .collect();
 
         if candidates.is_empty() {
-            println!("candidates is empty, var_name={}", var_name);
             return original_confidence;
         }
 
