@@ -1,4 +1,5 @@
-use frensense_engine::auto_filter::{extract_call_targets, AutoFilterStats};
+use frensense_engine::auto_filter::AutoFilterStats;
+use frensense_engine::corpus::semantic::extract_ast_call_targets;
 // SPDX-License-Identifier: MIT
 
 use frensense_engine::corpus::bundle::BundlePattern;
@@ -31,6 +32,11 @@ pub fn compute_auto_filters(
     let mut must_not_match_function_name: HashMap<String, Vec<String>> = HashMap::new();
     let function_name_regex: HashMap<String, String> = HashMap::new();
 
+    // Create a parser once and reuse it for all source texts
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&tree_sitter_typescript::LANGUAGE_TSX.into())
+        .expect("Failed to set TypeScript language");
+
     for p in patterns {
         if p.positives.is_empty() || p.negatives.is_empty() {
             continue;
@@ -45,14 +51,14 @@ pub fn compute_auto_filters(
         let pos_call_sets: Vec<std::collections::HashSet<String>> = {
             // Split source_pos by file if multiple positives - but we only have one
             // concatenated string here, so treat it as one set.
-            vec![extract_call_targets(src_pos).into_iter().collect()]
+            vec![extract_ast_call_targets_from_source(&mut parser, src_pos)]
         };
         let pos_call_set: std::collections::HashSet<String> = pos_call_sets
             .into_iter()
             .reduce(|a, b| a.intersection(&b).cloned().collect())
             .unwrap_or_default();
         let neg_call_set: std::collections::HashSet<String> =
-            extract_call_targets(&src_neg).into_iter().collect();
+            extract_ast_call_targets_from_source(&mut parser, &src_neg);
         let includes: Vec<String> = pos_call_set.difference(&neg_call_set).cloned().collect();
         if !includes.is_empty() {
             contains_call_to
@@ -255,4 +261,23 @@ fn extract_node_types(source: &str) -> Vec<String> {
         }
     }
     r
+}
+
+/// Parse source text and extract call targets using tree-sitter AST.
+/// Returns fully qualified names (e.g., "vm.runInContext") instead of
+/// the regex's stripped short names.
+fn extract_ast_call_targets_from_source(
+    parser: &mut tree_sitter::Parser,
+    source: &str,
+) -> std::collections::HashSet<String> {
+    if source.is_empty() {
+        return std::collections::HashSet::new();
+    }
+    match parser.parse(source, None) {
+        Some(tree) => {
+            let root = tree.root_node();
+            extract_ast_call_targets(root, source)
+        }
+        None => std::collections::HashSet::new(),
+    }
 }
