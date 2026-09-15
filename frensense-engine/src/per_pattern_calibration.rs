@@ -86,8 +86,9 @@ pub fn compute_calibration_features(
     };
 
     // Use hardcoded fallback weights for calibration (avoids circular dependency)
+    // Weights sum to 1.0
     ngram_sim * 0.12
-        + ast_sim * 0.20
+        + ast_sim * 0.12
         + jaccard(&candidate.signature_ngrams, &target.signature_ngrams) * 0.08
         + jaccard(&candidate.param_type_ngrams, &target.param_type_ngrams) * 0.04
         + type_usage_overlap(candidate, target) * 0.03
