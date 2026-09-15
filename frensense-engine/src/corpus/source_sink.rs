@@ -365,6 +365,14 @@ pub fn always_register_sinks_compiler_aware() -> Vec<(&'static str, SinkCategory
 /// Used by `ImportMapProvider::known_source_patterns()`.
 pub fn always_register_source_patterns() -> Vec<&'static str> {
     vec![
+        "req.session",
+        "req.url",
+        "req.originalUrl",
+        "req.hostname",
+        "ws.data",
+        "socket.data",
+        "ctx.request.query",
+        "ctx.request.headers",
         "req.query",
         "req.body",
         "req.params",
@@ -433,7 +441,12 @@ impl SinkCategory {
 
     pub fn from_sink_name(sink: &str) -> Self {
         let s = sink.to_lowercase();
-        if s.contains("eval") || s.contains("exec") && !s.contains("execsync") {
+        if s.contains("eval")
+            || (s.contains("exec") && !s.contains("execsync"))
+            || s.starts_with("$where")
+            || s.starts_with("$function")
+            || s.starts_with("$accumulator")
+        {
             Self::CodeExecution
         } else if s.contains("query") || s.contains("execute") {
             Self::SqlInjection

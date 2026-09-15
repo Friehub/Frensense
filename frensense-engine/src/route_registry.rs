@@ -269,10 +269,7 @@ fn extract_last_named_arg(args: Node, source: &str) -> Option<String> {
     // Inline arrow/function expressions have no name - return a placeholder
     // so extract_registration still works for is_inline_registered_handler,
     // but the registry key won't be garbage source code.
-    if kind == "arrow_function"
-        || kind == "function"
-        || kind == "function_expression"
-    {
+    if kind == "arrow_function" || kind == "function" || kind == "function_expression" {
         return Some("<inline>".to_string());
     }
     let name = &source[last.start_byte()..last.end_byte()];

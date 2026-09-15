@@ -42,9 +42,8 @@ pub fn compute_auto_filters(
         // Calls present in ALL positives but absent from the negatives. Using
         // "present in all" rather than "present in any" prevents a single unusual
         // positive from adding spurious required-call constraints.
-        let pos_call_sets: Vec<std::collections::HashSet<String>> = {
-            vec![extract_call_targets(src_pos).into_iter().collect()]
-        };
+        let pos_call_sets: Vec<std::collections::HashSet<String>> =
+            { vec![extract_call_targets(src_pos).into_iter().collect()] };
         let pos_call_set: std::collections::HashSet<String> = pos_call_sets
             .into_iter()
             .reduce(|a, b| a.intersection(&b).cloned().collect())

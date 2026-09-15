@@ -358,6 +358,22 @@ fn scan_statement_def_uses(
                 }
             }
         }
+        Some(NodeRole::MemberAccess { object_field, .. }) => {
+            if let Some(obj) = node.child_by_field_name(object_field) {
+                let mut refs = Vec::new();
+                extract_ref_names(obj, source, &mut refs);
+                for r in refs {
+                    uses.push(Use {
+                        name: r,
+                        block_id,
+                        node: *node_counter,
+                        start_byte: obj.start_byte(),
+                        end_byte: obj.end_byte(),
+                    });
+                    *node_counter += 1;
+                }
+            }
+        }
         Some(NodeRole::Call { .. }) => {
             if let Some(func) = node.child_by_field_name("function") {
                 let func_name = source[func.start_byte()..func.end_byte()].to_string();

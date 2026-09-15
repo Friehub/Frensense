@@ -110,6 +110,8 @@ pub enum SanitizerKind {
     UrlEncode,
     /// Parameterised query - defeats SQL injection only.
     SqlParameterize,
+    /// NoSQL sanitization - defeats NoSQL injection only.
+    NoSqlParameterize,
     /// Path canonicalization - defeats path traversal only.
     PathNormalize,
 }
@@ -118,6 +120,9 @@ pub enum SanitizerKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PackageCategory {
     HttpFramework,
+    GraphQL,
+    WebSocket,
+    EmailService,
     SqlDatabase,
     NoSqlDatabase,
     CommandExecution,
