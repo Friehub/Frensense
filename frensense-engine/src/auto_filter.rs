@@ -22,66 +22,6 @@ pub struct AutoFilterEntry {
     pub forbidden_fn_names: HashSet<String>,
 }
 
-fn strip_comments_and_strings(source: &str) -> String {
-    // Basic implementation for extract_call_targets
-    let mut out = String::with_capacity(source.len());
-    let mut in_str = false;
-    let mut str_char = '\0';
-    let mut in_line_comment = false;
-    let mut in_block_comment = false;
-    let chars: Vec<char> = source.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        if in_line_comment {
-            if c == '\n' {
-                in_line_comment = false;
-                out.push('\n');
-            }
-        } else if in_block_comment {
-            if c == '*' && i + 1 < chars.len() && chars[i + 1] == '/' {
-                in_block_comment = false;
-                i += 1;
-            }
-        } else if in_str {
-            if c == '\\' {
-                i += 1;
-            } else if c == str_char {
-                in_str = false;
-                out.push(c);
-            } else {
-                out.push(c);
-            }
-        } else {
-            if c == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-                in_line_comment = true;
-                i += 1;
-            } else if c == '/' && i + 1 < chars.len() && chars[i + 1] == '*' {
-                in_block_comment = true;
-                i += 1;
-            } else if c == '"' || c == '\'' || c == '`' {
-                in_str = true;
-                str_char = c;
-                out.push(c);
-            } else {
-                out.push(c);
-            }
-        }
-        i += 1;
-    }
-    out
-}
-
-pub fn extract_call_targets(source: &str) -> HashSet<String> {
-    let clean_source = strip_comments_and_strings(source);
-    let mut targets = HashSet::new();
-    let re = regex::Regex::new(r"([a-zA-Z0-9_]+)\s*\(").unwrap();
-    for cap in re.captures_iter(&clean_source) {
-        targets.insert(cap[1].to_string());
-    }
-    targets
-}
-
 pub fn merge_filters(
     manual: Option<&SemanticFilter>,
     auto: Option<&AutoFilterStats>,
