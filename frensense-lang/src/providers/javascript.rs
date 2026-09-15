@@ -230,9 +230,20 @@ fn js_package_category(pkg: &str) -> Option<PackageCategory> {
     match base {
         // HTTP frameworks
         "express" | "fastify" | "koa" | "hapi" | "@hono" | "hono" | "polka" | "h3" | "elysia"
-        | "next" | "nuxt" | "@nestjs" | "nest" | "@adonisjs" => {
+        | "next" | "nuxt" | "@nestjs" | "nest" | "@adonisjs" | "bun" | "deno" | "@remix-run"
+        | "astro" | "sveltekit" | "@sveltejs" | "trpc" | "@trpc" => {
             Some(PackageCategory::HttpFramework)
         }
+
+        // GraphQL
+        "graphql" | "apollo-server" | "@apollo" | "type-graphql" | "nexus" | "pothos-graphql"
+        | "mercurius" => Some(PackageCategory::GraphQL),
+
+        // WebSocket
+        "ws" | "socket.io" | "uws" | "@fastify" => Some(PackageCategory::WebSocket),
+
+        // Email Service
+        "nodemailer" | "sendgrid" | "@sendgrid" | "mailgun" => Some(PackageCategory::EmailService),
 
         // SQL
         "pg" | "postgres" | "mysql" | "mysql2" | "mariadb" | "sqlite3" | "better-sqlite3"
@@ -250,7 +261,9 @@ fn js_package_category(pkg: &str) -> Option<PackageCategory> {
 
         // HTTP clients (SSRF)
         "node-fetch" | "axios" | "got" | "superagent" | "undici" | "request" | "node:http"
-        | "node:https" => Some(PackageCategory::HttpClient),
+        | "node:https" | "puppeteer" | "playwright" | "@playwright" => {
+            Some(PackageCategory::HttpClient)
+        }
 
         // File system (path traversal)
         "fs" | "node:fs" | "fs-extra" | "graceful-fs" | "recursive-readdir" | "glob" | "rimraf" => {
@@ -262,8 +275,22 @@ fn js_package_category(pkg: &str) -> Option<PackageCategory> {
         | "consolidate" => Some(PackageCategory::TemplateEngine),
 
         // Unsafe deserialization
-        "node-serialize" | "serialize-javascript" | "js-yaml" | "yaml" => {
-            Some(PackageCategory::Deserialization)
+        "node-serialize"
+        | "serialize-javascript"
+        | "js-yaml"
+        | "yaml"
+        | "xml2js"
+        | "fast-xml-parser"
+        | "xml-js"
+        | "libxmljs"
+        | "saxjs" => Some(PackageCategory::Deserialization),
+
+        // Testing and Validation
+        "validator" | "joi" | "zod" | "yup" | "ajv" => Some(PackageCategory::Testing),
+
+        // Crypto
+        "crypto" | "node:crypto" | "bcrypt" | "bcryptjs" | "argon2" => {
+            Some(PackageCategory::Crypto)
         }
 
         _ => None,
@@ -274,7 +301,8 @@ fn js_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     match call_last_segment(call) {
         // HTML escape
         "escape" | "escapeHtml" | "escapeHTML" | "encodeHTML" | "sanitizeHtml" | "sanitize"
-        | "clean" => Some(SanitizerKind::HtmlEscape),
+        | "clean" | "purify" | "stripTags" | "stripHtml" | "bleach" | "xssFilter" | "filterXSS"
+        | "inHTMLData" | "inDoubleQuotedAttr" | "he.encode" => Some(SanitizerKind::HtmlEscape),
 
         // URL encode
         "encodeURIComponent" | "encodeURI" | "encode" => Some(SanitizerKind::UrlEncode),
@@ -284,13 +312,23 @@ fn js_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
             Some(SanitizerKind::Full)
         }
 
+        // Type narrowing and shell escapes
+        "shellescape" | "shellQuote" | "escapeShellArg" | "quoteForShell" | "isUUID"
+        | "isEmail" | "isAlphanumeric" | "isNumeric" | "isInt" | "isFloat" | "isISO8601"
+        | "isValid" => Some(SanitizerKind::Full),
+
         // SQL parameterization (knex, sequelize, pg style)
         "sqlEscape" | "escapeId" | "format" | "literal" | "raw" => {
             Some(SanitizerKind::SqlParameterize)
         }
 
+        // NoSQL parameterization
+        "sanitizeFilter" | "mongoSanitize" | "sanitizeValue" => {
+            Some(SanitizerKind::NoSqlParameterize)
+        }
+
         // Path canonicalization
-        "normalize" | "resolve" | "realpath" => Some(SanitizerKind::PathNormalize),
+        "basename" | "realpath" => Some(SanitizerKind::PathNormalize),
 
         _ => None,
     }
@@ -445,7 +483,7 @@ static JS_PROPAGATORS: &[PropagatorRule] = &[
     PropagatorRule {
         call: "format",
         tainted_arg: None,
-        tainted_receiver: false,
+        tainted_receiver: true,
     },
     PropagatorRule {
         call: "template",
@@ -470,6 +508,252 @@ static JS_PROPAGATORS: &[PropagatorRule] = &[
     },
     PropagatorRule {
         call: "normalize",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    // Modern String methods
+    PropagatorRule {
+        call: "charAt",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "charCodeAt",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "indexOf",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "lastIndexOf",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "includes",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "startsWith",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "endsWith",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "repeat",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "matchAll",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "at",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    // Template tags
+    PropagatorRule {
+        call: "interpolate",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "compile",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "tag",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    // Object spread
+    PropagatorRule {
+        call: "keys",
+        tainted_arg: Some(0),
+        tainted_receiver: true,
+    }, // handles array keys() too
+    PropagatorRule {
+        call: "values",
+        tainted_arg: Some(0),
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "entries",
+        tainted_arg: Some(0),
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "assign",
+        tainted_arg: Some(1),
+        tainted_receiver: true,
+    },
+    PropagatorRule {
+        call: "fromEntries",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "structuredClone",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "cloneDeep",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    // Array methods
+    PropagatorRule {
+        call: "find",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "findIndex",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "findLast",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "some",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "every",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "forEach",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "sort",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "reverse",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "fill",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "copyWithin",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "splice",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "push",
+        tainted_receiver: true,
+        tainted_arg: Some(0),
+    },
+    PropagatorRule {
+        call: "unshift",
+        tainted_receiver: true,
+        tainted_arg: Some(0),
+    },
+    // Promise
+    PropagatorRule {
+        call: "then",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "catch",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "finally",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "all",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "allSettled",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "race",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    // Lodash
+    PropagatorRule {
+        call: "get",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "pick",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "omit",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "mapKeys",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "mapValues",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "flattenDeep",
+        tainted_receiver: true,
+        tainted_arg: None,
+    },
+    PropagatorRule {
+        call: "groupBy",
+        tainted_arg: Some(0),
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "zip",
+        tainted_arg: None,
+        tainted_receiver: false,
+    },
+    PropagatorRule {
+        call: "unzip",
         tainted_arg: Some(0),
         tainted_receiver: false,
     },
@@ -519,6 +803,8 @@ impl LanguageSpec for TypeScriptSpec {
             (class_declaration name: (type_identifier) @name)
             (interface_declaration name: (type_identifier) @name)
             (variable_declarator name: (identifier) @name)
+            (call_expression arguments: (arguments (arrow_function) @name))
+            (call_expression arguments: (arguments (function_expression) @name))
         "#,
         )
     }
@@ -575,7 +861,10 @@ impl LanguageSpec for TypeScriptSpec {
     }
 
     fn request_param_names(&self) -> &'static [&'static str] {
-        &["req", "request", "ctx", "context", "event", "c", "e"]
+        &[
+            "req", "request", "ctx", "context", "event", "c", "e", "r", "h", "app", "handler",
+            "input", "args", "parent", "info",
+        ]
     }
 
     fn known_sink_names(&self) -> &'static [(&'static str, &'static str)] {
@@ -610,6 +899,29 @@ impl LanguageSpec for TypeScriptSpec {
             "ctx.response",
             "fastify.get(",
             "fastify.post(",
+            "export async function GET(",
+            "export async function POST(",
+            "export async function PUT(",
+            "export async function DELETE(",
+            "export async function PATCH(",
+            "export default function handler(",
+            "publicProcedure.input(",
+            "protectedProcedure.input(",
+            "t.procedure",
+            "Query: {",
+            "Mutation: {",
+            "Subscription: {",
+            "resolve(",
+            "export async function loader(",
+            "export async function action(",
+            "export async function load(",
+            "export const GET = ",
+            "export const POST = ",
+            "io.on('connection'",
+            "socket.on(",
+            "Bun.serve(",
+            "Deno.serve(",
+            "Deno.serve({ handler",
         ]
     }
 
@@ -740,6 +1052,8 @@ impl LanguageSpec for JavaScriptSpec {
             (method_definition name: (property_identifier) @name)
             (class_declaration name: (identifier) @name)
             (variable_declarator name: (identifier) @name)
+            (call_expression arguments: (arguments (arrow_function) @name))
+            (call_expression arguments: (arguments (function_expression) @name))
         "#,
         )
     }
@@ -780,7 +1094,45 @@ impl LanguageSpec for JavaScriptSpec {
     }
 
     fn route_context_hints(&self) -> &'static [&'static str] {
-        TypeScriptSpec.route_context_hints()
+        &[
+            "(req, res)",
+            "app.get(",
+            "router.get(",
+            "app.post(",
+            "router.post(",
+            "res.send",
+            "res.json",
+            "res.status",
+            "c.req",
+            "c.json",
+            "ctx.body",
+            "ctx.response",
+            "fastify.get(",
+            "fastify.post(",
+            "export async function GET(",
+            "export async function POST(",
+            "export async function PUT(",
+            "export async function DELETE(",
+            "export async function PATCH(",
+            "export default function handler(",
+            "publicProcedure.input(",
+            "protectedProcedure.input(",
+            "t.procedure",
+            "Query: {",
+            "Mutation: {",
+            "Subscription: {",
+            "resolve(",
+            "export async function loader(",
+            "export async function action(",
+            "export async function load(",
+            "export const GET = ",
+            "export const POST = ",
+            "io.on('connection'",
+            "socket.on(",
+            "Bun.serve(",
+            "Deno.serve(",
+            "Deno.serve({ handler",
+        ]
     }
 
     fn test_context_hints(&self) -> &'static [&'static str] {
@@ -826,13 +1178,29 @@ fn classify_js_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintOrigi
                 | "KoaContext"
                 | "APIGatewayProxyEvent"
                 | "HttpRequest"
+                | "NextApiRequest"
+                | "NextRequest"
+                | "ServerRequest"
+                | "H3Event"
+                | "ElysiaContext"
+                | "AdonisRequest"
+                | "ExpressRequest"
+                | "SocketStream"
+                | "CloudFrontRequest"
+                | "APIGatewayProxyEventV2"
         ) {
             return Some(TaintOrigin::UserInput);
         }
     }
     // Name-based fallback for untyped code
     match name? {
-        "req" | "request" | "ctx" | "context" | "event" | "c" | "e" => Some(TaintOrigin::UserInput),
+        "req" | "request" | "ctx" | "context" | "event" | "c" | "e" | "socket" | "ws"
+        | "incomingMsg" | "httpReq" => Some(TaintOrigin::UserInput),
+        "env" | "config" | "settings" => Some(TaintOrigin::EnvVariable),
+        "filePath" | "filepath" | "filename" | "fileName" | "dir" | "directory" => {
+            Some(TaintOrigin::FileSystem)
+        }
+        "response" | "reply" => Some(TaintOrigin::ExternalService),
         _ => None,
     }
 }
@@ -840,6 +1208,103 @@ fn classify_js_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintOrigi
 // ── Static sink/source tables ─────────────────────────────────────────────────
 
 static JS_SINK_NAMES: &[(&str, &str)] = &[
+    // Modern attack patterns
+    ("insertAdjacentHTML", "XssDom"),
+    ("insertAdjacentElement", "XssDom"),
+    ("createContextualFragment", "XssDom"),
+    ("write", "XssDom"),
+    ("writeln", "XssDom"),
+    ("srcdoc", "XssDom"),
+    ("setAttribute", "XssDom"),
+    ("setAttributeNS", "XssDom"),
+    ("setHeader", "HeaderInjection"),
+    ("header", "HeaderInjection"),
+    ("append", "HeaderInjection"),
+    ("cookie", "CookiePoisoning"),
+    ("type", "ContentTypeInjection"),
+    ("appendFile", "PathTraversal"),
+    ("appendFileSync", "PathTraversal"),
+    ("copyFile", "PathTraversal"),
+    ("copyFileSync", "PathTraversal"),
+    ("mkdir", "PathTraversal"),
+    ("mkdirSync", "PathTraversal"),
+    ("rename", "PathTraversal"),
+    ("renameSync", "PathTraversal"),
+    ("rmdir", "PathTraversal"),
+    ("rmdirSync", "PathTraversal"),
+    ("lstat", "PathTraversal"),
+    ("lstatSync", "PathTraversal"),
+    ("chmod", "PathTraversal"),
+    ("chown", "PathTraversal"),
+    ("symlink", "PathTraversal"),
+    ("realpath", "PathTraversal"),
+    ("realpathSync", "PathTraversal"),
+    ("createWriteStream", "PathTraversal"),
+    ("openSync", "PathTraversal"),
+    ("fopen", "PathTraversal"),
+    ("readdir", "PathTraversal"),
+    ("readdirSync", "PathTraversal"),
+    ("axios.put", "Ssrf"),
+    ("axios.delete", "Ssrf"),
+    ("axios.patch", "Ssrf"),
+    ("axios.request", "Ssrf"),
+    ("axios.head", "Ssrf"),
+    ("axios.options", "Ssrf"),
+    ("got.get", "Ssrf"),
+    ("got.post", "Ssrf"),
+    ("got.put", "Ssrf"),
+    ("got.stream", "Ssrf"),
+    ("superagent.get", "Ssrf"),
+    ("superagent.post", "Ssrf"),
+    ("ky.get", "Ssrf"),
+    ("ky.post", "Ssrf"),
+    ("http.request", "Ssrf"),
+    ("https.request", "Ssrf"),
+    ("undici.fetch", "Ssrf"),
+    ("undici.request", "Ssrf"),
+    ("needle.get", "Ssrf"),
+    ("needle.post", "Ssrf"),
+    ("execaCommand", "CommandInjection"),
+    ("execaCommandSync", "CommandInjection"),
+    ("$", "CommandInjection"),
+    ("shell.exec", "CommandInjection"),
+    ("shell.run", "CommandInjection"),
+    ("cp.exec", "CommandInjection"),
+    ("aggregate", "NoSqlInjection"),
+    ("distinct", "NoSqlInjection"),
+    ("count", "NoSqlInjection"),
+    ("countDocuments", "NoSqlInjection"),
+    ("estimatedDocumentCount", "NoSqlInjection"),
+    ("findOneAndUpdate", "NoSqlInjection"),
+    ("findOneAndDelete", "NoSqlInjection"),
+    ("findOneAndReplace", "NoSqlInjection"),
+    ("replaceOne", "NoSqlInjection"),
+    ("bulkWrite", "NoSqlInjection"),
+    ("set", "NoSqlInjection"),
+    ("hget", "NoSqlInjection"),
+    ("hset", "NoSqlInjection"),
+    ("del", "NoSqlInjection"),
+    ("keys", "NoSqlInjection"),
+    ("deepMerge", "PrototypePollution"),
+    ("merge", "PrototypePollution"),
+    ("defaults", "PrototypePollution"),
+    ("extend", "PrototypePollution"),
+    ("assign", "PrototypePollution"),
+    ("deepExtend", "PrototypePollution"),
+    ("mixin", "PrototypePollution"),
+    ("cloneDeep", "PrototypePollution"),
+    ("sign", "JwtWeakAlgorithm"),
+    ("decode", "JwtUnsafeDecode"),
+    ("existsSync", "Toctou"),
+    ("exists", "Toctou"),
+    ("gql", "GraphqlInjection"),
+    ("buildSchema", "GraphqlInjection"),
+    ("graphql", "GraphqlInjection"),
+    ("makeExecutableSchema", "GraphqlInjection"),
+    ("cp.spawn", "CommandInjection"),
+    ("cp.execFile", "CommandInjection"),
+    ("proc.exec", "CommandInjection"),
+    ("childProcess.exec", "CommandInjection"),
     // Code Execution
     ("eval", "CodeExecution"),
     ("Function", "CodeExecution"),
@@ -982,6 +1447,35 @@ static JS_SINK_NAMES: &[(&str, &str)] = &[
 ];
 
 static JS_SOURCE_PATTERNS: &[&str] = &[
+    "req.session",
+    "req.session.userId",
+    "req.session.user",
+    "session.",
+    "req.url",
+    "req.path",
+    "req.hostname",
+    "req.ip",
+    "req.protocol",
+    "req.originalUrl",
+    "req.subdomains",
+    "ws.data",
+    "socket.data",
+    "msg.data",
+    "message.data",
+    "ctx.request.query",
+    "ctx.request.headers",
+    "ctx.request.url",
+    "ctx.state",
+    "c.req.header",
+    "c.req.path",
+    "c.req.url",
+    "c.req.json",
+    "c.req.text",
+    "c.req.formData",
+    "event.headers",
+    "event.requestContext",
+    "event.multiValueQueryStringParameters",
+    "event.isBase64Encoded",
     "req.body",
     "req.query",
     "req.params",

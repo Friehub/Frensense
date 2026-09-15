@@ -127,7 +127,12 @@ impl SemanticGraph {
     pub fn all_declaration_ids(&self) -> Vec<SemanticNodeId> {
         self.graph
             .node_indices()
-            .filter(|idx| matches!(self.graph.node_weight(*idx), Some(SemanticNode::Declaration(_))))
+            .filter(|idx| {
+                matches!(
+                    self.graph.node_weight(*idx),
+                    Some(SemanticNode::Declaration(_))
+                )
+            })
             .map(SemanticNodeId)
             .collect()
     }

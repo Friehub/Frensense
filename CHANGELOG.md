@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- **JS Spec Expansion**: Added comprehensive support for modern JS/TS frameworks (Next.js, Bun, Hono, Koa, Apollo GraphQL).
+- **Expanded Sinks**: Added extensive sinks across DOM XSS, SSRF, NoSQLi, GraphQL injection, JWT weaknesses, and Prototype Pollution.
+- **NodeGoat Benchmark Ease-of-Use**: Added `make bench-nodegoat` target to standard build process for rapid regression testing.
+
+### Changed
+- **Semantic Zero Penalty Softened**: Adjusted `SEMANTIC_ZERO_PENALTY` from 70% to 45% (`0.30` -> `0.55`) in `scorer.rs` to stop punishing matching structural patterns across different frameworks.
+- **Semantic Match Boost Capped**: Reduced `SEMANTIC_MATCH_BOOST` from `2.0` to `1.5` to reduce extreme score volatility.
+- **Noise Gate Bypass**: Added a high-confidence bypass (`weighted_score > 0.70`) to the noise gate in `scorer.rs` to properly evaluate single-call vulnerabilities.
+
+### Fixed
+- **AST Query Depth**: Removed artificial depth limitations in `call_query` within `javascript.rs`, allowing the engine to spot function calls deeply nested inside loops, conditionals, and callbacks.
+- **Arrow Function Symbol Capture**: Broadened `symbol_query` to accurately capture boundaries for inline arrow functions passed to routers.
+- **Member Access Taint Propagation**: Fixed a bug where data flow analysis flattened away `MemberAccess` nodes, by explicitly treating the object base as a `Use` in `def_use.rs` (e.g. `req.body.id` now properly tracks back to `req`).
+- **JS Propagator Drops**: Repaired JS taint dropping across standard array and promise methods (`then`, `catch`, `find`, `push`, `sort`, etc.).
+
 
 ## [0.6.0] - 2026-09-10
 ### Architecture & Core Engine

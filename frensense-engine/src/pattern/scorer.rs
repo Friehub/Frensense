@@ -134,8 +134,8 @@ impl Default for ScorerConfig {
 
 // Keep the old constants as defaults for backward compatibility
 const CROSS_LINGUAL_PENALTY: f32 = 0.20;
-const SEMANTIC_ZERO_PENALTY: f64 = 0.30;
-const SEMANTIC_MATCH_BOOST: f64 = 2.0;
+const SEMANTIC_ZERO_PENALTY: f64 = 0.55;
+const SEMANTIC_MATCH_BOOST: f64 = 1.5;
 const NOISE_GATE_MODERATE_SIGNAL: f64 = 0.15;
 const NOISE_GATE_STRONG_SIGNAL: f64 = 0.4;
 const NOISE_GATE_MIN_MODERATE_DIMS: usize = 3;
@@ -615,15 +615,16 @@ impl PatternScorer {
             .filter(|&&s| s > NOISE_GATE_MODERATE_SIGNAL)
             .count();
         let signal_sum: f64 = signal.iter().sum();
+        let weighted_score = best_dim.apply_semantic_override(best_dim.weighted_score(weights));
         let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
-            || (moderate_count >= NOISE_GATE_MIN_MODERATE_DIMS && signal_sum > 0.40);
+            || (moderate_count >= NOISE_GATE_MIN_MODERATE_DIMS && signal_sum > 0.40)
+            || weighted_score > 0.70;
 
         // Use the weighted sum as the final score - this is the same type of
         // score that the Platt scaling calibration was trained on (weighted
         // sums in the 0.3–0.6 range). Using max_signal or a blended score
         // would shift the distribution, making the sigmoid extrapolate
         // incorrectly (squashing everything to ~1.0).
-        let weighted_score = best_dim.apply_semantic_override(best_dim.weighted_score(weights));
         let final_score = if gate { weighted_score } else { 0.0 };
 
         let context_multiplier = Self::compute_context_penalty(expected_context, actual_context);

@@ -5,6 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SinkContext {
     Sql,
+    NoSql,
     Url,
     FilePath,
     Xss,
@@ -134,6 +135,10 @@ impl SanitizerRegistry {
                         self.context_sanitizers
                             .insert(name.clone(), SinkContext::Sql);
                     }
+                    frensense_lang::SanitizerKind::NoSqlParameterize => {
+                        self.context_sanitizers
+                            .insert(name.clone(), SinkContext::NoSql);
+                    }
                     frensense_lang::SanitizerKind::PathNormalize => {
                         self.context_sanitizers
                             .insert(name.clone(), SinkContext::FilePath);
@@ -164,6 +169,10 @@ impl SanitizerRegistry {
                     frensense_lang::SanitizerKind::SqlParameterize => {
                         self.context_sanitizers
                             .insert(name.clone(), SinkContext::Sql);
+                    }
+                    frensense_lang::SanitizerKind::NoSqlParameterize => {
+                        self.context_sanitizers
+                            .insert(name.clone(), SinkContext::NoSql);
                     }
                     frensense_lang::SanitizerKind::PathNormalize => {
                         self.context_sanitizers
