@@ -871,10 +871,13 @@ pub fn learn_semantic_markers(
         if NOISE_NAMES.contains(&api_name.as_str()) {
             continue;
         }
-        for (cat, count) in category_counts {
-            if *count >= 2 {
-                result.insert(api_name.clone(), cat.clone());
-            }
+        // Pick the category with the highest count; ties broken alphabetically
+        if let Some((best_cat, _best_count)) = category_counts
+            .iter()
+            .filter(|(_, count)| **count >= 2)
+            .max_by(|(a, ca), (b, cb)| ca.cmp(cb).then_with(|| a.cmp(b)))
+        {
+            result.insert(api_name.clone(), best_cat.clone());
         }
     }
     result
