@@ -123,6 +123,15 @@ impl SemanticGraph {
             .collect()
     }
 
+    /// Return all node IDs for declaration symbols.
+    pub fn all_declaration_ids(&self) -> Vec<SemanticNodeId> {
+        self.graph
+            .node_indices()
+            .filter(|idx| matches!(self.graph.node_weight(*idx), Some(SemanticNode::Declaration(_))))
+            .map(SemanticNodeId)
+            .collect()
+    }
+
     pub fn find_node(&self, name: &str, file: &str, line: usize) -> Option<SemanticNodeId> {
         self.name_index
             .get(name)
