@@ -43,6 +43,46 @@ pub struct SymbolRegistry {
     file_index: std::collections::HashMap<String, Vec<SemanticNodeId>>,
 }
 
+/// Determine SymbolKind from the parent node of a captured @name node.
+fn symbol_kind_for_node(name_node: tree_sitter::Node) -> SymbolKind {
+    let parent = match name_node.parent() {
+        Some(p) => p,
+        None => return SymbolKind::Unknown,
+    };
+    match parent.kind() {
+        "function_declaration" | "function" | "arrow_function" | "function_expression" => {
+            SymbolKind::Function
+        }
+        "method_definition" | "method_declaration" => SymbolKind::Function,
+        "class_declaration" | "class" => SymbolKind::Class,
+        "interface_declaration" | "interface" => SymbolKind::Interface,
+        "type_alias_declaration" | "enum_declaration" | "enum" => SymbolKind::Enum,
+        "struct_declaration" | "struct" => SymbolKind::Struct,
+        "variable_declarator" => {
+            // Check if it's a const declaration
+            if let Some(grandparent) = parent.parent() {
+                match grandparent.kind() {
+                    "lexical_declaration" | "const" => {
+                        // Check if the declaration keyword is "const"
+                        for child in grandparent.children(&mut grandparent.walk()) {
+                            if child.kind() == "const" {
+                                return SymbolKind::Constant;
+                            }
+                        }
+                        SymbolKind::Variable
+                    }
+                    _ => SymbolKind::Variable,
+                }
+            } else {
+                SymbolKind::Variable
+            }
+        }
+        "formal_parameter" | "parameter" => SymbolKind::Parameter,
+        "import_specifier" | "import_statement" => SymbolKind::Module,
+        _ => SymbolKind::Unknown,
+    }
+}
+
 impl SymbolRegistry {
     pub fn new() -> Self {
         Self::default()
@@ -256,9 +296,10 @@ impl SymbolRegistry {
                 if query.capture_names()[capture.index as usize] == "name" {
                     let node = capture.node;
                     let name = &source[node.start_byte()..node.end_byte()];
+                    let kind = symbol_kind_for_node(node);
                     let symbol = Symbol {
                         name: name.to_string(),
-                        kind: SymbolKind::Function,
+                        kind,
                         start_byte: node.start_byte(),
                         end_byte: node.end_byte(),
                         file_path: file_str.clone(),
