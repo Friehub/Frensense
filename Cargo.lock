@@ -516,6 +516,7 @@ dependencies = [
  "diff",
  "frensense-bundler",
  "frensense-engine",
+ "frensense-lang",
  "frensense-providers",
  "glob",
  "pathdiff",

@@ -1,5 +1,4 @@
 pub mod cross_file_taint;
-pub mod middleware_audit;
 pub mod vulnerable_deps;
 
 use crate::Advisory;
@@ -24,18 +23,11 @@ pub trait FindingModule: Send + Sync {
 }
 
 struct CrossFileTaint;
-struct MiddlewareAudit;
 struct VulnerableDeps;
 
 impl FindingModule for CrossFileTaint {
     fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
         cross_file_taint::find(snap, ctx)
-    }
-}
-
-impl FindingModule for MiddlewareAudit {
-    fn run(&self, snap: &FileSnapshot, ctx: &mut FindingContext<'_>) -> Vec<Advisory> {
-        middleware_audit::find(snap, ctx)
     }
 }
 
@@ -48,9 +40,5 @@ impl FindingModule for VulnerableDeps {
 /// Returns the registered finding modules in execution order.
 #[must_use]
 pub fn registered_modules() -> Vec<Box<dyn FindingModule>> {
-    vec![
-        Box::new(CrossFileTaint),
-        Box::new(MiddlewareAudit),
-        Box::new(VulnerableDeps),
-    ]
+    vec![Box::new(CrossFileTaint), Box::new(VulnerableDeps)]
 }

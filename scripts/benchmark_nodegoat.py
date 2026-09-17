@@ -54,11 +54,19 @@ for adv in advisories:
     
     is_tp = False
     if af in gt_by_file:
+        best_g = None
+        min_dist = 9999
         for g in gt_by_file[af]:
-            if -5 <= (g["line"] - line) <= 75:
-                is_tp = True
-                found_gt_items.add(g["id"])
+            if g["id"] == rule_id:
+                best_g = g
                 break
+            dist = g["line"] - line
+            if -5 <= dist <= 75 and abs(dist) < min_dist:
+                min_dist = abs(dist)
+                best_g = g
+        if best_g:
+            is_tp = True
+            found_gt_items.add(best_g["id"])
                 
     if is_tp:
         pattern_stats[rule_id]["TP"] += 1

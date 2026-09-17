@@ -131,19 +131,6 @@ impl Default for ScorerConfig {
     }
 }
 
-// Keep the old constants as defaults for backward compatibility
-const CROSS_LINGUAL_PENALTY: f32 = 0.20;
-const SEMANTIC_ZERO_PENALTY: f64 = 0.55;
-const SEMANTIC_MATCH_BOOST: f64 = 1.5;
-const NOISE_GATE_MODERATE_SIGNAL: f64 = 0.15;
-const NOISE_GATE_STRONG_SIGNAL: f64 = 0.4;
-const NOISE_GATE_MIN_MODERATE_DIMS: usize = 3;
-const AST_NGRAM_MIN_THRESHOLD: f64 = 0.25;
-const BASE_SCORE_WEIGHT: f64 = 0.4;
-const STRUCTURAL_SCORE_WEIGHT: f64 = 0.3;
-const PROFILE_BOOST_WEIGHT: f64 = 0.3;
-const KIND_DIVERSITY_SATURATION: f64 = 10.0;
-const CONTEXT_MISMATCH_PENALTY: f64 = 0.5;
 
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
@@ -175,7 +162,7 @@ pub fn weighted_jaccard(
 /// If pattern language differs from candidate language, apply penalty.
 /// Cross-language matching is useful for catching similar bug patterns across languages,
 /// but should be heavily penalized to avoid false positives.
-fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
+fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str, config: &ScorerConfig) -> f32 {
     if pattern_lang == candidate_lang || pattern_lang == "unknown" || candidate_lang == "unknown" {
         return 1.0;
     }
@@ -185,7 +172,7 @@ fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str) -> f32 {
     if js_like(pattern_lang) && js_like(candidate_lang) {
         return 1.0;
     }
-    CROSS_LINGUAL_PENALTY // 80% penalty for genuinely different languages (e.g. Rust ↔ TypeScript)
+    config.cross_lingual_penalty // 80% penalty for genuinely different languages (e.g. Rust ↔ TypeScript)
 }
 
 #[derive(Debug, Clone)]
@@ -203,6 +190,7 @@ impl PatternScorer {
     fn compute_context_penalty(
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
+        config: &ScorerConfig,
     ) -> f64 {
         match (expected_context, actual_context) {
             (Some(exp), Some(act)) => {
@@ -210,96 +198,24 @@ impl PatternScorer {
                 if exp.sensitivity == crate::context::DataSensitivity::High
                     && act.sensitivity != crate::context::DataSensitivity::High
                 {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
+                    penalty *= config.context_mismatch_penalty;
                 }
                 if exp.environment == crate::context::Environment::RouteHandler
                     && (act.environment == crate::context::Environment::Test
                         || act.environment == crate::context::Environment::Utility)
                 {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
+                    penalty *= config.context_mismatch_penalty;
                 }
                 if act.environment == crate::context::Environment::RouteHandler
                     && exp.environment != crate::context::Environment::RouteHandler
                     && exp.environment != crate::context::Environment::Unknown
                 {
-                    penalty *= CONTEXT_MISMATCH_PENALTY;
+                    penalty *= config.context_mismatch_penalty;
                 }
                 penalty
             }
             _ => 1.0,
         }
-    }
-
-    pub fn score_matches(patterns: &[(&PatternNode, Vec<MatchResult>)]) -> Vec<ScoredPattern> {
-        let mut scored = Vec::new();
-
-        for (i, (pattern, matches)) in patterns.iter().enumerate() {
-            let match_count = matches.len();
-            let avg_score = if matches.is_empty() {
-                0.0
-            } else {
-                matches.iter().map(|m| m.score).sum::<f64>() / matches.len() as f64
-            };
-
-            let canonical = if match_count > 0 {
-                Some(CanonicalForm::from_node(pattern))
-            } else {
-                None
-            };
-
-            scored.push(ScoredPattern {
-                pattern_id: format!("pattern_{i}"),
-                match_count,
-                avg_score,
-                structural_similarity: 0.0,
-                canonical_form: canonical.clone(),
-                minhash_similarity: 0.0,
-                final_score: 0.0,
-            });
-        }
-
-        for i in 0..scored.len() {
-            for j in i + 1..scored.len() {
-                if let (Some(cf_i), Some(cf_j)) =
-                    (&scored[i].canonical_form, &scored[j].canonical_form)
-                {
-                    scored[i].structural_similarity = cf_i.structural_similarity(cf_j);
-                    scored[j].structural_similarity = scored[i].structural_similarity;
-                }
-            }
-        }
-
-        scored
-    }
-
-    pub fn compute_final(
-        pattern: &PatternNode,
-        matches: &[MatchResult],
-        profiles: Option<&HashMap<String, f64>>,
-    ) -> f64 {
-        let base_score = if matches.is_empty() {
-            0.0
-        } else {
-            let avg = matches.iter().map(|m| m.score).sum::<f64>() / matches.len() as f64;
-            avg * (1.0 - 1.0 / (matches.len() as f64 + 1.0))
-        };
-
-        let structural_score = {
-            let cf = CanonicalForm::from_node(pattern);
-            let kind_diversity = cf.kind_sequence.len() as f64;
-            (kind_diversity / (kind_diversity + KIND_DIVERSITY_SATURATION)).min(1.0)
-        };
-
-        let profile_boost = profiles
-            .and_then(|p| {
-                let key = &pattern.kind;
-                p.get(key).copied()
-            })
-            .unwrap_or(0.0);
-
-        base_score * BASE_SCORE_WEIGHT
-            + structural_score * STRUCTURAL_SCORE_WEIGHT
-            + profile_boost * PROFILE_BOOST_WEIGHT
     }
 
     pub fn score_against_corpus(
@@ -310,6 +226,8 @@ impl PatternScorer {
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
         weights: &[f64; 15],
+        config: &ScorerConfig,
+        min_evidence_dims: usize,
     ) -> f64 {
         let (score, _) = Self::score_against_corpus_with_evidence_impl(
             candidate,
@@ -320,6 +238,8 @@ impl PatternScorer {
             ngram_sim_threshold,
             weights,
             None,
+            config,
+            min_evidence_dims,
         );
         score
     }
@@ -339,6 +259,8 @@ impl PatternScorer {
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
         weights: &[f64; 15],
+        config: &ScorerConfig,
+        min_evidence_dims: usize,
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
             candidate,
@@ -349,6 +271,8 @@ impl PatternScorer {
             _ngram_sim_threshold,
             weights,
             None,
+            config,
+            min_evidence_dims,
         )
     }
 
@@ -364,6 +288,8 @@ impl PatternScorer {
         _ngram_sim_threshold: f64,
         weights: &[f64; 15],
         dim_cache: &DimCache,
+        config: &ScorerConfig,
+        min_evidence_dims: usize,
     ) -> (f64, MatchEvidence) {
         Self::score_against_corpus_with_evidence_impl(
             candidate,
@@ -374,6 +300,8 @@ impl PatternScorer {
             _ngram_sim_threshold,
             weights,
             Some(dim_cache),
+            config,
+            min_evidence_dims,
         )
     }
 
@@ -386,6 +314,8 @@ impl PatternScorer {
         _ngram_sim_threshold: f64,
         weights: &[f64; 15],
         dim_cache: Option<&DimCache>,
+        config: &ScorerConfig,
+        min_evidence_dims: usize,
     ) -> (f64, MatchEvidence) {
         // Inline helper: look up or compute raw_dimensions for a target.
         let raw_dim = |target: &FunctionFingerprint,
@@ -452,11 +382,11 @@ impl PatternScorer {
             let sem_mult = if positive.semantic_markers.is_empty() {
                 1.0
             } else if dim.semantic_sim == 0.0 {
-                SEMANTIC_ZERO_PENALTY
+                config.semantic_zero_penalty
             } else {
-                SEMANTIC_MATCH_BOOST
+                config.semantic_match_boost
             };
-            let transfer = cross_lingual_penalty(&positive.language, &candidate.language);
+            let transfer = cross_lingual_penalty(&positive.language, &candidate.language, config);
             let pos_score = dim.apply_semantic_override(dim.weighted_score(weights))
                 * f64::from(transfer)
                 * sem_mult;
@@ -612,17 +542,17 @@ impl PatternScorer {
 
         // Noise gate: a single weak dimensional coincidence (e.g. api_sim=0.45)
         // should not trigger a match. Require either:
-        //   • one strong dimension (> NOISE_GATE_STRONG_SIGNAL), OR
-        //   • ≥NOISE_GATE_MIN_MODERATE_DIMS dimensions with moderate signal
-        //     (> NOISE_GATE_MODERATE_SIGNAL)
+        //   • one strong dimension (> config.noise_gate_strong_signal), OR
+        //   • ≥config.noise_gate_min_moderate_dims dimensions with moderate signal
+        //     (> config.noise_gate_moderate_signal)
         let moderate_count = signal
             .iter()
-            .filter(|&&s| s > NOISE_GATE_MODERATE_SIGNAL)
+            .filter(|&&s| s > config.noise_gate_moderate_signal)
             .count();
         let signal_sum: f64 = signal.iter().sum();
         let weighted_score = best_dim.apply_semantic_override(best_dim.weighted_score(weights));
-        let gate = max_signal > NOISE_GATE_STRONG_SIGNAL
-            || (moderate_count >= NOISE_GATE_MIN_MODERATE_DIMS && signal_sum > 0.40)
+        let gate = max_signal > config.noise_gate_strong_signal
+            || (moderate_count >= min_evidence_dims && signal_sum > 0.40)
             || weighted_score > 0.70;
 
         // Use the weighted sum as the final score - this is the same type of
@@ -632,7 +562,7 @@ impl PatternScorer {
         // incorrectly (squashing everything to ~1.0).
         let final_score = if gate { weighted_score } else { 0.0 };
 
-        let context_multiplier = Self::compute_context_penalty(expected_context, actual_context);
+        let context_multiplier = Self::compute_context_penalty(expected_context, actual_context, config);
 
         (final_score * context_multiplier, evidence)
     }
@@ -674,9 +604,10 @@ impl PatternScorer {
         positives: &[FunctionFingerprint],
         negatives: &[FunctionFingerprint],
         weights: &[f64; 15],
+        config: &ScorerConfig,
     ) -> MatchEvidence {
         Self::score_against_corpus_with_evidence_impl(
-            candidate, positives, negatives, None, None, 0.0, weights, None,
+            candidate, positives, negatives, None, None, 0.0, weights, None, config, config.noise_gate_min_moderate_dims,
         )
         .1
     }

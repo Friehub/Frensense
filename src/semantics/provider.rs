@@ -75,9 +75,16 @@ pub fn per_file_provider(
         return Box::new(OxcProvider::analyze(source, path, source_sink, environment));
     }
 
-    Box::new(ImportMapProvider::new(
-        ImportMap::build_from_tree(&ext, source, tree.root_node()),
-        source_sink,
-        environment,
-    ))
+    let import_map = ImportMap::build_from_tree(&ext, source, tree.root_node());
+    let spec = frensense_lang::spec_for_ext(&ext);
+    if let Some(spec) = spec {
+        Box::new(ImportMapProvider::with_spec(
+            import_map,
+            source_sink,
+            environment,
+            spec,
+        ))
+    } else {
+        Box::new(ImportMapProvider::new(import_map, source_sink, environment))
+    }
 }
