@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "Frensense"
-  text: "Deterministic Security & Diagnostics."
-  tagline: "No rules. No regex. Just concrete examples."
+  text: "Deterministic Security Engine."
+  tagline: "Static analysis without the rules. Frensense detects vulnerabilities using concrete code pairs rather than YAML or DSLs—encoding structure, control flow, and data flow simultaneously for exact similarity search."
   actions:
     - theme: brand
       text: Read the Paper
@@ -14,10 +14,10 @@ hero:
       link: /blog/
 
 features:
-  - title: AND-Gate Architecture
-    details: Findings fire only when structural shape, data-flow, and cross-function layers completely agree.
+  - title: Example-Driven, Not Rule-Driven
+    details: Skip writing complex Semgrep rules or regex. Provide a vulnerable function and its fix, and the engine automatically fingerprints the difference.
   - title: Multi-Dimensional Similarity
-    details: Fingerprints corpus pairs at build time for incredibly fast, exact similarity search at runtime.
+    details: Fingerprints corpus pairs at build time for fast, exact similarity search at runtime across Rust, TypeScript, and JavaScript.
   - title: Precise Data-Flow
-    details: Uses field-sensitive Program Dependence Graphs (PDG) for exact control flow reachability tracking.
+    details: Uses field-sensitive Program Dependence Graphs (PDG) for exact control flow reachability tracking to drastically reduce false positives.
 ---
