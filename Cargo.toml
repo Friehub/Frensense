@@ -1,5 +1,5 @@
 [workspace]
-members = ["frensense-bundler","frensense-engine", "frensense-frc", "frensense-lang", "frensense-providers", "frensense-runtime", "genesense-wrapper"]
+members = ["frensense-bundler","frensense-engine", "frensense-frc", "frensense-lang", "frensense-providers", "genesense-wrapper"]
 resolver = "2"
 
 [package]
@@ -12,7 +12,7 @@ repository = "https://github.com/Friehub/frensense"
 homepage = "https://friehub.github.io/frensense/"
 documentation = "https://friehub.github.io/frensense/"
 license = "MIT"
-categories = ["development-tools::static-analysis", "security"]
+categories = ["development-tools", "security"]
 keywords = ["static-analysis", "linter", "security", "code-quality"]
 publish = true
 rust-version = "1.95"

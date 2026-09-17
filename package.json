@@ -1,6 +1,14 @@
 {
-  "name": "frensense-docs",
-  "version": "1.0.0",
+  "name": "@friehub/frensense",
+  "version": "0.6.0",
+  "description": "Frensense: Deterministic, corpus-driven security and diagnostic engine.",
+  "files": [
+    "bin/run.js",
+    "dist/"
+  ],
+  "bin": {
+    "frensense": "bin/run.js"
+  },
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -9,6 +17,8 @@
   "devDependencies": {
     "markdown-it-mathjax3": "^4.3.2",
     "mermaid": "^11.17.2",
-    "vitepress-plugin-mermaid": "^2.0.17"
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17",
+    "vue": "^3.5.39"
   }
 }
