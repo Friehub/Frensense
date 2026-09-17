@@ -34,7 +34,10 @@ pub(crate) fn collect_function_features(
     let mut cursor = node.walk();
     loop {
         let n = cursor.node();
-        if n.kind() == "call_expression" {
+        let is_call = spec
+            .map(|s| matches!(s.classify(n.kind()), frensense_lang::NodeRole::Call { .. }))
+            .unwrap_or_else(|| n.kind() == "call_expression");
+        if is_call {
             if let Some(callee) = n
                 .child_by_field_name("function")
                 .or_else(|| n.child_by_field_name("callee"))

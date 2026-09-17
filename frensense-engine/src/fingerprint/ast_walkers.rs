@@ -114,6 +114,47 @@ pub(super) fn count_comment_bytes(node: Node<'_>, _source: &str) -> usize {
     }
 }
 
+/// Collect the byte ranges (start_byte, end_byte) of all comment nodes under `node`.
+///
+/// The returned spans are relative to the start of the full source buffer. The caller
+/// uses them to skip comment tokens during whitespace-split tokenization, which is the
+/// correct language-agnostic approach — tree-sitter grammars for every supported
+/// language mark comment nodes with the kinds checked here.
+pub(super) fn collect_comment_ranges(node: Node<'_>) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut cursor = node.walk();
+    loop {
+        let n = cursor.node();
+        let kind = n.kind();
+        if kind == "comment" || kind == "line_comment" || kind == "block_comment" {
+            ranges.push((n.start_byte(), n.end_byte()));
+            // Do not descend into comment nodes.
+            loop {
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+                if !cursor.goto_parent() {
+                    ranges.sort_unstable_by_key(|r| r.0);
+                    return ranges;
+                }
+            }
+            continue;
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                ranges.sort_unstable_by_key(|r| r.0);
+                return ranges;
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Control flow
 // ---------------------------------------------------------------------------
@@ -879,6 +920,104 @@ pub(super) fn extract_motif_hashes(
 // Semantic markers
 // ---------------------------------------------------------------------------
 
+/// Semantic category definitions for fingerprint hashing.
+///
+/// Each entry maps a category name to a list of API call names that belong
+/// to that category. When any call in the list appears in the function's
+/// `api_calls`, `api_call_segments`, or `property_accesses`, the category
+/// hash is added to the semantic markers.
+///
+/// This is engine-specific fingerprinting logic used for similarity scoring.
+/// It is NOT the same as `LanguageSpec::package_category()` which maps
+/// package names to sink categories for vulnerability detection.
+static SEMANTIC_CATEGORIES: &[(&str, &[&str])] = &[
+    (
+        "db_query",
+        &[
+            "query",
+            "execute",
+            "raw_query",
+            "format!",
+            "sql_query",
+            "execute_query",
+        ],
+    ),
+    (
+        "db_write",
+        &["insert", "update", "upsert", "execute", "bulk_write"],
+    ),
+    (
+        "cmd_exec",
+        &[
+            "exec",
+            "system",
+            "spawn",
+            "popen",
+            "Command::new",
+            "child_process",
+        ],
+    ),
+    ("code_eval", &["eval", "Function", "new Function"]),
+    (
+        "file_read",
+        &[
+            "readFile",
+            "readFileSync",
+            "createReadStream",
+            "read_to_string",
+            "fs::read",
+        ],
+    ),
+    (
+        "file_write",
+        &[
+            "writeFile",
+            "writeFileSync",
+            "createWriteStream",
+            "write",
+            "fs::write",
+        ],
+    ),
+    (
+        "dom_xss",
+        &[
+            "innerHTML",
+            "outerHTML",
+            "document.write",
+            "insertAdjacentHTML",
+        ],
+    ),
+    (
+        "http_request",
+        &["fetch", "axios", "request", "get", "post", "reqwest"],
+    ),
+    ("url_redirect", &["redirect", "location"]),
+    ("crypto_weak", &["md5", "sha1", "createHash", "Md5", "Sha1"]),
+    (
+        "crypto_strong",
+        &["sha256", "sha512", "bcrypt", "argon2", "Sha256"],
+    ),
+    (
+        "deserialize",
+        &[
+            "JSON.parse",
+            "from_str",
+            "loads",
+            "deserialize",
+            "serde_json",
+        ],
+    ),
+    ("sanitize", &["sanitize", "escape", "encode", "validate"]),
+    ("regex", &["Regex::new", "new RegExp", "re.compile"]),
+    ("process", &["exit", "std::process", "child_process"]),
+    ("auth_middleware", &["verify", "decode", "verifyToken"]),
+    ("weak_random", &["random"]),
+    (
+        "financial_calc",
+        &["price", "priceSnapshot", "total", "amount"],
+    ),
+];
+
 pub(super) fn extract_semantic_markers(
     _node: Node<'_>,
     _source: &str,
@@ -888,95 +1027,7 @@ pub(super) fn extract_semantic_markers(
 ) -> Vec<u64> {
     let mut markers = FxHashSet::default();
 
-    let categories: &[(&str, &[&str])] = &[
-        (
-            "db_query",
-            &[
-                "query",
-                "execute",
-                "raw_query",
-                "format!",
-                "sql_query",
-                "execute_query",
-            ],
-        ),
-        (
-            "db_write",
-            &["insert", "update", "upsert", "execute", "bulk_write"],
-        ),
-        (
-            "cmd_exec",
-            &[
-                "exec",
-                "system",
-                "spawn",
-                "popen",
-                "Command::new",
-                "child_process",
-            ],
-        ),
-        ("code_eval", &["eval", "Function", "new Function"]),
-        (
-            "file_read",
-            &[
-                "readFile",
-                "readFileSync",
-                "createReadStream",
-                "read_to_string",
-                "fs::read",
-            ],
-        ),
-        (
-            "file_write",
-            &[
-                "writeFile",
-                "writeFileSync",
-                "createWriteStream",
-                "write",
-                "fs::write",
-            ],
-        ),
-        (
-            "dom_xss",
-            &[
-                "innerHTML",
-                "outerHTML",
-                "document.write",
-                "insertAdjacentHTML",
-            ],
-        ),
-        (
-            "http_request",
-            &["fetch", "axios", "request", "get", "post", "reqwest"],
-        ),
-        ("url_redirect", &["redirect", "location"]),
-        ("crypto_weak", &["md5", "sha1", "createHash", "Md5", "Sha1"]),
-        (
-            "crypto_strong",
-            &["sha256", "sha512", "bcrypt", "argon2", "Sha256"],
-        ),
-        (
-            "deserialize",
-            &[
-                "JSON.parse",
-                "from_str",
-                "loads",
-                "deserialize",
-                "serde_json",
-            ],
-        ),
-        ("sanitize", &["sanitize", "escape", "encode", "validate"]),
-        ("regex", &["Regex::new", "new RegExp", "re.compile"]),
-        ("process", &["exit", "std::process", "child_process"]),
-        ("auth_middleware", &["verify", "decode", "verifyToken"]),
-        ("weak_random", &["random"]),
-        (
-            "financial_calc",
-            &["price", "priceSnapshot", "total", "amount"],
-        ),
-    ];
-
-    for (category, api_names) in categories {
+    for (category, api_names) in SEMANTIC_CATEGORIES {
         for api_name in *api_names {
             let mut h = FxHasher::default();
             api_name.hash(&mut h);

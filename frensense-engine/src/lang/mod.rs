@@ -16,6 +16,21 @@ pub enum Language {
 }
 
 impl Language {
+    /// Derive a [`Language`] from a file extension, returning `None` for
+    /// unsupported extensions.
+    pub fn from_ext(ext: &str) -> Option<Self> {
+        match ext {
+            "rs" => Some(Language::Rust),
+            "ts" | "tsx" | "mts" | "cts" => Some(Language::TypeScript),
+            "js" | "jsx" | "mjs" | "cjs" => Some(Language::JavaScript),
+            "c" | "h" => Some(Language::C),
+            "py" | "pyi" => Some(Language::Python),
+            "go" => Some(Language::Go),
+            "html" | "htm" => Some(Language::Html),
+            _ => None,
+        }
+    }
+
     /// Return the [`frensense_lang::LanguageSpec`] for this language.
     ///
     /// Returns `None` only for `Html`, which does not have a spec registered

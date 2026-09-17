@@ -34,12 +34,13 @@ pub fn simple_taint_check(
     sink_re: &Regex,
     file_path: &std::path::Path,
     file_id: FileId,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
 ) -> Vec<Advisory> {
     let mut findings = Vec::new();
     let root = tree.root_node();
 
     // Collect all function bodies
-    let functions = collect_functions(root);
+    let functions = collect_functions(root, spec);
 
     for func in functions {
         let Some(body) = func.child_by_field_name("body") else {
@@ -88,7 +89,10 @@ pub fn simple_taint_check(
 /// # Panics
 /// May panic if internal assertions fail.
 /// Collect all function/method nodes from the AST.
-fn collect_functions(root: Node) -> Vec<Node> {
+fn collect_functions<'a>(
+    root: Node<'a>,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> Vec<Node<'a>> {
     let mut functions = Vec::new();
     let mut cursor = root.walk();
 
@@ -96,14 +100,22 @@ fn collect_functions(root: Node) -> Vec<Node> {
         let node = cursor.node();
         let kind = node.kind();
 
-        if matches!(
-            kind,
-            "function_item"
-                | "function_declaration"
-                | "method_definition"
-                | "arrow_function"
-                | "function"
-        ) {
+        let is_function = spec.map_or(
+            matches!(
+                kind,
+                "function_item"
+                    | "function_declaration"
+                    | "method_definition"
+                    | "arrow_function"
+                    | "function"
+                    | "generator_function"
+                    | "function_definition"
+                    | "method_declaration"
+                    | "function_definition"
+            ),
+            |s| s.is_function_node(kind),
+        );
+        if is_function {
             functions.push(node);
         }
 
@@ -135,6 +147,11 @@ fn find_first_match(text: &str, re: &Regex) -> String {
 /// # Panics
 /// May panic if internal assertions fail.
 /// Infer a rule ID based on the sink pattern.
+///
+/// This is a language-agnostic heuristic that maps sink name substrings to
+/// rule IDs. It does not delegate to the language spec because the mapping
+/// is purely lexical (substring matching on the sink call name) and applies
+/// uniformly across all supported languages.
 fn infer_rule_id(sink: &str) -> String {
     let lower = sink.to_lowercase();
     if lower.contains("eval") || lower.contains("exec") || lower.contains("system") {
@@ -181,6 +198,7 @@ mod tests {
             &sink_re,
             std::path::Path::new("test.ts"),
             FileId(0),
+            None,
         );
 
         assert_eq!(findings.len(), 1);
@@ -206,6 +224,7 @@ mod tests {
             &sink_re,
             std::path::Path::new("test.ts"),
             FileId(0),
+            None,
         );
 
         assert_eq!(findings.len(), 0);
@@ -230,6 +249,7 @@ mod tests {
             &sink_re,
             std::path::Path::new("test.ts"),
             FileId(0),
+            None,
         );
 
         assert_eq!(findings.len(), 0);

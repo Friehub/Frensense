@@ -121,6 +121,10 @@ pub struct FileContext {
 }
 
 impl FileContext {
+    /// **Deprecated:** Use [`extract_with_spec`](Self::extract_with_spec) instead,
+    /// passing a `LanguageSpec` when available. This convenience wrapper always
+    /// passes `None` for the spec, losing per-language context hint accuracy.
+    #[deprecated(since = "0.7.0", note = "use extract_with_spec with a LanguageSpec")]
     #[must_use]
     pub fn extract(file_path: &Path, content: &str) -> Self {
         Self::extract_with_spec(file_path, content, None)

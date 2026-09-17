@@ -27,6 +27,11 @@ pub enum FunctionRole {
 }
 
 /// Known Express/HTTP response method names (last-segment form) across languages.
+///
+/// **Fallback only.** When a [`LanguageSpec`] is available, its
+/// [`response_method_names()`](LanguageSpec::response_method_names) is
+/// consulted first. These constants are only used for file types without
+/// a registered spec (e.g. Html, unknown extensions).
 const HTTP_METHODS: &[&str] = &[
     // JS/TS
     "json",
@@ -64,10 +69,18 @@ const HTTP_METHODS: &[&str] = &[
 ];
 
 /// Names that mark a function parameter as request-shaped.
+///
+/// **Fallback only.** When a [`LanguageSpec`] is available, its
+/// [`request_param_names()`](LanguageSpec::request_param_names) is
+/// consulted first.
 const REQUEST_PARAM_NAMES: &[&str] = &["req", "request", "ctx", "context", "event", "c"];
 
 /// Route-registration call patterns that indicate the function is an
 /// HTTP handler definition, not a helper that merely calls response methods.
+///
+/// **Fallback only.** When a [`LanguageSpec`] is available, its
+/// [`route_registration_patterns()`](LanguageSpec::route_registration_patterns)
+/// is consulted first.
 const ROUTE_REGISTRATIONS: &[&str] = &[
     "app.get",
     "app.post",
@@ -100,6 +113,10 @@ const ROUTE_REGISTRATIONS: &[&str] = &[
 ];
 
 /// Known database query API names across languages.
+///
+/// **Fallback only.** When a [`LanguageSpec`] is available, its
+/// [`db_api_method_names()`](LanguageSpec::db_api_method_names) is
+/// consulted first.
 const DB_API: &[&str] = &[
     // Generic / JS
     "query",
@@ -146,6 +163,10 @@ const DB_API: &[&str] = &[
 ];
 
 /// Known shell execution API names across languages.
+///
+/// **Fallback only.** When a [`LanguageSpec`] is available, its
+/// [`shell_api_method_names()`](LanguageSpec::shell_api_method_names) is
+/// consulted first.
 const SHELL_API: &[&str] = &[
     // Generic / JS
     "exec",

@@ -206,6 +206,11 @@ impl HirTypeMap {
 /// of these is user input, and a function with such a parameter is an HTTP
 /// handler. This list grows only when a new framework is adopted, not when a
 /// new method name exists inside any framework.
+///
+/// **Fallback only.** When a [`frensense_lang::LanguageSpec`] is available, its
+/// [`package_category()`](frensense_lang::LanguageSpec::package_category) is
+/// consulted first via [`is_http_framework_package`]. These constants are only
+/// used for file types without a registered spec.
 pub const HTTP_FRAMEWORK_PACKAGES: &[&str] = &[
     "express", "fastify", "koa", "hapi", "hono", "next", "nuxt", "h3", "polka", "elysia", "nest",
 ];
@@ -215,6 +220,11 @@ pub const HTTP_FRAMEWORK_PACKAGES: &[&str] = &[
 /// the method name (e.g. `db.query(...)` where `db` comes from `pg` needs no
 /// entry for "query"). Kept small and stable - grows only when a new library
 /// is adopted.
+///
+/// **Fallback only.** When a [`frensense_lang::LanguageSpec`] is available, its
+/// [`package_category()`](frensense_lang::LanguageSpec::package_category) is
+/// consulted first via [`package_sink_category_from_spec`]. These constants are
+/// only used for file types without a registered spec.
 pub const PACKAGE_SINK_CATEGORIES: &[(&str, SinkCategory)] = &[
     // SQL / NoSQL database libraries
     ("pg", SinkCategory::SqlInjection),
@@ -341,7 +351,7 @@ pub struct ImportMapProvider {
     import_map: ImportMap,
     source_sink: Arc<CorpusSourceSinkRegistry>,
     environment: Option<crate::context::Environment>,
-    spec: Option<Arc<dyn frensense_lang::LanguageSpec>>,
+    spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 }
 
 impl std::fmt::Debug for ImportMapProvider {
@@ -383,7 +393,7 @@ impl ImportMapProvider {
         import_map: ImportMap,
         source_sink: Arc<CorpusSourceSinkRegistry>,
         environment: Option<crate::context::Environment>,
-        spec: Arc<dyn frensense_lang::LanguageSpec>,
+        spec: &'static dyn frensense_lang::LanguageSpec,
     ) -> Self {
         Self {
             import_map,
