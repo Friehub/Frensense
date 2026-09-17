@@ -29,202 +29,6 @@ impl SinkTier {
 }
 
 // Hardcoded high-confidence sinks that are ALWAYS registered regardless of occurrence:
-pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
-    // Code Execution
-    "eval",
-    "exec",
-    "execSync",
-    "spawn",
-    "spawnSync",
-    "Function",
-    "setTimeout",
-    "setInterval",
-    "runInNewContext",
-    "runInThisContext",
-    "require",
-    "import",
-    "Command::new",
-    "args",
-    // SQL Injection
-    "query",
-    "execute",
-    "executeRaw",
-    "queryRaw",
-    "raw",
-    "sql_query",
-    "prepare",
-    // Command Injection
-    "execFile",
-    "execFileSync",
-    "shelljs.exec",
-    "execa",
-    // Path Traversal
-    "readFile",
-    "writeFile",
-    "readFileSync",
-    "join",
-    "unlink",
-    "stat",
-    "access",
-    "read_to_string",
-    "read",
-    "write",
-    "open",
-    // SSRF
-    "fetch",
-    "axios.get",
-    "axios.post",
-    "http.get",
-    "https.get",
-    "got",
-    "request",
-    "node-fetch",
-    "reqwest::get",
-    "Client::get",
-    "Uri::from",
-    "ureq::get",
-    // Open Redirect
-    "redirect",
-    "location.href",
-    "window.location",
-    // XSS
-    "innerHTML",
-    "outerHTML",
-    "document.write",
-    "document.writeln",
-    "dangerouslySetInnerHTML",
-    // MongoDB / ORM calls
-    "update",
-    "updateOne",
-    "updateMany",
-    "insert",
-    "insertOne",
-    "insertMany",
-    "delete",
-    "deleteOne",
-    "deleteMany",
-    "find",
-    "findOne",
-    "findAll",
-    "query",
-    // MongoDB / ORM calls
-    "update",
-    "updateOne",
-    "updateMany",
-    "insert",
-    "insertOne",
-    "insertMany",
-    "delete",
-    "deleteOne",
-    "deleteMany",
-    "find",
-    "findOne",
-    "findAll",
-    "query",
-    // Storage Write
-    "put",
-    "setItem",
-    // Log Leak
-    "log",
-    "error",
-    "info",
-    "debug",
-    // Unsafe Memory (Rust)
-    "transmute",
-    "transmute_copy",
-    "from_utf8_unchecked",
-    "from_raw_parts",
-    // MongoDB / NoSQL operator sinks (used as object property keys)
-    "$where",
-    "$regex",
-    "$gt",
-    "$lt",
-    "$ne",
-    "$in",
-    "$nin",
-    "$exists",
-    "$expr",
-    "$function",
-    "$accumulator",
-    // Framework Specific (Cloudflare, Express, Next.js, Hono, Prisma)
-    "c.redirect",
-    "env.KV.put",
-    "KVNamespace.put",
-    "KVNamespace.delete",
-    "env.DB.prepare",
-    "res.send",
-    "res.json",
-    "res.redirect",
-    "res.render",
-    "revalidatePath",
-    "prisma.queryRawUnsafe",
-    "prisma.executeRawUnsafe",
-    "R2Bucket.put",
-    "D1Database.prepare",
-    "DurableObjectStub.fetch",
-    "Queue.send",
-    // SSTI - Template engine renders
-    "ejs.render",
-    "ejs.renderFile",
-    "pug.compile",
-    "pug.render",
-    "handlebars.compile",
-    "handlebars.render",
-    "nunjucks.render",
-    "nunjucks.renderString",
-    "nunjucks.renderFile",
-    "marko.render",
-    "eta.render",
-    "swig.render",
-    "liquid.render",
-    "mustache.render",
-    "jade.render",
-    "react-dom/server.renderToString",
-    "vue-server-renderer.renderToString",
-    "render_template",
-    "render_template_string",
-    // Insecure Deserialization
-    "yaml.load",
-    "js-yaml.load",
-    "pickle.loads",
-    "bincode::deserialize",
-    "msgpack.decode",
-    "msgpack.unpack",
-    "php.unserialize",
-    "ObjectInputStream.readObject",
-    "BinaryFormatter.Deserialize",
-    // Prototype Pollution
-    "Object.assign",
-    "_.merge",
-    "lodash.merge",
-    "_.defaultsDeep",
-    "_.set",
-    "$.extend",
-    "jQuery.extend",
-    "angular.merge",
-    "setPrototypeOf",
-    // XXE - XML parsers
-    "DOMParser",
-    "libxml2",
-    "SAXParser",
-    "XMLReader",
-    "DocumentBuilder",
-    "DocumentBuilderFactory",
-    "XmlDocument",
-    "XDocument",
-    "XmlTextReader",
-    "simplexml_load_string",
-    "DOMDocument",
-    // JWT
-    "jwt.verify",
-    "jwt.decode",
-    "jwt.sign",
-    "jsonwebtoken.verify",
-    "jsonwebtoken.decode",
-    "jsonwebtoken.sign",
-    "JWT.verify",
-    "JWT.decode",
-];
 
 /// Reduced sink list for compiler-aware mode.
 /// When `use_compiler=true`, OXC module resolution covers generic sinks
@@ -233,173 +37,15 @@ pub const ALWAYS_REGISTER_SINKS: &[&str] = &[
 /// - Truly dangerous bare calls (eval, exec, transmute)
 /// - Framework-specific sinks that can't be resolved through imports
 /// - MongoDB operators (property keys, not function calls)
-pub const ALWAYS_REGISTER_SINKS_COMPILER_AWARE: &[&str] = &[
-    // Code Execution - truly dangerous bare calls
-    "eval",
-    "exec",
-    "execSync",
-    "Function",
-    "setTimeout",
-    "setInterval",
-    "runInNewContext",
-    "runInThisContext",
-    // Command Injection
-    "execFile",
-    "execFileSync",
-    "execa",
-    // Unsafe Memory (Rust)
-    "transmute",
-    "transmute_copy",
-    "from_utf8_unchecked",
-    "from_raw_parts",
-    // MongoDB / NoSQL operator sinks (property keys, not function calls)
-    "$where",
-    "$regex",
-    "$gt",
-    "$lt",
-    "$ne",
-    "$in",
-    "$nin",
-    "$exists",
-    "$expr",
-    "$function",
-    "$accumulator",
-    // Framework Specific - can't be resolved through imports
-    "c.redirect",
-    "env.KV.put",
-    "KVNamespace.put",
-    "KVNamespace.delete",
-    "env.DB.prepare",
-    "res.send",
-    "res.json",
-    "res.redirect",
-    "res.render",
-    "revalidatePath",
-    "prisma.queryRawUnsafe",
-    "prisma.executeRawUnsafe",
-    "R2Bucket.put",
-    "D1Database.prepare",
-    "DurableObjectStub.fetch",
-    "Queue.send",
-    // SSTI - template engine renders (module-qualified, keep as fallback)
-    "ejs.render",
-    "ejs.renderFile",
-    "pug.compile",
-    "pug.render",
-    "handlebars.compile",
-    "handlebars.render",
-    "nunjucks.render",
-    "nunjucks.renderString",
-    "nunjucks.renderFile",
-    "marko.render",
-    "eta.render",
-    "swig.render",
-    "liquid.render",
-    "mustache.render",
-    "jade.render",
-    "react-dom/server.renderToString",
-    "vue-server-renderer.renderToString",
-    "render_template",
-    "render_template_string",
-    // Insecure Deserialization
-    "yaml.load",
-    "js-yaml.load",
-    "pickle.loads",
-    "bincode::deserialize",
-    "msgpack.decode",
-    "msgpack.unpack",
-    "php.unserialize",
-    "ObjectInputStream.readObject",
-    "BinaryFormatter.Deserialize",
-    // Prototype Pollution
-    "Object.assign",
-    "_.merge",
-    "lodash.merge",
-    "_.defaultsDeep",
-    "_.set",
-    "$.extend",
-    "jQuery.extend",
-    "angular.merge",
-    "setPrototypeOf",
-    // XXE - XML parsers
-    "DOMParser",
-    "libxml2",
-    "SAXParser",
-    "XMLReader",
-    "DocumentBuilder",
-    "DocumentBuilderFactory",
-    "XmlDocument",
-    "XDocument",
-    "XmlTextReader",
-    "simplexml_load_string",
-    "DOMDocument",
-    // JWT
-    "jwt.verify",
-    "jwt.decode",
-    "jwt.sign",
-    "jsonwebtoken.verify",
-    "jsonwebtoken.decode",
-    "jsonwebtoken.sign",
-    "JWT.verify",
-    "JWT.decode",
-];
 
-/// Return `ALWAYS_REGISTER_SINKS` as `(name, SinkCategory)` pairs.
-/// Used by `ImportMapProvider::known_sink_names()`.
-pub fn always_register_sinks_with_categories() -> Vec<(&'static str, SinkCategory)> {
-    ALWAYS_REGISTER_SINKS
-        .iter()
-        .map(|&name| (name, SinkCategory::from_sink_name(name)))
-        .collect()
-}
 
-/// Return compiler-aware sink list as `(name, SinkCategory)` pairs.
-pub fn always_register_sinks_compiler_aware() -> Vec<(&'static str, SinkCategory)> {
-    ALWAYS_REGISTER_SINKS_COMPILER_AWARE
-        .iter()
-        .map(|&name| (name, SinkCategory::from_sink_name(name)))
-        .collect()
-}
 
-/// Return the hardcoded source patterns.
-/// Used by `ImportMapProvider::known_source_patterns()`.
-pub fn always_register_source_patterns() -> Vec<&'static str> {
-    vec![
-        "req.session",
-        "req.url",
-        "req.originalUrl",
-        "req.hostname",
-        "ws.data",
-        "socket.data",
-        "ctx.request.query",
-        "ctx.request.headers",
-        "req.query",
-        "req.body",
-        "req.params",
-        "req.headers",
-        "req.cookies",
-        "req.file",
-        "req.files",
-        "ctx.request",
-        "ctx.query",
-        "ctx.params",
-        "ctx.body",
-        "event.body",
-        "request.body",
-        "request.query",
-        "process.argv",
-        "process.env",
-        "c.req",
-    ]
-}
 
-pub fn get_sink_tier(sink: &str) -> SinkTier {
-    let base = sink.rsplit('.').next().unwrap_or(sink);
-    if ALWAYS_REGISTER_SINKS.contains(&base) {
-        SinkTier::HighConfidence
-    } else {
-        SinkTier::Standard
-    }
+
+
+
+pub fn get_sink_tier(_sink: &str) -> SinkTier {
+    SinkTier::Standard
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -417,6 +63,28 @@ pub enum SinkCategory {
     ResponseLeak,
     CredentialLeak,
     Unknown,
+}
+
+
+impl From<frensense_lang::spec::SinkLabel> for SinkCategory {
+    fn from(label: frensense_lang::spec::SinkLabel) -> Self {
+        use frensense_lang::spec::SinkLabel::*;
+        match label {
+            CodeExecution => Self::CodeExecution,
+            SqlInjection => Self::SqlInjection,
+            NoSqlInjection => Self::NoSqlInjection,
+            CommandInjection => Self::CommandInjection,
+            PathTraversal => Self::PathTraversal,
+            Ssrf => Self::Ssrf,
+            OpenRedirect => Self::OpenRedirect,
+            Xss | XssDom | XssReflected => Self::Xss,
+            StorageWrite => Self::StorageWrite,
+            LogLeak => Self::LogLeak,
+            ResponseLeak => Self::ResponseLeak,
+            CredentialLeak => Self::CredentialLeak,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 impl SinkCategory {
@@ -439,7 +107,7 @@ impl SinkCategory {
         }
     }
 
-    pub fn from_sink_name(sink: &str) -> Self {
+    pub fn from_sink_name_heuristic(sink: &str) -> Self {
         let s = sink.to_lowercase();
         if s.contains("eval")
             || (s.contains("exec") && !s.contains("execsync"))
@@ -557,47 +225,57 @@ pub struct CorpusSourceSinkRegistry {
 
 impl Default for CorpusSourceSinkRegistry {
     fn default() -> Self {
-        Self::from_sink_list(ALWAYS_REGISTER_SINKS)
+        Self::new(false)
     }
 }
 
 impl CorpusSourceSinkRegistry {
-    /// Create a new registry with the given sink list.
-    fn from_sink_list(sinks: &[&str]) -> Self {
-        let mut sink_names = FxHashMap::default();
-        let mut qualified_sink_names = FxHashMap::default();
+    /// Create a new registry.
+    /// When `use_compiler=true`, uses the reduced compiler-aware sink list.
+    /// When `use_compiler=false`, uses the full registry.
+    pub fn new(use_compiler: bool) -> Self {
+        let mut sink_names = rustc_hash::FxHashMap::default();
+        let mut qualified_sink_names = rustc_hash::FxHashMap::default();
+        let mut source_patterns = Vec::new();
 
-        for &sink in sinks {
-            let cat = SinkCategory::from_sink_name(sink);
-            if sink.contains("::") || sink.contains('.') {
-                qualified_sink_names.insert(sink.to_string(), (cat, 100));
-            } else {
-                sink_names.insert(sink.to_string(), (cat, 100));
+        let allowed_compiler_labels = [
+            frensense_lang::spec::SinkLabel::CodeExecution,
+            frensense_lang::spec::SinkLabel::CommandInjection,
+            frensense_lang::spec::SinkLabel::UnsafeMemory,
+            frensense_lang::spec::SinkLabel::NoSqlInjection,
+            frensense_lang::spec::SinkLabel::TemplateSsti,
+            frensense_lang::spec::SinkLabel::UnsafeDeserialize,
+        ];
+
+        for spec in frensense_lang::registry::all_specs() {
+            for &(sink, label) in spec.known_sink_names() {
+                if use_compiler && !allowed_compiler_labels.contains(&label) {
+                    continue;
+                }
+                
+                let cat = SinkCategory::from(label);
+                // Seed at count=1 so corpus can prune them
+                if sink.contains("::") || sink.contains('.') {
+                    qualified_sink_names.insert(sink.to_string(), (cat, 1));
+                } else {
+                    sink_names.insert(sink.to_string(), (cat, 1));
+                }
+            }
+            
+            for &pat in spec.known_source_patterns() {
+                source_patterns.push(pat.to_string());
             }
         }
 
         Self {
-            source_types: FxHashMap::default(),
+            source_types: rustc_hash::FxHashMap::default(),
             sink_names,
             qualified_sink_names,
-            sanitizer_names: FxHashMap::default(),
-            source_patterns: always_register_source_patterns()
-                .into_iter()
-                .map(String::from)
-                .collect(),
+            sanitizer_names: rustc_hash::FxHashMap::default(),
+            source_patterns,
         }
     }
 
-    /// Create a new registry.
-    /// When `use_compiler=true`, uses the reduced compiler-aware sink list.
-    /// When `use_compiler=false`, uses the full hardcoded fallback list.
-    pub fn new(use_compiler: bool) -> Self {
-        if use_compiler {
-            Self::from_sink_list(ALWAYS_REGISTER_SINKS_COMPILER_AWARE)
-        } else {
-            Self::default()
-        }
-    }
 
     /// Check if a type annotation string is a known source type.
     pub fn is_source_type(&self, type_str: &str) -> bool {
@@ -679,26 +357,14 @@ impl CorpusSourceSinkRegistry {
         if self.sanitizer_names.contains_key(expr) {
             return true;
         }
-        // Built-in heuristics - stable regardless of corpus content
-        const SANITIZER_FRAGMENTS: &[&str] = &[
-            "escape",
-            "sanitize",
-            "encode",
-            "validate",
-            "strip",
-            "clean",
-            "purify",
-            "filter",
-            "dompurify",
-            "xss",
-            "he.",
-        ];
-        let lower = expr.to_lowercase();
-        for frag in SANITIZER_FRAGMENTS {
-            if lower.contains(frag) {
+        
+        // Ask providers
+        for spec in frensense_lang::registry::all_specs() {
+            if spec.classify_sanitizer(expr).is_some() {
                 return true;
             }
         }
+        
         false
     }
 
@@ -776,12 +442,12 @@ pub fn build_registry(positive_files: &[(String, String)]) -> CorpusSourceSinkRe
         for sink in &file_sinks {
             let (short, qualified) = split_sink_name(sink);
             if seen_sinks.insert(short.clone()) {
-                let cat = SinkCategory::from_sink_name(&short);
+                let cat = SinkCategory::from_sink_name_heuristic(&short);
                 let entry = registry.sink_names.entry(short).or_insert((cat, 0));
                 entry.1 += 1;
             }
             if let Some(q) = qualified {
-                let cat = SinkCategory::from_sink_name(&q);
+                let cat = SinkCategory::from_sink_name_heuristic(&q);
                 let entry = registry.qualified_sink_names.entry(q).or_insert((cat, 0));
                 entry.1 += 1;
             }
@@ -793,7 +459,7 @@ pub fn build_registry(positive_files: &[(String, String)]) -> CorpusSourceSinkRe
                 let clean_name = sink_name.trim().to_string();
                 let (short, qualified) = split_sink_name(&clean_name);
 
-                let cat = SinkCategory::from_sink_name(&short);
+                let cat = SinkCategory::from_sink_name_heuristic(&short);
                 registry
                     .sink_names
                     .entry(short.clone())

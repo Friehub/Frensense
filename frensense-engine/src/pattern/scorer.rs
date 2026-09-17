@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
-use crate::corpus::motifs::MOTIFS;
 use crate::fingerprint::FunctionFingerprint;
 use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::compiler::PatternNode;
@@ -497,14 +496,20 @@ impl PatternScorer {
                     evidence.missing_calls.push(name.clone());
                 }
             }
-            for motif in MOTIFS {
-                let mut h = rustc_hash::FxHasher::default();
-                motif.name.hash(&mut h);
-                let motif_hash = h.finish();
-                if candidate.motif_hashes.contains(&motif_hash)
-                    && best_pos.motif_hashes.contains(&motif_hash)
-                {
-                    evidence.matched_motifs.push(motif.name.to_string());
+            let mut seen_motifs = std::collections::HashSet::new();
+            for spec in frensense_lang::registry::all_specs() {
+                for &(_member, motif_name) in spec.known_motif_members() {
+                    if !seen_motifs.insert(motif_name) {
+                        continue;
+                    }
+                    let mut h = rustc_hash::FxHasher::default();
+                    motif_name.hash(&mut h);
+                    let motif_hash = h.finish();
+                    if candidate.motif_hashes.contains(&motif_hash)
+                        && best_pos.motif_hashes.contains(&motif_hash)
+                    {
+                        evidence.matched_motifs.push(motif_name.to_string());
+                    }
                 }
             }
         }
