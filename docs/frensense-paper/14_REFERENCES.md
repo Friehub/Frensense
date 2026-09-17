@@ -10,29 +10,29 @@ This document lists all academic papers, datasets, and software libraries refere
 
 **Broder, A. Z. (1997)**  
 "On the resemblance and containment of documents."  
-*Proceedings of the Compression and Complexity of Sequences 1997 (SEQUENCES '97)*, pp. 21–29. IEEE.  
+*Proceedings of the Compression and Complexity of Sequences 1997 (SEQUENCES '97)*, pp. 21 - 29. IEEE.  
 → Original MinHash paper. Proves `P[min(π(A)) = min(π(B))] = J(A, B)`.
 
 **Indyk, P. and Motwani, R. (1998)**  
 "Approximate nearest neighbors: towards removing the curse of dimensionality."  
-*Proceedings of the 30th Annual ACM Symposium on Theory of Computing (STOC '98)*, pp. 604–613.  
+*Proceedings of the 30th Annual ACM Symposium on Theory of Computing (STOC '98)*, pp. 604 - 613.  
 → Foundational LSH theory: amplification via banding, S-curve analysis.
 
 **Gionis, A., Indyk, P., and Motwani, R. (1999)**  
 "Similarity search in high dimensions via hashing."  
-*Proceedings of the 25th International Conference on Very Large Data Bases (VLDB '99)*, pp. 518–529.  
+*Proceedings of the 25th International Conference on Very Large Data Bases (VLDB '99)*, pp. 518 - 529.  
 → Practical banded LSH implementation guidance.
 
 ### Universal Hashing
 
 **Dietzfelbinger, M., Karlin, A., Mehlhorn, K., Meyer auf der Heide, F., Rohnert, H., and Tarjan, R. E. (1997)**  
 "A reliable randomized algorithm for the closest-pair problem."  
-*Journal of Algorithms*, 25(1):19–51.  
+*Journal of Algorithms*, 25(1):19 - 51.  
 → Defines multiply-shift universal hash family: `h(x) = (a·x + b) mod 2^64` with odd `a`. Used in `minhash.rs`.
 
 **Carter, J. L. and Wegman, M. N. (1979)**  
 "Universal classes of hash functions."  
-*Journal of Computer and System Sciences*, 18(2):143–154.  
+*Journal of Computer and System Sciences*, 18(2):143 - 154.  
 → Original universal hashing paper.
 
 ---
@@ -48,24 +48,24 @@ This document lists all academic papers, datasets, and software libraries refere
 
 **Livshits, V. B. and Lam, M. S. (2005)**  
 "Finding security vulnerabilities in Java applications with static analysis."  
-*Proceedings of the 14th USENIX Security Symposium*, pp. 271–286.  
+*Proceedings of the 14th USENIX Security Symposium*, pp. 271 - 286.  
 → Static taint analysis for web application security. Closest paper to Frensense's intraprocedural taint model.
 
 **Denning, D. E. (1976)**  
 "A lattice model of secure information flow."  
-*Communications of the ACM*, 19(5):236–243.  
+*Communications of the ACM*, 19(5):236 - 243.  
 → Original information flow lattice. The `TaintRegistry` scope-stack is an instance of the Denning lattice with `Tainted > Untainted` as the ordering.
 
 ### Control Flow Analysis
 
 **Allen, F. E. (1970)**  
 "Control flow analysis."  
-*SIGPLAN Notices*, 5(7):1–19.  
+*SIGPLAN Notices*, 5(7):1 - 19.  
 → Original CFG construction paper. The `BasicBlock` and `CFEdgeKind` definitions are standard Allen-style.
 
 **Cooper, K. D., Harvey, T. J., and Kennedy, K. (2001)**  
 "A simple, fast dominance algorithm."  
-*Software-Practice and Experience*, 4(1):1–10. Rice University Technical Report CS-06-33406.  
+*Software-Practice and Experience*, 4(1):1 - 10. Rice University Technical Report CS-06-33406.  
 → The iterative dominance algorithm used in `cfg/mod.rs::BasicBlock.dominators` computation.
 
 ### Reaching Definitions and Def-Use Chains
@@ -77,28 +77,28 @@ Pearson Education.
 
 **Ryder, B. G. (1979)**  
 "Constructing the call graph of a program."  
-*IEEE Transactions on Software Engineering*, SE-5(3):216–226.  
+*IEEE Transactions on Software Engineering*, SE-5(3):216 - 226.  
 → Call graph construction. Frensense uses a simplified name-based approximation of this.
 
 ### Tree Edit Distance
 
 **Zhang, K. and Shasha, D. (1989)**  
 "Simple fast algorithms for the editing distance between trees and related problems."  
-*SIAM Journal on Computing*, 18(6):1245–1262.  
+*SIAM Journal on Computing*, 18(6):1245 - 1262.  
 → The Zhang-Shasha TED algorithm. `ast_distance.rs` implements a simplified variant on extracted skeletons.
 
 ### Program Slicing
 
 **Weiser, M. (1984)**  
 "Program slicing."  
-*IEEE Transactions on Software Engineering*, SE-10(4):352–357.  
+*IEEE Transactions on Software Engineering*, SE-10(4):352 - 357.  
 → Original program slicing paper. `corpus/flow_fingerprint.rs` implements a lightweight non-PDG-based approximation of backward slicing.
 
 ### Interprocedural Analysis
 
 **Grove, D., DeFouw, G., Dean, J., and Chambers, C. (1997)**  
 "Call graph construction in object-oriented languages."  
-*ACM SIGPLAN Notices*, 32(10):108–124.  
+*ACM SIGPLAN Notices*, 32(10):108 - 124.  
 → Call graph precision levels (CHA, RTA, etc.). Frensense operates at approximately the CHA precision level for its name-based call graph.
 
 ---
@@ -109,14 +109,14 @@ Pearson Education.
 
 **Sparck Jones, K. (1972)**  
 "A statistical interpretation of term specificity and its application in retrieval."  
-*Journal of Documentation*, 28(1):11–21.  
+*Journal of Documentation*, 28(1):11 - 21.  
 → Original TF-IDF paper. The `compute_idf_weights()` function in `fingerprint/types.rs` implements this exactly.
 
 ### Document Similarity and Shingling
 
 **Broder, A. Z., Glassman, S. C., Manasse, M. S., and Zweig, G. (1997)**  
 "Syntactic clustering of the Web."  
-*Proceedings of the 6th International World Wide Web Conference (WWW '97)*, pp. 391–404.  
+*Proceedings of the 6th International World Wide Web Conference (WWW '97)*, pp. 391 - 404.  
 → W-shingling for document similarity. Frensense applies this to token sequences of function bodies.
 
 ---
@@ -127,19 +127,19 @@ Pearson Education.
 
 **Chopra, S., Hadsell, R., and LeCun, Y. (2005)**  
 "Learning a similarity metric discriminatively, with application to face verification."  
-*Proceedings of the 2005 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR '05)*, pp. 539–546.  
+*Proceedings of the 2005 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR '05)*, pp. 539 - 546.  
 → Contrastive loss. The (positive, negative) corpus pair training in Frensense maps to this framework.
 
 **Schroff, F., Kalenichenko, D., and Philbin, J. (2015)**  
 "FaceNet: A unified embedding for face recognition and clustering."  
-*Proceedings of IEEE CVPR 2015*, pp. 815–823.  
+*Proceedings of IEEE CVPR 2015*, pp. 815 - 823.  
 → Triplet loss. The contrastive scoring formula in `scorer.rs` is a direct analog of the triplet margin loss.
 
 ### Probability Calibration
 
 **Platt, J. C. (1999)**  
 "Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods."  
-In A. J. Smola, P. L. Bartlett, B. Schölkopf, and D. Schuurmans (Eds.), *Advances in Large Margin Classifiers*, pp. 61–74. MIT Press.  
+In A. J. Smola, P. L. Bartlett, B. Schölkopf, and D. Schuurmans (Eds.), *Advances in Large Margin Classifiers*, pp. 61 - 74. MIT Press.  
 → Platt scaling (sigmoid calibration). The per-pattern calibration in `frensense-bundler/src/calibration.rs` implements this.
 
 ---
@@ -150,12 +150,12 @@ In A. J. Smola, P. L. Bartlett, B. Schölkopf, and D. Schuurmans (Eds.), *Advanc
 
 **Pnueli, A. (1977)**  
 "The temporal logic of programs."  
-*Proceedings of the 18th Annual Symposium on Foundations of Computer Science (FOCS '77)*, pp. 46–57. IEEE.  
+*Proceedings of the 18th Annual Symposium on Foundations of Computer Science (FOCS '77)*, pp. 46 - 57. IEEE.  
 → Original LTL paper. The temporal property checker in `src/temporal/analyzer.rs` implements `G(A → F(B))` properties.
 
 **Clarke, E. M. and Emerson, E. A. (1981)**  
 "Design and synthesis of synchronization skeletons using branching time temporal logic."  
-*Workshop on Logic of Programs*, LNCS 131, pp. 52–71. Springer.  
+*Workshop on Logic of Programs*, LNCS 131, pp. 52 - 71. Springer.  
 → Model checking foundations.
 
 ---

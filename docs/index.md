@@ -25,7 +25,7 @@ hero:
       Instead of writing complex Abstract Syntax Tree (AST) queries, Frensense introduces a new paradigm: <strong>example-driven detection</strong>. By fingerprinting concrete pairs of vulnerable and fixed code, the engine inherently captures structural shape, control flow, API usage, and data flow simultaneously. 
     </p>
     <p>
-      Its strict "AND-gate" architecture ensures that findings only trigger when exact structural similarity and precise, field-sensitive Program Dependence Graph (PDG) data-flow completely agree—drastically reducing false positives and generalizing across framework dialects natively.
+      Its strict "AND-gate" architecture ensures that findings only trigger when exact structural similarity and precise, field-sensitive Program Dependence Graph (PDG) data-flow completely agree - drastically reducing false positives and generalizing across framework dialects natively.
     </p>
   </div>
 

@@ -15,7 +15,7 @@ Every traditional SAST tool operates on rules. A rule says: *"find a call to `ex
 
 Frensense made a different bet: **the core primitive is a function fingerprint, not a rule.**
 
-Instead of asking *"does this code match a pattern?"*, the engine asks *"does this function resemble a class of previously-seen vulnerable functions?"* The matching unit is a pair of fingerprints — one from a known-vulnerable function, one from its fixed counterpart — and the engine scores every candidate function against that pair to decide whether it looks more like the vulnerable version or the safe one.
+Instead of asking *"does this code match a pattern?"*, the engine asks *"does this function resemble a class of previously-seen vulnerable functions?"* The matching unit is a pair of fingerprints  -  one from a known-vulnerable function, one from its fixed counterpart  -  and the engine scores every candidate function against that pair to decide whether it looks more like the vulnerable version or the safe one.
 
 This changes everything downstream. Patterns can be created by showing the engine two files: a buggy version and a fixed version. The engine generalizes across minor refactorings, variable renames, and even framework changes without needing new rules. Most importantly, detection quality improves as the corpus of known vulnerability pairs grows, without anyone writing new rules.
 
@@ -52,7 +52,7 @@ flowchart LR
 
 ## The LanguageSpec Trait: Language Knowledge in One Place
 
-Before analyzing logic or data flows, the engine must understand language syntax. Every engine subsystem that previously contained hardcoded `match kind { "call_expression" | … }` arms calls a single trait method instead. Before this abstraction was built, nine separate sites in the codebase pattern-matched raw tree-sitter kind strings. Adding a new language required updating nine places — and forgetting any one of them produced a silent empty result, not a compiler error.
+Before analyzing logic or data flows, the engine must understand language syntax. Every engine subsystem that previously contained hardcoded `match kind { "call_expression" | … }` arms calls a single trait method instead. Before this abstraction was built, nine separate sites in the codebase pattern-matched raw tree-sitter kind strings. Adding a new language required updating nine places  -  and forgetting any one of them produced a silent empty result, not a compiler error.
 
 The `LanguageSpec` trait collects all language-specific knowledge in one contract:
 
@@ -164,7 +164,7 @@ flowchart LR
     MotifHash --> FlowPath["Path: UserInputSource → Call → CommandExecutionSink"]
 ```
 
-A corpus pattern trained on Express/TypeScript with `exec()` matches a Go handler using `cmd.Run()` or a Rust function using `Command::new()` — because all three produce the same `CommandExecutionSink` motif hash. The engine achieves cross-framework and partial cross-language matching without needing separate corpus entries per framework.
+A corpus pattern trained on Express/TypeScript with `exec()` matches a Go handler using `cmd.Run()` or a Rust function using `Command::new()`  -  because all three produce the same `CommandExecutionSink` motif hash. The engine achieves cross-framework and partial cross-language matching without needing separate corpus entries per framework.
 
 The same mechanism powers the flow-path system. Abstract source→sink paths are recorded as sequences of motif names:
 
@@ -172,7 +172,7 @@ The same mechanism powers the flow-path system. Abstract source→sink paths are
 ["UserInputSource", "assignment", "call", "CommandExecutionSink"]
 ```
 
-These paths are hashed and stored in `data_flow_path_hashes`. The path hash is invariant to variable names, helper extraction, and framework identity — it encodes only what kind of data flowed to what kind of sink. This dimension (flow-path containment, index 10) ends up as the highest-weighted dimension in the default weight vector because it generalizes better than any other.
+These paths are hashed and stored in `data_flow_path_hashes`. The path hash is invariant to variable names, helper extraction, and framework identity  -  it encodes only what kind of data flowed to what kind of sink. This dimension (flow-path containment, index 10) ends up as the highest-weighted dimension in the default weight vector because it generalizes better than any other.
 
 ---
 
@@ -186,7 +186,7 @@ The engine builds three layers of analysis infrastructure per function:
    - `DataDependence { var_name }`: A use of `var_name` at node B is reachable from a definition at node A.
    - `ControlDependence`: Node B executes if and only if node A's branch is taken.
 
-Post-dominator sets are computed via the reverse CFG. Node B is control-dependent on node A if A does not post-dominate itself, and B post-dominates A's successor on the taken branch but not on the fallthrough. This allows the taint analyzer to ask: *"is this use reachable from a validation branch?"* — the core logic behind validator suppression.
+Post-dominator sets are computed via the reverse CFG. Node B is control-dependent on node A if A does not post-dominate itself, and B post-dominates A's successor on the taken branch but not on the fallthrough. This allows the taint analyzer to ask: *"is this use reachable from a validation branch?"*  -  the core logic behind validator suppression.
 
 ---
 
@@ -197,7 +197,7 @@ Taint does not flow only through direct use of a tainted variable; it flows thro
 ```javascript
 const userInput = req.body.username;                // source
 const query = "SELECT * WHERE name = " + userInput; // alias chain
-db.execute(query);                                  // sink — userInput is now query
+db.execute(query);                                  // sink  -  userInput is now query
 ```
 
 The `AliasTracker` maintains a `HashMap<String, HashSet<String>>` of declared aliases. When variable `x` is assigned from `y`, it records $x \rightarrow \{y\}$. At query time, `aliases_of(x)` returns the transitive closure of all variables `x` may be aliased to. 
@@ -208,7 +208,7 @@ The tracker is also used by `data_flow_extractor` for flow-path construction: se
 
 ## Locality-Sensitive Hashing (LSH): Sub-Linear Candidate Selection
 
-With a 45k+ corpus, computing all 15 similarity dimensions for every pattern on every function would be $O(\text{functions} \times \text{patterns})$ — unacceptably slow. The engine uses **Locality-Sensitive Hashing (LSH)** to filter candidate patterns before scoring.
+With a 45k+ corpus, computing all 15 similarity dimensions for every pattern on every function would be $O(\text{functions} \times \text{patterns})$  -  unacceptably slow. The engine uses **Locality-Sensitive Hashing (LSH)** to filter candidate patterns before scoring.
 
 ```mermaid
 flowchart LR
