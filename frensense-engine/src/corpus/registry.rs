@@ -523,9 +523,7 @@ impl PatternRegistry {
                     let text = &src[n.start_byte()..n.end_byte()];
                     let patterns = spec
                         .map(|s| s.known_source_patterns().to_vec())
-                        .unwrap_or_else(|| {
-                            crate::corpus::source_sink::always_register_source_patterns()
-                        });
+                        .unwrap_or_else(|| vec![]);
                     for pattern in patterns {
                         if text.contains(pattern) {
                             let origin = crate::corpus::source_sink::taint_source_origin(pattern);

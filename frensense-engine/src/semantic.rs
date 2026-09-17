@@ -495,10 +495,10 @@ impl SemanticProvider for ImportMapProvider {
         if let Some(s) = self.spec.as_deref() {
             s.known_sink_names()
                 .iter()
-                .map(|&(name, _desc)| (name, SinkCategory::from_sink_name(name)))
+                .map(|&(name, label)| (name, SinkCategory::from(label)))
                 .collect()
         } else {
-            crate::corpus::source_sink::always_register_sinks_with_categories()
+            vec![]
         }
     }
 
@@ -506,7 +506,7 @@ impl SemanticProvider for ImportMapProvider {
         if let Some(s) = self.spec.as_deref() {
             s.known_source_patterns().to_vec()
         } else {
-            crate::corpus::source_sink::always_register_source_patterns()
+            vec![]
         }
     }
 }

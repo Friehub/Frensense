@@ -80,9 +80,7 @@ pub(crate) fn collect_function_features(
     let func_src = &source[node.start_byte()..node.end_byte().min(source.len())];
     let patterns = spec
         .map(|s| s.known_source_patterns().to_vec())
-        .unwrap_or_else(|| {
-            frensense_engine::corpus::source_sink::always_register_source_patterns()
-        });
+        .unwrap_or_else(|| vec![]);
     for pattern in patterns {
         if func_src.contains(pattern) {
             features.taint_sources.push(pattern.to_string());

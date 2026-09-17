@@ -138,8 +138,9 @@ pub fn analyze_file(
     let root = tree.root_node();
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let import_map = import_resolver::ImportMap::build_from_tree(ext, source, root);
+    let spec = frensense_lang::registry::spec_for_ext(ext);
     let route_registry =
-        route_registry::build_handler_registry(root, source, &file_path.to_string_lossy());
+        route_registry::build_handler_registry(root, source, &file_path.to_string_lossy(), spec);
 
     let mut functions = Vec::new();
     let parser_registry = parser::ParserRegistry;
