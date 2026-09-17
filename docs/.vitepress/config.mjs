@@ -1,9 +1,13 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: "Frensense",
-  description: "Deterministic Security & Diagnostics.",
+  description: "Deterministic Security Engine.",
   cleanUrls: true,
+  markdown: {
+    math: true
+  },
   themeConfig: {
     nav: [
       { text: 'Paper', link: '/frensense-paper/00_OVERVIEW' },
@@ -36,4 +40,4 @@ export default defineConfig({
       { icon: 'github', link: 'https://github.com/Friehub/Frensense' }
     ]
   }
-})
+}))
