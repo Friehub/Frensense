@@ -12,6 +12,22 @@ hero:
 ---
 
 <div class="showcase-container">
+  
+  <div class="about-section">
+    <h2 class="showcase-title">About Frensense</h2>
+    <p>
+      Frensense is a high-performance static analysis system for <strong>Rust, TypeScript, and JavaScript</strong> that detects security vulnerabilities and architectural violations without relying on hand-written rules, DSLs, or regular expressions. 
+    </p>
+    <p>
+      Instead of writing complex Abstract Syntax Tree (AST) queries, Frensense introduces a new paradigm: <strong>example-driven detection</strong>. By fingerprinting concrete pairs of vulnerable and fixed code, the engine inherently captures structural shape, control flow, API usage, and data flow simultaneously. 
+    </p>
+    <p>
+      Its strict "AND-gate" architecture ensures that findings only trigger when exact structural similarity and precise, field-sensitive Program Dependence Graph (PDG) data-flow completely agree—drastically reducing false positives and generalizing across framework dialects natively.
+    </p>
+  </div>
+
+  <div class="divider"></div>
+
   <h2 class="showcase-title">How Frensense Works</h2>
   <p class="showcase-subtitle">Stop writing abstract syntax trees. Teach the engine by providing a simple before-and-after example of a vulnerability.</p>
 
@@ -102,14 +118,33 @@ $ frensense src/ --use-compiler
 
 .showcase-container {
   max-width: 900px;
-  margin: 1rem auto 4rem auto; /* Reduced top margin to pull it up */
+  margin: 2rem auto 4rem auto;
   padding: 0 1.5rem;
+}
+.about-section {
+  margin-bottom: 4rem;
+}
+.about-section p {
+  color: var(--vp-c-text-2);
+  font-size: 1.15rem;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+.about-section strong {
+  color: var(--vp-c-text-1);
+}
+.divider {
+  height: 1px;
+  background-color: var(--vp-c-divider);
+  width: 100px;
+  margin: 0 auto 4rem auto;
 }
 .showcase-title {
   font-size: 2.2rem;
   font-weight: 700;
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
   letter-spacing: -0.02em;
 }
 .showcase-subtitle {
