@@ -4,22 +4,11 @@ layout: home
 hero:
   name: "Frensense"
   text: "Deterministic Security Engine."
-  tagline: "Static analysis without the rules. Frensense detects vulnerabilities using concrete code pairs rather than YAML or DSLs—encoding structure, control flow, and data flow simultaneously for exact similarity search."
+  tagline: "Static analysis without the rules."
   actions:
     - theme: brand
       text: Read the Paper
       link: /frensense-paper/00_OVERVIEW
-    - theme: alt
-      text: Read the Blog
-      link: /blog/
-
-features:
-  - title: Example-Driven, Not Rule-Driven
-    details: Skip writing complex Semgrep rules or regex. Provide a vulnerable function and its fix, and the engine automatically fingerprints the difference.
-  - title: Multi-Dimensional Similarity
-    details: Fingerprints corpus pairs at build time for fast, exact similarity search at runtime across Rust, TypeScript, and JavaScript.
-  - title: Precise Data-Flow
-    details: Uses field-sensitive Program Dependence Graphs (PDG) for exact control flow reachability tracking to drastically reduce false positives.
 ---
 
 <div class="showcase-container">
@@ -98,9 +87,22 @@ $ frensense src/ --use-compiler
 </div>
 
 <style>
+/* Compress the default VitePress Hero padding */
+:deep(.VPHero) {
+  padding-top: 2rem !important;
+  padding-bottom: 0rem !important;
+  margin-top: 0 !important;
+}
+:deep(.VPHero .name) {
+  font-size: 3rem !important;
+}
+:deep(.VPHome) {
+  padding-bottom: 0 !important;
+}
+
 .showcase-container {
   max-width: 900px;
-  margin: 4rem auto;
+  margin: 1rem auto 4rem auto; /* Reduced top margin to pull it up */
   padding: 0 1.5rem;
 }
 .showcase-title {
