@@ -77,22 +77,3 @@ New patterns compile into the `.frc` bundle. The scanner loads the bundle at sta
 
 ---
 
-## Document Index
-
-| File | What It Covers |
-|---|---|
-| [`00_OVERVIEW.md`](./00_OVERVIEW.md) | This file - abstract, goals, design principles |
-| [`01_WORKSPACE.md`](./01_WORKSPACE.md) | Full annotated workspace and file tree |
-| [`02_CRATE_FRC.md`](./02_CRATE_FRC.md) | `frensense-frc` - binary bundle format |
-| [`03_CRATE_LANG.md`](./03_CRATE_LANG.md) | `frensense-lang` - language abstraction layer |
-| [`04_CRATE_ENGINE.md`](./04_CRATE_ENGINE.md) | `frensense-engine` - core analysis library |
-| [`05_CRATE_BUNDLER.md`](./05_CRATE_BUNDLER.md) | `frensense-bundler` - corpus compiler |
-| [`06_CRATE_PROVIDERS.md`](./06_CRATE_PROVIDERS.md) | `frensense-providers` - compiler backends |
-| [`07_CRATE_RUNTIME.md`](./07_CRATE_RUNTIME.md) | `frensense-runtime` - dynamic instrumentation |
-| [`08_CRATE_ROOT.md`](./08_CRATE_ROOT.md) | Root crate - CLI, orchestration, MCP server |
-| [`09_PIPELINE.md`](./09_PIPELINE.md) | End-to-end analysis pipeline |
-| [`10_THEORY_MAP.md`](./10_THEORY_MAP.md) | CS theory mapped to every module |
-| [`11_DATA_STRUCTURES.md`](./11_DATA_STRUCTURES.md) | Key data structures annotated |
-| [`12_LIMITATIONS.md`](./12_LIMITATIONS.md) | Known issues and open problems |
-| [`13_BENCHMARKS.md`](./13_BENCHMARKS.md) | Benchmark results |
-| [`14_REFERENCES.md`](./14_REFERENCES.md) | Citations and bibliography |

@@ -15,7 +15,6 @@ export default defineConfig({
           text: 'Frensense Paper',
           items: [
             { text: 'Overview', link: '/frensense-paper/00_OVERVIEW' },
-            { text: 'Workspace', link: '/frensense-paper/01_WORKSPACE' },
             { text: 'Crate: FRC', link: '/frensense-paper/02_CRATE_FRC' },
             { text: 'Crate: Lang', link: '/frensense-paper/03_CRATE_LANG' },
             { text: 'Crate: Engine', link: '/frensense-paper/04_CRATE_ENGINE' },
