@@ -5,6 +5,9 @@ export default withMermaid(defineConfig({
   title: "Frensense",
   description: "Deterministic Security Engine.",
   cleanUrls: true,
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', href: '/favicon.png' }]
+  ],
   vite: {
     optimizeDeps: {
       include: [
@@ -45,7 +48,13 @@ export default withMermaid(defineConfig({
       ]
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Friehub/Frensense' }
-    ]
+      { icon: 'github', link: 'https://github.com/Friehub' },
+      { icon: 'x', link: 'https://x.com/Friehub' },
+      { icon: 'linkedin', link: 'https://linkedin.com/company/friehub' }
+    ],
+    footer: {
+      message: 'Frensense is built and maintained by Friehub.',
+      copyright: 'Copyright © 2026 Friehub'
+    }
   }
 }))
