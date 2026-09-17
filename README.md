@@ -1,6 +1,6 @@
 <div align="left">
   <h1>Frensense</h1>
-  <p><strong>A deterministic, corpus-driven security and diagnostic engine for Rust, TypeScript, and JavaScript.</strong></p>
+  <p><strong>A deterministic, corpus-driven security and diagnostic engine that is provider and language agnostic.</strong></p>
 </div>
 
 <br />
@@ -159,7 +159,7 @@ functions, explicit taint sources, and a proper `[frensense]` comment block.
 ```
 ✓  Has a [frensense] block with observation/impact/improvement
 ✓  Has at least one real import statement
-✓  Has 2–5 functions, not just one
+✓  Has 2 - 5 functions, not just one
 ✓  Proper HTTP handler signature (req, res, ctx, c)
 ✓  Taint source is explicit (req.body.X, c.Query("X"))
 ✓  Sink call present (exec, query, fetch, res.redirect)

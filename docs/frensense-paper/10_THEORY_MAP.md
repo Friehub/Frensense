@@ -126,7 +126,7 @@ The normalization step is essential: without it, `while` and `for` loops would h
 
 **Theory:**
 
-**TF-IDF (Term Frequency–Inverse Document Frequency)** weights tokens by their discriminative power:
+**TF-IDF (Term Frequency - Inverse Document Frequency)** weights tokens by their discriminative power:
 ```
 IDF(token) = log(N / df(token))
 ```

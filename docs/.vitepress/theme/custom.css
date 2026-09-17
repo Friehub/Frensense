@@ -1,0 +1,72 @@
+:root {
+  --vp-font-family-base: "Urbanist", "Inter", "Geist", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  /* Primary Mint Accent */
+  --vp-c-brand-1: #1CC858;
+  --vp-c-brand-2: #1ab44f;
+  --vp-c-brand-3: #17a046;
+  --vp-c-brand-soft: rgba(28, 200, 88, 0.14);
+}
+
+.dark {
+  /* Rich OLED-style blacks and slate */
+  --vp-c-bg: #0a0a0a;
+  --vp-c-bg-alt: #111111;
+  --vp-c-divider: #222222;
+  --vp-c-border: #333333;
+}
+
+/* Subtle glowing hover effect for feature cards */
+.VPHomeFeatures .VPLink:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: 0 4px 20px rgba(28, 200, 88, 0.1);
+  transition: all 0.2s ease;
+}
+
+/* =========================================================
+   GLASSMORPHISM & SHARPNESS TWEAKS
+   ========================================================= */
+
+/* 1. Add a subtle Mint gradient behind the whole site so the glass has something to blur */
+.dark body {
+  background-color: #0a0a0a;
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(28, 200, 88, 0.06), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(28, 200, 88, 0.06), transparent 25%);
+  background-attachment: fixed;
+}
+
+/* 2. Glassmorphism Navigation Bar */
+.dark .VPNavBar {
+  background-color: rgba(10, 10, 10, 0.45) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 3. Glassmorphism Sidebar */
+.dark .VPSidebar {
+  background-color: rgba(10, 10, 10, 0.5) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* 4. Glass Code Blocks & Terminal Windows */
+.dark div[class*="language-"], 
+.dark .vp-code-group {
+  background-color: rgba(20, 20, 20, 0.4) !important;
+  backdrop-filter: blur(16px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(120%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 12px !important;
+}
+
+/* 5. Dropdowns and Menus */
+.dark .VPMenu {
+  background-color: rgba(15, 15, 15, 0.6) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
