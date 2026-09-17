@@ -19,13 +19,7 @@ hero:
   <div class="about-section">
     <h2 class="showcase-title">About Frensense</h2>
     <p>
-      Frensense is a high-performance static analysis system that is <strong>provider and language agnostic</strong>. It detects security vulnerabilities and architectural violations without relying on hand-written rules, DSLs, or regular expressions. 
-    </p>
-    <p>
-      Instead of writing complex Abstract Syntax Tree (AST) queries, Frensense introduces a new paradigm: <strong>example-driven detection</strong>. By fingerprinting concrete pairs of vulnerable and fixed code, the engine inherently captures structural shape, control flow, API usage, and data flow simultaneously. 
-    </p>
-    <p>
-      Its strict "AND-gate" architecture ensures that findings only trigger when exact structural similarity and precise, field-sensitive Program Dependence Graph (PDG) data-flow completely agree - drastically reducing false positives and generalizing across framework dialects natively.
+      Frensense is a static analysis engine built on function fingerprints rather than traditional, hand-written rules. Instead of matching rigid syntax patterns, it evaluates code by mathematically comparing function shapes against pairs of known-vulnerable and fixed code. This design allows Frensense to generalize across minor refactorings, variable renames, and entirely different frameworks without requiring new rule sets. The engine breaks functions into 15 scoring dimensions; such as AST shapes, IDF-weighted tokens, and flow paths to accurately capture semantic behavior.
     </p>
   </div>
 
