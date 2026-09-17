@@ -193,6 +193,8 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             runtime_probe: comment_advisory
                 .runtime_probe
                 .or(toml_advisory.runtime_probe),
+            feature_variance: None,
+            min_evidence_dims: None,
         });
     }
 

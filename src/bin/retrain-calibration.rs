@@ -51,16 +51,18 @@ fn main() {
 
         // Score positive examples against their own pattern (should be high = TP)
         for pos in &pos_fps {
+            let config = frensense_engine::pattern::scorer::ScorerConfig::default();
             let score = PatternScorer::score_against_corpus(
-                pos, &pos_fps, &neg_fps, None, None, 0.05, default_w,
+                pos, &pos_fps, &neg_fps, None, None, 0.05, default_w, &config, config.noise_gate_min_moderate_dims,
             );
             scores.push((score, true));
         }
 
         // Score negative examples against positive pattern (should be low = FP)
         for neg in &neg_fps {
+            let config = frensense_engine::pattern::scorer::ScorerConfig::default();
             let score = PatternScorer::score_against_corpus(
-                neg, &pos_fps, &neg_fps, None, None, 0.05, default_w,
+                neg, &pos_fps, &neg_fps, None, None, 0.05, default_w, &config, config.noise_gate_min_moderate_dims,
             );
             scores.push((score, false));
         }

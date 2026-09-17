@@ -16,6 +16,8 @@ pub struct CorpusPattern {
     pub owasp: Option<String>,
     pub severity: Option<String>,
     pub runtime_probe: Option<String>,
+    pub feature_variance: Option<f64>,
+    pub min_evidence_dims: Option<usize>,
 }
 
 impl From<crate::corpus::bundle::BundlePattern> for CorpusPattern {
@@ -34,6 +36,8 @@ impl From<crate::corpus::bundle::BundlePattern> for CorpusPattern {
             owasp: b.owasp,
             severity: b.severity,
             runtime_probe: b.runtime_probe,
+            feature_variance: b.feature_variance,
+            min_evidence_dims: b.min_evidence_dims,
         }
     }
 }
@@ -54,6 +58,8 @@ impl From<CorpusPattern> for crate::corpus::bundle::BundlePattern {
             owasp: c.owasp,
             severity: c.severity,
             runtime_probe: c.runtime_probe,
+            feature_variance: c.feature_variance,
+            min_evidence_dims: c.min_evidence_dims,
         }
     }
 }

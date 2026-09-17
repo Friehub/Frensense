@@ -27,6 +27,10 @@ pub struct BundlePattern {
     pub severity: Option<String>,
     #[serde(default)]
     pub runtime_probe: Option<String>,
+    #[serde(default)]
+    pub feature_variance: Option<f64>,
+    #[serde(default)]
+    pub min_evidence_dims: Option<usize>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

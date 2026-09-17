@@ -16,6 +16,8 @@ pub struct CorpusPattern {
     pub owasp: Option<String>,
     pub severity: Option<String>,
     pub runtime_probe: Option<String>,
+    pub feature_variance: Option<f64>,
+    pub min_evidence_dims: Option<usize>,
 }
 
 /// A non-fatal diagnostic produced during corpus loading.

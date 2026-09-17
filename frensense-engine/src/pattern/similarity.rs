@@ -268,10 +268,10 @@ pub fn compute_dimensions(
         &target.data_flow_path_hashes,
     );
 
-    // Mutual empty MUST be 1.0 so that weights don't zero out!
+    // Mutual empty should be 0.0 so the dimension carries no signal.
     let tainted_api_sim =
         if candidate.tainted_api_calls.is_empty() && target.tainted_api_calls.is_empty() {
-            1.0
+            0.0
         } else if candidate.tainted_api_calls.is_empty() {
             0.0
         } else if target.tainted_api_calls.is_empty() {
