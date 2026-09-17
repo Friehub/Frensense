@@ -52,8 +52,8 @@ export default withMermaid(defineConfig({
     },
     socialLinks: [
       { icon: 'github', link: 'https://github.com/Friehub' },
-      { icon: 'x', link: 'https://x.com/Friehub' },
-      { icon: 'linkedin', link: 'https://linkedin.com/company/friehub' }
+      { icon: 'x', link: 'https://x.com/friehub' },
+      { icon: 'linkedin', link: 'https://www.linkedin.com/company/friehub/' }
     ],
     footer: {
       message: 'Frensense is built and maintained by Friehub.',
