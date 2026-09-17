@@ -104,6 +104,16 @@ fn node_role_to_abstract_kind(role: NodeRole, ts_kind: &str, language: Language)
             }
         }
 
+        // ── Supplementary structural roles ───────────────────────────────
+        NodeRole::Parameters => AbstractKind::Parameters,
+        NodeRole::Arguments => AbstractKind::Arguments,
+        NodeRole::ClassDef => AbstractKind::ClassDef,
+        NodeRole::BinaryOp => AbstractKind::BinaryOp,
+        NodeRole::UnaryOp => AbstractKind::UnaryOp,
+        NodeRole::Match => AbstractKind::Match,
+        NodeRole::Unsafe => AbstractKind::Unsafe,
+        NodeRole::AsyncBlock => AbstractKind::Async,
+
         // ── Language-specific extras via raw ts_kind ─────────────────────
         // NodeRole::Other covers things the lang spec doesn't classify.
         // We still want to catch a few engine-specific extras per language.
@@ -113,23 +123,12 @@ fn node_role_to_abstract_kind(role: NodeRole, ts_kind: &str, language: Language)
 
 /// Fallback handler for `NodeRole::Other` - maps a small set of language-
 /// specific node kinds that `AbstractKind` tracks but `NodeRole` doesn't have
-/// a variant for (e.g. struct/enum/trait definitions, unsafe blocks).
+/// a variant for (e.g. struct/enum/trait definitions that use `Other`).
 fn other_to_abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
     match language {
         Language::Rust => match ts_kind {
-            "struct_item" => AbstractKind::StructDef,
-            "enum_item" => AbstractKind::EnumDef,
-            "trait_item" => AbstractKind::InterfaceDef,
             "const_item" => AbstractKind::ConstDef,
             "mod_item" => AbstractKind::ModuleDef,
-            "impl_item" => AbstractKind::ClassDef,
-            "unsafe_block" => AbstractKind::Unsafe,
-            "async_block" => AbstractKind::Async,
-            "match_expression" => AbstractKind::Match,
-            "parameters" | "self_parameter" | "parameter" => AbstractKind::Parameters,
-            "arguments" => AbstractKind::Arguments,
-            "binary_expression" => AbstractKind::BinaryOp,
-            "unary_expression" => AbstractKind::UnaryOp,
             "type_identifier"
             | "primitive_type"
             | "scoped_identifier"
@@ -137,44 +136,19 @@ fn other_to_abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
             _ => AbstractKind::Other,
         },
         Language::TypeScript | Language::JavaScript => match ts_kind {
-            "class_declaration" => AbstractKind::ClassDef,
-            "interface_declaration" => AbstractKind::InterfaceDef,
-            "enum_declaration" => AbstractKind::EnumDef,
-            "switch_statement" => AbstractKind::Match,
-            "formal_parameters" => AbstractKind::Parameters,
-            "arguments" => AbstractKind::Arguments,
-            "binary_expression" => AbstractKind::BinaryOp,
-            "unary_expression" => AbstractKind::UnaryOp,
             "type_annotation" | "type_arguments" => AbstractKind::Other,
             _ => AbstractKind::Other,
         },
         Language::Python => match ts_kind {
-            "class_definition" => AbstractKind::ClassDef,
-            "match_statement" => AbstractKind::Match,
-            "parameters" => AbstractKind::Parameters,
-            "argument_list" => AbstractKind::Arguments,
-            "binary_operator" => AbstractKind::BinaryOp,
-            "unary_operator" => AbstractKind::UnaryOp,
             "type" => AbstractKind::TypeAnnotation,
             _ => AbstractKind::Other,
         },
         Language::Go => match ts_kind {
-            "expression_switch_statement" | "type_switch_statement" => AbstractKind::Match,
             "defer_statement" | "go_statement" => AbstractKind::Call,
-            "parameter_list" => AbstractKind::Parameters,
-            "argument_list" => AbstractKind::Arguments,
-            "binary_expression" => AbstractKind::BinaryOp,
-            "unary_expression" => AbstractKind::UnaryOp,
             "field_identifier" | "type_identifier" => AbstractKind::Identifier,
             _ => AbstractKind::Other,
         },
-        Language::C => match ts_kind {
-            "parameter_list" | "parameter_declaration" => AbstractKind::Parameters,
-            "argument_list" => AbstractKind::Arguments,
-            "binary_expression" => AbstractKind::BinaryOp,
-            "unary_expression" => AbstractKind::UnaryOp,
-            _ => AbstractKind::Other,
-        },
+        Language::C => AbstractKind::Other,
         Language::Html => AbstractKind::Other,
     }
 }

@@ -75,7 +75,10 @@ impl HandlerRegistry {
 
 /// Known router method suffixes and their handler position.
 ///
-/// Each entry maps: (method_suffix, HttpMethod, HandlerPosition)
+/// **Fallback only.** When a [`frensense_lang::LanguageSpec`] is available, its
+/// [`route_registration_patterns()`](frensense_lang::LanguageSpec::route_registration_patterns)
+/// is consulted first. These constants are only used for file types without
+/// a registered spec.
 static REGISTRATION_PATTERNS: &[(&str, super::decorator::HttpMethod, HandlerPosition)] = &[
     (
         "get",
@@ -134,6 +137,9 @@ static REGISTRATION_PATTERNS: &[(&str, super::decorator::HttpMethod, HandlerPosi
 /// E.g. `app`, `router`, `fastify`, `hono`, `server`, `route`.
 /// We check the callee receiver against these to avoid false positives
 /// from unrelated `.get()` / `.post()` calls.
+///
+/// This list is JS/Node-specific by design — route registration detection
+/// only applies to Express, Fastify, Hono, and similar JS frameworks.
 static ROUTER_NAMES: &[&str] = &[
     "app",
     "router",
@@ -155,14 +161,25 @@ static ROUTER_NAMES: &[&str] = &[
 /// 3. The receiver is a known router variable name
 ///
 /// Extracts the handler function name from the arguments.
-pub fn build_handler_registry(root: Node, source: &str, file_path: &str) -> HandlerRegistry {
+pub fn build_handler_registry(
+    root: Node,
+    source: &str,
+    file_path: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> HandlerRegistry {
     let mut registry = HandlerRegistry::default();
     let mut cursor = root.walk();
 
     loop {
         let node = cursor.node();
-        if node.kind() == "call_expression" {
-            if let Some(reg) = extract_registration(node, source, file_path) {
+        let is_call = spec.map_or(node.kind() == "call_expression", |s| {
+            matches!(
+                s.classify(node.kind()),
+                frensense_lang::NodeRole::Call { .. }
+            )
+        });
+        if is_call {
+            if let Some(reg) = extract_registration(node, source, file_path, spec) {
                 registry.register(reg);
             }
         }
@@ -186,9 +203,19 @@ fn extract_registration(
     call_node: Node,
     source: &str,
     file_path: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
 ) -> Option<RouteRegistration> {
     let callee = call_node.child_by_field_name("function")?;
-    if callee.kind() != "member_expression" && callee.kind() != "field_expression" {
+    let is_member = spec.map_or(
+        callee.kind() == "member_expression" || callee.kind() == "field_expression",
+        |s| {
+            matches!(
+                s.classify(callee.kind()),
+                frensense_lang::NodeRole::MemberAccess { .. }
+            )
+        },
+    );
+    if !is_member {
         return None;
     }
 
@@ -210,7 +237,7 @@ fn extract_registration(
         .iter()
         .find(|(name, _, _)| *name == method_name)?;
 
-    let (handler_name, path) = extract_handler_and_path(call_node, source, position)?;
+    let (handler_name, path) = extract_handler_and_path(call_node, source, position, spec)?;
 
     Some(RouteRegistration {
         method: *http_method,
@@ -226,11 +253,12 @@ fn extract_handler_and_path(
     call_node: Node,
     source: &str,
     position: &HandlerPosition,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
 ) -> Option<(String, String)> {
     let args = call_node.child_by_field_name("arguments")?;
 
     let handler_name = match position {
-        HandlerPosition::LastArg => extract_last_named_arg(args, source),
+        HandlerPosition::LastArg => extract_last_named_arg(args, source, spec),
         HandlerPosition::ObjectField(field) => extract_object_field_value(args, source, field),
     }?;
 
@@ -243,7 +271,11 @@ fn extract_handler_and_path(
 /// Extract the last named child of an arguments node.
 /// If the last arg is an object literal with a `handler` field, extract that field's value
 /// (Fastify options-style: `fastify.get(path, { handler: fn, ... })`).
-fn extract_last_named_arg(args: Node, source: &str) -> Option<String> {
+fn extract_last_named_arg(
+    args: Node,
+    source: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> Option<String> {
     let count = args.named_child_count();
     if count == 0 {
         return None;
@@ -269,7 +301,11 @@ fn extract_last_named_arg(args: Node, source: &str) -> Option<String> {
     // Inline arrow/function expressions have no name - return a placeholder
     // so extract_registration still works for is_inline_registered_handler,
     // but the registry key won't be garbage source code.
-    if kind == "arrow_function" || kind == "function" || kind == "function_expression" {
+    let is_inline_fn = spec.map_or(
+        kind == "arrow_function" || kind == "function" || kind == "function_expression",
+        |s| matches!(s.classify(kind), frensense_lang::NodeRole::Function { .. }),
+    );
+    if is_inline_fn {
         return Some("<inline>".to_string());
     }
     let name = &source[last.start_byte()..last.end_byte()];
@@ -323,23 +359,45 @@ fn find_object_field_value_raw(obj_node: Node, source: &str, field: &str) -> Opt
 
 /// Check if an arrow function is passed as a direct argument to a router registration.
 /// If so, the inline function IS the handler - classify it as HttpHandler without a name lookup.
-pub fn is_inline_registered_handler(fn_node: Node, source: &str) -> bool {
-    if fn_node.kind() != "arrow_function" {
+pub fn is_inline_registered_handler(
+    fn_node: Node,
+    source: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> bool {
+    let is_arrow = spec.map_or(fn_node.kind() == "arrow_function", |s| {
+        matches!(
+            s.classify(fn_node.kind()),
+            frensense_lang::NodeRole::Function { .. }
+        )
+    });
+    if !is_arrow {
         return false;
     }
     let Some(parent) = fn_node.parent() else {
         return false;
     };
-    if parent.kind() != "arguments" {
+    let is_args = spec.map_or(parent.kind() == "arguments", |s| {
+        matches!(
+            s.classify(parent.kind()),
+            frensense_lang::NodeRole::Arguments
+        )
+    });
+    if !is_args {
         return false;
     }
     let Some(call) = parent.parent() else {
         return false;
     };
-    if call.kind() != "call_expression" {
+    let is_call = spec.map_or(call.kind() == "call_expression", |s| {
+        matches!(
+            s.classify(call.kind()),
+            frensense_lang::NodeRole::Call { .. }
+        )
+    });
+    if !is_call {
         return false;
     }
-    extract_registration(call, source, "").is_some()
+    extract_registration(call, source, "", spec).is_some()
 }
 
 /// Try to infer a function's effective name when it's assigned to a property.
@@ -426,7 +484,12 @@ fn extract_property_name(node: Node, source: &str) -> Option<String> {
 ///
 /// Walks upward from `fn_node` to find the tree root, then walks the full tree
 /// looking for registration calls that reference this function's name.
-pub fn is_function_registered_in_file(fn_node: Node, source: &str, _file_path: &str) -> bool {
+pub fn is_function_registered_in_file(
+    fn_node: Node,
+    source: &str,
+    _file_path: &str,
+    spec: Option<&dyn frensense_lang::LanguageSpec>,
+) -> bool {
     // First try to get the function's declared name (e.g., `function foo()`)
     let fn_name = if let Some(name_node) = fn_node.child_by_field_name("name") {
         source[name_node.start_byte()..name_node.end_byte()].to_string()
@@ -445,8 +508,14 @@ pub fn is_function_registered_in_file(fn_node: Node, source: &str, _file_path: &
     let mut cursor = root.walk();
     loop {
         let node = cursor.node();
-        if node.kind() == "call_expression" {
-            if let Some(reg) = extract_registration(node, source, "") {
+        let is_call = spec.map_or(node.kind() == "call_expression", |s| {
+            matches!(
+                s.classify(node.kind()),
+                frensense_lang::NodeRole::Call { .. }
+            )
+        });
+        if is_call {
+            if let Some(reg) = extract_registration(node, source, "", spec) {
                 if reg.handler_name == fn_name {
                     return true;
                 }
@@ -483,7 +552,7 @@ mod tests {
     fn test_build_registry_express_get() {
         let src = "app.get('/users', getUsers);";
         let (tree, source) = parse_ts(src);
-        let registry = build_handler_registry(tree.root_node(), &source, "test.ts");
+        let registry = build_handler_registry(tree.root_node(), &source, "test.ts", None);
         assert!(registry.is_registered_handler("getUsers"));
         let regs = registry.registrations_for("getUsers");
         assert_eq!(regs.len(), 1);
@@ -494,7 +563,7 @@ mod tests {
     fn test_build_registry_express_post() {
         let src = "router.post('/orders', createOrder);";
         let (tree, source) = parse_ts(src);
-        let registry = build_handler_registry(tree.root_node(), &source, "test.ts");
+        let registry = build_handler_registry(tree.root_node(), &source, "test.ts", None);
         assert!(registry.is_registered_handler("createOrder"));
     }
 
@@ -502,7 +571,7 @@ mod tests {
     fn test_build_registry_fastify_options() {
         let src = r#"fastify.get('/users', { handler: getUsers, schema: {} });"#;
         let (tree, source) = parse_ts(src);
-        let registry = build_handler_registry(tree.root_node(), &source, "test.ts");
+        let registry = build_handler_registry(tree.root_node(), &source, "test.ts", None);
         assert!(registry.is_registered_handler("getUsers"));
     }
 
@@ -510,7 +579,7 @@ mod tests {
     fn test_build_registry_middleware() {
         let src = "app.use('/admin', adminRouter);";
         let (tree, source) = parse_ts(src);
-        let registry = build_handler_registry(tree.root_node(), &source, "test.ts");
+        let registry = build_handler_registry(tree.root_node(), &source, "test.ts", None);
         assert!(registry.is_registered_handler("adminRouter"));
     }
 
@@ -518,12 +587,12 @@ mod tests {
     fn test_not_registered_unrelated_call() {
         let src = "console.log('hello');";
         let (tree, source) = parse_ts(src);
-        let registry = build_handler_registry(tree.root_node(), &source, "test.ts");
+        let registry = build_handler_registry(tree.root_node(), &source, "test.ts", None);
         assert!(!registry.is_registered_handler("hello"));
 
         let src2 = "user.get('hello');";
         let (tree2, source2) = parse_ts(src2);
-        let registry2 = build_handler_registry(tree2.root_node(), &source2, "test.ts");
+        let registry2 = build_handler_registry(tree2.root_node(), &source2, "test.ts", None);
         assert!(!registry2.is_registered_handler("hello"));
     }
 
@@ -533,8 +602,8 @@ mod tests {
         let src2 = "app.get('/b', fnB);";
         let (tree1, source1) = parse_ts(src1);
         let (tree2, source2) = parse_ts(src2);
-        let reg1 = build_handler_registry(tree1.root_node(), &source1, "a.ts");
-        let reg2 = build_handler_registry(tree2.root_node(), &source2, "b.ts");
+        let reg1 = build_handler_registry(tree1.root_node(), &source1, "a.ts", None);
+        let reg2 = build_handler_registry(tree2.root_node(), &source2, "b.ts", None);
         let mut merged = reg1.clone();
         merged.merge(reg2);
         assert!(merged.is_registered_handler("fnA"));
@@ -550,7 +619,7 @@ mod tests {
         let args = call.child_by_field_name("arguments").unwrap();
         let arrow = args.named_child(1).unwrap();
         assert_eq!(arrow.kind(), "arrow_function");
-        assert!(is_inline_registered_handler(arrow, &source));
+        assert!(is_inline_registered_handler(arrow, &source, None));
     }
 
     #[test]
@@ -561,7 +630,7 @@ mod tests {
         let declarator = decl.child(1).unwrap();
         let arrow = declarator.child_by_field_name("value").unwrap();
         assert_eq!(arrow.kind(), "arrow_function");
-        assert!(!is_inline_registered_handler(arrow, &source));
+        assert!(!is_inline_registered_handler(arrow, &source, None));
     }
 
     #[test]
@@ -609,7 +678,9 @@ app.get("/", sessionHandler.displayWelcomePage);
             }
         }
         let arrow = arrow_node.expect("should find arrow function");
-        assert!(is_function_registered_in_file(arrow, &source, "test.ts"));
+        assert!(is_function_registered_in_file(
+            arrow, &source, "test.ts", None
+        ));
     }
 
     #[test]
@@ -621,6 +692,6 @@ app.get("/", sessionHandler.displayWelcomePage);
         let args = call.child_by_field_name("arguments").unwrap();
         let arrow = args.named_child(1).unwrap();
         assert_eq!(arrow.kind(), "arrow_function");
-        assert!(is_inline_registered_handler(arrow, &source));
+        assert!(is_inline_registered_handler(arrow, &source, None));
     }
 }

@@ -115,6 +115,11 @@ impl LanguageRegistry {
     pub fn language_names(&self) -> impl Iterator<Item = &'static str> + '_ {
         self.by_name.keys().copied()
     }
+
+    /// All registered language specs (deduplicated by language name).
+    pub fn all_specs(&self) -> impl Iterator<Item = &dyn LanguageSpec> + '_ {
+        self.by_name.values().map(|arc| arc.as_ref())
+    }
 }
 
 // ── Convenience free functions ─────────────────────────────────────────────────
@@ -129,4 +134,10 @@ pub fn spec_for_ext(ext: &str) -> Option<&'static dyn LanguageSpec> {
 #[inline]
 pub fn spec_for_path(path: &std::path::Path) -> Option<&'static dyn LanguageSpec> {
     LanguageRegistry::global().for_path(path)
+}
+
+/// Convenience: iterate all registered language specs.
+#[inline]
+pub fn all_specs() -> impl Iterator<Item = &'static dyn LanguageSpec> {
+    LanguageRegistry::global().all_specs()
 }

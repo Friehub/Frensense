@@ -31,6 +31,7 @@ fn test_consistency_taint_input_to_exec() {
         &sink_re,
         std::path::Path::new("test.ts"),
         FileId(0),
+        None,
     );
 
     // Path A: Full pipeline would run here, but for this test we verify
@@ -58,6 +59,7 @@ fn test_consistency_no_taint() {
         &sink_re,
         std::path::Path::new("test.ts"),
         FileId(0),
+        None,
     );
 
     assert_eq!(path_b.len(), 0, "No taint flow should produce no findings");

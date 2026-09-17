@@ -78,7 +78,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         };
 
         let mut fps = Vec::new();
-        extract_fingerprints(tree.root_node(), &source, &path, &mut fps, 5, None);
+        extract_fingerprints(tree.root_node(), &source, &path, &mut fps, 3, None);
 
         if fps.is_empty() {
             continue;
@@ -100,9 +100,9 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             }
             // M4: Auto-infer expected_context from the positive file path+content - no TOML needed
             if entry.2.expected_context.is_none() {
-                entry.2.expected_context = Some(frensense_engine::context::FileContext::extract(
-                    &path, &source,
-                ));
+                entry.2.expected_context = Some(
+                    frensense_engine::context::FileContext::extract_with_spec(&path, &source, spec),
+                );
             }
         } else {
             entry.1.extend(fps);

@@ -670,7 +670,8 @@ impl PatternRegistry {
         }
 
         // Function role classifier
-        let candidate_role = crate::function_role::classify_role(weighted_fp);
+        let candidate_role =
+            crate::function_role::classify_role_with_imports(weighted_fp, None, spec);
         if let Some(first_pos) = pattern.positives.first() {
             let pattern_role = crate::function_role::classify_role(first_pos);
             if crate::function_role::roles_are_incompatible(candidate_role, pattern_role) {

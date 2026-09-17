@@ -64,76 +64,94 @@ pub fn classify_param_origin_with_spec(
 /// The names `"name"` and `"data"` are intentionally excluded here - they
 /// are extremely common in non-HTTP contexts. Use
 /// `classify_param_name_in_context` when a `FileContext` is available.
+///
+/// This is a fallback for languages not yet covered by `frensense-lang`.
+/// When a `LanguageSpec` is available, prefer [`classify_param_origin_with_spec`].
 fn classify_param_origin_heuristic(name: &str) -> Option<TaintOrigin> {
     let lower = name.to_lowercase();
-    if matches!(
-        lower.as_str(),
-        "req"
-            | "request"
-            | "event"
-            | "ctx"
-            | "context"
-            | "payload"
-            | "input"
-            | "body"
-            | "query"
-            | "params"
-            | "searchparams"
-            | "args"
-            | "cmd"
-            | "url"
-            | "path"
-            | "file"
-            | "userid"
-            | "user_id"
-            | "uid"
-            | "token"
-            | "jwt"
-            | "email"
-            | "password"
-            | "passwd"
-            | "username"
-            | "user_name"
-            | "login"
-            | "message"
-            | "text"
-            | "html"
-            | "ssn"
-            | "dob"
-            | "address"
-            | "bankacc"
-            | "bankrouting"
-            | "firstname"
-            | "lastname"
-    ) {
-        return Some(TaintOrigin::UserInput);
-    }
-    if matches!(
-        lower.as_str(),
-        "env" | "config" | "settings" | "conf" | "options" | "opts" | "cfg"
-    ) {
-        return Some(TaintOrigin::Environment);
-    }
-    if matches!(
-        lower.as_str(),
-        "db" | "conn" | "connection" | "pool" | "row" | "record" | "result" | "results"
-    ) {
-        return Some(TaintOrigin::Database);
-    }
-    if matches!(
-        lower.as_str(),
-        "socket" | "ws" | "stream" | "client" | "server" | "tcp" | "udp" | "peer"
-    ) {
-        return Some(TaintOrigin::Network);
-    }
-    if matches!(
-        lower.as_str(),
-        "fd" | "filepath" | "filename" | "buf" | "reader" | "src"
-    ) {
-        return Some(TaintOrigin::FileSystem);
-    }
-    None
+    let key = lower.as_str();
+    HEURISTIC_TAIT_MAP
+        .binary_search_by(|(k, _)| k.cmp(&key))
+        .ok()
+        .map(|i| HEURISTIC_TAIT_MAP[i].1.clone())
 }
+
+/// Static lookup table for heuristic parameter-name → taint-origin mapping.
+/// Sorted by key for binary search. Keep alphabetically sorted within each
+/// origin group.
+const HEURISTIC_TAIT_MAP: &[(&str, TaintOrigin)] = &[
+    // ── UserInput ───────────────────────────────────────────────────────
+    ("address", TaintOrigin::UserInput),
+    ("args", TaintOrigin::UserInput),
+    ("bankacc", TaintOrigin::UserInput),
+    ("bankrouting", TaintOrigin::UserInput),
+    ("body", TaintOrigin::UserInput),
+    ("cmd", TaintOrigin::UserInput),
+    ("context", TaintOrigin::UserInput),
+    ("ctx", TaintOrigin::UserInput),
+    ("dob", TaintOrigin::UserInput),
+    ("email", TaintOrigin::UserInput),
+    ("event", TaintOrigin::UserInput),
+    ("file", TaintOrigin::UserInput),
+    ("firstname", TaintOrigin::UserInput),
+    ("html", TaintOrigin::UserInput),
+    ("input", TaintOrigin::UserInput),
+    ("jwt", TaintOrigin::UserInput),
+    ("lastname", TaintOrigin::UserInput),
+    ("login", TaintOrigin::UserInput),
+    ("message", TaintOrigin::UserInput),
+    ("params", TaintOrigin::UserInput),
+    ("passwd", TaintOrigin::UserInput),
+    ("password", TaintOrigin::UserInput),
+    ("path", TaintOrigin::UserInput),
+    ("payload", TaintOrigin::UserInput),
+    ("query", TaintOrigin::UserInput),
+    ("req", TaintOrigin::UserInput),
+    ("request", TaintOrigin::UserInput),
+    ("searchparams", TaintOrigin::UserInput),
+    ("ssn", TaintOrigin::UserInput),
+    ("text", TaintOrigin::UserInput),
+    ("token", TaintOrigin::UserInput),
+    ("uid", TaintOrigin::UserInput),
+    ("url", TaintOrigin::UserInput),
+    ("user_id", TaintOrigin::UserInput),
+    ("userid", TaintOrigin::UserInput),
+    ("user_name", TaintOrigin::UserInput),
+    ("username", TaintOrigin::UserInput),
+    // ── Environment ─────────────────────────────────────────────────────
+    ("cfg", TaintOrigin::Environment),
+    ("conf", TaintOrigin::Environment),
+    ("config", TaintOrigin::Environment),
+    ("env", TaintOrigin::Environment),
+    ("opts", TaintOrigin::Environment),
+    ("options", TaintOrigin::Environment),
+    ("settings", TaintOrigin::Environment),
+    // ── Database ────────────────────────────────────────────────────────
+    ("conn", TaintOrigin::Database),
+    ("connection", TaintOrigin::Database),
+    ("db", TaintOrigin::Database),
+    ("pool", TaintOrigin::Database),
+    ("record", TaintOrigin::Database),
+    ("result", TaintOrigin::Database),
+    ("results", TaintOrigin::Database),
+    ("row", TaintOrigin::Database),
+    // ── Network ─────────────────────────────────────────────────────────
+    ("client", TaintOrigin::Network),
+    ("peer", TaintOrigin::Network),
+    ("server", TaintOrigin::Network),
+    ("socket", TaintOrigin::Network),
+    ("stream", TaintOrigin::Network),
+    ("tcp", TaintOrigin::Network),
+    ("udp", TaintOrigin::Network),
+    ("ws", TaintOrigin::Network),
+    // ── FileSystem ──────────────────────────────────────────────────────
+    ("buf", TaintOrigin::FileSystem),
+    ("fd", TaintOrigin::FileSystem),
+    ("filename", TaintOrigin::FileSystem),
+    ("filepath", TaintOrigin::FileSystem),
+    ("reader", TaintOrigin::FileSystem),
+    ("src", TaintOrigin::FileSystem),
+];
 
 /// Context-aware version of `classify_param_origin`.
 ///
@@ -141,6 +159,14 @@ fn classify_param_origin_heuristic(name: &str) -> Option<TaintOrigin> {
 /// the enclosing file is a `RouteHandler`. In all other environments they
 /// fall through to `None` (no taint), avoiding phantom origins in crypto,
 /// formatters, and other non-HTTP code.
+///
+/// **Deprecated:** Use [`classify_param_name_in_context_with_spec`] instead,
+/// passing a `LanguageSpec` when available. This convenience wrapper always
+/// passes `None` for the spec, losing per-language classification accuracy.
+#[deprecated(
+    since = "0.7.0",
+    note = "use classify_param_name_in_context_with_spec with a LanguageSpec"
+)]
 pub fn classify_param_name_in_context(
     name: &str,
     env: Option<&crate::context::Environment>,

@@ -95,6 +95,27 @@ pub enum NodeRole {
     Identifier, // bare name reference
     Literal,    // string / number / bool literal
 
+    // ── Supplementary structural roles ────────────────────────────────────
+    /// Parameter list: `formal_parameters` (JS/TS), `parameter_list` (Go),
+    /// `parameters` (Python), `parameter_declaration` (C).
+    Parameters,
+    /// Argument list: `arguments` (JS/TS), `argument_list` (Python/Go/C),
+    /// `token_tree` (Rust macros).
+    Arguments,
+    /// Class / struct / enum / interface / trait definition.
+    ClassDef,
+    /// Binary expression: `a + b`, `x && y`.
+    BinaryOp,
+    /// Unary expression: `!x`, `-x`, `*ptr`.
+    UnaryOp,
+    /// Pattern match: `match` (Rust), `switch` as type/value switch (Go),
+    /// `match` statement (Python), `switch_expression` (JS/TS).
+    Match,
+    /// Rust: `unsafe { … }` block.
+    Unsafe,
+    /// Rust async block, JS/TS `async function`, Python `async def`.
+    AsyncBlock,
+
     /// Anything the engine does not need to inspect.
     Other,
 }
@@ -133,6 +154,43 @@ pub enum PackageCategory {
     Crypto,
     Logging,
     Testing,
+}
+
+/// Standard classification labels for sink functions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SinkLabel {
+    CodeExecution,
+    SqlInjection,
+    NoSqlInjection,
+    CommandInjection,
+    PathTraversal,
+    Ssrf,
+    OpenRedirect,
+    Xss,
+    XssDom,
+    XssReflected,
+    HeaderInjection,
+    CookiePoisoning,
+    ContentTypeInjection,
+    StorageWrite,
+    LogLeak,
+    ResponseLeak,
+    CredentialLeak,
+    TemplateSsti,
+    UnsafeDeserialize,
+    LdapInjection,
+    XpathInjection,
+    PrototypePollution,
+    Toctou,
+    GraphqlInjection,
+    Xxe,
+    Jwt,
+    JwtWeakAlgorithm,
+    JwtUnsafeDecode,
+    UnsafeMemory,
+    BufferOverflow,
+    FormatString,
+    Unknown,
 }
 
 /// Broad origin of tainted data.
@@ -307,6 +365,7 @@ pub trait LanguageSpec: Send + Sync + 'static {
     /// Names of function parameters that conventionally carry HTTP request data.
     ///
     /// Used as a fallback when no type annotation is available.
+    /// Returns `&[]` for languages without HTTP framework conventions (e.g. C).
     fn request_param_names(&self) -> &'static [&'static str] {
         &[]
     }
@@ -315,13 +374,19 @@ pub trait LanguageSpec: Send + Sync + 'static {
     ///
     /// Returns `(call_name, sink_description)` pairs.  The sink_description is
     /// a short label used in fingerprint hashing, not for display.
-    fn known_sink_names(&self) -> &'static [(&'static str, &'static str)] {
+    fn known_sink_names(&self) -> &'static [(&'static str, crate::spec::SinkLabel)] {
         &[]
     }
 
     /// Known taint source accessor patterns.
     ///
     /// e.g. `"req.body"`, `"request.args"`, `"r.URL.Query"`.
+    /// Known motifs (abstract groups of calls) for this language.
+    /// Returns `(motif_name, concrete_call)` pairs.
+    fn known_motif_members(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+
     fn known_source_patterns(&self) -> &'static [&'static str] {
         &[]
     }
@@ -353,21 +418,30 @@ pub trait LanguageSpec: Send + Sync + 'static {
     // ── Engine knowledge not yet covered by spec ─────────────────────────────
 
     /// HTTP response method names for this language.
+    ///
+    /// Returns `&[]` for languages without HTTP framework conventions.
     fn response_method_names(&self) -> &'static [&'static str] {
         &[]
     }
 
     /// Database API method names.
+    ///
+    /// Returns `&[]` for languages without standard DB API conventions.
     fn db_api_method_names(&self) -> &'static [&'static str] {
         &[]
     }
 
     /// Shell execution API names.
+    ///
+    /// Returns `&[]` for languages without standard shell execution APIs.
     fn shell_api_method_names(&self) -> &'static [&'static str] {
         &[]
     }
 
-    /// Route registration call patterns.
+    /// Route registration call patterns (e.g. `"app.get("`, `"router.post("`).
+    ///
+    /// Returns `&[]` for languages that don't use Express-style registration
+    /// (Go uses `http.HandleFunc`, Python uses `@app.route`, Rust uses macros).
     fn route_registration_patterns(&self) -> &'static [&'static str] {
         &[]
     }

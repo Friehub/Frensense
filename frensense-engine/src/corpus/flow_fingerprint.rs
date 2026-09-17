@@ -14,6 +14,25 @@ use tree_sitter::Node;
 use crate::corpus::motifs::MOTIF_LOOKUP;
 use frensense_lang::spec::{LanguageSpec, NodeRole};
 
+/// Taint origin label assigned when a variable is assigned from a recognized
+/// user-input source (e.g. `req.body.x`).
+pub const USER_INPUT_SOURCE: &str = "UserInputSource";
+
+/// Taint origin label assigned when a variable holds the result of a
+/// database query (SQL/NoSQL injection sink).
+pub const DATABASE_SOURCE: &str = "DatabaseSource";
+
+/// Intermediate label placed between source and sink in a 3-label flow path.
+pub const TAINT_FLOW: &str = "taint_flow";
+
+/// Labels used as flow-path endpoints when a sink is identified by
+/// [`SinkCategory`] fallback rather than a direct motif lookup.
+pub const SQL_SINK_LABEL: &str = "SqlSink";
+pub const NOSQL_SINK_LABEL: &str = "NoSqlSink";
+pub const COMMAND_EXEC_SINK_LABEL: &str = "CommandExecutionSink";
+pub const SSRF_SINK_LABEL: &str = "SsrfSink";
+pub const FS_SINK_LABEL: &str = "FsSink";
+
 /// A source-to-sink path represented as a sequence of abstract node labels.
 #[derive(Debug, Clone)]
 pub struct FlowPath {
@@ -118,14 +137,14 @@ fn collect_tainted_recursive(
                     ) {
                         let var_name = &source[name_node.start_byte()..name_node.end_byte()];
                         if rhs_references_source(value_node, source, lookup, spec) {
-                            tainted.insert(var_name.to_string(), "UserInputSource");
+                            tainted.insert(var_name.to_string(), USER_INPUT_SOURCE);
                         } else if let Some(cat) =
                             rhs_is_sink_call(value_node, source, lookup, import_map, spec)
                         {
                             if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
                                 || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
                             {
-                                tainted.insert(var_name.to_string(), "DatabaseSource");
+                                tainted.insert(var_name.to_string(), DATABASE_SOURCE);
                             }
                         }
                     }
@@ -140,14 +159,14 @@ fn collect_tainted_recursive(
                     ) {
                         let var_name = &source[name_node.start_byte()..name_node.end_byte()];
                         if rhs_references_source(value_node, source, lookup, spec) {
-                            tainted.insert(var_name.to_string(), "UserInputSource");
+                            tainted.insert(var_name.to_string(), USER_INPUT_SOURCE);
                         } else if let Some(cat) =
                             rhs_is_sink_call(value_node, source, lookup, import_map, spec)
                         {
                             if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
                                 || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
                             {
-                                tainted.insert(var_name.to_string(), "DatabaseSource");
+                                tainted.insert(var_name.to_string(), DATABASE_SOURCE);
                             }
                         }
                     }
@@ -164,14 +183,14 @@ fn collect_tainted_recursive(
             ) {
                 let var_name = &source[name_node.start_byte()..name_node.end_byte()];
                 if rhs_references_source(value_node, source, lookup, spec) {
-                    tainted.insert(var_name.to_string(), "UserInputSource");
+                    tainted.insert(var_name.to_string(), USER_INPUT_SOURCE);
                 } else if let Some(cat) =
                     rhs_is_sink_call(value_node, source, lookup, import_map, spec)
                 {
                     if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
                         || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
                     {
-                        tainted.insert(var_name.to_string(), "DatabaseSource");
+                        tainted.insert(var_name.to_string(), DATABASE_SOURCE);
                     }
                 }
             }
@@ -275,22 +294,26 @@ fn rhs_references_source(
     // Never treat literal text (string contents, comments, numbers) as a source
     // reference. Template substitution expressions `${x}` are handled because we
     // only skip the *fragment* nodes, not the substitution.
-    if matches!(
-        kind,
-        "string"
-            | "string_literal"
-            | "string_content"
-            | "string_fragment"
-            | "raw_string_literal"
-            | "raw_string"
-            | "quoted_string"
-            | "char_literal"
-            | "comment"
-            | "number"
-            | "integer"
-            | "float"
-            | "boolean"
-    ) {
+    let is_literal = spec.map_or(
+        matches!(
+            kind,
+            "string"
+                | "string_literal"
+                | "string_content"
+                | "string_fragment"
+                | "raw_string_literal"
+                | "raw_string"
+                | "quoted_string"
+                | "char_literal"
+                | "comment"
+                | "number"
+                | "integer"
+                | "float"
+                | "boolean"
+        ),
+        |s| matches!(s.classify(kind), NodeRole::Literal),
+    );
+    if is_literal {
         return false;
     }
 
@@ -317,7 +340,7 @@ fn rhs_references_source(
     if is_ref {
         let text = &source[node.start_byte()..node.end_byte()];
         if let Some(&motif) = lookup.get(text) {
-            if motif == "UserInputSource" {
+            if motif == USER_INPUT_SOURCE {
                 return true;
             }
         }
@@ -339,26 +362,35 @@ fn rhs_references_source(
 
 /// Returns true if any argument subtree references `name` as an identifier
 /// (or member-object) node, ignoring string literal content.
-fn args_reference_var(node: Node<'_>, source: &str, name: &str) -> bool {
+fn args_reference_var(
+    node: Node<'_>,
+    source: &str,
+    name: &str,
+    spec: Option<&dyn LanguageSpec>,
+) -> bool {
     let kind = node.kind();
 
     // Never treat literal text as a reference.
-    if matches!(
-        kind,
-        "string"
-            | "string_literal"
-            | "string_content"
-            | "string_fragment"
-            | "raw_string_literal"
-            | "raw_string"
-            | "quoted_string"
-            | "char_literal"
-            | "comment"
-            | "number"
-            | "integer"
-            | "float"
-            | "boolean"
-    ) {
+    let is_literal = spec.map_or(
+        matches!(
+            kind,
+            "string"
+                | "string_literal"
+                | "string_content"
+                | "string_fragment"
+                | "raw_string_literal"
+                | "raw_string"
+                | "quoted_string"
+                | "char_literal"
+                | "comment"
+                | "number"
+                | "integer"
+                | "float"
+                | "boolean"
+        ),
+        |s| matches!(s.classify(kind), NodeRole::Literal),
+    );
+    if is_literal {
         return false;
     }
 
@@ -369,7 +401,7 @@ fn args_reference_var(node: Node<'_>, source: &str, name: &str) -> bool {
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            if args_reference_var(cursor.node(), source, name) {
+            if args_reference_var(cursor.node(), source, name, spec) {
                 return true;
             }
             if !cursor.goto_next_sibling() {
@@ -418,19 +450,19 @@ fn find_sink_paths(
                             {
                                 sink_motif = match cat {
                                     crate::corpus::source_sink::SinkCategory::SqlInjection => {
-                                        Some("SqlSink")
+                                        Some(SQL_SINK_LABEL)
                                     }
                                     crate::corpus::source_sink::SinkCategory::NoSqlInjection => {
-                                        Some("NoSqlSink")
+                                        Some(NOSQL_SINK_LABEL)
                                     }
                                     crate::corpus::source_sink::SinkCategory::CommandInjection => {
-                                        Some("CommandExecutionSink")
+                                        Some(COMMAND_EXEC_SINK_LABEL)
                                     }
                                     crate::corpus::source_sink::SinkCategory::Ssrf => {
-                                        Some("SsrfSink")
+                                        Some(SSRF_SINK_LABEL)
                                     }
                                     crate::corpus::source_sink::SinkCategory::PathTraversal => {
-                                        Some("FsSink")
+                                        Some(FS_SINK_LABEL)
                                     }
                                     _ => None,
                                 };
@@ -446,13 +478,19 @@ fn find_sink_paths(
                 // happens to contain a variable name must not mint a path hash.
                 if let Some(args) = node.child_by_field_name("arguments") {
                     for (var, &source_motif) in tainted {
-                        if args_reference_var(args, source, var) {
-                            // Emit path: source_motif → sink_motif
+                        if args_reference_var(args, source, var, spec) {
+                            // Emit path: source_motif -> sink_motif
                             let path = FlowPath {
-                                labels: vec![source_motif, "taint_flow", sink_motif],
+                                labels: vec![source_motif, TAINT_FLOW, sink_motif],
                             };
                             out.insert(path.hash());
                         }
+                    }
+                    if rhs_references_source(args, source, lookup, spec) {
+                        let path = FlowPath {
+                            labels: vec![USER_INPUT_SOURCE, TAINT_FLOW, sink_motif],
+                        };
+                        out.insert(path.hash());
                     }
                 }
             }
