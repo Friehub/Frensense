@@ -8,7 +8,7 @@
 
 ## Abstract
 
-Frensense is a high-performance static analysis system for Rust, TypeScript, and JavaScript that detects security vulnerabilities, architectural violations, and AI-generated code hallucinations - without hand-written rules, DSLs, or regular expressions.
+Frensense is a high-performance static analysis system that is provider and language agnostic that detects security vulnerabilities, architectural violations, and AI-generated code hallucinations - without hand-written rules, DSLs, or regular expressions.
 
 The core thesis: **code patterns are best expressed as pairs of concrete examples** - a vulnerable function and its corrected counterpart. These pairs carry richer signal than any YAML rule because they encode structural shape, control flow, API usage, and data flow simultaneously. The engine fingerprints corpus pairs at build time and performs fast, multi-dimensional similarity search at scan time.
 

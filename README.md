@@ -1,6 +1,6 @@
 <div align="left">
   <h1>Frensense</h1>
-  <p><strong>A deterministic, corpus-driven security and diagnostic engine for Rust, TypeScript, and JavaScript.</strong></p>
+  <p><strong>A deterministic, corpus-driven security and diagnostic engine that is provider and language agnostic.</strong></p>
 </div>
 
 <br />
