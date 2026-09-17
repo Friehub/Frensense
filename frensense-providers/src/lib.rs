@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![allow(clippy::all)]
 
 #[cfg(feature = "oxc")]

@@ -1,4 +1,3 @@
-#![allow(unused)]
 // SPDX-License-Identifier: MIT
 
 //! # FRC - Frensense Reference Corpus Bundle Format

@@ -19,7 +19,6 @@ pub struct Motif {
 
 /// All registered motifs.
 
-
 /// Build a lookup table from call name → motif canonical name.
 fn build_motif_lookup() -> FxHashMap<String, &'static str> {
     let mut map = FxHashMap::default();

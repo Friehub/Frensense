@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![allow(clippy::all)]
 #![allow(clippy::all)]
 #![allow(clippy::all)]

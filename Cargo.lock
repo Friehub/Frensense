@@ -552,6 +552,7 @@ dependencies = [
  "regex",
  "rustc-hash 1.1.0",
  "serde",
+ "tempfile",
  "toml 0.8.23",
  "tree-sitter",
  "tree-sitter-typescript",

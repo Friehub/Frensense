@@ -38,12 +38,6 @@ impl SinkTier {
 /// - Framework-specific sinks that can't be resolved through imports
 /// - MongoDB operators (property keys, not function calls)
 
-
-
-
-
-
-
 pub fn get_sink_tier(_sink: &str) -> SinkTier {
     SinkTier::Standard
 }
@@ -64,7 +58,6 @@ pub enum SinkCategory {
     CredentialLeak,
     Unknown,
 }
-
 
 impl From<frensense_lang::spec::SinkLabel> for SinkCategory {
     fn from(label: frensense_lang::spec::SinkLabel) -> Self {
@@ -252,7 +245,7 @@ impl CorpusSourceSinkRegistry {
                 if use_compiler && !allowed_compiler_labels.contains(&label) {
                     continue;
                 }
-                
+
                 let cat = SinkCategory::from(label);
                 // Seed at count=1 so corpus can prune them
                 if sink.contains("::") || sink.contains('.') {
@@ -261,7 +254,7 @@ impl CorpusSourceSinkRegistry {
                     sink_names.insert(sink.to_string(), (cat, 1));
                 }
             }
-            
+
             for &pat in spec.known_source_patterns() {
                 source_patterns.push(pat.to_string());
             }
@@ -275,7 +268,6 @@ impl CorpusSourceSinkRegistry {
             source_patterns,
         }
     }
-
 
     /// Check if a type annotation string is a known source type.
     pub fn is_source_type(&self, type_str: &str) -> bool {
@@ -357,14 +349,14 @@ impl CorpusSourceSinkRegistry {
         if self.sanitizer_names.contains_key(expr) {
             return true;
         }
-        
+
         // Ask providers
         for spec in frensense_lang::registry::all_specs() {
             if spec.classify_sanitizer(expr).is_some() {
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -397,11 +389,10 @@ impl CorpusSourceSinkRegistry {
         for (k, v) in &other.sanitizer_names {
             *self.sanitizer_names.entry(k.clone()).or_insert(0) += v;
         }
-        for pattern in &other.source_patterns {
-            if !self.source_patterns.contains(pattern) {
-                self.source_patterns.push(pattern.clone());
-            }
-        }
+        self.source_patterns
+            .extend(other.source_patterns.iter().cloned());
+        self.source_patterns.sort();
+        self.source_patterns.dedup();
     }
 
     /// Prune entries below their specific threshold.

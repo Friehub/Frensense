@@ -2,7 +2,6 @@
 
 use frensense_lang::NodeRole;
 
-use crate::lang::Language;
 use crate::lang::kinds::AbstractKind;
 
 /// Map a tree-sitter node kind to an [`AbstractKind`] using the
@@ -11,18 +10,11 @@ use crate::lang::kinds::AbstractKind;
 /// Previously this function contained six separate per-language match arms
 /// (Rust, TypeScript, JavaScript, C, Python, Go). Now it delegates to
 /// `Language::spec().classify()` and bridges `NodeRole` → `AbstractKind`.
-pub fn abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
-    // If we have a spec for this language, use it.
-    if let Some(spec) = language.spec() {
-        return node_role_to_abstract_kind(spec.classify(ts_kind), ts_kind, language);
-    }
-
-    // Html has no spec registered; keep a minimal inline map.
-    match ts_kind {
-        "element" | "script_element" | "style_element" => AbstractKind::Block,
-        "text" | "doctype" => AbstractKind::StringLiteral,
-        _ => AbstractKind::Other,
-    }
+pub fn abstract_kind(
+    ts_kind: &str,
+    spec: &'static dyn frensense_lang::LanguageSpec,
+) -> AbstractKind {
+    node_role_to_abstract_kind(spec.classify(ts_kind), ts_kind, spec)
 }
 
 /// Convert a [`NodeRole`] (from frensense-lang) into the engine's
@@ -32,7 +24,11 @@ pub fn abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
 /// `AbstractKind` is a slightly different enumeration that the engine has
 /// been using for structural n-grams. This bridge keeps both working while
 /// the engine migrates incrementally.
-fn node_role_to_abstract_kind(role: NodeRole, ts_kind: &str, language: Language) -> AbstractKind {
+fn node_role_to_abstract_kind(
+    role: NodeRole,
+    ts_kind: &str,
+    spec: &'static dyn frensense_lang::LanguageSpec,
+) -> AbstractKind {
     match role {
         // ── Definitions ──────────────────────────────────────────────────
         NodeRole::Function {
@@ -117,16 +113,19 @@ fn node_role_to_abstract_kind(role: NodeRole, ts_kind: &str, language: Language)
         // ── Language-specific extras via raw ts_kind ─────────────────────
         // NodeRole::Other covers things the lang spec doesn't classify.
         // We still want to catch a few engine-specific extras per language.
-        NodeRole::Other => other_to_abstract_kind(ts_kind, language),
+        NodeRole::Other => other_to_abstract_kind(ts_kind, spec),
     }
 }
 
 /// Fallback handler for `NodeRole::Other` - maps a small set of language-
 /// specific node kinds that `AbstractKind` tracks but `NodeRole` doesn't have
 /// a variant for (e.g. struct/enum/trait definitions that use `Other`).
-fn other_to_abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
-    match language {
-        Language::Rust => match ts_kind {
+fn other_to_abstract_kind(
+    ts_kind: &str,
+    spec: &'static dyn frensense_lang::LanguageSpec,
+) -> AbstractKind {
+    match spec.name() {
+        "rust" => match ts_kind {
             "const_item" => AbstractKind::ConstDef,
             "mod_item" => AbstractKind::ModuleDef,
             "type_identifier"
@@ -135,20 +134,19 @@ fn other_to_abstract_kind(ts_kind: &str, language: Language) -> AbstractKind {
             | "scoped_type_identifier" => AbstractKind::Identifier,
             _ => AbstractKind::Other,
         },
-        Language::TypeScript | Language::JavaScript => match ts_kind {
+        "typescript" | "javascript" => match ts_kind {
             "type_annotation" | "type_arguments" => AbstractKind::Other,
             _ => AbstractKind::Other,
         },
-        Language::Python => match ts_kind {
+        "python" => match ts_kind {
             "type" => AbstractKind::TypeAnnotation,
             _ => AbstractKind::Other,
         },
-        Language::Go => match ts_kind {
+        "go" => match ts_kind {
             "defer_statement" | "go_statement" => AbstractKind::Call,
             "field_identifier" | "type_identifier" => AbstractKind::Identifier,
             _ => AbstractKind::Other,
         },
-        Language::C => AbstractKind::Other,
-        Language::Html => AbstractKind::Other,
+        _ => AbstractKind::Other,
     }
 }

@@ -9,7 +9,7 @@ use std::hash::{Hash, Hasher};
 use tree_sitter::Node;
 
 use crate::lang::kinds::AbstractKind;
-use crate::lang::{Language, mapper::abstract_kind};
+use crate::lang::mapper::abstract_kind;
 
 // ---------------------------------------------------------------------------
 // Structural markers
@@ -18,12 +18,12 @@ use crate::lang::{Language, mapper::abstract_kind};
 pub(super) fn collect_structural_markers(
     node: Node<'_>,
     _source: &str,
-    language: Language,
+    spec: &'static dyn frensense_lang::LanguageSpec,
 ) -> Vec<u64> {
     let mut markers = FxHashSet::default();
     let mut cursor = node.walk();
 
-    let kind = abstract_kind(node.kind(), language);
+    let kind = abstract_kind(node.kind(), spec);
     if kind != AbstractKind::Other {
         let mut hasher = FxHasher::default();
         kind.hash(&mut hasher);
@@ -33,7 +33,7 @@ pub(super) fn collect_structural_markers(
     loop {
         if cursor.goto_first_child() {
             let n = cursor.node();
-            let kind = abstract_kind(n.kind(), language);
+            let kind = abstract_kind(n.kind(), spec);
             if kind != AbstractKind::Other {
                 let mut h = FxHasher::default();
                 kind.hash(&mut h);
@@ -44,7 +44,7 @@ pub(super) fn collect_structural_markers(
         loop {
             if cursor.goto_next_sibling() {
                 let n = cursor.node();
-                let kind = abstract_kind(n.kind(), language);
+                let kind = abstract_kind(n.kind(), spec);
                 if kind != AbstractKind::Other {
                     let mut h = FxHasher::default();
                     kind.hash(&mut h);

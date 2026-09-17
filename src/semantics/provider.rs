@@ -78,12 +78,7 @@ pub fn per_file_provider(
     let import_map = ImportMap::build_from_tree(&ext, source, tree.root_node());
     let spec = frensense_lang::spec_for_ext(&ext);
     if let Some(spec) = spec {
-        Box::new(ImportMapProvider::with_spec(
-            import_map,
-            source_sink,
-            environment,
-            spec,
-        ))
+        Box::new(ImportMapProvider::new(import_map, source_sink, environment))
     } else {
         Box::new(ImportMapProvider::new(import_map, source_sink, environment))
     }

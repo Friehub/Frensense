@@ -283,45 +283,8 @@ pub fn package_sink_category(pkg: &str) -> Option<SinkCategory> {
     PACKAGE_SINK_MAP.get(pkg).copied()
 }
 
-/// Map a package name to its sink category using the language spec when
-/// available, falling back to the hardcoded [`package_sink_category`] table.
-pub fn package_sink_category_from_spec(
-    pkg: &str,
-    spec: Option<&dyn frensense_lang::LanguageSpec>,
-) -> Option<SinkCategory> {
-    if let Some(s) = spec {
-        match s.package_category(pkg)? {
-            frensense_lang::PackageCategory::SqlDatabase => Some(SinkCategory::SqlInjection),
-            frensense_lang::PackageCategory::NoSqlDatabase => Some(SinkCategory::NoSqlInjection),
-            frensense_lang::PackageCategory::HttpClient => Some(SinkCategory::Ssrf),
-            frensense_lang::PackageCategory::TemplateEngine => Some(SinkCategory::Xss),
-            frensense_lang::PackageCategory::CommandExecution => {
-                Some(SinkCategory::CommandInjection)
-            }
-            frensense_lang::PackageCategory::FileSystem => Some(SinkCategory::PathTraversal),
-            frensense_lang::PackageCategory::Deserialization => Some(SinkCategory::CodeExecution),
-            _ => None,
-        }
-    } else {
-        package_sink_category(pkg)
-    }
-}
-
-/// Returns true if the package name belongs to a known HTTP framework.
-/// Uses the language spec when available, falling back to the hardcoded
-/// [`HTTP_FRAMEWORK_SET`].
-pub(crate) fn is_http_framework_package(
-    pkg: &str,
-    spec: Option<&dyn frensense_lang::LanguageSpec>,
-) -> bool {
-    if let Some(s) = spec {
-        matches!(
-            s.package_category(pkg),
-            Some(frensense_lang::PackageCategory::HttpFramework)
-        )
-    } else {
-        HTTP_FRAMEWORK_SET.contains(pkg)
-    }
+pub(crate) fn is_http_framework_package(pkg: &str) -> bool {
+    HTTP_FRAMEWORK_SET.contains(pkg)
 }
 
 /// Extract the base type name from a possibly-parameterized annotation.
@@ -351,7 +314,6 @@ pub struct ImportMapProvider {
     import_map: ImportMap,
     source_sink: Arc<CorpusSourceSinkRegistry>,
     environment: Option<crate::context::Environment>,
-    spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 }
 
 impl std::fmt::Debug for ImportMapProvider {
@@ -360,7 +322,6 @@ impl std::fmt::Debug for ImportMapProvider {
             .field("import_map", &self.import_map)
             .field("source_sink", &self.source_sink)
             .field("environment", &self.environment)
-            .field("spec", &self.spec.as_ref().map(|s| s.name()))
             .finish()
     }
 }
@@ -380,26 +341,6 @@ impl ImportMapProvider {
             import_map,
             source_sink,
             environment,
-            spec: None,
-        }
-    }
-
-    /// Build an import-map-backed provider with a language spec.
-    ///
-    /// When a spec is available, the provider delegates package classification
-    /// and source/sink knowledge to the spec instead of using hardcoded tables.
-    #[must_use]
-    pub fn with_spec(
-        import_map: ImportMap,
-        source_sink: Arc<CorpusSourceSinkRegistry>,
-        environment: Option<crate::context::Environment>,
-        spec: &'static dyn frensense_lang::LanguageSpec,
-    ) -> Self {
-        Self {
-            import_map,
-            source_sink,
-            environment,
-            spec: Some(spec),
         }
     }
 
@@ -424,18 +365,14 @@ impl SemanticProvider for ImportMapProvider {
         if let Some(annotation) = type_annotation {
             let base = base_type_name(annotation);
             if let Some(package) = self.import_map.resolve(base)
-                && is_http_framework_package(package, self.spec.as_deref())
+                && is_http_framework_package(package)
             {
                 return Some(TaintOrigin::UserInput);
             }
         }
         // 3. Fall back to name matching for unannotated parameters, delegating
         //    to the language spec when available for per-language taint origins.
-        crate::data_flow::classify_param_name_in_context_with_spec(
-            name,
-            self.environment.as_ref(),
-            self.spec.as_deref(),
-        )
+        crate::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
     }
 
     fn classify_sink(
@@ -448,13 +385,13 @@ impl SemanticProvider for ImportMapProvider {
         //    "query" ever having to appear in a sink list.
         if let Some(receiver) = call_text.split('.').next()
             && let Some(package) = self.import_map.resolve(receiver)
-            && let Some(category) = package_sink_category_from_spec(package, self.spec.as_deref())
+            && let Some(category) = package_sink_category(package)
         {
             return Some(category);
         }
         // 2. A fully-qualified module (when the caller knows it) works the same way.
         if let Some(module) = resolved_module
-            && let Some(category) = package_sink_category_from_spec(module, self.spec.as_deref())
+            && let Some(category) = crate::semantic::package_sink_category(module)
         {
             return Some(category);
         }
@@ -470,7 +407,7 @@ impl SemanticProvider for ImportMapProvider {
             type_context
                 .import_map
                 .resolve(annotation)
-                .is_some_and(|p| is_http_framework_package(p, self.spec.as_deref()))
+                .is_some_and(|p| is_http_framework_package(p))
         });
         if type_confirmed {
             return true;
@@ -492,22 +429,11 @@ impl SemanticProvider for ImportMapProvider {
     }
 
     fn known_sink_names(&self) -> Vec<(&'static str, SinkCategory)> {
-        if let Some(s) = self.spec.as_deref() {
-            s.known_sink_names()
-                .iter()
-                .map(|&(name, label)| (name, SinkCategory::from(label)))
-                .collect()
-        } else {
-            vec![]
-        }
+        vec![]
     }
 
     fn known_source_patterns(&self) -> Vec<&'static str> {
-        if let Some(s) = self.spec.as_deref() {
-            s.known_source_patterns().to_vec()
-        } else {
-            vec![]
-        }
+        vec![]
     }
 }
 

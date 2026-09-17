@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use crate::fingerprint::FunctionFingerprint;
 use crate::pattern::canonical::CanonicalForm;
-use crate::pattern::compiler::PatternNode;
 use crate::pattern::evidence::MatchEvidence;
-use crate::pattern::matcher::MatchResult;
 use crate::pattern::similarity::RawDimensions;
 use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 
@@ -130,7 +127,6 @@ impl Default for ScorerConfig {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Default)]
 pub struct PatternScorer;
@@ -562,7 +558,8 @@ impl PatternScorer {
         // incorrectly (squashing everything to ~1.0).
         let final_score = if gate { weighted_score } else { 0.0 };
 
-        let context_multiplier = Self::compute_context_penalty(expected_context, actual_context, config);
+        let context_multiplier =
+            Self::compute_context_penalty(expected_context, actual_context, config);
 
         (final_score * context_multiplier, evidence)
     }
@@ -607,7 +604,16 @@ impl PatternScorer {
         config: &ScorerConfig,
     ) -> MatchEvidence {
         Self::score_against_corpus_with_evidence_impl(
-            candidate, positives, negatives, None, None, 0.0, weights, None, config, config.noise_gate_min_moderate_dims,
+            candidate,
+            positives,
+            negatives,
+            None,
+            None,
+            0.0,
+            weights,
+            None,
+            config,
+            config.noise_gate_min_moderate_dims,
         )
         .1
     }
