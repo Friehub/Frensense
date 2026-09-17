@@ -9,6 +9,9 @@ hero:
     - theme: brand
       text: Read the Paper
       link: /frensense-paper/00_OVERVIEW
+    - theme: alt
+      text: Read the Blog
+      link: /blog/
 ---
 
 <div class="showcase-container">
