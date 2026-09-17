@@ -5,6 +5,14 @@ export default withMermaid(defineConfig({
   title: "Frensense",
   description: "Deterministic Security Engine.",
   cleanUrls: true,
+  vite: {
+    optimizeDeps: {
+      include: [
+        "fastdom", 
+        "fastdom/extensions/fastdom-promised.js"
+      ]
+    }
+  },
   markdown: {
     math: true
   },
