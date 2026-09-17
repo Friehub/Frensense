@@ -15,7 +15,6 @@ use super::hashing::{
     normalize_token, split_name_segments, token_ngrams_positional, token_ngrams_sorted,
 };
 use super::types::FunctionFingerprint;
-use crate::lang::Language;
 
 // ---------------------------------------------------------------------------
 // Signature helpers (live here because they use body_field / params_field)
@@ -63,12 +62,10 @@ pub fn extract_fingerprints_with_nodes<'a>(
     import_map: Option<&crate::import_resolver::ImportMap>,
 ) {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let language = crate::parser::ext_to_language(ext).to_string();
-    let spec = frensense_lang::spec_for_ext(ext);
-
-    let Some(lang) = crate::lang::Language::from_ext(ext) else {
+    let Some(spec) = frensense_lang::spec_for_ext(ext) else {
         return;
     };
+    let language = spec.name().to_string();
 
     let mut cursor = root.walk();
 
@@ -77,11 +74,13 @@ pub fn extract_fingerprints_with_nodes<'a>(
         let kind = node.kind();
 
         // Determine whether this node is a function via the spec, with a fallback.
-        let is_function = spec.map(|s| s.is_function_node(kind)).unwrap_or_else(|| {
-            matches!(
-                kind,
-                // Rust
-                "function_item"
+        let is_function = Some(spec)
+            .map(|s| s.is_function_node(kind))
+            .unwrap_or_else(|| {
+                matches!(
+                    kind,
+                    // Rust
+                    "function_item"
                     // TypeScript / JavaScript
                     | "function_declaration"
                     | "method_definition"
@@ -95,12 +94,12 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     | "method_declaration"
                     // C
                     | "function_definition"
-            )
-        });
+                )
+            });
 
         if is_function {
             // Resolve field names from the spec, falling back to sensible defaults.
-            let (name_field, params_field, body_field) = spec
+            let (name_field, params_field, body_field) = Some(spec)
                 .map(|s| match s.classify(kind) {
                     frensense_lang::NodeRole::Function {
                         name_field,
@@ -114,7 +113,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
 
             if let Some(main_body) = node.child_by_field_name(body_field) {
                 let mut bodies_to_process = vec![main_body];
-                let is_block = spec.map_or(
+                let is_block = Some(spec).map_or(
                     matches!(
                         main_body.kind(),
                         "statement_block" | "block" | "compound_statement" | "suite"
@@ -228,9 +227,9 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     multi_scale_hashes.dedup();
 
                     // ----- AST-aware features -----
-                    let control_flow = extract_control_flow(body, source_code, spec);
-                    let control_flow_sequence = extract_cf_sequence(body, source_code, spec);
-                    let raw_call_names = collect_raw_call_names(body, source_code, spec);
+                    let control_flow = extract_control_flow(body, source_code, Some(spec));
+                    let control_flow_sequence = extract_cf_sequence(body, source_code, Some(spec));
+                    let raw_call_names = collect_raw_call_names(body, source_code, Some(spec));
 
                     let mut api_calls_set = rustc_hash::FxHashSet::default();
                     let mut api_call_segments_set = rustc_hash::FxHashSet::default();
@@ -255,7 +254,8 @@ pub fn extract_fingerprints_with_nodes<'a>(
                         api_call_segments_set.into_iter().collect();
                     api_call_segments.sort_unstable();
 
-                    let property_accesses = extract_property_accesses(body, source_code, spec);
+                    let property_accesses =
+                        extract_property_accesses(body, source_code, Some(spec));
                     let semantic_markers = extract_semantic_markers(
                         body,
                         source_code,
@@ -278,7 +278,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                                         .or_else(|| child.child_by_field_name("name"))
                                     {
                                         let text = &source_code[name.start_byte()..name.end_byte()];
-                                        let is_param = spec.map_or(
+                                        let is_param = Some(spec).map_or(
                                             matches!(
                                                 child.kind(),
                                                 "identifier"
@@ -313,7 +313,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                         body,
                         source_code,
                         &param_names,
-                        spec,
+                        Some(spec),
                         path.extension().and_then(|e| e.to_str()).unwrap_or(""),
                     );
                     let motif_hashes =
@@ -322,12 +322,15 @@ pub fn extract_fingerprints_with_nodes<'a>(
                         body,
                         source_code,
                         import_map,
-                        spec,
+                        Some(spec),
                     );
-                    let argument_call_types = extract_argument_call_types(body, source_code, spec);
-                    let literal_pattern_hashes = extract_literal_patterns(body, source_code, spec);
+                    let argument_call_types =
+                        extract_argument_call_types(body, source_code, Some(spec));
+                    let literal_pattern_hashes =
+                        extract_literal_patterns(body, source_code, Some(spec));
 
-                    let skeleton = crate::ast_distance::extract_skeleton(body, source_code, spec);
+                    let skeleton =
+                        crate::ast_distance::extract_skeleton(body, source_code, Some(spec));
                     let mut skeleton_hashes = Vec::with_capacity(skeleton.len());
                     for s in &skeleton {
                         use std::hash::{Hash, Hasher};
@@ -343,11 +346,11 @@ pub fn extract_fingerprints_with_nodes<'a>(
                             node,
                             source_code,
                             "",
-                            spec,
+                            Some(spec),
                         ) || crate::route_registry::is_inline_registered_handler(
                             node,
                             source_code,
-                            spec,
+                            Some(spec),
                         );
 
                     let fp = FunctionFingerprint {
@@ -369,7 +372,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                             2.min(param_types.len().max(1)),
                         ),
                         name_segments,
-                        structural_markers: collect_structural_markers(body, source_code, lang),
+                        structural_markers: collect_structural_markers(body, source_code, spec),
                         type_usages: {
                             let mut tu = collect_type_usages(body, source_code);
                             tu.extend(crate::decorator::collect_param_decorator_types(

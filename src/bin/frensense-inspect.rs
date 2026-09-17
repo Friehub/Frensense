@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![allow(clippy::all)]
 // SPDX-License-Identifier: MIT
 //! Inspects the FRC1 corpus bundle and prints diagnostics.

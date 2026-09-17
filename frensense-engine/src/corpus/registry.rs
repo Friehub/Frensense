@@ -740,11 +740,15 @@ impl PatternRegistry {
         }
 
         let cat = crate::pattern::weight_learner::extract_category(&pattern.id);
-        let pat_weights = self.scorer_config
+        let pat_weights = self
+            .scorer_config
             .category_weight_overrides
             .get(cat)
             .unwrap_or_else(|| {
-                crate::pattern::weight_learner::category_weights(&pattern.id, &self.category_weights)
+                crate::pattern::weight_learner::category_weights(
+                    &pattern.id,
+                    &self.category_weights,
+                )
             });
         let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence_cached(
             weighted_fp,
@@ -756,7 +760,9 @@ impl PatternRegistry {
             pat_weights,
             dim_cache,
             &self.scorer_config,
-            pattern.min_evidence_dims.unwrap_or(self.scorer_config.noise_gate_min_moderate_dims),
+            pattern
+                .min_evidence_dims
+                .unwrap_or(self.scorer_config.noise_gate_min_moderate_dims),
         );
 
         let best_score = if !hit_both {

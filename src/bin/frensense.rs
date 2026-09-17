@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![allow(clippy::all)]
 // SPDX-License-Identifier: MIT
 #![warn(clippy::unwrap_used)]

@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![allow(clippy::all)]
 // SPDX-License-Identifier: MIT
 //! Retrain calibration parameters from corpus data.
@@ -53,7 +52,15 @@ fn main() {
         for pos in &pos_fps {
             let config = frensense_engine::pattern::scorer::ScorerConfig::default();
             let score = PatternScorer::score_against_corpus(
-                pos, &pos_fps, &neg_fps, None, None, 0.05, default_w, &config, config.noise_gate_min_moderate_dims,
+                pos,
+                &pos_fps,
+                &neg_fps,
+                None,
+                None,
+                0.05,
+                default_w,
+                &config,
+                config.noise_gate_min_moderate_dims,
             );
             scores.push((score, true));
         }
@@ -62,7 +69,15 @@ fn main() {
         for neg in &neg_fps {
             let config = frensense_engine::pattern::scorer::ScorerConfig::default();
             let score = PatternScorer::score_against_corpus(
-                neg, &pos_fps, &neg_fps, None, None, 0.05, default_w, &config, config.noise_gate_min_moderate_dims,
+                neg,
+                &pos_fps,
+                &neg_fps,
+                None,
+                None,
+                0.05,
+                default_w,
+                &config,
+                config.noise_gate_min_moderate_dims,
             );
             scores.push((score, false));
         }

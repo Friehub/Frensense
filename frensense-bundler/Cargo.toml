@@ -18,3 +18,5 @@ frensense-lang = { version = "0.6.0", path = "../frensense-lang" }
 frensense-engine = { version = "0.6.0", path = "../frensense-engine" }
 
 tree-sitter-typescript = "0.23"
+[dev-dependencies]
+tempfile = "*"

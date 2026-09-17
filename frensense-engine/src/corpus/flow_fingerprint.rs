@@ -248,9 +248,7 @@ fn rhs_is_sink_call(
             if let Some(imap) = import_map {
                 if let Some(receiver) = call_name.split('.').next() {
                     if let Some(pkg) = imap.resolve(receiver) {
-                        if let Some(cat) =
-                            crate::semantic::package_sink_category_from_spec(pkg, spec)
-                        {
+                        if let Some(cat) = crate::semantic::package_sink_category(pkg) {
                             return Some(cat);
                         }
                     }
@@ -445,9 +443,7 @@ fn find_sink_paths(
                 if let Some(imap) = import_map {
                     if let Some(receiver) = call_name.split('.').next() {
                         if let Some(pkg) = imap.resolve(receiver) {
-                            if let Some(cat) =
-                                crate::semantic::package_sink_category_from_spec(pkg, spec)
-                            {
+                            if let Some(cat) = crate::semantic::package_sink_category(pkg) {
                                 sink_motif = match cat {
                                     crate::corpus::source_sink::SinkCategory::SqlInjection => {
                                         Some(SQL_SINK_LABEL)
