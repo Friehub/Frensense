@@ -10,32 +10,6 @@ pub fn build_bundle_from_patterns(
     // Pre-compute API IDF at build time so loaders can skip recomputation (~100 ms saving)
     let api_idf_weights = compute_bundle_api_idf(patterns);
 
-    // Learn per-category feature weights from positive/negative pairs
-    let corpus_patterns: Vec<frensense_engine::corpus::pattern::CorpusPattern> = patterns
-        .iter()
-        .map(|bp| frensense_engine::corpus::pattern::CorpusPattern {
-            id: bp.id.clone(),
-            positives: bp.positives.clone(),
-            negatives: bp.negatives.clone(),
-            semantic_filter: bp.semantic_filter.clone(),
-            observation: bp.observation.clone(),
-            impact: bp.impact.clone(),
-            improvement: bp.improvement.clone(),
-            expected_context: bp.expected_context.clone(),
-            cwe: bp.cwe.clone(),
-            cvss: bp.cvss,
-            owasp: bp.owasp.clone(),
-            severity: bp.severity.clone(),
-            runtime_probe: bp.runtime_probe.clone(),
-            feature_variance: bp.feature_variance,
-            min_evidence_dims: bp.min_evidence_dims,
-        })
-        .collect();
-    let category_weights_vec: Vec<(String, [f64; 15])> =
-        crate::pattern::weight_learner::learn_category_weights(&corpus_patterns)
-            .into_iter()
-            .collect();
-
     // Compute auto-derived semantic filter suggestions
     // We need source text for each pattern to extract imports and call targets
     // Use the explicit corpus_dir if provided (from build_bundle), otherwise fall back
@@ -150,19 +124,10 @@ pub fn build_bundle_from_patterns(
         v
     };
 
-    // Train per-pattern calibration sigmoids
-    let pattern_cal: Vec<(String, f32, f32)> =
-        crate::calibration::train_per_pattern_calibration(&corpus_patterns)
-            .into_iter()
-            .map(|(k, (a, b))| (k, a, b))
-            .collect();
-
     let payload = BundlePayload {
         patterns: patterns.to_vec(),
         api_idf_weights,
-        category_weights: category_weights_vec,
         auto_filter_stats,
-        pattern_calibration: pattern_cal,
     };
     frensense_frc::write_bundle(&payload, patterns.len() as u32)
 }

@@ -45,43 +45,29 @@ pub struct BundlePayload {
     #[serde(default)]
     pub api_idf_weights: Vec<(u64, f32)>,
     #[serde(default)]
-    pub category_weights: Vec<(String, [f64; 15])>,
-    #[serde(default)]
     pub auto_filter_stats: Vec<AutoFilterEntry>,
-    #[serde(default)]
-    pub pattern_calibration: Vec<(String, f32, f32)>,
 }
 
 pub struct LoadedBundle {
     pub patterns: Vec<BundlePattern>,
     pub api_idf_weights: Vec<(u64, f32)>,
-    pub category_weights: Vec<(String, [f64; 15])>,
     pub auto_filter_stats: Vec<AutoFilterEntry>,
-    pub pattern_calibration: Vec<(String, f32, f32)>,
 }
 
 pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
-    let (
-        header,
-        patterns,
-        api_idf_weights,
-        category_weights,
-        auto_filter_stats,
-        pattern_calibration,
-    ) = match frensense_frc::read_bundle::<BundlePayload>(bytes) {
-        Ok((h, payload)) => (
-            h,
-            payload.patterns,
-            payload.api_idf_weights,
-            payload.category_weights,
-            payload.auto_filter_stats,
-            payload.pattern_calibration,
-        ),
-        Err(e) => match frensense_frc::read_bundle::<Vec<BundlePattern>>(bytes) {
-            Ok((h, patterns)) => (h, patterns, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
-            Err(_) => return Err(format!("Failed to deserialize bundle: {}", e)),
-        },
-    };
+    let (header, patterns, api_idf_weights, auto_filter_stats) =
+        match frensense_frc::read_bundle::<BundlePayload>(bytes) {
+            Ok((h, payload)) => (
+                h,
+                payload.patterns,
+                payload.api_idf_weights,
+                payload.auto_filter_stats,
+            ),
+            Err(e) => match frensense_frc::read_bundle::<Vec<BundlePattern>>(bytes) {
+                Ok((h, patterns)) => (h, patterns, Vec::new(), Vec::new()),
+                Err(_) => return Err(format!("Failed to deserialize bundle: {}", e)),
+            },
+        };
 
     if patterns.len() < header.pattern_count as usize {
         tracing::warn!(
@@ -94,9 +80,7 @@ pub fn load_bundle(bytes: &[u8]) -> Result<LoadedBundle, String> {
     Ok(LoadedBundle {
         patterns,
         api_idf_weights,
-        category_weights,
         auto_filter_stats,
-        pattern_calibration,
     })
 }
 

@@ -400,7 +400,6 @@ pub fn extract_fingerprints_with_nodes<'a>(
                         raw_call_names,
                         param_names,
                         tainted_api_calls,
-                        config_literal_hashes: Vec::new(),
                         argument_call_types,
                         literal_pattern_hashes,
                         has_http_decorator,
