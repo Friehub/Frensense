@@ -3,10 +3,8 @@
 use std::hash::{Hash, Hasher};
 
 use crate::fingerprint::FunctionFingerprint;
-use crate::pattern::canonical::CanonicalForm;
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::similarity::RawDimensions;
-use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scoring configuration
@@ -23,8 +21,6 @@ use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
 /// override individual fields as needed.
 #[derive(Debug, Clone)]
 pub struct ScorerConfig {
-    /// Neutral default for similarity when both sides are empty.
-    pub empty_similarity_default: f64,
     /// Cross-lingual transfer penalty (0.0-1.0). Lower = harsher penalty.
     pub cross_lingual_penalty: f32,
     /// Penalty for zero semantic marker overlap (0.0-1.0).
@@ -37,41 +33,8 @@ pub struct ScorerConfig {
     pub noise_gate_strong_signal: f64,
     /// Noise gate: minimum moderate dims required.
     pub noise_gate_min_moderate_dims: usize,
-    /// Early-exit floor for best positive score.
-    pub min_best_positive_score: f64,
-    /// Floor for negative similarity penalty.
-    pub neg_penalty_floor: f64,
-    /// Weight of negative similarity in penalty term.
-    pub neg_penalty_weight: f64,
-    /// Minimum ngram similarity before AST edit distance is computed.
-    pub ast_ngram_min_threshold: f64,
-    /// Weight of base match score in corpus contrastive scoring.
-    pub base_score_weight: f64,
-    /// Weight of structural score in corpus contrastive scoring.
-    pub structural_score_weight: f64,
-    /// Weight of profile boost in corpus contrastive scoring.
-    pub profile_boost_weight: f64,
-    /// Default profile boost when no learned value exists.
-    pub default_profile_boost: f64,
-    /// Kind-diversity count for structural score saturation.
-    pub kind_diversity_saturation: f64,
     /// Per-factor context mismatch penalty.
     pub context_mismatch_penalty: f64,
-
-    // --- LSH / Indexing ---
-    /// Number of MinHash signatures for LSH. Default: 128.
-    pub lsh_num_hashes: usize,
-    /// Number of LSH bands. Default: 32.
-    pub lsh_bands: usize,
-    /// Rows per LSH band. Default: 8. Higher = tighter threshold (fewer candidates).
-    /// Threshold = (1/bands)^(1/rows_per_band). With 32 bands, 8 rows → 0.66.
-    pub lsh_rows_per_band: usize,
-
-    // --- Fingerprinting ---
-    /// N-gram window sizes for multi-scale hashing. Default: [3, 5, 8].
-    pub ngram_windows: Vec<usize>,
-    /// Maximum control-flow path depth. Default: 10.
-    pub cf_max_depth: usize,
 
     // --- Taint / Verification ---
     /// Confidence multiplier for taint-verified findings. Default: 1.2.
@@ -87,36 +50,17 @@ pub struct ScorerConfig {
 impl Default for ScorerConfig {
     fn default() -> Self {
         Self {
-            empty_similarity_default: 0.5,
             cross_lingual_penalty: 0.20,
             semantic_zero_penalty: 0.55,
             semantic_match_boost: 2.0,
             noise_gate_moderate_signal: 0.15,
             noise_gate_strong_signal: 0.4,
             noise_gate_min_moderate_dims: 3,
-            min_best_positive_score: 0.1,
-            neg_penalty_floor: 0.1,
-            neg_penalty_weight: 0.3,
-            ast_ngram_min_threshold: 0.25,
-            base_score_weight: 0.4,
-            structural_score_weight: 0.3,
-            profile_boost_weight: 0.3,
-            default_profile_boost: 0.5,
-            kind_diversity_saturation: 10.0,
             context_mismatch_penalty: 0.5,
-
-            lsh_num_hashes: 128,
-            lsh_bands: 32,
-            lsh_rows_per_band: 8,
-
-            ngram_windows: vec![3, 5, 8],
-            cf_max_depth: 10,
 
             taint_verified_boost: 1.2,
             cross_file_taint_boost: 1.15,
             taint_boost_cap: 0.95,
-            // Raised from 0.20: after fixing the double-calibration and tainted_api_sim=1.0
-            // bugs, raw scores in the 0.20-0.35 range are much more likely to be FPs.
             score_suppression_floor: 0.25,
         }
     }
@@ -165,17 +109,6 @@ fn cross_lingual_penalty(pattern_lang: &str, candidate_lang: &str, config: &Scor
     config.cross_lingual_penalty // 80% penalty for genuinely different languages (e.g. Rust ↔ TypeScript)
 }
 
-#[derive(Debug, Clone)]
-pub struct ScoredPattern {
-    pub pattern_id: String,
-    pub match_count: usize,
-    pub avg_score: f64,
-    pub structural_similarity: f64,
-    pub canonical_form: Option<CanonicalForm>,
-    pub minhash_similarity: f64,
-    pub final_score: f64,
-}
-
 impl PatternScorer {
     fn compute_context_penalty(
         expected_context: Option<&crate::context::FileContext>,
@@ -206,64 +139,6 @@ impl PatternScorer {
             }
             _ => 1.0,
         }
-    }
-
-    pub fn score_against_corpus(
-        candidate: &FunctionFingerprint,
-        positives: &[FunctionFingerprint],
-        negatives: &[FunctionFingerprint],
-        expected_context: Option<&crate::context::FileContext>,
-        actual_context: Option<&crate::context::FileContext>,
-        ngram_sim_threshold: f64,
-        weights: &[f64; 14],
-        config: &ScorerConfig,
-        min_evidence_dims: usize,
-    ) -> f64 {
-        let (score, _) = Self::score_against_corpus_with_evidence_impl(
-            candidate,
-            positives,
-            negatives,
-            expected_context,
-            actual_context,
-            ngram_sim_threshold,
-            weights,
-            None,
-            config,
-            min_evidence_dims,
-        );
-        score
-    }
-
-    /// Score a candidate against corpus and return both the final score and
-    /// a full `MatchEvidence` breakdown. Uses the same learned `weights` as
-    /// `score_against_corpus` so scores are identical.
-    ///
-    /// When `dim_cache` is provided, `raw_dimensions` results are memoised
-    /// across all patterns, keyed by `fingerprint_id(&target)`.  The caller
-    /// must guarantee the candidate is unchanged across calls sharing a cache.
-    pub fn score_against_corpus_with_evidence(
-        candidate: &FunctionFingerprint,
-        positives: &[FunctionFingerprint],
-        negatives: &[FunctionFingerprint],
-        expected_context: Option<&crate::context::FileContext>,
-        actual_context: Option<&crate::context::FileContext>,
-        _ngram_sim_threshold: f64,
-        weights: &[f64; 14],
-        config: &ScorerConfig,
-        min_evidence_dims: usize,
-    ) -> (f64, MatchEvidence) {
-        Self::score_against_corpus_with_evidence_impl(
-            candidate,
-            positives,
-            negatives,
-            expected_context,
-            actual_context,
-            _ngram_sim_threshold,
-            weights,
-            None,
-            config,
-            min_evidence_dims,
-        )
     }
 
     /// Like `score_against_corpus_with_evidence` but accepts a pre-computed
@@ -544,60 +419,6 @@ impl PatternScorer {
             Self::compute_context_penalty(expected_context, actual_context, config);
 
         (final_score * context_multiplier, evidence)
-    }
-
-    fn compute_similarity(
-        candidate: &FunctionFingerprint,
-        target: &FunctionFingerprint,
-        _is_positive: bool,
-        _ngram_sim_threshold: f64,
-        weights: &[f64; 14],
-    ) -> f64 {
-        let dim = crate::pattern::similarity::compute_dimensions(candidate, target);
-        let score = dim.weighted_score(weights);
-        if _is_positive {
-            dim.apply_semantic_override(score)
-        } else {
-            score
-        }
-    }
-
-    pub fn similarity_to_positive(
-        candidate: &FunctionFingerprint,
-        positive: &FunctionFingerprint,
-    ) -> f64 {
-        Self::compute_similarity(candidate, positive, true, 0.0, &DEFAULT_WEIGHTS)
-    }
-
-    pub fn similarity_to_negative(
-        candidate: &FunctionFingerprint,
-        negative: &FunctionFingerprint,
-    ) -> f64 {
-        Self::compute_similarity(candidate, negative, false, 0.0, &DEFAULT_WEIGHTS)
-    }
-
-    /// Compute a full `MatchEvidence` breakdown for a corpus match.
-    /// Mirrors the logic of `score_against_corpus` but exposes each dimension.
-    pub fn compute_evidence(
-        candidate: &FunctionFingerprint,
-        positives: &[FunctionFingerprint],
-        negatives: &[FunctionFingerprint],
-        weights: &[f64; 14],
-        config: &ScorerConfig,
-    ) -> MatchEvidence {
-        Self::score_against_corpus_with_evidence_impl(
-            candidate,
-            positives,
-            negatives,
-            None,
-            None,
-            0.0,
-            weights,
-            None,
-            config,
-            config.noise_gate_min_moderate_dims,
-        )
-        .1
     }
 
     // A lightweight identity-hash for a fingerprint, used as a cache key.

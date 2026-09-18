@@ -368,28 +368,6 @@ impl DependencyResolver {
     }
 }
 
-/// Extract a package name from an npm audit entry line like `"bcrypt-nodejs": {`.
-fn extract_audit_pkg_name(line: &str) -> Option<String> {
-    let trimmed = line.trim();
-    let start = trimmed.find('"')? + 1;
-    let end = trimmed[start..].find('"')?;
-    let name = &trimmed[start..start + end];
-    if name.is_empty() || name.contains('/') {
-        return None;
-    }
-    Some(name.to_string())
-}
-
-/// Extract a JSON string value from a line like `"key": "value"`.
-fn extract_json_string_value(line: &str) -> Option<String> {
-    let trimmed = line.trim();
-    let colon_pos = trimmed.find(':')?;
-    let after_colon = trimmed[colon_pos + 1..].trim();
-    let start = after_colon.find('"')? + 1;
-    let end = after_colon[start..].find('"')?;
-    Some(after_colon[start..start + end].to_string())
-}
-
 fn parse_json_keys(text: &str, set: &mut HashSet<String>) {
     let mut in_object = false;
     for line in text.lines() {

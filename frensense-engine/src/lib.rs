@@ -1,5 +1,5 @@
 #![allow(clippy::all)]
-#![allow(dead_code, unreachable_patterns, unreachable_code)]
+#![allow(unreachable_patterns)]
 #![allow(
     clippy::too_many_lines,
     clippy::too_many_arguments,

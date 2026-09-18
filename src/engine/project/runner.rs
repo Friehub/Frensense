@@ -14,7 +14,6 @@ use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegist
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use std::collections::{HashMap, HashSet};
-use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 
 struct ProcessSnapshotsResult<'a> {
@@ -386,12 +385,6 @@ fn run_corpus_scan(
         if let Some(val) = engine.scorer_noise_gate_strong {
             config.noise_gate_strong_signal = val;
         }
-        if let Some(val) = engine.scorer_neg_penalty_floor {
-            config.neg_penalty_floor = val;
-        }
-        if let Some(val) = engine.scorer_neg_penalty_weight {
-            config.neg_penalty_weight = val;
-        }
         if let Some(val) = engine.scorer_context_mismatch_penalty {
             config.context_mismatch_penalty = val;
         }
@@ -571,33 +564,7 @@ fn run_corpus_scan(
         // Score once - all group members share the same fingerprint hash
         let (ref fp, func_node, ref snap, ref actual_context) = group[0];
 
-        // Merge learned semantic markers into the fingerprint.
-        // These are API-call-to-category mappings discovered from the corpus,
-        // supplementing the hardcoded categories in extract_semantic_markers.
-        let scan_fp = if !registry.learned_semantic_markers.is_empty() {
-            let mut merged = fp.clone();
-            let mut extra = rustc_hash::FxHashSet::default();
-            let existing: rustc_hash::FxHashSet<u64> = merged.semantic_markers.iter().copied().collect();
-            for call in &merged.raw_call_names {
-                let seg = call.rsplit(|c: char| c == '.' || c == ':')
-                    .next()
-                    .unwrap_or(call);
-                if let Some(category) = registry.learned_semantic_markers.get(seg) {
-                    let mut h = rustc_hash::FxHasher::default();
-                    std::hash::Hash::hash(category, &mut h);
-                    extra.insert(h.finish());
-                }
-            }
-            for h in &extra {
-                if !existing.contains(h) {
-                    merged.semantic_markers.push(*h);
-                }
-            }
-            merged.semantic_markers.sort_unstable();
-            merged
-        } else {
-            fp.clone()
-        };
+        let scan_fp = fp.clone();
         let scan_ctx = frensense_engine::corpus::registry::ScanContext {
             func_node: Some(func_node.clone()),
             source: Some(&snap.content),

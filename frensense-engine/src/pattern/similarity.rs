@@ -72,23 +72,6 @@ impl RawDimensions {
     }
 }
 
-pub fn jaccard(a: &[u64], b: &[u64]) -> f64 {
-    if a.is_empty() && b.is_empty() {
-        return 0.0;
-    }
-    let mut intersection = 0;
-    for hash in a {
-        if b.contains(hash) {
-            intersection += 1;
-        }
-    }
-    let union = a.len() + b.len() - intersection;
-    if union == 0 {
-        return 0.0;
-    }
-    (intersection as f64) / (union as f64)
-}
-
 pub fn jaccard_sorted(a: &[u64], b: &[u64]) -> f64 {
     if a.is_empty() && b.is_empty() {
         return 0.0;

@@ -169,8 +169,6 @@ impl SemanticFilter {
             }
         }
 
-        let _func_src = &source[func_node.start_byte()..func_node.end_byte()];
-
         // Check contains_call_to / must_not_contain_call_to — compute call targets once.
         if !self.contains_call_to.is_empty() || !self.must_not_contain_call_to.is_empty() {
             let calls = extract_ast_call_targets(func_node, source);
@@ -281,39 +279,6 @@ fn extract_function_name(node: Node<'_>, source: &str) -> Option<String> {
     None
 }
 
-/// Collect all call targets (function names or method names) in a function.
-fn collect_call_targets(node: Node<'_>, source: &str) -> Vec<String> {
-    let mut calls = Vec::new();
-    let mut cursor = node.walk();
-
-    loop {
-        let n = cursor.node();
-
-        if n.kind() == "call_expression" {
-            // TypeScript/Rust tree-sitter grammars use "function" field for the callee
-            if let Some(callee) = n
-                .child_by_field_name("function")
-                .or_else(|| n.child_by_field_name("callee"))
-            {
-                let target = source[callee.start_byte()..callee.end_byte()].to_string();
-                calls.push(target);
-            }
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        loop {
-            if cursor.goto_next_sibling() {
-                break;
-            }
-            if !cursor.goto_parent() {
-                return calls;
-            }
-        }
-    }
-}
-
 /// Collect all node types in a subtree.
 fn collect_node_types(node: Node<'_>) -> Vec<String> {
     let mut types = Vec::new();
@@ -337,24 +302,26 @@ fn collect_node_types(node: Node<'_>) -> Vec<String> {
     }
 }
 
-/// Learned semantic constraints from positive/negative example pairs.
+/// Match `text` against `pattern` using the `regex` crate.
 ///
-/// Instead of manually writing TOML filters, we automatically extract
-/// what makes positives different from negatives by comparing their
-/// AST features (call targets, node types).
-#[derive(Debug, Clone, Default)]
+/// Patterns support full regex syntax (`.` `*` `[]` `^` `$` alternation, etc.).
+/// An invalid pattern is treated as a non-match rather than panicking, so a
+/// typo like `^sanitiseHtml$` yields a clean miss instead of a substring hit.
+fn regex_match(text: &str, pattern: &str) -> bool {
+    match regex::Regex::new(pattern) {
+        Ok(re) => re.is_match(text),
+        Err(_) => false,
+    }
+}
+
+/// Constraints learned from comparing positive and negative corpus examples.
+/// Used by the bundler to auto-generate semantic filters.
+#[derive(Debug, Default)]
 pub struct LearnedConstraints {
-    /// Call targets that appear in ALL positives but NOT in the corresponding negatives.
-    /// These become `contains_call_to` constraints.
     pub required_calls: Vec<String>,
-    /// Call targets that appear in ALL negatives but NOT in the positives.
-    /// These become `must_not_contain_call_to` constraints.
     pub forbidden_calls: Vec<String>,
-    /// Node types that appear in ALL positives but NOT in negatives.
     pub required_node_types: Vec<String>,
-    /// Node types that appear in ALL negatives but NOT in positives.
     pub forbidden_node_types: Vec<String>,
-    /// Data flow edges that appear in ALL positives.
     pub required_taint_flows: Vec<(String, String)>,
 }
 
@@ -367,7 +334,6 @@ impl LearnedConstraints {
             && self.required_taint_flows.is_empty()
     }
 
-    /// Convert to a `SemanticFilter` for use in pattern matching.
     pub fn to_filter(&self) -> SemanticFilter {
         SemanticFilter {
             contains_call_to: self.required_calls.clone(),
@@ -381,205 +347,6 @@ impl LearnedConstraints {
             contains_import: Vec::new(),
             must_not_contain_import: Vec::new(),
         }
-    }
-}
-
-/// Learn semantic constraints by comparing positive and negative examples.
-///
-/// For each feature (call targets, node types):
-/// - If it appears in ALL positives but NOT in ANY negative → required
-/// - If it appears in ALL negatives but NOT in ANY positive → forbidden
-///
-/// This automatically captures what makes the buggy code different from the fix.
-pub fn learn_constraints(
-    positive_nodes: &[(tree_sitter::Node<'_>, &str)],
-    negative_nodes: &[(tree_sitter::Node<'_>, &str)],
-) -> LearnedConstraints {
-    if positive_nodes.is_empty() || negative_nodes.is_empty() {
-        return LearnedConstraints::default();
-    }
-
-    // Collect features from all positives
-    let mut pos_call_sets: Vec<Vec<String>> = Vec::new();
-    let mut pos_node_sets: Vec<Vec<String>> = Vec::new();
-    let mut pos_flow_sets: Vec<Vec<(String, String)>> = Vec::new();
-    for (node, source) in positive_nodes {
-        let mut calls: Vec<String> = collect_call_targets(*node, source);
-        calls.sort();
-        calls.dedup();
-        pos_call_sets.push(calls);
-
-        let mut nodes = collect_node_types(*node);
-        nodes.sort();
-        nodes.dedup();
-        pos_node_sets.push(nodes);
-
-        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source, None)
-            .into_iter()
-            .collect::<Vec<_>>();
-        flows.sort();
-        flows.dedup();
-        pos_flow_sets.push(flows);
-    }
-
-    // Collect features from all negatives
-    let mut neg_call_sets: Vec<Vec<String>> = Vec::new();
-    let mut neg_node_sets: Vec<Vec<String>> = Vec::new();
-    let mut neg_flow_sets: Vec<Vec<(String, String)>> = Vec::new();
-    for (node, source) in negative_nodes {
-        let mut calls: Vec<String> = collect_call_targets(*node, source);
-        calls.sort();
-        calls.dedup();
-        neg_call_sets.push(calls);
-
-        let mut nodes = collect_node_types(*node);
-        nodes.sort();
-        nodes.dedup();
-        neg_node_sets.push(nodes);
-
-        let mut flows = crate::corpus::data_flow_extractor::extract_data_flows(*node, source, None)
-            .into_iter()
-            .collect::<Vec<_>>();
-        flows.sort();
-        flows.dedup();
-        neg_flow_sets.push(flows);
-    }
-
-    // Find call targets in ALL positives
-    let pos_call_universe: std::collections::HashSet<&str> = pos_call_sets
-        .iter()
-        .flatten()
-        .map(std::string::String::as_str)
-        .collect();
-
-    let required_calls: Vec<String> = pos_call_universe
-        .iter()
-        .filter(|call| {
-            // Must be in EVERY positive
-            pos_call_sets.iter().all(|set| set.iter().any(|c| c == *call))
-                // Must NOT be in ANY negative
-                && !neg_call_sets.iter().any(|set| set.iter().any(|c| c == *call))
-        })
-        .map(std::string::ToString::to_string)
-        .collect();
-
-    // Find call targets in ALL negatives (but not in positives)
-    let neg_call_universe: std::collections::HashSet<&str> = neg_call_sets
-        .iter()
-        .flatten()
-        .map(std::string::String::as_str)
-        .collect();
-
-    let forbidden_calls: Vec<String> = neg_call_universe
-        .iter()
-        .filter(|call| {
-            neg_call_sets
-                .iter()
-                .all(|set| set.iter().any(|c| c == *call))
-                && !pos_call_sets
-                    .iter()
-                    .any(|set| set.iter().any(|c| c == *call))
-        })
-        .map(std::string::ToString::to_string)
-        .collect();
-
-    // Same for node types
-    let pos_node_universe: std::collections::HashSet<&str> = pos_node_sets
-        .iter()
-        .flatten()
-        .map(std::string::String::as_str)
-        .collect();
-
-    let required_node_types: Vec<String> = pos_node_universe
-        .iter()
-        .filter(|nt| {
-            pos_node_sets.iter().all(|set| set.iter().any(|t| t == *nt))
-                && !neg_node_sets.iter().any(|set| set.iter().any(|t| t == *nt))
-        })
-        .map(std::string::ToString::to_string)
-        .collect();
-
-    let neg_node_universe: std::collections::HashSet<&str> = neg_node_sets
-        .iter()
-        .flatten()
-        .map(std::string::String::as_str)
-        .collect();
-
-    let forbidden_node_types: Vec<String> = neg_node_universe
-        .iter()
-        .filter(|nt| {
-            neg_node_sets.iter().all(|set| set.iter().any(|t| t == *nt))
-                && !pos_node_sets.iter().any(|set| set.iter().any(|t| t == *nt))
-        })
-        .map(std::string::ToString::to_string)
-        .collect();
-
-    // Filter out noise: skip very common node types that don't discriminate
-    let noise_nodes: std::collections::HashSet<&str> = [
-        "program",
-        "statement_block",
-        "expression_statement",
-        "return_statement",
-        "if_statement",
-        "variable_declaration",
-        "identifier",
-        "call_expression",
-        "member_expression",
-        "string",
-        "number",
-        "true",
-        "false",
-        "null",
-        "template_string",
-        "binary_expression",
-        "unary_expression",
-        "parenthesized_expression",
-        "comma_expression",
-    ]
-    .iter()
-    .copied()
-    .collect();
-
-    let mut c = LearnedConstraints {
-        required_calls,
-        forbidden_calls,
-        required_node_types: required_node_types
-            .into_iter()
-            .filter(|nt| !noise_nodes.contains(nt.as_str()))
-            .collect(),
-        forbidden_node_types: forbidden_node_types
-            .into_iter()
-            .filter(|nt| !noise_nodes.contains(nt.as_str()))
-            .collect(),
-        required_taint_flows: Vec::new(),
-    };
-
-    // Data flow constraints
-    let pos_flow_universe: std::collections::HashSet<&(String, String)> =
-        pos_flow_sets.iter().flatten().collect();
-
-    c.required_taint_flows = pos_flow_universe
-        .into_iter()
-        .filter(|flow| {
-            pos_flow_sets
-                .iter()
-                .all(|set| set.iter().any(|f| f == *flow))
-        })
-        .cloned()
-        .collect();
-
-    c
-}
-
-/// Match `text` against `pattern` using the `regex` crate.
-///
-/// Patterns support full regex syntax (`.` `*` `[]` `^` `$` alternation, etc.).
-/// An invalid pattern is treated as a non-match rather than panicking, so a
-/// typo like `^sanitiseHtml$` yields a clean miss instead of a substring hit.
-fn regex_match(text: &str, pattern: &str) -> bool {
-    match regex::Regex::new(pattern) {
-        Ok(re) => re.is_match(text),
-        Err(_) => false,
     }
 }
 
@@ -688,7 +455,6 @@ mod tests {
 
 pub fn extract_ast_call_targets(node: Node<'_>, source: &str) -> std::collections::HashSet<String> {
     let mut targets = std::collections::HashSet::new();
-    let _cursor = node.walk();
 
     // Perform a pre-order traversal
     let mut visit_stack = vec![node];

@@ -71,21 +71,11 @@ pub struct CliOptions {
     pub scorer_semantic_match_boost: Option<f64>,
     pub scorer_noise_gate_moderate: Option<f64>,
     pub scorer_noise_gate_strong: Option<f64>,
-    pub scorer_neg_penalty_floor: Option<f64>,
-    pub scorer_neg_penalty_weight: Option<f64>,
     pub scorer_context_mismatch_penalty: Option<f64>,
     // Taint/verification config
     pub taint_verified_boost: Option<f64>,
     pub cross_file_taint_boost: Option<f64>,
     pub taint_boost_cap: Option<f64>,
-    pub score_suppression_floor: Option<f64>,
-    // LSH config
-    pub lsh_num_hashes: Option<usize>,
-    pub lsh_bands: Option<usize>,
-    pub lsh_rows_per_band: Option<usize>,
-    // Fingerprinting config
-    pub ngram_windows: Option<String>,
-    pub cf_max_depth: Option<usize>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -151,18 +141,10 @@ pub fn parse_options(args: &[String]) -> CliOptions {
         scorer_semantic_match_boost: None,
         scorer_noise_gate_moderate: None,
         scorer_noise_gate_strong: None,
-        scorer_neg_penalty_floor: None,
-        scorer_neg_penalty_weight: None,
         scorer_context_mismatch_penalty: None,
         taint_verified_boost: None,
         cross_file_taint_boost: None,
         taint_boost_cap: None,
-        score_suppression_floor: None,
-        lsh_num_hashes: None,
-        lsh_bands: None,
-        lsh_rows_per_band: None,
-        ngram_windows: None,
-        cf_max_depth: None,
     };
 
     let mut i = 1;
@@ -594,26 +576,6 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                     i += 1;
                 }
             }
-            "--scorer-neg-penalty-floor" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.scorer_neg_penalty_floor =
-                        Some(val.parse::<f64>().unwrap_or_else(|_| {
-                            eprintln!("Error: Invalid --scorer-neg-penalty-floor value '{val}'");
-                            std::process::exit(1);
-                        }));
-                    i += 1;
-                }
-            }
-            "--scorer-neg-penalty-weight" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.scorer_neg_penalty_weight =
-                        Some(val.parse::<f64>().unwrap_or_else(|_| {
-                            eprintln!("Error: Invalid --scorer-neg-penalty-weight value '{val}'");
-                            std::process::exit(1);
-                        }));
-                    i += 1;
-                }
-            }
             "--scorer-context-mismatch-penalty" => {
                 if let Some(val) = args.get(i + 1) {
                     options.scorer_context_mismatch_penalty =
@@ -649,58 +611,6 @@ pub fn parse_options(args: &[String]) -> CliOptions {
                 if let Some(val) = args.get(i + 1) {
                     options.taint_boost_cap = Some(val.parse::<f64>().unwrap_or_else(|_| {
                         eprintln!("Error: Invalid --taint-boost-cap value '{val}'");
-                        std::process::exit(1);
-                    }));
-                    i += 1;
-                }
-            }
-            "--score-suppression-floor" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.score_suppression_floor =
-                        Some(val.parse::<f64>().unwrap_or_else(|_| {
-                            eprintln!("Error: Invalid --score-suppression-floor value '{val}'");
-                            std::process::exit(1);
-                        }));
-                    i += 1;
-                }
-            }
-            "--lsh-num-hashes" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.lsh_num_hashes = Some(val.parse::<usize>().unwrap_or_else(|_| {
-                        eprintln!("Error: Invalid --lsh-num-hashes value '{val}'");
-                        std::process::exit(1);
-                    }));
-                    i += 1;
-                }
-            }
-            "--lsh-bands" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.lsh_bands = Some(val.parse::<usize>().unwrap_or_else(|_| {
-                        eprintln!("Error: Invalid --lsh-bands value '{val}'");
-                        std::process::exit(1);
-                    }));
-                    i += 1;
-                }
-            }
-            "--lsh-rows-per-band" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.lsh_rows_per_band = Some(val.parse::<usize>().unwrap_or_else(|_| {
-                        eprintln!("Error: Invalid --lsh-rows-per-band value '{val}'");
-                        std::process::exit(1);
-                    }));
-                    i += 1;
-                }
-            }
-            "--ngram-windows" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.ngram_windows = Some(val.clone());
-                    i += 1;
-                }
-            }
-            "--cf-max-depth" => {
-                if let Some(val) = args.get(i + 1) {
-                    options.cf_max_depth = Some(val.parse::<usize>().unwrap_or_else(|_| {
-                        eprintln!("Error: Invalid --cf-max-depth value '{val}'");
                         std::process::exit(1);
                     }));
                     i += 1;

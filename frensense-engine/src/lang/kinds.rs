@@ -5,9 +5,6 @@ pub enum AbstractKind {
     FunctionDef,
     ClassDef,
     MethodDef,
-    InterfaceDef,
-    StructDef,
-    EnumDef,
     ConstDef,
     ModuleDef,
 

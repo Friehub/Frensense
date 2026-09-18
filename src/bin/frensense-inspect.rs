@@ -227,12 +227,6 @@ fn main() {
         config.noise_gate_min_moderate_dims
     );
     println!(
-        "  min_best_positive_score: {}",
-        config.min_best_positive_score
-    );
-    println!("  neg_penalty_floor: {}", config.neg_penalty_floor);
-    println!("  neg_penalty_weight: {}", config.neg_penalty_weight);
-    println!(
         "  context_mismatch_penalty: {}",
         config.context_mismatch_penalty
     );

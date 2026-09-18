@@ -168,12 +168,6 @@ fn main() -> Result<()> {
     if let Some(val) = options.scorer_noise_gate_strong {
         engine.set_scorer_noise_gate_strong(val);
     }
-    if let Some(val) = options.scorer_neg_penalty_floor {
-        engine.set_scorer_neg_penalty_floor(val);
-    }
-    if let Some(val) = options.scorer_neg_penalty_weight {
-        engine.set_scorer_neg_penalty_weight(val);
-    }
     if let Some(val) = options.scorer_context_mismatch_penalty {
         engine.set_scorer_context_mismatch_penalty(val);
     }
@@ -187,34 +181,6 @@ fn main() -> Result<()> {
     }
     if let Some(val) = options.taint_boost_cap {
         engine.set_taint_boost_cap(val);
-    }
-    if let Some(val) = options.score_suppression_floor {
-        engine.set_score_suppression_floor(val);
-    }
-
-    // Apply LSH configuration
-    if let Some(val) = options.lsh_num_hashes {
-        engine.set_lsh_num_hashes(val);
-    }
-    if let Some(val) = options.lsh_bands {
-        engine.set_lsh_bands(val);
-    }
-    if let Some(val) = options.lsh_rows_per_band {
-        engine.set_lsh_rows_per_band(val);
-    }
-
-    // Apply fingerprinting configuration
-    if let Some(ref val) = options.ngram_windows {
-        let windows: Vec<usize> = val
-            .split(',')
-            .filter_map(|s| s.trim().parse().ok())
-            .collect();
-        if !windows.is_empty() {
-            engine.set_ngram_windows(windows);
-        }
-    }
-    if let Some(val) = options.cf_max_depth {
-        engine.set_cf_max_depth(val);
     }
 
     if let Some(lang_arg) = &options.language_filter {

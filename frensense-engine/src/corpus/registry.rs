@@ -9,7 +9,6 @@ use crate::minhash::{LSHIndex, minhash_signature};
 use crate::pattern::evidence::MatchEvidence;
 use crate::pattern::scorer::{PatternScorer, ScorerConfig};
 use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
-#[allow(unused_imports)]
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -58,10 +57,6 @@ pub struct PatternRegistry {
     api_idf_weights: FxHashMap<u64, f32>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
     pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
-    /// Learned semantic markers: maps API call name → semantic category.
-    /// Built by discovering which API calls appear in which pattern categories
-    /// across the corpus. Merged with hardcoded markers during scanning.
-    pub learned_semantic_markers: std::collections::HashMap<String, String>,
     source_sink: CorpusSourceSinkRegistry,
     /// Configurable scoring parameters.
     pub scorer_config: ScorerConfig,
@@ -81,7 +76,6 @@ impl PatternRegistry {
             idf_weights: FxHashMap::default(),
             api_idf_weights: FxHashMap::default(),
             auto_filter_stats: None,
-            learned_semantic_markers: std::collections::HashMap::new(),
             source_sink: CorpusSourceSinkRegistry::default(),
             scorer_config: ScorerConfig::default(),
         }
@@ -221,13 +215,6 @@ impl PatternRegistry {
             .collect();
     }
 
-    /// Learn per-category feature weights and per-pattern calibration from corpus positive/negative pairs.
-
-    /// Learn semantic markers from corpus patterns.
-
-    /// Run both IDF passes, learn category weights, and learn semantic markers.
-    /// Called after `load_corpus` / `load_corpus_dirs`.
-
     pub fn pattern_count(&self) -> usize {
         self.patterns.len()
     }
@@ -304,7 +291,6 @@ impl PatternRegistry {
         let source = ctx.source;
         let actual_context = ctx.actual_context;
         let spec = ctx.spec;
-        let t0 = std::time::Instant::now();
         // Query both LSH tables (structural + API-call)
         let struct_candidates: std::collections::HashSet<usize> = if let Some(ref lsh) =
             self.lsh_index
@@ -367,8 +353,6 @@ impl PatternRegistry {
             }
             merged
         };
-        let _t_lsh = t0.elapsed();
-        let _all_candidates_raw_len = all_candidates_raw.len();
         let all_candidates = all_candidates_raw;
         let candidate_count = all_candidates.len();
         if candidate_count == 0 {
@@ -379,22 +363,6 @@ impl PatternRegistry {
         let mut weighted_fp = fp.clone();
         if !self.idf_weights.is_empty() {
             apply_idf_weights(&mut weighted_fp, &self.idf_weights);
-        }
-
-        // Add learned semantic markers
-        if !self.learned_semantic_markers.is_empty() {
-            for call in &fp.raw_call_names {
-                let seg = call.rsplit(['.', ':']).next().unwrap_or(call);
-                if let Some(cat) = self.learned_semantic_markers.get(seg) {
-                    let mut h = rustc_hash::FxHasher::default();
-                    std::hash::Hash::hash(cat, &mut h);
-                    weighted_fp
-                        .semantic_markers
-                        .push(std::hash::Hasher::finish(&h));
-                }
-            }
-            weighted_fp.semantic_markers.sort_unstable();
-            weighted_fp.semantic_markers.dedup();
         }
 
         // Pre-compute data flows once (shared across all candidates, cheap AST walk)
@@ -464,8 +432,6 @@ impl PatternRegistry {
 
         // Pre-compute DimCache in parallel across all referenced corpus targets.
         // Deduplicate by fingerprint_id to avoid redundant compute_dimensions calls.
-        #[allow(unused_imports)]
-        use rayon::prelude::*;
         let global_dim_cache: crate::pattern::scorer::DimCache = {
             let mut seen = rustc_hash::FxHashSet::default();
             let mut unique_targets: Vec<(u64, &FunctionFingerprint)> = Vec::new();
@@ -522,7 +488,6 @@ impl PatternRegistry {
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        let _t_end = t0.elapsed();
         matches
     }
 
@@ -726,86 +691,6 @@ impl PatternRegistry {
             })
         } else {
             None
-        }
-    }
-}
-
-/// Learn semantic category markers from corpus patterns.
-///
-/// Walks all positive fingerprints' raw call names and groups them by
-/// pattern category (second segment of pattern ID: "sec", "csa", etc.).
-/// Any API call name appearing in ≥2 distinct patterns of the same category
-/// is promoted to a learned semantic marker that maps `api_name → category`.
-///
-/// During scanning, these are merged into fingerprint semantic_markers so
-/// that matching code produces the same semantic-sim signal as the hardcoded
-/// markers would.
-pub fn learn_semantic_markers(
-    patterns: &[CorpusPattern],
-) -> std::collections::HashMap<String, String> {
-    use std::collections::HashMap;
-    // API call name → set of (category, pattern_count)
-    let mut api_to_cats: HashMap<String, HashMap<String, usize>> = HashMap::new();
-
-    for pattern in patterns {
-        let cat = pattern
-            .id
-            .split('_')
-            .nth(1)
-            .unwrap_or("unknown")
-            .to_string();
-        for fp in &pattern.positives {
-            for call in &fp.raw_call_names {
-                // Use the last segment (method name) for generalization
-                let seg = call.rsplit(['.', ':']).next().unwrap_or(call).to_string();
-                let entry = api_to_cats.entry(seg).or_default();
-                *entry.entry(cat.clone()).or_insert(0) += 1;
-            }
-        }
-    }
-
-    let mut result = HashMap::new();
-    for (api_name, category_counts) in &api_to_cats {
-        // Skip very common method names that would be noise
-        const NOISE_NAMES: &[&str] = &[
-            "then", "catch", "json", "next", "toString", "map", "filter", "forEach", "find",
-            "sort", "join", "split", "trim", "log", "error", "send", "status",
-        ];
-        if NOISE_NAMES.contains(&api_name.as_str()) {
-            continue;
-        }
-        // Pick the category with the highest count; ties broken alphabetically
-        if let Some((best_cat, _best_count)) = category_counts
-            .iter()
-            .filter(|(_, count)| **count >= 2)
-            .max_by(|(a, ca), (b, cb)| ca.cmp(cb).then_with(|| a.cmp(b)))
-        {
-            result.insert(api_name.clone(), best_cat.clone());
-        }
-    }
-    result
-}
-
-/// Recursively collect source texts from a corpus directory for auto-filter computation.
-fn collect_source_texts(
-    dir: &std::path::Path,
-    out: &mut std::collections::HashMap<String, String>,
-) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_source_texts(&path, out);
-        } else if path.is_file() {
-            let fname = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            // Only collect positive and negative files
-            if fname.contains("_positive") || fname.contains("_negative") {
-                if let Ok(src) = std::fs::read_to_string(&path) {
-                    out.insert(fname.to_string(), src);
-                }
-            }
         }
     }
 }

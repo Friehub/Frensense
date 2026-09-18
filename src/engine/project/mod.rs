@@ -80,8 +80,6 @@ pub struct Engine {
     scorer_semantic_match_boost: Option<f64>,
     scorer_noise_gate_moderate: Option<f64>,
     scorer_noise_gate_strong: Option<f64>,
-    scorer_neg_penalty_floor: Option<f64>,
-    scorer_neg_penalty_weight: Option<f64>,
     scorer_context_mismatch_penalty: Option<f64>,
 
     // Full scorer config (built from individual fields + defaults)
@@ -140,8 +138,6 @@ impl Engine {
             scorer_semantic_match_boost: None,
             scorer_noise_gate_moderate: None,
             scorer_noise_gate_strong: None,
-            scorer_neg_penalty_floor: None,
-            scorer_neg_penalty_weight: None,
             scorer_context_mismatch_penalty: None,
             scorer_config: frensense_engine::pattern::scorer::ScorerConfig::default(),
         }
@@ -221,12 +217,6 @@ impl Engine {
     pub fn set_scorer_noise_gate_strong(&mut self, val: f64) {
         self.scorer_noise_gate_strong = Some(val);
     }
-    pub fn set_scorer_neg_penalty_floor(&mut self, val: f64) {
-        self.scorer_neg_penalty_floor = Some(val);
-    }
-    pub fn set_scorer_neg_penalty_weight(&mut self, val: f64) {
-        self.scorer_neg_penalty_weight = Some(val);
-    }
     pub fn set_scorer_context_mismatch_penalty(&mut self, val: f64) {
         self.scorer_context_mismatch_penalty = Some(val);
     }
@@ -250,12 +240,6 @@ impl Engine {
         if let Some(v) = self.scorer_noise_gate_strong {
             config.noise_gate_strong_signal = v;
         }
-        if let Some(v) = self.scorer_neg_penalty_floor {
-            config.neg_penalty_floor = v;
-        }
-        if let Some(v) = self.scorer_neg_penalty_weight {
-            config.neg_penalty_weight = v;
-        }
         if let Some(v) = self.scorer_context_mismatch_penalty {
             config.context_mismatch_penalty = v;
         }
@@ -270,24 +254,6 @@ impl Engine {
     }
     pub fn set_taint_boost_cap(&mut self, val: f64) {
         self.scorer_config.taint_boost_cap = val;
-    }
-    pub fn set_score_suppression_floor(&mut self, val: f64) {
-        self.scorer_config.score_suppression_floor = val;
-    }
-    pub fn set_lsh_num_hashes(&mut self, val: usize) {
-        self.scorer_config.lsh_num_hashes = val;
-    }
-    pub fn set_lsh_bands(&mut self, val: usize) {
-        self.scorer_config.lsh_bands = val;
-    }
-    pub fn set_lsh_rows_per_band(&mut self, val: usize) {
-        self.scorer_config.lsh_rows_per_band = val;
-    }
-    pub fn set_ngram_windows(&mut self, val: Vec<usize>) {
-        self.scorer_config.ngram_windows = val;
-    }
-    pub fn set_cf_max_depth(&mut self, val: usize) {
-        self.scorer_config.cf_max_depth = val;
     }
 
     pub fn load_calibration(&mut self) {

@@ -152,10 +152,6 @@ fn extract_uses(
     }
 }
 
-fn is_identifier(node: Node) -> bool {
-    node.kind() == "identifier"
-}
-
 fn extract_ref_names(node: Node, source: &str, names: &mut Vec<String>) {
     match node.kind() {
         "identifier" => {
