@@ -4,7 +4,6 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 export default withMermaid(defineConfig({
   title: "Friehub",
   description: "Deterministic Security Engine.",
-  base: "/Frensense/",
   cleanUrls: true,
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/favicon.png' }],
