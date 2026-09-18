@@ -392,4 +392,46 @@ impl LanguageSpec for CSpec {
     fn route_registration_patterns(&self) -> &'static [&'static str] {
         &[]
     }
+
+    fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
+        &[
+            (
+                "db_query",
+                &[
+                    "sqlite3_exec",
+                    "sqlite3_prepare",
+                    "mysql_query",
+                    "PQexec",
+                    "PQprepare",
+                    "sqlite3_step",
+                ],
+            ),
+            (
+                "db_write",
+                &[
+                    "sqlite3_exec",
+                    "mysql_query",
+                    "PQexec",
+                    "INSERT",
+                    "UPDATE",
+                    "DELETE",
+                ],
+            ),
+            ("cmd_exec", &["system", "popen", "exec", "execl", "execvp"]),
+            ("file_read", &["fopen", "fread", "read", "getline", "fgets"]),
+            (
+                "file_write",
+                &["fwrite", "fprintf", "fputs", "write", "fopen"],
+            ),
+            ("http_request", &["curl_easy_perform", "curl", "http_get"]),
+            ("crypto_weak", &["MD5", "SHA1", "MD5_Init", "SHA1_Init"]),
+            (
+                "crypto_strong",
+                &["SHA256", "SHA512", "SHA256_Init", "SHA512_Init"],
+            ),
+            ("deserialize", &["sscanf", "strtol", "atoi", "atof"]),
+            ("process", &["exit", "abort", "_exit", "kill"]),
+            ("regex", &["regcomp", "regexec", "regex_t"]),
+        ]
+    }
 }

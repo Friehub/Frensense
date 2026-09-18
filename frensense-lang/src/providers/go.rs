@@ -775,4 +775,83 @@ impl LanguageSpec for GoSpec {
     fn shell_api_method_names(&self) -> &'static [&'static str] {
         &["Command", "Output", "CombinedOutput", "Start"]
     }
+
+    fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
+        &[
+            (
+                "db_query",
+                &[
+                    "Query",
+                    "QueryRow",
+                    "Exec",
+                    "Prepare",
+                    "Find",
+                    "FindOne",
+                    "FindById",
+                    "Aggregate",
+                    "Count",
+                ],
+            ),
+            (
+                "db_write",
+                &[
+                    "Insert", "Update", "Upsert", "Create", "Delete", "Remove", "Save", "Patch",
+                ],
+            ),
+            (
+                "cmd_exec",
+                &[
+                    "Command",
+                    "Output",
+                    "CombinedOutput",
+                    "Start",
+                    "Run",
+                    "exec.Command",
+                    "os/exec",
+                ],
+            ),
+            (
+                "file_read",
+                &["ReadFile", "ReadDir", "Open", "ioutil.ReadFile"],
+            ),
+            (
+                "file_write",
+                &["WriteFile", "Create", "os.Create", "ioutil.WriteFile"],
+            ),
+            (
+                "http_request",
+                &[
+                    "http.Get",
+                    "http.Post",
+                    "http.Do",
+                    "http.NewRequest",
+                    "client.Do",
+                    "client.Get",
+                    "client.Post",
+                ],
+            ),
+            ("url_redirect", &["Redirect", "http.Redirect"]),
+            (
+                "crypto_weak",
+                &["md5.New", "sha1.New", "crypto/md5", "crypto/sha1"],
+            ),
+            (
+                "crypto_strong",
+                &["sha256.New", "sha512.New", "crypto/sha256", "crypto/sha512"],
+            ),
+            (
+                "deserialize",
+                &["json.Unmarshal", "json.Decode", "xml.Unmarshal"],
+            ),
+            (
+                "sanitize",
+                &["template.HTML", "html/template", "bluemonday"],
+            ),
+            ("process", &["os.Exit", "os.Kill", "os.Signal", "syscall"]),
+            (
+                "auth_middleware",
+                &["middleware", "Auth", "Verify", "Validate"],
+            ),
+        ]
+    }
 }

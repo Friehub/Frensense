@@ -1015,6 +1015,10 @@ impl LanguageSpec for TypeScriptSpec {
             "hono.get(",
         ]
     }
+
+    fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
+        JS_SEMANTIC_CATEGORIES
+    }
 }
 
 // ── JavaScript spec ────────────────────────────────────────────────────────────
@@ -1161,6 +1165,10 @@ impl LanguageSpec for JavaScriptSpec {
 
     fn route_registration_patterns(&self) -> &'static [&'static str] {
         TypeScriptSpec.route_registration_patterns()
+    }
+
+    fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
+        JS_SEMANTIC_CATEGORIES
     }
 }
 
@@ -1538,4 +1546,134 @@ static JS_SOURCE_PATTERNS: &[&str] = &[
     "cookies",
     "file",
     "files",
+];
+
+static JS_SEMANTIC_CATEGORIES: &[(&str, &[&str])] = &[
+    (
+        "db_query",
+        &[
+            "query",
+            "execute",
+            "rawQuery",
+            "sql_query",
+            "executeQuery",
+            "run",
+            "all",
+            "get",
+            "find",
+            "findOne",
+            "findById",
+            "aggregate",
+            "count",
+        ],
+    ),
+    (
+        "db_write",
+        &[
+            "insert",
+            "update",
+            "upsert",
+            "bulkWrite",
+            "create",
+            "delete",
+            "remove",
+            "save",
+            "patch",
+            "put",
+        ],
+    ),
+    (
+        "cmd_exec",
+        &[
+            "exec",
+            "execSync",
+            "spawn",
+            "spawnSync",
+            "execFile",
+            "execFileSync",
+            "system",
+            "popen",
+            "child_process",
+            "fork",
+        ],
+    ),
+    ("code_eval", &["eval", "Function", "new Function"]),
+    (
+        "file_read",
+        &[
+            "readFile",
+            "readFileSync",
+            "createReadStream",
+            "readdir",
+            "readdirSync",
+        ],
+    ),
+    (
+        "file_write",
+        &[
+            "writeFile",
+            "writeFileSync",
+            "createWriteStream",
+            "appendFile",
+            "appendFileSync",
+        ],
+    ),
+    (
+        "dom_xss",
+        &[
+            "innerHTML",
+            "outerHTML",
+            "document.write",
+            "insertAdjacentHTML",
+            "insertAdjacentText",
+        ],
+    ),
+    (
+        "http_request",
+        &[
+            "fetch",
+            "axios",
+            "request",
+            "get",
+            "post",
+            "put",
+            "delete",
+            "patch",
+            "superagent",
+            "got",
+            "undici",
+            "node-fetch",
+        ],
+    ),
+    ("url_redirect", &["redirect", "location"]),
+    ("crypto_weak", &["md5", "sha1", "createHash", "createHmac"]),
+    (
+        "crypto_strong",
+        &["sha256", "sha512", "bcrypt", "argon2", "scrypt"],
+    ),
+    (
+        "deserialize",
+        &["JSON.parse", "loads", "deserialize", "unmarshal", "decode"],
+    ),
+    (
+        "sanitize",
+        &["sanitize", "escape", "encode", "validate", "escapeHtml"],
+    ),
+    ("regex", &["new RegExp", "RegExp"]),
+    ("process", &["exit", "kill", "process"]),
+    (
+        "auth_middleware",
+        &[
+            "verify",
+            "decode",
+            "verifyToken",
+            "authenticate",
+            "authorize",
+        ],
+    ),
+    ("weak_random", &["random", "Math.random"]),
+    (
+        "financial_calc",
+        &["price", "priceSnapshot", "total", "amount", "balance"],
+    ),
 ];

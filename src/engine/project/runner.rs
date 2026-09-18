@@ -185,9 +185,12 @@ fn run_findings_modules(
     if use_data_flow {
         let source_sink_arc = std::sync::Arc::new(source_sink.clone());
         for snap in snapshots {
-            let file_env =
-                frensense_engine::context::FileContext::extract(&snap.path, &snap.content)
-                    .environment;
+            let file_env = frensense_engine::context::FileContext::extract_with_spec(
+                &snap.path,
+                &snap.content,
+                None,
+            )
+            .environment;
             let provider = per_file_provider(
                 &snap.content,
                 &snap.tree,
@@ -263,18 +266,21 @@ fn run_findings_modules(
                             }
                             let clean_type = param_type.trim_start_matches(':').trim();
 
-                            let param_env = frensense_engine::context::FileContext::extract(
-                                &snap.path,
-                                &snap.content,
-                            )
-                            .environment;
+                            let param_env =
+                                frensense_engine::context::FileContext::extract_with_spec(
+                                    &snap.path,
+                                    &snap.content,
+                                    None,
+                                )
+                                .environment;
 
                             let origin = provider
                                 .classify_param(&param_name, Some(clean_type))
                                 .or_else(|| {
-                                    frensense_engine::data_flow::classify_param_name_in_context(
+                                    frensense_engine::data_flow::classify_param_name_in_context_with_spec(
                                         &param_name,
                                         Some(&param_env),
+                                        None,
                                     )
                                 });
                             if let Some(o) = origin {
@@ -515,7 +521,11 @@ fn run_corpus_scan(
                 return Vec::new();
             }
             let start_time = std::time::Instant::now();
-            let ctx = frensense_engine::context::FileContext::extract(&snap.path, &snap.content);
+            let ctx = frensense_engine::context::FileContext::extract_with_spec(
+                &snap.path,
+                &snap.content,
+                None,
+            );
             let mut fps = Vec::new();
 
             tracing::trace!(file = %snap.path.display(), "extracting fingerprints");
@@ -670,9 +680,10 @@ fn run_corpus_scan(
                     let verification = {
                         let mut guard = alias_tracker.lock().unwrap();
                         let file_env =
-                            frensense_engine::context::FileContext::extract(
+                            frensense_engine::context::FileContext::extract_with_spec(
                                 &snap_i.path,
                                 &snap_i.content,
+                                None,
                             )
                             .environment;
                         let provider = per_file_provider(
@@ -946,9 +957,10 @@ fn run_standalone_taint(
                     } else {
                         let verification = {
                             let mut guard = alias_tracker.lock().unwrap();
-                            let file_env = frensense_engine::context::FileContext::extract(
+                            let file_env = frensense_engine::context::FileContext::extract_with_spec(
                                 &snap.path,
                                 &snap.content,
+                                None,
                             )
                             .environment;
                             let provider = per_file_provider(
@@ -1367,7 +1379,9 @@ fn verify_taint_flow(
     let mut cfg = frensense_engine::cfg::build_cfg(tree.root_node(), source, ext);
     frensense_engine::cfg::compute_dominators(&mut cfg);
 
-    let file_env = frensense_engine::context::FileContext::extract(file_path, source).environment;
+    let file_env =
+        frensense_engine::context::FileContext::extract_with_spec(file_path, source, None)
+            .environment;
 
     let mut verifier = CrossFileVerifier::new(
         source,
@@ -1531,9 +1545,6 @@ impl Engine {
                 &cross_file_taint,
             );
         }
-
-        // Check for vulnerable dependencies
-        check_vulnerable_deps(root, &mut all_advisories);
 
         self.apply_composition(&mut all_advisories);
 
@@ -1736,9 +1747,6 @@ impl Engine {
                 &cross_file_taint,
             );
         }
-
-        // Check for vulnerable dependencies
-        check_vulnerable_deps(root, &mut all_advisories);
 
         // Apply severity overrides and composition to all findings
         apply_severity_overrides(
@@ -2128,53 +2136,4 @@ fn is_test_file(path: &Path) -> bool {
     }
 
     false
-}
-
-/// Check for vulnerable dependencies in package.json and add advisories.
-fn check_vulnerable_deps(root: &Path, advisories: &mut Vec<Advisory>) {
-    use frensense_engine::deps::DependencyResolver;
-
-    let mut resolver = DependencyResolver::new();
-    resolver.load_project(root);
-
-    // Check npm vulnerabilities (tries `npm audit --json`, falls back to hardcoded)
-    let npm_vulns = resolver.check_vulnerable_npm_deps(root);
-    for (pkg, desc) in npm_vulns {
-        let mut advisory = Advisory::bare(
-            format!("VULN_NPM_{}", pkg.to_uppercase().replace('-', "_")),
-            crate::Severity::Warning,
-            FileId(0),
-            &root.join("package.json"),
-            format!("Vulnerable npm package: {pkg}"),
-        );
-        advisory.confidence = 0.9;
-        advisory.impact = desc;
-        advisory.improvement =
-            format!("Upgrade {pkg} to a secure version or replace with a maintained alternative");
-        advisory.cwe = Some("A06:2021".to_string());
-        advisory.cvss = Some(7.5);
-        advisory.owasp = Some("A06:2021".to_string());
-        advisory.tags = vec!["vulnerable-dependency".to_string(), "npm".to_string()];
-        advisories.push(advisory);
-    }
-
-    // Check cargo vulnerabilities (tries `cargo audit --json`, falls back to hardcoded)
-    let cargo_vulns = resolver.check_vulnerable_cargo_deps(root);
-    for (crate_name, desc) in cargo_vulns {
-        let mut advisory = Advisory::bare(
-            format!("VULN_CARGO_{}", crate_name.to_uppercase().replace('-', "_")),
-            crate::Severity::Warning,
-            FileId(0),
-            &root.join("Cargo.toml"),
-            format!("Vulnerable cargo crate: {crate_name}"),
-        );
-        advisory.confidence = 0.9;
-        advisory.impact = desc;
-        advisory.improvement = format!("Update {crate_name} to a patched version");
-        advisory.cwe = Some("A06:2021".to_string());
-        advisory.cvss = Some(7.5);
-        advisory.owasp = Some("A06:2021".to_string());
-        advisory.tags = vec!["vulnerable-dependency".to_string(), "cargo".to_string()];
-        advisories.push(advisory);
-    }
 }

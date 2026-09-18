@@ -559,29 +559,38 @@ impl PatternRegistry {
             }
         });
 
-        // Pre-compute DimCache in parallel across all referenced corpus targets
+        // Pre-compute DimCache in parallel across all referenced corpus targets.
+        // Deduplicate by fingerprint_id to avoid redundant compute_dimensions calls.
         #[allow(unused_imports)]
         use rayon::prelude::*;
-        let global_dim_cache: crate::pattern::scorer::DimCache = all_candidates
-            .par_iter()
-            .flat_map(|&(idx, _)| {
+        let global_dim_cache: crate::pattern::scorer::DimCache = {
+            let mut seen = rustc_hash::FxHashSet::default();
+            let mut unique_targets: Vec<(u64, &FunctionFingerprint)> = Vec::new();
+            for &(idx, _) in &all_candidates {
                 let pattern = &self.patterns[idx];
-                let mut targets = Vec::new();
                 for pos in &pattern.positives {
-                    targets.push((crate::pattern::scorer::fingerprint_id(pos), pos, false));
+                    let key = crate::pattern::scorer::fingerprint_id(pos);
+                    if seen.insert(key) {
+                        unique_targets.push((key, pos));
+                    }
                 }
                 for neg in &pattern.negatives {
-                    targets.push((crate::pattern::scorer::fingerprint_id(neg), neg, true));
+                    let key = crate::pattern::scorer::fingerprint_id(neg);
+                    if seen.insert(key) {
+                        unique_targets.push((key, neg));
+                    }
                 }
-                targets
-            })
-            .map(|(key, target, _is_neg)| {
-                (
-                    key,
-                    crate::pattern::similarity::compute_dimensions(&weighted_fp, target),
-                )
-            })
-            .collect();
+            }
+            unique_targets
+                .par_iter()
+                .map(|&(key, target)| {
+                    (
+                        key,
+                        crate::pattern::similarity::compute_dimensions(&weighted_fp, target),
+                    )
+                })
+                .collect()
+        };
 
         // Parallel scoring: each candidate scored independently, then merged
         let mut matches: Vec<PatternMatch> = all_candidates
@@ -795,10 +804,12 @@ impl PatternRegistry {
             raw_score *= self.scorer_config.taint_verified_boost;
         }
 
-        let best_score = crate::per_pattern_calibration::calibrate(
-            raw_score,
-            self.pattern_calibration.get(&pattern.id),
-        );
+        // Only apply per-pattern calibration if we have trained params for this pattern.
+        // When params are None, skip sigmoid entirely — the runner applies global calibration.
+        let best_score = match self.pattern_calibration.get(&pattern.id) {
+            Some(params) => crate::per_pattern_calibration::calibrate(raw_score, Some(params)),
+            None => raw_score,
+        };
 
         let threshold = self.threshold_for_pattern(&pattern.id);
         let threshold = threshold.max(self.scorer_config.score_suppression_floor);

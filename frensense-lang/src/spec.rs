@@ -445,6 +445,20 @@ pub trait LanguageSpec: Send + Sync + 'static {
     fn route_registration_patterns(&self) -> &'static [&'static str] {
         &[]
     }
+
+    /// Semantic categories for fingerprint similarity scoring.
+    ///
+    /// Returns `(category_name, api_names)` pairs.  When the engine extracts a
+    /// fingerprint, each API call is hashed against the `api_names` list.  If
+    /// matched, the `category_name` hash is added to the fingerprint's
+    /// `semantic_markers`.  During scoring, matching semantic markers increase
+    /// `semantic_sim`, which is a key dimension in the similarity gate.
+    ///
+    /// This is distinct from [`package_category()`](LanguageSpec::package_category)
+    /// which maps package names to sink categories for vulnerability detection.
+    fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
+        &[]
+    }
 }
 
 // ── Helper: extract the last segment of a dotted call ────────────────────────

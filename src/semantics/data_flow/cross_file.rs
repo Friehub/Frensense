@@ -210,17 +210,19 @@ impl<'a> CrossFileVerifier<'a> {
                     provider
                         .classify_param(&param_name, Some(clean_type))
                         .or_else(|| {
-                            frensense_engine::data_flow::classify_param_name_in_context(
+                            frensense_engine::data_flow::classify_param_name_in_context_with_spec(
                                 &param_name,
                                 self.file_env.as_ref(),
+                                None,
                             )
                         })
                 } else if self.source_sink.is_source_type(clean_type) {
                     Some(TaintOrigin::UserInput)
                 } else {
-                    frensense_engine::data_flow::classify_param_name_in_context(
+                    frensense_engine::data_flow::classify_param_name_in_context_with_spec(
                         &param_name,
                         self.file_env.as_ref(),
+                        None,
                     )
                 };
 

@@ -262,6 +262,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                         &api_calls,
                         &api_call_segments,
                         &property_accesses,
+                        Some(spec),
                     );
 
                     // ----- Taint analysis -----
