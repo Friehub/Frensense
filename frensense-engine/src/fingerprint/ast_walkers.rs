@@ -1024,10 +1024,17 @@ pub(super) fn extract_semantic_markers(
     api_calls: &[u64],
     api_call_segments: &[u64],
     property_accesses: &[u64],
+    spec: Option<&'static dyn frensense_lang::LanguageSpec>,
 ) -> Vec<u64> {
     let mut markers = FxHashSet::default();
 
-    for (category, api_names) in SEMANTIC_CATEGORIES {
+    // Use spec-provided categories when available, fall back to hardcoded table
+    let categories: &[(&str, &[&str])] = spec
+        .map(|s| s.known_semantic_categories())
+        .filter(|cats| !cats.is_empty())
+        .unwrap_or(SEMANTIC_CATEGORIES);
+
+    for (category, api_names) in categories {
         for api_name in *api_names {
             let mut h = FxHasher::default();
             api_name.hash(&mut h);

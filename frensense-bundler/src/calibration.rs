@@ -86,4 +86,4 @@ pub fn train_per_pattern_calibration(
     result
 }
 
-const MIN_EXAMPLES: usize = 10;
+const MIN_EXAMPLES: usize = 3;

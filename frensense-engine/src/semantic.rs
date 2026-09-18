@@ -372,7 +372,11 @@ impl SemanticProvider for ImportMapProvider {
         }
         // 3. Fall back to name matching for unannotated parameters, delegating
         //    to the language spec when available for per-language taint origins.
-        crate::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
+        crate::data_flow::classify_param_name_in_context_with_spec(
+            name,
+            self.environment.as_ref(),
+            None,
+        )
     }
 
     fn classify_sink(

@@ -93,11 +93,11 @@ impl Default for ScorerConfig {
         Self {
             empty_similarity_default: 0.5,
             cross_lingual_penalty: 0.20,
-            semantic_zero_penalty: 0.30,
+            semantic_zero_penalty: 0.55,
             semantic_match_boost: 2.0,
             noise_gate_moderate_signal: 0.15,
             noise_gate_strong_signal: 0.4,
-            noise_gate_min_moderate_dims: 2,
+            noise_gate_min_moderate_dims: 3,
             min_best_positive_score: 0.1,
             neg_penalty_floor: 0.1,
             neg_penalty_weight: 0.3,
@@ -121,7 +121,7 @@ impl Default for ScorerConfig {
             taint_boost_cap: 0.95,
             // Raised from 0.20: after fixing the double-calibration and tainted_api_sim=1.0
             // bugs, raw scores in the 0.20-0.35 range are much more likely to be FPs.
-            score_suppression_floor: 0.35,
+            score_suppression_floor: 0.25,
 
             category_weight_overrides: rustc_hash::FxHashMap::default(),
         }
@@ -416,7 +416,7 @@ impl PatternScorer {
                 let mut h = rustc_hash::FxHasher::default();
                 name.hash(&mut h);
                 let hash = h.finish();
-                if best_pos.api_calls.contains(&hash) {
+                if best_pos.api_calls.binary_search(&hash).is_ok() {
                     evidence.matched_calls.push(name.clone());
                 } else {
                     evidence.missing_calls.push(name.clone());
@@ -538,18 +538,36 @@ impl PatternScorer {
 
         // Noise gate: a single weak dimensional coincidence (e.g. api_sim=0.45)
         // should not trigger a match. Require either:
-        //   • one strong dimension (> config.noise_gate_strong_signal), OR
-        //   • ≥config.noise_gate_min_moderate_dims dimensions with moderate signal
+        //   • one strong dimension (> config.noise_gate_strong_signal) in the positive, OR
+        //   • ≥config.noise_gate_min_moderate_dims dimensions with moderate contrastive signal
         //     (> config.noise_gate_moderate_signal)
         let moderate_count = signal
             .iter()
             .filter(|&&s| s > config.noise_gate_moderate_signal)
             .count();
         let signal_sum: f64 = signal.iter().sum();
+
+        // Positive-only dimensions: pass when the positive itself is strong
+        let pos_dims = [
+            best_dim.ngram_sim,
+            best_dim.ast_sim,
+            best_dim.signature_sim,
+            best_dim.semantic_sim,
+            best_dim.cf_sim,
+            best_dim.api_sim,
+            best_dim.motif_sim,
+            best_dim.flow_sim,
+            best_dim.config_sim,
+        ];
+        let pos_moderate_count = pos_dims.iter().filter(|&&s| s > 0.25).count();
+        let pos_max = pos_dims.iter().cloned().fold(0.0f64, f64::max);
+
         let weighted_score = best_dim.apply_semantic_override(best_dim.weighted_score(weights));
         let gate = max_signal > config.noise_gate_strong_signal
             || (moderate_count >= min_evidence_dims && signal_sum > 0.40)
-            || weighted_score > 0.70;
+            || pos_max > config.noise_gate_strong_signal
+            || pos_moderate_count >= 3
+            || weighted_score > 0.60;
 
         // Use the weighted sum as the final score - this is the same type of
         // score that the Platt scaling calibration was trained on (weighted

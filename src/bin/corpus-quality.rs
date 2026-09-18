@@ -189,6 +189,7 @@ fn main() {
                 mut_count += 1;
             }
         }
+        let _ = mut_count;
 
         // Tier 1: requires ≥7 positives (base + 4 mutations) + ≥4 negatives
         // Tier 2: requires ≥5 positives + ≥3 negatives

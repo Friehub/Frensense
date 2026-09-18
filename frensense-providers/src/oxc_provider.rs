@@ -369,7 +369,11 @@ impl SemanticProvider for OxcProvider {
             }
         }
         // 3. Fall back to name matching for unannotated parameters.
-        frensense_engine::data_flow::classify_param_name_in_context(name, self.environment.as_ref())
+        frensense_engine::data_flow::classify_param_name_in_context_with_spec(
+            name,
+            self.environment.as_ref(),
+            None,
+        )
     }
 
     fn classify_sink(

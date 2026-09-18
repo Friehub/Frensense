@@ -43,8 +43,11 @@ pub fn learn_pattern(
     let learned_patterns = extract_patterns_from_diff(&diff);
 
     // Generate metadata from diff and positive source context
-    let expected_context =
-        frensense_engine::context::FileContext::extract(positive_path, &positive_source);
+    let expected_context = frensense_engine::context::FileContext::extract_with_spec(
+        positive_path,
+        &positive_source,
+        None,
+    );
     let mut metadata = generate_metadata(&diff, &learned_patterns);
     metadata.expected_context = Some(expected_context);
 

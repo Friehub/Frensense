@@ -11,7 +11,7 @@
 
 use crate::fingerprint::FunctionFingerprint;
 use crate::minhash;
-use crate::pattern::similarity::type_usage_overlap;
+use crate::pattern::similarity::type_usage_overlap_sorted;
 
 /// Minimum number of scored examples required to fit a per-pattern sigmoid.
 const MIN_EXAMPLES: usize = 10;
@@ -91,7 +91,7 @@ pub fn compute_calibration_features(
         + ast_sim * 0.12
         + jaccard(&candidate.signature_ngrams, &target.signature_ngrams) * 0.08
         + jaccard(&candidate.param_type_ngrams, &target.param_type_ngrams) * 0.04
-        + type_usage_overlap(candidate, target) * 0.03
+        + type_usage_overlap_sorted(candidate, target) * 0.03
         + semantic_sim * 0.12
         + cf_sim * 0.12
         + api_sim * 0.12

@@ -100,40 +100,48 @@ impl SemanticFilter {
         }
 
         // Check contains_import - scan file source for import statements (case-insensitive)
-        if !self.contains_import.is_empty() {
-            let source_lower = source.to_lowercase();
-            let has_import = self.contains_import.iter().any(|pkg| {
-                let pkg_lower = pkg.to_lowercase();
-                let from_pattern = format!("from '{pkg_lower}'");
-                let from_pattern2 = format!("from \"{pkg_lower}\"");
-                let req_pattern = format!("require('{pkg_lower}')");
-                let req_pattern2 = format!("require(\"{pkg_lower}\")");
-                source_lower.contains(&from_pattern)
-                    || source_lower.contains(&from_pattern2)
-                    || source_lower.contains(&req_pattern)
-                    || source_lower.contains(&req_pattern2)
-            });
-            if !has_import {
-                return false;
-            }
-        }
+        // Cache lowercase source to avoid redundant allocations for both import checks.
+        let source_lower =
+            if !self.contains_import.is_empty() || !self.must_not_contain_import.is_empty() {
+                Some(source.to_lowercase())
+            } else {
+                None
+            };
 
-        // Check must_not_contain_import - reject if file imports any of these packages (case-insensitive)
-        if !self.must_not_contain_import.is_empty() {
-            let source_lower = source.to_lowercase();
-            let has_forbidden_import = self.must_not_contain_import.iter().any(|pkg| {
-                let pkg_lower = pkg.to_lowercase();
-                let from_pattern = format!("from '{pkg_lower}'");
-                let from_pattern2 = format!("from \"{pkg_lower}\"");
-                let req_pattern = format!("require('{pkg_lower}')");
-                let req_pattern2 = format!("require(\"{pkg_lower}\")");
-                source_lower.contains(&from_pattern)
-                    || source_lower.contains(&from_pattern2)
-                    || source_lower.contains(&req_pattern)
-                    || source_lower.contains(&req_pattern2)
-            });
-            if has_forbidden_import {
-                return false;
+        if let Some(ref source_lower) = source_lower {
+            if !self.contains_import.is_empty() {
+                let has_import = self.contains_import.iter().any(|pkg| {
+                    let pkg_lower = pkg.to_lowercase();
+                    let from_pattern = format!("from '{pkg_lower}'");
+                    let from_pattern2 = format!("from \"{pkg_lower}\"");
+                    let req_pattern = format!("require('{pkg_lower}')");
+                    let req_pattern2 = format!("require(\"{pkg_lower}\")");
+                    source_lower.contains(&from_pattern)
+                        || source_lower.contains(&from_pattern2)
+                        || source_lower.contains(&req_pattern)
+                        || source_lower.contains(&req_pattern2)
+                });
+                if !has_import {
+                    return false;
+                }
+            }
+
+            // Check must_not_contain_import
+            if !self.must_not_contain_import.is_empty() {
+                let has_forbidden_import = self.must_not_contain_import.iter().any(|pkg| {
+                    let pkg_lower = pkg.to_lowercase();
+                    let from_pattern = format!("from '{pkg_lower}'");
+                    let from_pattern2 = format!("from \"{pkg_lower}\"");
+                    let req_pattern = format!("require('{pkg_lower}')");
+                    let req_pattern2 = format!("require(\"{pkg_lower}\")");
+                    source_lower.contains(&from_pattern)
+                        || source_lower.contains(&from_pattern2)
+                        || source_lower.contains(&req_pattern)
+                        || source_lower.contains(&req_pattern2)
+                });
+                if has_forbidden_import {
+                    return false;
+                }
             }
         }
 
@@ -163,55 +171,55 @@ impl SemanticFilter {
 
         let _func_src = &source[func_node.start_byte()..func_node.end_byte()];
 
-        // Check contains_call_to - uses the same text-based extractor as the
-        // auto-filter (extract_call_targets) which skips comments and non-call
-        // text. This keeps the filter consistent with what the auto-filter learned.
-        if !self.contains_call_to.is_empty() {
+        // Check contains_call_to / must_not_contain_call_to — compute call targets once.
+        if !self.contains_call_to.is_empty() || !self.must_not_contain_call_to.is_empty() {
             let calls = extract_ast_call_targets(func_node, source);
-            let has_match = self.contains_call_to.iter().any(|target| {
-                calls
-                    .iter()
-                    .any(|call| call.to_lowercase().contains(&target.to_lowercase()))
-            });
-            if !has_match {
-                return false;
+
+            if !self.contains_call_to.is_empty() {
+                let has_match = self.contains_call_to.iter().any(|target| {
+                    calls
+                        .iter()
+                        .any(|call| call.to_lowercase().contains(&target.to_lowercase()))
+                });
+                if !has_match {
+                    return false;
+                }
+            }
+
+            if !self.must_not_contain_call_to.is_empty() {
+                let has_forbidden = self.must_not_contain_call_to.iter().any(|target| {
+                    calls
+                        .iter()
+                        .any(|call| call.to_lowercase().contains(&target.to_lowercase()))
+                });
+                if has_forbidden {
+                    return false;
+                }
             }
         }
 
-        // Check must_not_contain_call_to (same text-based extractor)
-        if !self.must_not_contain_call_to.is_empty() {
-            let calls = extract_ast_call_targets(func_node, source);
-            let has_forbidden = self.must_not_contain_call_to.iter().any(|target| {
-                calls
-                    .iter()
-                    .any(|call| call.to_lowercase().contains(&target.to_lowercase()))
-            });
-            if has_forbidden {
-                return false;
-            }
-        }
-
-        // Check contains_node_type
-        if !self.contains_node_type.is_empty() {
+        // Check contains_node_type / must_not_contain_node_type — compute once.
+        if !self.contains_node_type.is_empty() || !self.must_not_contain_node_type.is_empty() {
             let node_types = collect_node_types(func_node);
-            let has_match = self
-                .contains_node_type
-                .iter()
-                .any(|nt| node_types.iter().any(|t| t == nt));
-            if !has_match {
-                return false;
-            }
-        }
 
-        // Check must_not_contain_node_type
-        if !self.must_not_contain_node_type.is_empty() {
-            let node_types = collect_node_types(func_node);
-            let has_forbidden = self
-                .must_not_contain_node_type
-                .iter()
-                .any(|nt| node_types.iter().any(|t| t == nt));
-            if has_forbidden {
-                return false;
+            if !self.contains_node_type.is_empty() {
+                let has_match = self
+                    .contains_node_type
+                    .iter()
+                    .any(|nt| node_types.iter().any(|t| t == nt));
+                if !has_match {
+                    return false;
+                }
+            }
+
+            if !self.must_not_contain_node_type.is_empty() {
+                let has_forbidden = self
+                    .must_not_contain_node_type
+                    .iter()
+                    .any(|nt| node_types.iter().any(|t| t == nt));
+                if has_forbidden {
+                    return false;
+                }
             }
         }
 

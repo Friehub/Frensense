@@ -738,4 +738,83 @@ impl LanguageSpec for RustSpec {
     fn shell_api_method_names(&self) -> &'static [&'static str] {
         &["Command::new", "status"]
     }
+
+    fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
+        &[
+            (
+                "db_query",
+                &[
+                    "query",
+                    "execute",
+                    "raw_query",
+                    "fetch_one",
+                    "fetch_all",
+                    "fetch_optional",
+                    "prepare",
+                    "find",
+                    "find_many",
+                ],
+            ),
+            (
+                "db_write",
+                &[
+                    "insert", "update", "upsert", "create", "delete", "remove", "save", "execute",
+                ],
+            ),
+            (
+                "cmd_exec",
+                &[
+                    "Command::new",
+                    "status",
+                    "output",
+                    "spawn",
+                    "std::process::Command",
+                ],
+            ),
+            (
+                "file_read",
+                &["read_to_string", "fs::read", "File::open", "BufReader"],
+            ),
+            (
+                "file_write",
+                &["write", "fs::write", "File::create", "BufWriter"],
+            ),
+            (
+                "http_request",
+                &[
+                    "reqwest::get",
+                    "reqwest::Client",
+                    "reqwest::post",
+                    "hyper::Client",
+                    "surf::get",
+                    "surf::post",
+                ],
+            ),
+            ("crypto_weak", &["Md5", "Sha1", "md5::Md5", "sha1::Sha1"]),
+            (
+                "crypto_strong",
+                &["Sha256", "Sha512", "sha2::Sha256", "sha2::Sha512", "argon2"],
+            ),
+            (
+                "deserialize",
+                &[
+                    "serde_json::from_str",
+                    "from_str",
+                    "deserialize",
+                    "serde_json::from_value",
+                ],
+            ),
+            ("sanitize", &["sanitize", "escape", "encode"]),
+            ("regex", &["Regex::new", "regex::Regex"]),
+            (
+                "process",
+                &["exit", "std::process::exit", "std::process::abort"],
+            ),
+            (
+                "auth_middleware",
+                &["verify", "decode", "validate", "authenticate"],
+            ),
+            ("financial_calc", &["price", "total", "amount", "balance"]),
+        ]
+    }
 }

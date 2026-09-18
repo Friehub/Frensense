@@ -280,7 +280,11 @@ impl FrensenseAuditor {
             semantic_ops: opts.semantic_ops,
             taint_cache,
             file_trees: opts.file_trees,
-            file_context: frensense_engine::context::FileContext::extract(opts.path, opts.content),
+            file_context: frensense_engine::context::FileContext::extract_with_spec(
+                opts.path,
+                opts.content,
+                None,
+            ),
             taint_confidence_interprocedural: opts.taint_confidence_interprocedural,
             taint_confidence_intraprocedural: opts.taint_confidence_intraprocedural,
             default_taint_max_depth: opts.default_taint_max_depth,

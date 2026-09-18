@@ -30,8 +30,13 @@ impl RawDimensions {
             .max(self.motif_sim)
             .max(self.flow_sim);
 
-        // Soft multiplier: if identity is 0, score drops by 90%. If identity > 0.4, score is preserved.
-        let gate = (identity_gate * 2.5 + 0.1).min(1.0);
+        // Soft multiplier: require at least one identity dimension to have signal.
+        // Floor at 0.5 so moderate identity dimensions don't kill the score.
+        let gate = if identity_gate > 0.05 {
+            ((identity_gate * 1.5 + 0.35).min(1.0)).max(0.50)
+        } else {
+            0.2
+        };
 
         // Vulnerability Indicators (we still use their weights, but we omit the identity dimensions to avoid double-counting, or just keep them)
         let vuln_score = self.ngram_sim * w[0]
@@ -160,31 +165,30 @@ pub fn containment(candidate: &[u64], target: &[u64]) -> f64 {
     (intersection as f64) / (target.len() as f64)
 }
 
-pub fn type_usage_overlap(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
-    if a.type_usages.is_empty() && b.type_usages.is_empty() {
-        return 0.0;
-    }
+pub fn type_usage_overlap_sorted(a: &FunctionFingerprint, b: &FunctionFingerprint) -> f64 {
     if a.type_usages.is_empty() || b.type_usages.is_empty() {
         return 0.0;
     }
-    if a.type_usages.len() == 1 {
-        return if b.type_usages.contains(&a.type_usages[0]) {
-            1.0
-        } else {
-            0.0
-        };
+    // type_usages are Vec<String> — use sorted merge to avoid HashSet allocation
+    let mut sa: Vec<&str> = a.type_usages.iter().map(|s| s.as_str()).collect();
+    let mut sb: Vec<&str> = b.type_usages.iter().map(|s| s.as_str()).collect();
+    sa.sort_unstable();
+    sb.sort_unstable();
+    let mut intersection = 0usize;
+    let mut i = 0;
+    let mut j = 0;
+    while i < sa.len() && j < sb.len() {
+        match sa[i].cmp(sb[j]) {
+            std::cmp::Ordering::Equal => {
+                intersection += 1;
+                i += 1;
+                j += 1;
+            }
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+        }
     }
-    if b.type_usages.len() == 1 {
-        return if a.type_usages.contains(&b.type_usages[0]) {
-            1.0
-        } else {
-            0.0
-        };
-    }
-    let set_a: rustc_hash::FxHashSet<_> = a.type_usages.iter().collect();
-    let set_b: rustc_hash::FxHashSet<_> = b.type_usages.iter().collect();
-    let intersection = set_a.intersection(&set_b).count();
-    let union = set_a.union(&set_b).count();
+    let union = sa.len() + sb.len() - intersection;
     if union == 0 {
         0.0
     } else {
@@ -224,9 +228,34 @@ pub fn compute_dimensions(
     candidate: &FunctionFingerprint,
     target: &FunctionFingerprint,
 ) -> RawDimensions {
+    // Fast path: identical fingerprint id means all dimensions are either 1.0 or 0.0
+    // depending on the field types, but jaccard of identical sorted vecs = 1.0.
+    // Skip the expensive DP paths.
+    if crate::pattern::scorer::fingerprint_id(candidate)
+        == crate::pattern::scorer::fingerprint_id(target)
+    {
+        return RawDimensions {
+            ngram_sim: 1.0,
+            ast_sim: 1.0,
+            signature_sim: 1.0,
+            param_type_sim: 1.0,
+            type_usage_sim: 1.0,
+            semantic_sim: 1.0,
+            cf_sim: 1.0,
+            api_sim: 1.0,
+            tainted_api_sim: 1.0,
+            motif_sim: 1.0,
+            flow_sim: 1.0,
+            config_sim: 1.0,
+            cf_order_sim: 1.0,
+            arg_type_sim: 1.0,
+            literal_concat_sim: 1.0,
+        };
+    }
+
     let ngram_sim =
         if candidate.weighted_ngram_hashes.is_empty() || target.weighted_ngram_hashes.is_empty() {
-            jaccard(&candidate.ngram_hashes, &target.ngram_hashes)
+            jaccard_sorted(&candidate.ngram_hashes, &target.ngram_hashes)
         } else {
             crate::pattern::scorer::weighted_jaccard(
                 &candidate.weighted_ngram_hashes,
@@ -234,7 +263,7 @@ pub fn compute_dimensions(
             )
         };
 
-    let semantic_sim = jaccard(&candidate.semantic_markers, &target.semantic_markers);
+    let semantic_sim = jaccard_sorted(&candidate.semantic_markers, &target.semantic_markers);
 
     let ast_sim = if !candidate.skeleton_hashes.is_empty()
         && !target.skeleton_hashes.is_empty()
@@ -245,18 +274,18 @@ pub fn compute_dimensions(
             &target.skeleton_hashes,
         )
     } else {
-        jaccard(&candidate.structural_markers, &target.structural_markers)
+        jaccard_sorted(&candidate.structural_markers, &target.structural_markers)
     };
 
     let signature_sim = jaccard_sorted(&candidate.signature_ngrams, &target.signature_ngrams);
     let param_type_sim = jaccard_sorted(&candidate.param_type_ngrams, &target.param_type_ngrams);
-    let type_usage_sim = type_usage_overlap(candidate, target);
-    let cf_sim = jaccard(&candidate.control_flow_hashes, &target.control_flow_hashes);
+    let type_usage_sim = type_usage_overlap_sorted(candidate, target);
+    let cf_sim = jaccard_sorted(&candidate.control_flow_hashes, &target.control_flow_hashes);
 
-    let api_sim_full = jaccard(&candidate.api_calls, &target.api_calls);
+    let api_sim_full = jaccard_sorted(&candidate.api_calls, &target.api_calls);
     let api_sim_seg =
         if !candidate.api_call_segments.is_empty() && !target.api_call_segments.is_empty() {
-            jaccard(&candidate.api_call_segments, &target.api_call_segments)
+            jaccard_sorted(&candidate.api_call_segments, &target.api_call_segments)
         } else {
             0.0
         };
@@ -280,7 +309,7 @@ pub fn compute_dimensions(
             jaccard_sorted(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
 
-    let config_sim = jaccard(
+    let config_sim = jaccard_sorted(
         &candidate.config_literal_hashes,
         &target.config_literal_hashes,
     );
@@ -297,7 +326,7 @@ pub fn compute_dimensions(
 
     let arg_type_sim =
         if !candidate.argument_call_types.is_empty() && !target.argument_call_types.is_empty() {
-            jaccard(&candidate.argument_call_types, &target.argument_call_types)
+            jaccard_sorted(&candidate.argument_call_types, &target.argument_call_types)
         } else {
             0.0
         };
@@ -305,7 +334,7 @@ pub fn compute_dimensions(
     let literal_concat_sim = if !candidate.literal_pattern_hashes.is_empty()
         && !target.literal_pattern_hashes.is_empty()
     {
-        jaccard(
+        jaccard_sorted(
             &candidate.literal_pattern_hashes,
             &target.literal_pattern_hashes,
         )
