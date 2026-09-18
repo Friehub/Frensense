@@ -48,8 +48,6 @@ pub struct FunctionFingerprint {
     /// API calls where at least one argument is a function parameter.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub tainted_api_calls: Vec<u64>,
-    #[cfg_attr(feature = "serialize", serde(default))]
-    pub config_literal_hashes: Vec<u64>,
     /// Hashes of (function_segment, arg_position, arg_ast_kind) per call.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub argument_call_types: Vec<u64>,

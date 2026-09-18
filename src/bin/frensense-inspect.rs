@@ -128,67 +128,6 @@ fn main() {
     println!("  Large patterns (>10 fingerprints): {large_pattern}");
     println!("  With semantic filter: {patterns_with_filter}");
 
-    // Category weights
-    if !bundle.category_weights.is_empty() {
-        println!("\n--- Learned Category Weights ---");
-        let dims = [
-            "ngram", "ast", "sig", "ptyp", "tuse", "sem", "cf", "api", "tapi", "mot", "flow",
-            "cfg", "cfo", "atyp", "lit",
-        ];
-        for (cat, weights) in &bundle.category_weights {
-            print!("  {cat}: ");
-            for (i, w) in weights.iter().enumerate() {
-                print!("{}={:.3} ", dims[i], w);
-            }
-            println!();
-        }
-    }
-
-    // Pattern calibration
-    if !bundle.pattern_calibration.is_empty() {
-        println!("\n--- Per-Pattern Calibration ---");
-        let mut a_vals: Vec<f32> = bundle
-            .pattern_calibration
-            .iter()
-            .map(|(_, a, _)| *a)
-            .collect();
-        let mut b_vals: Vec<f32> = bundle
-            .pattern_calibration
-            .iter()
-            .map(|(_, _, b)| *b)
-            .collect();
-        a_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        b_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        println!(
-            "  A parameter: min={:.2}, median={:.2}, max={:.2}",
-            a_vals[0],
-            a_vals[a_vals.len() / 2],
-            a_vals[a_vals.len() - 1]
-        );
-        println!(
-            "  B parameter: min={:.2}, median={:.2}, max={:.2}",
-            b_vals[0],
-            b_vals[b_vals.len() / 2],
-            b_vals[b_vals.len() - 1]
-        );
-
-        // Count sigmoid midpoints (where P(tp)=0.5)
-        let midpoints: Vec<f32> = bundle
-            .pattern_calibration
-            .iter()
-            .map(|(_, a, b)| -b / a)
-            .collect();
-        let mut midpoints_sorted = midpoints.clone();
-        midpoints_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        println!(
-            "  Score midpoint (P(tp)=0.5): min={:.3}, median={:.3}, max={:.3}",
-            midpoints_sorted[0],
-            midpoints_sorted[midpoints_sorted.len() / 2],
-            midpoints_sorted.last().unwrap()
-        );
-    }
-
     // API IDF weights
     if !bundle.api_idf_weights.is_empty() {
         println!("\n--- API IDF Weights ---");
@@ -204,10 +143,10 @@ fn main() {
 
     // Fingerprint dimension analysis
     println!("\n--- Fingerprint Dimension Analysis ---");
-    let mut dim_counts = [0usize; 15];
+    let mut dim_counts = [0usize; 14];
     let dim_names = [
-        "ngram", "ast", "sig", "ptyp", "tuse", "sem", "cf", "api", "tapi", "mot", "flow", "cfg",
-        "cfo", "atyp", "lit",
+        "ngram", "ast", "sig", "ptyp", "tuse", "sem", "cf", "api", "tapi", "mot", "flow", "cfo",
+        "atyp", "lit",
     ];
 
     for pat in &bundle.patterns {
@@ -245,17 +184,14 @@ fn main() {
             if !fp.data_flow_path_hashes.is_empty() {
                 dim_counts[10] += 1;
             }
-            if !fp.config_literal_hashes.is_empty() {
+            if !fp.control_flow_sequence.is_empty() {
                 dim_counts[11] += 1;
             }
-            if !fp.control_flow_sequence.is_empty() {
+            if !fp.argument_call_types.is_empty() {
                 dim_counts[12] += 1;
             }
-            if !fp.argument_call_types.is_empty() {
-                dim_counts[13] += 1;
-            }
             if !fp.literal_pattern_hashes.is_empty() {
-                dim_counts[14] += 1;
+                dim_counts[13] += 1;
             }
         }
     }

@@ -428,7 +428,6 @@ mod tests {
             raw_call_names,
             param_names,
             tainted_api_calls: Vec::new(),
-            config_literal_hashes: Vec::new(),
             argument_call_types: Vec::new(),
             literal_pattern_hashes: Vec::new(),
             has_http_decorator: false,

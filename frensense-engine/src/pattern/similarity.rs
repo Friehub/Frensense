@@ -13,33 +13,14 @@ pub struct RawDimensions {
     pub tainted_api_sim: f64,
     pub motif_sim: f64,
     pub flow_sim: f64,
-    pub config_sim: f64,
     pub cf_order_sim: f64,
     pub arg_type_sim: f64,
     pub literal_concat_sim: f64,
 }
 
 impl RawDimensions {
-    pub fn weighted_score(&self, w: &[f64; 15]) -> f64 {
-        // OPTION B: Multiplicative Gating
-        // Identity Prerequisites
-        let identity_gate = self
-            .api_sim
-            .max(self.semantic_sim)
-            .max(self.ast_sim)
-            .max(self.motif_sim)
-            .max(self.flow_sim);
-
-        // Soft multiplier: require at least one identity dimension to have signal.
-        // Floor at 0.5 so moderate identity dimensions don't kill the score.
-        let gate = if identity_gate > 0.05 {
-            ((identity_gate * 1.5 + 0.35).min(1.0)).max(0.50)
-        } else {
-            0.2
-        };
-
-        // Vulnerability Indicators (we still use their weights, but we omit the identity dimensions to avoid double-counting, or just keep them)
-        let vuln_score = self.ngram_sim * w[0]
+    pub fn weighted_score(&self, w: &[f64; 14]) -> f64 {
+        self.ngram_sim * w[0]
             + self.ast_sim * w[1]
             + self.signature_sim * w[2]
             + self.param_type_sim * w[3]
@@ -50,15 +31,12 @@ impl RawDimensions {
             + self.tainted_api_sim * w[8]
             + self.motif_sim * w[9]
             + self.flow_sim * w[10]
-            + self.config_sim * w[11]
-            + self.cf_order_sim * w[12]
-            + self.arg_type_sim * w[13]
-            + self.literal_concat_sim * w[14];
-
-        vuln_score * gate
+            + self.cf_order_sim * w[11]
+            + self.arg_type_sim * w[12]
+            + self.literal_concat_sim * w[13]
     }
 
-    pub fn as_array(&self) -> [f64; 15] {
+    pub fn as_array(&self) -> [f64; 14] {
         [
             self.ngram_sim,
             self.ast_sim,
@@ -71,7 +49,6 @@ impl RawDimensions {
             self.tainted_api_sim,
             self.motif_sim,
             self.flow_sim,
-            self.config_sim,
             self.cf_order_sim,
             self.arg_type_sim,
             self.literal_concat_sim,
@@ -246,7 +223,6 @@ pub fn compute_dimensions(
             tainted_api_sim: 1.0,
             motif_sim: 1.0,
             flow_sim: 1.0,
-            config_sim: 1.0,
             cf_order_sim: 1.0,
             arg_type_sim: 1.0,
             literal_concat_sim: 1.0,
@@ -309,11 +285,6 @@ pub fn compute_dimensions(
             jaccard_sorted(&candidate.tainted_api_calls, &target.tainted_api_calls)
         };
 
-    let config_sim = jaccard_sorted(
-        &candidate.config_literal_hashes,
-        &target.config_literal_hashes,
-    );
-
     let cf_order_sim =
         if candidate.control_flow_sequence.is_empty() && target.control_flow_sequence.is_empty() {
             0.0
@@ -354,7 +325,6 @@ pub fn compute_dimensions(
         motif_sim,
         flow_sim,
         tainted_api_sim,
-        config_sim,
         cf_order_sim,
         arg_type_sim,
         literal_concat_sim,

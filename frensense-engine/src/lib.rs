@@ -35,7 +35,7 @@ pub(crate) mod lang;
 pub mod minhash;
 pub mod parser;
 pub mod pattern;
-pub mod per_pattern_calibration;
+
 #[cfg(feature = "full-analysis")]
 pub mod profile;
 pub(crate) mod route_registry;

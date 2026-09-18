@@ -441,22 +441,6 @@ fn run_corpus_scan(
         }
     }
 
-    // Override per-category weights for security categories where API call overlap
-    // is the strongest signal but trained weights under-emphasize it.
-    // These can be overridden via ScorerConfig::category_weight_overrides.
-    let default_sqli_weights: [f64; 15] = [
-        0.05, 0.10, 0.04, 0.02, 0.02, 0.05, 0.04, 0.25, 0.30, 0.03, 0.05, 0.03, 0.02, 0.04, 0.04,
-    ];
-    for category in &["sqli", "nosqli"] {
-        let weights = engine
-            .scorer_config
-            .category_weight_overrides
-            .get(*category)
-            .copied()
-            .unwrap_or(default_sqli_weights);
-        registry.set_category_weights(category, weights);
-    }
-
     if !corpus_loaded {
         return frensense_engine::corpus::source_sink::CorpusSourceSinkRegistry::new(
             engine.use_compiler,
@@ -646,9 +630,6 @@ fn run_corpus_scan(
 
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
                 // Apply per-category or global calibration to the raw pattern score.
-                // NOTE: per_pattern_calibration::calibrate is already applied inside
-                // registry::score_candidate. Do NOT apply it again here - double sigmoid
-                // application compresses all scores toward 1.0 and inflates FP confidence.
                 let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = calibration {
@@ -869,21 +850,6 @@ fn run_corpus_scan(
     );
 
     all_advisories.extend(new_advisories);
-
-    // Update pattern freshness based on scan results
-    // Track which patterns matched and which were taint-verified
-    let mut matched_patterns: Vec<String> = Vec::new();
-    let mut verified_patterns: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for advisory in all_advisories.iter() {
-        if advisory.rule_id.starts_with("CORPUS_") {
-            let pattern_id = advisory.rule_id["CORPUS_".len()..].to_lowercase();
-            matched_patterns.push(pattern_id.clone());
-            if advisory.tags.iter().any(|t| t == "taint-verified") {
-                verified_patterns.insert(pattern_id);
-            }
-        }
-    }
-    registry.update_freshness_batch(&matched_patterns, &verified_patterns);
 
     registry.source_sink_registry().clone()
 }

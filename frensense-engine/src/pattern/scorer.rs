@@ -82,10 +82,6 @@ pub struct ScorerConfig {
     pub taint_boost_cap: f64,
     /// Minimum score for untainted matches to be emitted. Default: 0.20.
     pub score_suppression_floor: f64,
-
-    // --- Category-specific overrides ---
-    /// Per-category weight overrides. Key = category name, value = 15-d weight vector.
-    pub category_weight_overrides: rustc_hash::FxHashMap<String, [f64; 15]>,
 }
 
 impl Default for ScorerConfig {
@@ -122,8 +118,6 @@ impl Default for ScorerConfig {
             // Raised from 0.20: after fixing the double-calibration and tainted_api_sim=1.0
             // bugs, raw scores in the 0.20-0.35 range are much more likely to be FPs.
             score_suppression_floor: 0.25,
-
-            category_weight_overrides: rustc_hash::FxHashMap::default(),
         }
     }
 }
@@ -221,7 +215,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         ngram_sim_threshold: f64,
-        weights: &[f64; 15],
+        weights: &[f64; 14],
         config: &ScorerConfig,
         min_evidence_dims: usize,
     ) -> f64 {
@@ -254,7 +248,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 15],
+        weights: &[f64; 14],
         config: &ScorerConfig,
         min_evidence_dims: usize,
     ) -> (f64, MatchEvidence) {
@@ -282,7 +276,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 15],
+        weights: &[f64; 14],
         dim_cache: &DimCache,
         config: &ScorerConfig,
         min_evidence_dims: usize,
@@ -308,7 +302,7 @@ impl PatternScorer {
         expected_context: Option<&crate::context::FileContext>,
         actual_context: Option<&crate::context::FileContext>,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 15],
+        weights: &[f64; 14],
         dim_cache: Option<&DimCache>,
         config: &ScorerConfig,
         min_evidence_dims: usize,
@@ -480,9 +474,6 @@ impl PatternScorer {
             if dim.tainted_api_sim > worst_neg.tainted_api_sim {
                 worst_neg.tainted_api_sim = dim.tainted_api_sim;
             }
-            if dim.config_sim > worst_neg.config_sim {
-                worst_neg.config_sim = dim.config_sim;
-            }
             if dim.cf_order_sim > worst_neg.cf_order_sim {
                 worst_neg.cf_order_sim = dim.cf_order_sim;
             }
@@ -515,7 +506,7 @@ impl PatternScorer {
             0.0
         };
 
-        let signal: [f64; 15] = [
+        let signal: [f64; 14] = [
             (best_dim.ngram_sim - worst_neg.ngram_sim).max(0.0),
             (best_dim.ast_sim - worst_neg.ast_sim).max(0.0),
             (best_dim.signature_sim - worst_neg.signature_sim).max(0.0),
@@ -527,7 +518,6 @@ impl PatternScorer {
             (best_dim.tainted_api_sim - worst_neg.tainted_api_sim).max(0.0),
             (best_dim.motif_sim - worst_neg.motif_sim).max(0.0),
             (best_dim.flow_sim - worst_neg.flow_sim).max(0.0),
-            (best_dim.config_sim - worst_neg.config_sim).max(0.0),
             (best_dim.cf_order_sim - worst_neg.cf_order_sim).max(0.0),
             (best_dim.arg_type_sim - worst_neg.arg_type_sim).max(0.0),
             (best_dim.literal_concat_sim - worst_neg.literal_concat_sim).max(0.0),
@@ -536,44 +526,18 @@ impl PatternScorer {
         let max_signal = signal.iter().cloned().fold(0.0f64, f64::max);
         evidence.negative_sim = max_signal;
 
-        // Noise gate: a single weak dimensional coincidence (e.g. api_sim=0.45)
-        // should not trigger a match. Require either:
-        //   • one strong dimension (> config.noise_gate_strong_signal) in the positive, OR
-        //   • ≥config.noise_gate_min_moderate_dims dimensions with moderate contrastive signal
-        //     (> config.noise_gate_moderate_signal)
+        // Noise gate: require contrastive signal that the positive is more similar
+        // than the negative. A single strong dimension or multiple moderate ones.
         let moderate_count = signal
             .iter()
             .filter(|&&s| s > config.noise_gate_moderate_signal)
             .count();
         let signal_sum: f64 = signal.iter().sum();
 
-        // Positive-only dimensions: pass when the positive itself is strong
-        let pos_dims = [
-            best_dim.ngram_sim,
-            best_dim.ast_sim,
-            best_dim.signature_sim,
-            best_dim.semantic_sim,
-            best_dim.cf_sim,
-            best_dim.api_sim,
-            best_dim.motif_sim,
-            best_dim.flow_sim,
-            best_dim.config_sim,
-        ];
-        let pos_moderate_count = pos_dims.iter().filter(|&&s| s > 0.25).count();
-        let pos_max = pos_dims.iter().cloned().fold(0.0f64, f64::max);
-
         let weighted_score = best_dim.apply_semantic_override(best_dim.weighted_score(weights));
         let gate = max_signal > config.noise_gate_strong_signal
-            || (moderate_count >= min_evidence_dims && signal_sum > 0.40)
-            || pos_max > config.noise_gate_strong_signal
-            || pos_moderate_count >= 3
-            || weighted_score > 0.60;
+            || (moderate_count >= min_evidence_dims && signal_sum > 0.30);
 
-        // Use the weighted sum as the final score - this is the same type of
-        // score that the Platt scaling calibration was trained on (weighted
-        // sums in the 0.3–0.6 range). Using max_signal or a blended score
-        // would shift the distribution, making the sigmoid extrapolate
-        // incorrectly (squashing everything to ~1.0).
         let final_score = if gate { weighted_score } else { 0.0 };
 
         let context_multiplier =
@@ -587,7 +551,7 @@ impl PatternScorer {
         target: &FunctionFingerprint,
         _is_positive: bool,
         _ngram_sim_threshold: f64,
-        weights: &[f64; 15],
+        weights: &[f64; 14],
     ) -> f64 {
         let dim = crate::pattern::similarity::compute_dimensions(candidate, target);
         let score = dim.weighted_score(weights);
@@ -618,7 +582,7 @@ impl PatternScorer {
         candidate: &FunctionFingerprint,
         positives: &[FunctionFingerprint],
         negatives: &[FunctionFingerprint],
-        weights: &[f64; 15],
+        weights: &[f64; 14],
         config: &ScorerConfig,
     ) -> MatchEvidence {
         Self::score_against_corpus_with_evidence_impl(
