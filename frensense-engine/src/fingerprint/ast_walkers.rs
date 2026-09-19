@@ -8,61 +8,8 @@ use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use std::hash::{Hash, Hasher};
 use tree_sitter::Node;
 
-use crate::lang::kinds::AbstractKind;
-use crate::lang::mapper::abstract_kind;
-
 // ---------------------------------------------------------------------------
 // Structural markers
-// ---------------------------------------------------------------------------
-
-pub(super) fn collect_structural_markers(
-    node: Node<'_>,
-    _source: &str,
-    spec: &'static dyn frensense_lang::LanguageSpec,
-) -> Vec<u64> {
-    let mut markers = FxHashSet::default();
-    let mut cursor = node.walk();
-
-    let kind = abstract_kind(node.kind(), spec);
-    if kind != AbstractKind::Other {
-        let mut hasher = FxHasher::default();
-        kind.hash(&mut hasher);
-        markers.insert(hasher.finish());
-    }
-
-    loop {
-        if cursor.goto_first_child() {
-            let n = cursor.node();
-            let kind = abstract_kind(n.kind(), spec);
-            if kind != AbstractKind::Other {
-                let mut h = FxHasher::default();
-                kind.hash(&mut h);
-                markers.insert(h.finish());
-            }
-            continue;
-        }
-        loop {
-            if cursor.goto_next_sibling() {
-                let n = cursor.node();
-                let kind = abstract_kind(n.kind(), spec);
-                if kind != AbstractKind::Other {
-                    let mut h = FxHasher::default();
-                    kind.hash(&mut h);
-                    markers.insert(h.finish());
-                }
-                break;
-            }
-            if !cursor.goto_parent() {
-                let mut vec: Vec<u64> = markers.into_iter().collect();
-                vec.sort_unstable();
-                return vec;
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Type usages
 // ---------------------------------------------------------------------------
 
 pub(super) fn collect_type_usages(node: Node<'_>, source: &str) -> Vec<String> {

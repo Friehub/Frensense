@@ -601,7 +601,6 @@ mod tests {
             signature_ngrams: Vec::new(),
             param_type_ngrams: Vec::new(),
             name_segments: Vec::new(),
-            structural_markers: Vec::new(),
             type_usages: Vec::new(),
             comment_density: 0.0,
             semantic_markers: Vec::new(),

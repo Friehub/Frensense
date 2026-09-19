@@ -14,7 +14,6 @@ pub struct FunctionFingerprint {
     pub signature_ngrams: Vec<u64>,
     pub param_type_ngrams: Vec<u64>,
     pub name_segments: Vec<String>,
-    pub structural_markers: Vec<u64>,
     pub type_usages: Vec<String>,
     pub comment_density: f64,
     pub semantic_markers: Vec<u64>,

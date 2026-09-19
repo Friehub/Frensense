@@ -22,7 +22,6 @@ pub struct LanguageProfile {
     pub signature_ngram_freq: FxHashMap<u64, ProfileEntry>,
     pub param_type_freq: FxHashMap<u64, ProfileEntry>,
     pub name_segment_freq: HashMap<String, ProfileEntry>,
-    pub structural_marker_freq: FxHashMap<u64, ProfileEntry>,
     pub type_usage_freq: HashMap<String, ProfileEntry>,
     pub file_profiles: HashMap<String, FileProfile>,
 }
@@ -155,22 +154,6 @@ impl ProjectProfile {
                 }
             }
 
-            for &hash in &fp.structural_markers {
-                let entry = lang_profile
-                    .structural_marker_freq
-                    .entry(hash)
-                    .or_insert_with(|| ProfileEntry {
-                        count: 0,
-                        examples: Vec::new(),
-                    });
-                entry.count += 1;
-                if entry.examples.len() < 3 {
-                    entry
-                        .examples
-                        .push(format!("{}:{}", fp.function_name, fp.line));
-                }
-            }
-
             for ty in &fp.type_usages {
                 let entry = lang_profile
                     .type_usage_freq
@@ -281,24 +264,6 @@ impl ProjectProfile {
                         ));
                     }
                 }
-            }
-        }
-
-        let mut struct_unseen = 0usize;
-        for &hash in &fp.structural_markers {
-            total_features += 1;
-            if !lang_profile.structural_marker_freq.contains_key(&hash) {
-                unseen_features += 1;
-                struct_unseen += 1;
-            }
-        }
-        if !fp.structural_markers.is_empty() {
-            let ratio = struct_unseen as f64 / fp.structural_markers.len() as f64;
-            if ratio > 0.5 {
-                details.push(format!(
-                    "Structural markers: {:.0}% unfamiliar",
-                    ratio * 100.0
-                ));
             }
         }
 

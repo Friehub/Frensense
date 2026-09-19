@@ -31,8 +31,6 @@ pub mod function_role;
 #[cfg(feature = "full-analysis")]
 pub mod graph;
 pub mod import_resolver;
-pub(crate) mod lang;
-pub mod minhash;
 pub mod parser;
 pub mod pattern;
 

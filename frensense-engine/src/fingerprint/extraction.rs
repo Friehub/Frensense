@@ -6,10 +6,10 @@ use std::path::Path;
 use tree_sitter::Node;
 
 use super::ast_walkers::{
-    collect_comment_ranges, collect_raw_call_names, collect_structural_markers,
-    collect_type_usages, count_comment_bytes, extract_argument_call_types, extract_cf_sequence,
-    extract_control_flow, extract_literal_patterns, extract_motif_hashes,
-    extract_property_accesses, extract_semantic_markers, extract_tainted_calls,
+    collect_comment_ranges, collect_raw_call_names, collect_type_usages, count_comment_bytes,
+    extract_argument_call_types, extract_cf_sequence, extract_control_flow,
+    extract_literal_patterns, extract_motif_hashes, extract_property_accesses,
+    extract_semantic_markers, extract_tainted_calls,
 };
 use super::hashing::{
     normalize_token, split_name_segments, token_ngrams_positional, token_ngrams_sorted,
@@ -373,7 +373,6 @@ pub fn extract_fingerprints_with_nodes<'a>(
                             2.min(param_types.len().max(1)),
                         ),
                         name_segments,
-                        structural_markers: collect_structural_markers(body, source_code, spec),
                         type_usages: {
                             let mut tu = collect_type_usages(body, source_code);
                             tu.extend(crate::decorator::collect_param_decorator_types(
