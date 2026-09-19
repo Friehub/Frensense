@@ -358,11 +358,8 @@ fn run_corpus_scan(
         corpus_dirs.push(corpus_dir.as_path());
     }
 
-    let mut registry = frensense_engine::corpus::registry::PatternRegistry::new(
-        engine.corpus_threshold,
-        engine.ngram_sim_threshold,
-        0.20,
-    );
+    let mut registry =
+        frensense_engine::corpus::registry::PatternRegistry::new(engine.corpus_threshold);
     for (category, threshold) in &engine.threshold_overrides {
         registry.set_threshold_override(category.clone(), *threshold);
     }
@@ -605,21 +602,6 @@ fn run_corpus_scan(
                     m.score
                 };
 
-                // Minimum-score gate: skip findings where key similarity dimensions are near-zero.
-                // This prevents the calibration sigmoid from boosting noise into high-confidence FPs.
-                if let Some(ref evidence) = m.matched_evidence {
-                    let _ngram_low = evidence.ngram_sim < 0.05;
-                    let _sig_low = evidence.signature_sim < 0.05;                    // Skip if both ngram AND signature are near-zero (no textual/structural match).
-                    // API similarity alone is insufficient - generic calls like `console.log`
-                    // match many patterns without real vulnerability overlap.
-                    // FIXME: We temporarily disable this gate because Juice Shop's 78-line functions 
-                    // vs Corpus 15-line functions naturally drop below 5% textual overlap.
-                    // if ngram_low && sig_low {
-                    //     continue;
-                    // }
-
-                }
-
                 let mut taint_verified = false;
                 let mut taint_detail = String::new();
                 let mut source_name = None;
@@ -697,52 +679,6 @@ fn run_corpus_scan(
                         }
                     }
 
-                    // CFG+def-use taint confidence adjustment: if taint verification DID NOT
-                    // find a flow, the adjuster's CFG-based analysis may still find one.
-                    // If it also finds nothing, confidence is reduced.
-                    if !taint_verified {
-                        if let Some(ref ev) = m.matched_evidence {
-                            if !ev.matched_calls.is_empty() {
-                                let fn_byte = {
-                                    let mut line = 1u32;
-                                    let mut byte = 0usize;
-                                    let target = fp_i.line as u32;
-                                    for (i, &b) in snap_i.content.as_bytes().iter().enumerate() {
-                                        if line >= target { byte = i; break; }
-                                        if b == b'\n' { line += 1; }
-                                    }
-                                    byte
-                                };
-                                for call in &ev.matched_calls {
-                                    let pattern = format!("{}(", call);
-                                    if let Some(pos) = snap_i.content[fn_byte..].find(&pattern) {
-                                        let start = fn_byte + pos;
-                                        let mut depth = 1u32;
-                                        let mut end = start + pattern.len();
-                                        for (j, &b) in snap_i.content.as_bytes()[end..].iter().enumerate() {
-                                            if b == b'(' { depth += 1; }
-                                            else if b == b')' { depth -= 1; }
-                                            if depth == 0 { end += j + 1; break; }
-                                        }
-                                        let sink_content = &snap_i.content[start..end];
-                                        let adj = frensense_engine::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
-                                            &snap_i.content,
-                                            &snap_i.path,
-                                            fp_i.line as u32,
-                                            sink_content,
-                                            confidence as f32,
-                                            registry.source_sink_registry(),
-                                            local_tainted_vars.get(&snap_i.path.to_string_lossy().to_string()).map(|v| v.as_slice()),
-                                        );
-                                        if (adj as f64) < confidence {
-                                            confidence = adj as f64;
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
 
                 let mut impact = impact;
@@ -785,7 +721,6 @@ fn run_corpus_scan(
                     advisory.impact = format!("{impact}\n\nTaint flow verified: {taint_detail}");
                 }
 
-                advisory.match_evidence = m.matched_evidence.clone();
                 advisory.cwe = m.cwe.clone();
                 advisory.cvss = m.cvss;
                 advisory.owasp = m.owasp.clone();
@@ -1566,6 +1501,7 @@ impl Engine {
             taint_unconfirmed_penalty: self.taint_unconfirmed_penalty,
             high_branch_ratio_threshold: self.high_branch_ratio_threshold,
             high_branch_ratio_suppression_factor: self.high_branch_ratio_suppression_factor,
+            min_corpus_unconfirmed: 0.55,
         };
         crate::engine::composition::apply_composition(advisories, &config);
     }

@@ -33,7 +33,6 @@ pub use crate::engine::auditor::{FrensenseAuditor, ScanResult};
 
 use crate::semantics::SymbolRegistry;
 
-use frensense_engine::pattern::evidence::MatchEvidence;
 pub use frensense_engine::{FileId, ScopeId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
@@ -149,9 +148,6 @@ pub struct Advisory {
     /// Used by composition layer before suppressing high branch-ratio findings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_validation_name: Option<bool>,
-    /// Per-dimension match breakdown, present when finding comes from corpus matching.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub match_evidence: Option<MatchEvidence>,
     /// CWE identifier (e.g. "CWE-918"), from the pattern's [frensense] block.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwe: Option<String>,
@@ -206,7 +202,6 @@ impl Advisory {
             tags: Vec::new(),
             taint_branch_ratio: None,
             has_validation_name: None,
-            match_evidence: None,
             cwe: None,
             cvss: None,
             owasp: None,

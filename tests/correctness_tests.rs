@@ -154,7 +154,6 @@ fn test_sarif_output_properties() {
         tags: vec!["security".into(), "rust".into()],
         taint_branch_ratio: None,
         has_validation_name: Some(false),
-        match_evidence: None,
         cwe: None,
         cvss: None,
         owasp: None,

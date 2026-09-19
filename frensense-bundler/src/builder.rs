@@ -132,47 +132,6 @@ pub fn build_bundle_from_patterns(
     frensense_frc::write_bundle(&payload, patterns.len() as u32)
 }
 
-fn compute_pattern_variance(
-    positives: &[frensense_engine::fingerprint::FunctionFingerprint],
-) -> (f64, usize) {
-    if positives.len() < 2 {
-        return (0.0, 3);
-    }
-
-    let mut total_sim = 0.0;
-    let mut count = 0;
-
-    for i in 0..positives.len() {
-        for j in (i + 1)..positives.len() {
-            let p1 = &positives[i];
-            let p2 = &positives[j];
-
-            let api_sim =
-                frensense_engine::pattern::similarity::jaccard_sorted(&p1.api_calls, &p2.api_calls);
-            let sem_sim = frensense_engine::pattern::similarity::jaccard_sorted(
-                &p1.control_flow_hashes,
-                &p2.control_flow_hashes,
-            );
-
-            total_sim += (api_sim + sem_sim) / 2.0;
-            count += 1;
-        }
-    }
-
-    let avg_sim = total_sim / (count as f64);
-    let variance = 1.0 - avg_sim;
-
-    let min_dims = if variance > 0.6 {
-        1
-    } else if variance > 0.3 {
-        2
-    } else {
-        3
-    };
-
-    (variance, min_dims)
-}
-
 pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
     let manifest_path = corpus_dir.join(".bundle_manifest.toml");
     let mut manifest = Manifest::load(&manifest_path);
@@ -181,27 +140,20 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
 
     let bundle_patterns: Vec<BundlePattern> = patterns
         .into_iter()
-        .map(|mut p| {
-            let (var, min_dims) = compute_pattern_variance(&p.positives);
-            p.feature_variance = Some(var);
-            p.min_evidence_dims = Some(min_dims);
-            BundlePattern {
-                id: p.id,
-                positives: p.positives,
-                negatives: p.negatives,
-                semantic_filter: p.semantic_filter,
-                observation: p.observation,
-                impact: p.impact,
-                improvement: p.improvement,
-                expected_context: p.expected_context,
-                cwe: p.cwe,
-                cvss: p.cvss,
-                owasp: p.owasp,
-                severity: p.severity,
-                runtime_probe: p.runtime_probe,
-                feature_variance: p.feature_variance,
-                min_evidence_dims: p.min_evidence_dims,
-            }
+        .map(|p| BundlePattern {
+            id: p.id,
+            positives: p.positives,
+            negatives: p.negatives,
+            semantic_filter: p.semantic_filter,
+            observation: p.observation,
+            impact: p.impact,
+            improvement: p.improvement,
+            expected_context: p.expected_context,
+            cwe: p.cwe,
+            cvss: p.cvss,
+            owasp: p.owasp,
+            severity: p.severity,
+            runtime_probe: p.runtime_probe,
         })
         .collect();
 
@@ -310,27 +262,20 @@ pub fn build_bundle(corpus_dir: &std::path::Path) -> Result<Vec<u8>, String> {
 
     let bundle_patterns: Vec<frensense_engine::corpus::bundle::BundlePattern> = patterns
         .into_iter()
-        .map(|mut p| {
-            let (var, min_dims) = compute_pattern_variance(&p.positives);
-            p.feature_variance = Some(var);
-            p.min_evidence_dims = Some(min_dims);
-            frensense_engine::corpus::bundle::BundlePattern {
-                id: p.id,
-                positives: p.positives,
-                negatives: p.negatives,
-                semantic_filter: p.semantic_filter,
-                observation: p.observation,
-                impact: p.impact,
-                improvement: p.improvement,
-                expected_context: p.expected_context,
-                cwe: p.cwe,
-                cvss: p.cvss,
-                owasp: p.owasp,
-                severity: p.severity,
-                runtime_probe: p.runtime_probe,
-                feature_variance: p.feature_variance,
-                min_evidence_dims: p.min_evidence_dims,
-            }
+        .map(|p| frensense_engine::corpus::bundle::BundlePattern {
+            id: p.id,
+            positives: p.positives,
+            negatives: p.negatives,
+            semantic_filter: p.semantic_filter,
+            observation: p.observation,
+            impact: p.impact,
+            improvement: p.improvement,
+            expected_context: p.expected_context,
+            cwe: p.cwe,
+            cvss: p.cvss,
+            owasp: p.owasp,
+            severity: p.severity,
+            runtime_probe: p.runtime_probe,
         })
         .collect();
 

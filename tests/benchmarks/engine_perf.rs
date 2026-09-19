@@ -520,7 +520,6 @@ fn bench_fingerprinting(c: &mut Criterion) {
         tags: vec!["async".into(), "service".into()],
         taint_branch_ratio: Some(0.0),
         has_validation_name: None,
-        match_evidence: None,
         cwe: None,
         cvss: None,
         owasp: None,

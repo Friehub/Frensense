@@ -51,6 +51,7 @@ pub struct CompositionConfig {
     pub high_branch_ratio_threshold: f64,
     /// Factor applied when suppressing a high-branch-ratio validator (L3).
     pub high_branch_ratio_suppression_factor: f64,
+    pub min_corpus_unconfirmed: f64,
 }
 
 impl Default for CompositionConfig {
@@ -61,6 +62,7 @@ impl Default for CompositionConfig {
             taint_unconfirmed_penalty: TAINT_UNCONFIRMED_PENALTY,
             high_branch_ratio_threshold: HIGH_BRANCH_RATIO_THRESHOLD,
             high_branch_ratio_suppression_factor: HIGH_BRANCH_RATIO_SUPPRESSION_FACTOR,
+            min_corpus_unconfirmed: 0.55,
         }
     }
 }
@@ -130,6 +132,10 @@ pub fn compose_confidence(
         score = boosted.min(score + config.boost_max);
     }
 
+    if signals.corpus_match && !signals.taint_flow && score < config.min_corpus_unconfirmed {
+        score = 0.0;
+    }
+
     score.min(1.0)
 }
 
@@ -150,14 +156,6 @@ pub fn collect_signals(advisory: &Advisory, all_advisories: &[Advisory]) -> Laye
             // A corpus finding with taint verification is equivalent to taint_flow
             if adv.tags.iter().any(|t| t == "taint-verified") {
                 signals.taint_flow = true;
-            }
-            // Also accept has_taint_path from match_evidence as structural taint signal
-            if !signals.taint_flow {
-                if let Some(ref ev) = adv.match_evidence {
-                    if ev.has_taint_path {
-                        signals.taint_flow = true;
-                    }
-                }
             }
         }
         if adv.rule_id.starts_with("TAINT_") || adv.rule_id == "CROSS_FILE_TAINT" {

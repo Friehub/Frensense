@@ -6,9 +6,7 @@ use crate::data_flow::taint_metrics::TaintMetrics;
 use crate::data_flow::{TaintOrigin, TaintRegistry};
 use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
 use crate::minhash::{LSHIndex, minhash_signature};
-use crate::pattern::evidence::MatchEvidence;
-use crate::pattern::scorer::{PatternScorer, ScorerConfig};
-use crate::pattern::weight_learner::DEFAULT_WEIGHTS;
+use crate::pattern::scorer::ScorerConfig;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -16,14 +14,9 @@ use rustc_hash::FxHashMap;
 pub struct PatternMatch {
     pub pattern_id: String,
     pub score: f64,
-    pub positive_similarity: f64,
-    pub negative_similarity: f64,
     pub observation: Option<String>,
     pub impact: Option<String>,
     pub improvement: Option<String>,
-    /// Detailed per-dimension breakdown of why this match scored as it did.
-    /// Always `Some` for corpus matches.
-    pub matched_evidence: Option<MatchEvidence>,
     pub cwe: Option<String>,
     pub cvss: Option<f32>,
     pub owasp: Option<String>,
@@ -50,8 +43,6 @@ pub struct PatternRegistry {
     lsh_index_api: Option<LSHIndex>,
     flow_index: Option<FxHashMap<u64, Vec<usize>>>,
     threshold: f64,
-    ngram_sim_threshold: f64,
-    struct_overlap_threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
     idf_weights: FxHashMap<u64, f32>,
     api_idf_weights: FxHashMap<u64, f32>,
@@ -63,15 +54,13 @@ pub struct PatternRegistry {
 }
 
 impl PatternRegistry {
-    pub fn new(threshold: f64, ngram_sim_threshold: f64, struct_overlap_threshold: f64) -> Self {
+    pub fn new(threshold: f64) -> Self {
         Self {
             patterns: Vec::new(),
             lsh_index: None,
             lsh_index_api: None,
             flow_index: None,
             threshold,
-            ngram_sim_threshold,
-            struct_overlap_threshold,
             threshold_overrides: std::collections::HashMap::new(),
             idf_weights: FxHashMap::default(),
             api_idf_weights: FxHashMap::default(),
@@ -336,24 +325,20 @@ impl PatternRegistry {
 
         // Merge: a candidate passes if it's in EITHER table (preserve recall) or shares a flow path.
         // Track which table(s) it passed through for penalty application.
-        let all_candidates_raw: Vec<(usize, bool)> = {
+        let all_candidates: Vec<(usize, bool)> = {
             let mut seen = std::collections::HashSet::new();
             let mut merged = Vec::new();
-            for &id in struct_candidates
+            for &id in flow_candidates
                 .iter()
                 .chain(api_candidates.iter())
-                .chain(flow_candidates.iter())
+                .chain(struct_candidates.iter())
             {
                 if seen.insert(id) {
-                    let hit_both = (struct_candidates.contains(&id)
-                        && api_candidates.contains(&id))
-                        || flow_candidates.contains(&id);
-                    merged.push((id, hit_both));
+                    merged.push((id, flow_candidates.contains(&id)));
                 }
             }
             merged
         };
-        let all_candidates = all_candidates_raw;
         let candidate_count = all_candidates.len();
         if candidate_count == 0 {
             return Vec::new();
@@ -364,23 +349,6 @@ impl PatternRegistry {
         if !self.idf_weights.is_empty() {
             apply_idf_weights(&mut weighted_fp, &self.idf_weights);
         }
-
-        // Pre-compute data flows once (shared across all candidates, cheap AST walk)
-        let precomputed_flows = func_node.and_then(|node| {
-            let src = source?;
-            let needs_flows = self.patterns.iter().any(|p| {
-                p.semantic_filter
-                    .as_ref()
-                    .is_some_and(|f| !f.required_taint_flows.is_empty())
-            });
-            if needs_flows {
-                Some(crate::corpus::data_flow_extractor::extract_data_flows(
-                    node, src, spec,
-                ))
-            } else {
-                None
-            }
-        });
 
         // Pre-compute TaintMetrics once per function (not per candidate).
         let taint_metrics: Option<(TaintMetrics, TaintOrigin)> = func_node.and_then(|fn_node| {
@@ -430,55 +398,22 @@ impl PatternRegistry {
             }
         });
 
-        // Pre-compute DimCache in parallel across all referenced corpus targets.
-        // Deduplicate by fingerprint_id to avoid redundant compute_dimensions calls.
-        let global_dim_cache: crate::pattern::scorer::DimCache = {
-            let mut seen = rustc_hash::FxHashSet::default();
-            let mut unique_targets: Vec<(u64, &FunctionFingerprint)> = Vec::new();
-            for &(idx, _) in &all_candidates {
-                let pattern = &self.patterns[idx];
-                for pos in &pattern.positives {
-                    let key = crate::pattern::scorer::fingerprint_id(pos);
-                    if seen.insert(key) {
-                        unique_targets.push((key, pos));
-                    }
-                }
-                for neg in &pattern.negatives {
-                    let key = crate::pattern::scorer::fingerprint_id(neg);
-                    if seen.insert(key) {
-                        unique_targets.push((key, neg));
-                    }
-                }
-            }
-            unique_targets
-                .par_iter()
-                .map(|&(key, target)| {
-                    (
-                        key,
-                        crate::pattern::similarity::compute_dimensions(&weighted_fp, target),
-                    )
-                })
-                .collect()
-        };
-
         // Parallel scoring: each candidate scored independently, then merged
         let mut matches: Vec<PatternMatch> = all_candidates
             .par_iter()
-            .filter_map(|&(idx, hit_both)| {
+            .filter_map(|&(idx, has_flow_match)| {
                 let pattern = &self.patterns[idx];
                 self.score_candidate(
                     pattern,
                     idx,
-                    hit_both,
+                    has_flow_match,
                     &weighted_fp,
                     func_node,
                     source,
                     fp,
                     actual_context,
                     &taint_metrics,
-                    precomputed_flows.as_ref(),
                     spec,
-                    &global_dim_cache,
                 )
             })
             .collect();
@@ -492,59 +427,25 @@ impl PatternRegistry {
     }
 
     /// Score a single candidate pattern against the function fingerprint.
-    /// Extracted from the scan loop for rayon parallelism.
+    /// Uses semantic filter + taint-based scoring (no structural similarity).
     fn score_candidate(
         &self,
         pattern: &CorpusPattern,
         _idx: usize,
-        hit_both: bool,
+        has_flow_match: bool,
         weighted_fp: &FunctionFingerprint,
-        func_node: Option<tree_sitter::Node>,
-        source: Option<&str>,
-        fp: &FunctionFingerprint,
-        actual_context: Option<&crate::context::FileContext>,
+        _func_node: Option<tree_sitter::Node>,
+        _source: Option<&str>,
+        _fp: &FunctionFingerprint,
+        _actual_context: Option<&crate::context::FileContext>,
         taint_metrics: &Option<(TaintMetrics, TaintOrigin)>,
-        precomputed_flows: Option<&std::collections::HashSet<(String, String)>>,
         spec: Option<&dyn frensense_lang::spec::LanguageSpec>,
-        dim_cache: &crate::pattern::scorer::DimCache,
     ) -> Option<PatternMatch> {
-        // Merge hand-authored semantic filter with auto-derived suggestions
-        let merged_filter = match (&pattern.semantic_filter, &self.auto_filter_stats) {
-            (Some(hand), Some(auto)) => Some(crate::auto_filter::merge_filters(
-                Some(hand),
-                Some(auto),
-                &pattern.id,
-            )),
-            (Some(hand), None) => Some(hand.clone()),
-            (None, Some(auto)) => Some(crate::auto_filter::merge_filters(
-                None,
-                Some(auto),
-                &pattern.id,
-            )),
-            (None, None) => None,
-        };
-
-        // Apply semantic filter if present
-        if let (Some(filter), Some(node), Some(src)) = (merged_filter.as_ref(), func_node, source) {
-            if !filter.matches(
-                node,
-                src,
-                Some(fp.file_path.as_str()),
-                precomputed_flows,
-                spec,
-            ) {
-                return None;
-            }
-        }
-
-        // Semantic gate: skip trivially small functions
-        if weighted_fp.structural_markers.len() < 3
-            || (weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty())
-        {
+        // Semantic gate
+        if weighted_fp.control_flow_hashes.is_empty() && weighted_fp.api_calls.is_empty() {
             return None;
         }
 
-        // Function role classifier
         let candidate_role =
             crate::function_role::classify_role_with_imports(weighted_fp, None, spec);
         if let Some(first_pos) = pattern.positives.first() {
@@ -554,127 +455,67 @@ impl PatternRegistry {
             }
         }
 
-        // Structural overlap gate
-        if !pattern.positives.is_empty() {
-            let struct_sim = pattern
-                .positives
-                .iter()
-                .map(|p| {
-                    crate::minhash::overlap_coefficient_sorted(
-                        &weighted_fp.structural_markers,
-                        &p.structural_markers,
-                    )
-                })
-                .fold(0.0f64, f64::max);
-            if struct_sim < self.struct_overlap_threshold {
-                return None;
-            }
-        }
-
-        // API-call gate
-        let gate_pos = pattern
+        let pattern_has_flow = pattern
             .positives
             .iter()
-            .filter(|p| !p.api_calls.is_empty())
-            .max_by_key(|p| {
-                p.api_calls
+            .any(|pos| !pos.data_flow_path_hashes.is_empty());
+        if !has_flow_match && pattern_has_flow {
+            return None;
+        }
+
+        let has_api_overlap = if !pattern.positives.is_empty() && !weighted_fp.api_calls.is_empty()
+        {
+            pattern.positives.iter().any(|pos| {
+                pos.api_calls
                     .iter()
-                    .filter(|h| weighted_fp.api_calls.contains(h))
-                    .count()
-            });
-        if let Some(gate_pos) = gate_pos {
-            let api_overlap = !weighted_fp.api_calls.is_empty()
-                && gate_pos
-                    .api_calls
-                    .iter()
-                    .any(|h| weighted_fp.api_calls.contains(h));
-            let motif_overlap = !weighted_fp.motif_hashes.is_empty()
-                && !gate_pos.motif_hashes.is_empty()
-                && gate_pos
-                    .motif_hashes
-                    .iter()
-                    .any(|h| weighted_fp.motif_hashes.contains(h));
-            if !api_overlap && !motif_overlap {
-                if !weighted_fp.api_calls.is_empty() && !self.api_idf_weights.is_empty() {
-                    let top_calls: Vec<u64> = {
-                        let mut scored: Vec<(u64, f32)> = gate_pos
-                            .api_calls
-                            .iter()
-                            .filter_map(|h| self.api_idf_weights.get(h).map(|idf| (*h, *idf)))
-                            .collect();
-                        scored.sort_by(|a, b| {
-                            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-                        });
-                        scored.into_iter().take(3).map(|(h, _)| h).collect()
-                    };
-                    if top_calls.iter().all(|h| !weighted_fp.api_calls.contains(h)) {
-                        return None;
-                    }
-                } else {
-                    return None;
+                    .any(|h| weighted_fp.api_calls.contains(h))
+            })
+        } else {
+            false
+        };
+
+        if !has_api_overlap && !has_flow_match {
+            return None;
+        }
+
+        let mut score: f64 = 0.0;
+        let is_missing_call = pattern.id.contains("MISSING") || pattern.id.contains("CONFIG");
+        let mut is_taint_confirmed = false;
+
+        if let Some((tm, origin)) = taint_metrics {
+            if tm.tainted_uses > 0 {
+                is_taint_confirmed = true;
+                score = 0.65;
+                if tm.has_validation_name {
+                    score *= 0.5;
+                }
+                if tm.taint_branch_ratio > 0.7 {
+                    score *= 0.6;
+                }
+                if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
+                    let relevance = crate::corpus::source_sink::sink_taint_relevance(cat, origin);
+                    score *= relevance;
                 }
             }
         }
 
-        let pat_weights = &DEFAULT_WEIGHTS;
-        let (best_score, evidence) = PatternScorer::score_against_corpus_with_evidence_cached(
-            weighted_fp,
-            &pattern.positives,
-            &pattern.negatives,
-            pattern.expected_context.as_ref(),
-            actual_context,
-            self.ngram_sim_threshold,
-            pat_weights,
-            dim_cache,
-            &self.scorer_config,
-            pattern
-                .min_evidence_dims
-                .unwrap_or(self.scorer_config.noise_gate_min_moderate_dims),
-        );
-
-        let best_score = if !hit_both {
-            best_score * 0.85
-        } else {
-            best_score
-        };
-
-        // Apply taint modifiers BEFORE calibration to raw scores
-        let mut raw_score = best_score;
-
-        if let Some((tm, origin)) = taint_metrics {
-            let mut multiplier: f64 = 1.0;
-            if tm.is_hollow_validator() {
-                multiplier = 0.5;
-            } else if tm.taint_branch_ratio < 0.1 && tm.tainted_uses > 2 {
-                multiplier = 1.1_f64.min(1.0 / self.scorer_config.taint_boost_cap);
-            } else if tm.taint_branch_ratio > 0.7 {
-                multiplier = 0.7;
+        if !is_taint_confirmed {
+            if is_missing_call {
+                score = 0.50;
+            } else {
+                score = 0.45; // High enough to pass L1 threshold (0.40), but will be dropped by composition (0.55) if taint doesn't confirm it
             }
-            if let Some(cat) = crate::corpus::source_sink::infer_sink_category(&pattern.id) {
-                let relevance: f64 = crate::corpus::source_sink::sink_taint_relevance(cat, origin);
-                multiplier = multiplier.min(relevance);
-            }
-            raw_score *= multiplier;
         }
-
-        if evidence.has_taint_path {
-            raw_score *= self.scorer_config.taint_verified_boost;
-        }
-
-        let best_score = raw_score;
 
         let threshold = self.threshold_for_pattern(&pattern.id);
 
-        if best_score >= threshold {
+        if score >= threshold {
             Some(PatternMatch {
                 pattern_id: pattern.id.clone(),
-                score: best_score,
-                positive_similarity: evidence.api_sim,
-                negative_similarity: evidence.negative_sim,
+                score,
                 observation: pattern.observation.clone(),
                 impact: pattern.impact.clone(),
                 improvement: pattern.improvement.clone(),
-                matched_evidence: Some(evidence),
                 cwe: pattern.cwe.clone(),
                 cvss: pattern.cvss,
                 owasp: pattern.owasp.clone(),

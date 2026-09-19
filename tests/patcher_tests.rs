@@ -35,7 +35,6 @@ fn make_advisory(
         tags: vec![],
         taint_branch_ratio: None,
         has_validation_name: None,
-        match_evidence: None,
         cwe: None,
         cvss: None,
         owasp: None,
