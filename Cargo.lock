@@ -600,6 +600,7 @@ name = "frensense-lang"
 version = "0.6.0"
 dependencies = [
  "rustc-hash 1.1.0",
+ "serde",
  "tree-sitter",
  "tree-sitter-c",
  "tree-sitter-go",

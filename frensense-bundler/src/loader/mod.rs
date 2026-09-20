@@ -177,6 +177,24 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             None
         };
 
+        let sink_labels = extract_sink_labels(&name, &pos);
+        let required_origins = extract_origins(&name, &pos);
+        let required_package_categories = extract_package_categories(&pos);
+        let mitigating_sanitizer = extract_sanitizer(&name);
+        
+        let mut pos_flow_hashes = std::collections::HashSet::new();
+        for p in &pos {
+            for &h in &p.data_flow_path_hashes {
+                pos_flow_hashes.insert(h);
+            }
+        }
+        for n in &neg {
+            for &h in &n.data_flow_path_hashes {
+                pos_flow_hashes.remove(&h);
+            }
+        }
+        let discriminating_flow_hashes: Vec<u64> = pos_flow_hashes.into_iter().collect();
+        
         patterns.push(CorpusPattern {
             id: name.clone(),
             positives: pos,
@@ -195,6 +213,11 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
                 .or(toml_advisory.runtime_probe),
             feature_variance: None,
             min_evidence_dims: None,
+            sink_labels,
+            required_origins,
+            required_package_categories,
+            mitigating_sanitizer,
+            discriminating_flow_hashes,
         });
     }
 
@@ -245,7 +268,7 @@ mod tests {
             .iter()
             .filter(|p| p.id.contains("sqli") && p.id.contains("models"))
             .collect();
-        eeprintln!("Found {} sqli+models patterns", sqli_patterns.len());
+        eprintln!("Found {} sqli+models patterns", sqli_patterns.len());
         for pat in &sqli_patterns {
             eprintln!(
                 "  Pattern: {} ({} positives, {} negatives)",
@@ -256,13 +279,13 @@ mod tests {
             for (i, fp) in pat.positives.iter().enumerate() {
                 let has = fp.api_calls.contains(&sqli_hash);
                 eprintln!(
-                    "    Positive[{}]: fn='{}' line={} has_sqli={} api_calls={} struct_markers={}",
+                    "    Positive[{}]: fn='{}' line={} has_sqli={} api_calls={} semantic_markers={}",
                     i,
                     fp.function_name,
                     fp.line,
                     has,
                     fp.api_calls.len(),
-                    fp.structural_markers.len()
+                    fp.semantic_markers.len()
                 );
                 if !has && fp.api_calls.len() <= 10 {
                     eprintln!("      api_calls={:?}", fp.api_calls);
@@ -273,7 +296,7 @@ mod tests {
         // Now check if the sqli pattern matches login.ts by loading login.ts fingerprints
         let js_path =
             std::path::Path::new("/home/oxisrael/Friehub/Taas/juice-shop/routes/login.ts");
-        let js_src = std::std::fs::read_to_string(js_path).unwrap();
+        let js_src = std::fs::read_to_string(js_path).unwrap();
         let mut parser = tree_sitter::Parser::new();
         let lang =
             frensense_engine::parser::ParserRegistry::get_language_by_name("typescript").unwrap();
@@ -559,4 +582,68 @@ fn validate(input: &str) -> bool {
             "should extract all 2 functions from negative"
         );
     }
+}
+
+
+fn extract_sink_labels(name: &str, pos: &[frensense_engine::fingerprint::FunctionFingerprint]) -> Vec<frensense_lang::spec::SinkLabel> {
+    let mut labels = std::collections::HashSet::new();
+    // Use the keyword heuristic from pattern ID to bootstrap
+    if name.contains("sql_injection") { labels.insert(frensense_lang::spec::SinkLabel::SqlInjection); }
+    if name.contains("command_injection") { labels.insert(frensense_lang::spec::SinkLabel::CommandInjection); }
+    if name.contains("xss") { labels.insert(frensense_lang::spec::SinkLabel::Xss); }
+    if name.contains("ssrf") { labels.insert(frensense_lang::spec::SinkLabel::Ssrf); }
+    if name.contains("path_traversal") { labels.insert(frensense_lang::spec::SinkLabel::PathTraversal); }
+    if name.contains("open_redirect") { labels.insert(frensense_lang::spec::SinkLabel::OpenRedirect); }
+    
+    // Supplement with actual AST calls from positive examples
+    for spec in frensense_lang::registry::all_specs() {
+        for (sink_name, label) in spec.known_sink_names() {
+            for p in pos {
+                if p.raw_call_names.iter().any(|c| {
+                    c == sink_name
+                    || c.ends_with(&format!(".{sink_name}"))
+                    || c.ends_with(&format!(":{sink_name}"))
+                }) {
+                    labels.insert(*label);
+                }
+            }
+        }
+    }
+    labels.into_iter().collect()
+}
+
+fn extract_origins(_name: &str, pos: &[frensense_engine::fingerprint::FunctionFingerprint]) -> Vec<frensense_engine::data_flow::TaintOrigin> {
+    let mut origins = std::collections::HashSet::new();
+    
+    for spec in frensense_lang::registry::all_specs() {
+        for p in pos {
+            for param in &p.param_names {
+                if let Some(o) = spec.classify_param_taint(Some(param), None) {
+                    origins.insert(o);
+                }
+            }
+        }
+    }
+    origins.into_iter().collect()
+}
+
+fn extract_package_categories(pos: &[frensense_engine::fingerprint::FunctionFingerprint]) -> Vec<frensense_lang::spec::PackageCategory> {
+    let mut cats = std::collections::HashSet::new();
+    for spec in frensense_lang::registry::all_specs() {
+        for p in pos {
+            for import in &p.type_usages {
+                if let Some(cat) = spec.package_category(import) {
+                    cats.insert(cat);
+                }
+            }
+        }
+    }
+    cats.into_iter().collect()
+}
+
+fn extract_sanitizer(name: &str) -> Option<frensense_lang::spec::SanitizerKind> {
+    if name.contains("sql_injection") { Some(frensense_lang::spec::SanitizerKind::SqlParameterize) }
+    else if name.contains("xss") { Some(frensense_lang::spec::SanitizerKind::HtmlEscape) }
+    else if name.contains("command_injection") { Some(frensense_lang::spec::SanitizerKind::Full) }
+    else { None }
 }

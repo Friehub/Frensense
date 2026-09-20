@@ -18,6 +18,12 @@ pub struct CorpusPattern {
     pub runtime_probe: Option<String>,
     pub feature_variance: Option<f64>,
     pub min_evidence_dims: Option<usize>,
+    
+    pub sink_labels: Vec<frensense_lang::spec::SinkLabel>,
+    pub required_origins: Vec<frensense_engine::data_flow::TaintOrigin>,
+    pub required_package_categories: Vec<frensense_lang::spec::PackageCategory>,
+    pub mitigating_sanitizer: Option<frensense_lang::spec::SanitizerKind>,
+    pub discriminating_flow_hashes: Vec<u64>,
 }
 
 /// A non-fatal diagnostic produced during corpus loading.

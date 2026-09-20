@@ -107,8 +107,6 @@ pub fn print_profile_stats(profile: &ProjectProfile) {
         );
         println!("    Unique name segments: {}", lp.name_segment_freq.len());
         println!(
-            "    Unique structural markers: {}",
-            lp.structural_marker_freq.len()
         );
         println!("    Unique type usages: {}", lp.type_usage_freq.len());
         println!("    File sub-profiles: {}", lp.file_profiles.len());

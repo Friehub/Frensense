@@ -91,14 +91,14 @@ pub fn cluster_functions(
     let signatures: Vec<Vec<u64>> = fingerprints
         .iter()
         .map(|fp| {
-            frensense_engine::minhash::minhash_signature(
+            crate::engine::minhash::minhash_signature(
                 &fp.ngram_hashes,
-                frensense_engine::minhash::DEFAULT_NUM_HASHES,
+                crate::engine::minhash::DEFAULT_NUM_HASHES,
             )
         })
         .collect();
 
-    let mut index = frensense_engine::minhash::LSHIndex::default();
+    let mut index = crate::engine::minhash::LSHIndex::default();
     for (i, sig) in signatures.iter().enumerate() {
         index.insert(sig, i as u64);
     }
@@ -113,7 +113,7 @@ pub fn cluster_functions(
                 continue; // each unordered pair considered once
             }
             let sim =
-                frensense_engine::minhash::signature_similarity(&signatures[i], &signatures[j]);
+                crate::engine::minhash::signature_similarity(&signatures[i], &signatures[j]);
             if sim >= similarity_threshold {
                 uf.union(i, j);
             }
@@ -211,7 +211,7 @@ fn classify_member_role(
                 other_name != self_name
             })
             .map(|&other_idx| {
-                frensense_engine::minhash::signature_similarity(
+                crate::engine::minhash::signature_similarity(
                     &signatures[self_idx],
                     &signatures[other_idx],
                 )

@@ -565,6 +565,7 @@ fn run_corpus_scan(
         let scan_ctx = frensense_engine::corpus::registry::ScanContext {
             func_node: Some(func_node.clone()),
             source: Some(&snap.content),
+            file_path: Some(snap.path.as_path()),
             actual_context: Some(actual_context),
             spec: None,
         };
@@ -594,6 +595,7 @@ fn run_corpus_scan(
 
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
                 // Apply per-category or global calibration to the raw pattern score.
+                println!("DEBUG: m.score={}, category={}", m.score, category);
                 let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = calibration {
@@ -762,7 +764,6 @@ fn compute_fp_hash(fp: &frensense_engine::fingerprint::FunctionFingerprint) -> u
     use std::hash::{Hash, Hasher};
     let mut hasher = rustc_hash::FxHasher::default();
     fp.ngram_hashes.hash(&mut hasher);
-    fp.structural_markers.hash(&mut hasher);
     fp.api_calls.hash(&mut hasher);
     fp.control_flow_hashes.hash(&mut hasher);
     hasher.finish()

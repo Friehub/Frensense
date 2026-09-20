@@ -516,7 +516,7 @@ mod tests {
         let p = provider();
         assert_eq!(
             p.classify_sink("exec", None),
-            Some(SinkCategory::CodeExecution),
+            Some(SinkCategory::CommandInjection),
         );
         assert_eq!(
             p.classify_sink("query", None),

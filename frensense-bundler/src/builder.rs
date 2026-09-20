@@ -154,6 +154,11 @@ pub fn build_bundle_incremental(corpus_dir: &Path) -> Result<Vec<u8>, String> {
             owasp: p.owasp,
             severity: p.severity,
             runtime_probe: p.runtime_probe,
+            sink_labels: p.sink_labels,
+            required_origins: p.required_origins,
+            required_package_categories: p.required_package_categories,
+            mitigating_sanitizer: p.mitigating_sanitizer,
+            discriminating_flow_hashes: p.discriminating_flow_hashes,
         })
         .collect();
 
@@ -276,6 +281,11 @@ pub fn build_bundle(corpus_dir: &std::path::Path) -> Result<Vec<u8>, String> {
             owasp: p.owasp,
             severity: p.severity,
             runtime_probe: p.runtime_probe,
+            sink_labels: p.sink_labels.clone(),
+            required_origins: p.required_origins.clone(),
+            required_package_categories: p.required_package_categories.clone(),
+            mitigating_sanitizer: p.mitigating_sanitizer.clone(),
+            discriminating_flow_hashes: p.discriminating_flow_hashes.clone(),
         })
         .collect();
 

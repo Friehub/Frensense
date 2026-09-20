@@ -50,6 +50,7 @@ pub fn find(snap: &FileSnapshot, ctx: &FindingContext<'_>) -> Vec<Advisory> {
                 frensense_engine::corpus::source_sink::SinkCategory::ResponseLeak
                 | frensense_engine::corpus::source_sink::SinkCategory::LogLeak => Severity::Warning,
                 frensense_engine::corpus::source_sink::SinkCategory::Unknown => Severity::Info,
+                _ => Severity::Warning,
             };
 
             let origin_label = match &path.origin {

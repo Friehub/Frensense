@@ -27,6 +27,17 @@ pub struct BundlePattern {
     pub severity: Option<String>,
     #[serde(default)]
     pub runtime_probe: Option<String>,
+    
+    #[serde(default)]
+    pub sink_labels: Vec<frensense_lang::spec::SinkLabel>,
+    #[serde(default)]
+    pub required_origins: Vec<crate::data_flow::TaintOrigin>,
+    #[serde(default)]
+    pub required_package_categories: Vec<frensense_lang::spec::PackageCategory>,
+    #[serde(default)]
+    pub mitigating_sanitizer: Option<frensense_lang::spec::SanitizerKind>,
+    #[serde(default)]
+    pub discriminating_flow_hashes: Vec<u64>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

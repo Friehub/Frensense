@@ -1,3 +1,4 @@
+pub mod minhash;
 // SPDX-License-Identifier: MIT
 
 pub mod ast_diff;

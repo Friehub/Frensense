@@ -98,8 +98,8 @@ fn collect_tainted_vars(
     lookup: &FxHashMap<String, &'static str>,
     import_map: Option<&crate::import_resolver::ImportMap>,
     spec: Option<&dyn LanguageSpec>,
-) -> FxHashMap<String, &'static str> {
-    let mut tainted: FxHashMap<String, &'static str> = FxHashMap::default();
+) -> FxHashMap<String, (&'static str, Vec<&'static str>)> {
+    let mut tainted: FxHashMap<String, (&'static str, Vec<&'static str>)> = FxHashMap::default();
     collect_tainted_recursive(node, source, lookup, import_map, spec, &mut tainted);
     tainted
 }
@@ -110,7 +110,7 @@ fn collect_tainted_recursive(
     lookup: &FxHashMap<String, &'static str>,
     import_map: Option<&crate::import_resolver::ImportMap>,
     spec: Option<&dyn LanguageSpec>,
-    tainted: &mut FxHashMap<String, &'static str>,
+    tainted: &mut FxHashMap<String, (&'static str, Vec<&'static str>)>,
 ) {
     let kind = node.kind();
     let is_decl_or_assign = spec.map_or(
@@ -136,15 +136,17 @@ fn collect_tainted_recursive(
                         node.child_by_field_name(value_field),
                     ) {
                         let var_name = &source[name_node.start_byte()..name_node.end_byte()];
-                        if rhs_references_source(value_node, source, lookup, spec) {
-                            tainted.insert(var_name.to_string(), USER_INPUT_SOURCE);
+                        let mut ast_path = Vec::new();
+                        if rhs_references_source(value_node, source, lookup, spec, &mut ast_path) {
+                            ast_path.reverse();
+                            tainted.insert(var_name.to_string(), (USER_INPUT_SOURCE, ast_path));
                         } else if let Some(cat) =
                             rhs_is_sink_call(value_node, source, lookup, import_map, spec)
                         {
                             if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
                                 || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
                             {
-                                tainted.insert(var_name.to_string(), DATABASE_SOURCE);
+                                tainted.insert(var_name.to_string(), (DATABASE_SOURCE, Vec::new()));
                             }
                         }
                     }
@@ -158,15 +160,17 @@ fn collect_tainted_recursive(
                         node.child_by_field_name(rhs_field),
                     ) {
                         let var_name = &source[name_node.start_byte()..name_node.end_byte()];
-                        if rhs_references_source(value_node, source, lookup, spec) {
-                            tainted.insert(var_name.to_string(), USER_INPUT_SOURCE);
+                        let mut ast_path = Vec::new();
+                        if rhs_references_source(value_node, source, lookup, spec, &mut ast_path) {
+                            ast_path.reverse();
+                            tainted.insert(var_name.to_string(), (USER_INPUT_SOURCE, ast_path));
                         } else if let Some(cat) =
                             rhs_is_sink_call(value_node, source, lookup, import_map, spec)
                         {
                             if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
                                 || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
                             {
-                                tainted.insert(var_name.to_string(), DATABASE_SOURCE);
+                                tainted.insert(var_name.to_string(), (DATABASE_SOURCE, Vec::new()));
                             }
                         }
                     }
@@ -182,15 +186,17 @@ fn collect_tainted_recursive(
                     .or_else(|| node.child_by_field_name("right")),
             ) {
                 let var_name = &source[name_node.start_byte()..name_node.end_byte()];
-                if rhs_references_source(value_node, source, lookup, spec) {
-                    tainted.insert(var_name.to_string(), USER_INPUT_SOURCE);
+                let mut ast_path = Vec::new();
+                        if rhs_references_source(value_node, source, lookup, spec, &mut ast_path) {
+                    ast_path.reverse();
+                            tainted.insert(var_name.to_string(), (USER_INPUT_SOURCE, ast_path));
                 } else if let Some(cat) =
                     rhs_is_sink_call(value_node, source, lookup, import_map, spec)
                 {
                     if cat == crate::corpus::source_sink::SinkCategory::SqlInjection
                         || cat == crate::corpus::source_sink::SinkCategory::NoSqlInjection
                     {
-                        tainted.insert(var_name.to_string(), DATABASE_SOURCE);
+                        tainted.insert(var_name.to_string(), (DATABASE_SOURCE, Vec::new()));
                     }
                 }
             }
@@ -286,6 +292,7 @@ fn rhs_references_source(
     source: &str,
     lookup: &FxHashMap<String, &'static str>,
     spec: Option<&dyn LanguageSpec>,
+    path: &mut Vec<&'static str>,
 ) -> bool {
     let kind = node.kind();
 
@@ -347,7 +354,11 @@ fn rhs_references_source(
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            if rhs_references_source(cursor.node(), source, lookup, spec) {
+            let child = cursor.node();
+            if rhs_references_source(child, source, lookup, spec, path) {
+                if child.is_named() && child.kind() != "identifier" && child.kind() != "identifier_pattern" {
+                    path.push(child.kind());
+                }
                 return true;
             }
             if !cursor.goto_next_sibling() {
@@ -365,6 +376,7 @@ fn args_reference_var(
     source: &str,
     name: &str,
     spec: Option<&dyn LanguageSpec>,
+    path: &mut Vec<&'static str>,
 ) -> bool {
     let kind = node.kind();
 
@@ -399,7 +411,9 @@ fn args_reference_var(
     let mut cursor = node.walk();
     if cursor.goto_first_child() {
         loop {
-            if args_reference_var(cursor.node(), source, name, spec) {
+            let child = cursor.node();
+            if args_reference_var(child, source, name, spec, path) {
+
                 return true;
             }
             if !cursor.goto_next_sibling() {
@@ -413,7 +427,7 @@ fn args_reference_var(
 fn find_sink_paths(
     node: Node<'_>,
     source: &str,
-    tainted: &FxHashMap<String, &'static str>,
+    tainted: &FxHashMap<String, (&'static str, Vec<&'static str>)>,
     lookup: &FxHashMap<String, &'static str>,
     import_map: Option<&crate::import_resolver::ImportMap>,
     spec: Option<&dyn LanguageSpec>,
@@ -473,18 +487,36 @@ fn find_sink_paths(
                 // substring. A sink called with a string literal that merely
                 // happens to contain a variable name must not mint a path hash.
                 if let Some(args) = node.child_by_field_name("arguments") {
-                    for (var, &source_motif) in tainted {
-                        if args_reference_var(args, source, var, spec) {
-                            // Emit path: source_motif -> sink_motif
+                    for (var, (source_motif, assign_path)) in tainted {
+                        let mut arg_path = Vec::new();
+                        if args_reference_var(args, source, var, spec, &mut arg_path) {
+                            arg_path.reverse();
+                            let mut labels = vec![*source_motif];
+                            for k in assign_path {
+                                labels.push(*k);
+                            }
+                            for k in &arg_path {
+                                labels.push(*k);
+                            }
+                            labels.push(TAINT_FLOW);
+                            labels.push(sink_motif);
                             let path = FlowPath {
-                                labels: vec![source_motif, TAINT_FLOW, sink_motif],
+                                labels,
                             };
                             out.insert(path.hash());
                         }
                     }
-                    if rhs_references_source(args, source, lookup, spec) {
+                    let mut direct_path = Vec::new();
+                    if rhs_references_source(args, source, lookup, spec, &mut direct_path) {
+                        direct_path.reverse();
+                        let mut labels = vec![USER_INPUT_SOURCE];
+                        for k in direct_path {
+                            labels.push(k);
+                        }
+                        labels.push(TAINT_FLOW);
+                        labels.push(sink_motif);
                         let path = FlowPath {
-                            labels: vec![USER_INPUT_SOURCE, TAINT_FLOW, sink_motif],
+                            labels,
                         };
                         out.insert(path.hash());
                     }
@@ -524,7 +556,7 @@ mod tests {
         parser.parse(code, None).unwrap()
     }
 
-    fn tainted_vars(code: &str) -> FxHashMap<String, &'static str> {
+    fn tainted_vars(code: &str) -> FxHashMap<String, (&'static str, Vec<&'static str>)> {
         let tree = parse_ts(code);
         let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
         collect_tainted_vars(tree.root_node(), code, lookup, None, None)
@@ -554,7 +586,7 @@ function handler() {
 }
 "#;
         let tainted = tainted_vars(code);
-        assert_eq!(tainted.get("cmd"), Some(&"UserInputSource"));
+        assert_eq!(tainted.get("cmd").map(|(s, _)| *s), Some("UserInputSource"));
     }
 
     #[test]
@@ -566,7 +598,7 @@ function handler() {
 }
 "#;
         let tainted = tainted_vars(code);
-        assert_eq!(tainted.get("q"), Some(&"UserInputSource"));
+        assert_eq!(tainted.get("q").map(|(s, _)| *s), Some("UserInputSource"));
     }
 
     #[test]
@@ -575,7 +607,7 @@ function handler() {
         let tree = parse_ts(code);
         let lookup = &*crate::corpus::motifs::MOTIF_LOOKUP;
         let tainted = collect_tainted_vars(tree.root_node(), code, lookup, None, None);
-        assert_eq!(tainted.get("cmd"), Some(&"UserInputSource"));
+        assert_eq!(tainted.get("cmd").map(|(s, _)| *s), Some("UserInputSource"));
         let mut hashes = FxHashSet::default();
         find_sink_paths(
             tree.root_node(),
@@ -624,6 +656,6 @@ function handler() {
 }
 "#;
         let tainted = tainted_vars(code);
-        assert_eq!(tainted.get("msg"), Some(&"UserInputSource"));
+        assert_eq!(tainted.get("msg").map(|(s, _)| *s), Some("UserInputSource"));
     }
 }

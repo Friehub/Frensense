@@ -121,7 +121,7 @@ pub enum NodeRole {
 }
 
 /// Sanitizer strength: what kind of injection does this call defeat?
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SanitizerKind {
     /// Completely removes taint (e.g. numeric coercion: `int(user_input)`).
     Full,
@@ -138,7 +138,7 @@ pub enum SanitizerKind {
 }
 
 /// Broad category for what a package is used for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PackageCategory {
     HttpFramework,
     GraphQL,
@@ -157,7 +157,7 @@ pub enum PackageCategory {
 }
 
 /// Standard classification labels for sink functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SinkLabel {
     CodeExecution,
     SqlInjection,
@@ -194,13 +194,40 @@ pub enum SinkLabel {
 }
 
 /// Broad origin of tainted data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum TaintOrigin {
     UserInput,       // HTTP request body/query/path/header
-    EnvVariable,     // process.env / os.environ / std::env
+    Environment,     // process.env / os.environ / std::env
     FileSystem,      // file read whose path came from user
     Database,        // query result that may contain injection
-    ExternalService, // IPC / downstream API response
+    Network, // IPC / downstream API response
+    Custom(String),
+}
+
+impl std::fmt::Display for TaintOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UserInput => write!(f, "user_input"),
+            Self::Environment => write!(f, "environment"),
+            Self::Database => write!(f, "database"),
+            Self::Network => write!(f, "network"),
+            Self::FileSystem => write!(f, "file_system"),
+            Self::Custom(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl From<&str> for TaintOrigin {
+    fn from(s: &str) -> Self {
+        match s {
+            "user_input" | "user" => Self::UserInput,
+            "environment" | "env" => Self::Environment,
+            "database" | "db" => Self::Database,
+            "network" | "net" => Self::Network,
+            "file_system" | "fs" => Self::FileSystem,
+            _ => Self::Custom(s.to_string()),
+        }
+    }
 }
 
 /// A propagator rule describes how taint flows through a specific call.

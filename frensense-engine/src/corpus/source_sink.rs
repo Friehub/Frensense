@@ -52,10 +52,27 @@ pub enum SinkCategory {
     Ssrf,
     OpenRedirect,
     Xss,
+    HeaderInjection,
+    CookiePoisoning,
+    ContentTypeInjection,
     StorageWrite,
     LogLeak,
     ResponseLeak,
     CredentialLeak,
+    TemplateSsti,
+    UnsafeDeserialize,
+    LdapInjection,
+    XpathInjection,
+    PrototypePollution,
+    Toctou,
+    GraphqlInjection,
+    Xxe,
+    Jwt,
+    JwtWeakAlgorithm,
+    JwtUnsafeDecode,
+    UnsafeMemory,
+    BufferOverflow,
+    FormatString,
     Unknown,
 }
 
@@ -71,11 +88,28 @@ impl From<frensense_lang::spec::SinkLabel> for SinkCategory {
             Ssrf => Self::Ssrf,
             OpenRedirect => Self::OpenRedirect,
             Xss | XssDom | XssReflected => Self::Xss,
+            HeaderInjection => Self::HeaderInjection,
+            CookiePoisoning => Self::CookiePoisoning,
+            ContentTypeInjection => Self::ContentTypeInjection,
             StorageWrite => Self::StorageWrite,
             LogLeak => Self::LogLeak,
             ResponseLeak => Self::ResponseLeak,
             CredentialLeak => Self::CredentialLeak,
-            _ => Self::Unknown,
+            TemplateSsti => Self::TemplateSsti,
+            UnsafeDeserialize => Self::UnsafeDeserialize,
+            LdapInjection => Self::LdapInjection,
+            XpathInjection => Self::XpathInjection,
+            PrototypePollution => Self::PrototypePollution,
+            Toctou => Self::Toctou,
+            GraphqlInjection => Self::GraphqlInjection,
+            Xxe => Self::Xxe,
+            Jwt => Self::Jwt,
+            JwtWeakAlgorithm => Self::JwtWeakAlgorithm,
+            JwtUnsafeDecode => Self::JwtUnsafeDecode,
+            UnsafeMemory => Self::UnsafeMemory,
+            BufferOverflow => Self::BufferOverflow,
+            FormatString => Self::FormatString,
+            Unknown => Self::Unknown,
         }
     }
 }
@@ -92,10 +126,25 @@ impl SinkCategory {
             Self::Ssrf => 918,           // Server-Side Request Forgery
             Self::OpenRedirect => 601,   // URL Redirection to Untrusted Site
             Self::Xss => 79,             // Cross-site Scripting
+            Self::HeaderInjection => 113,
+            Self::CookiePoisoning => 565,
+            Self::ContentTypeInjection => 434,
             Self::StorageWrite => 200, // Exposure of Sensitive Information to an Unauthorized Actor
             Self::LogLeak => 532,      // Insertion of Sensitive Information into Log File
             Self::ResponseLeak => 200, // Exposure of Sensitive Information
             Self::CredentialLeak => 798, // Use of Hard-coded Credentials
+            Self::TemplateSsti => 1336,
+            Self::UnsafeDeserialize => 502,
+            Self::LdapInjection => 90,
+            Self::XpathInjection => 643,
+            Self::PrototypePollution => 1321,
+            Self::Toctou => 367,
+            Self::GraphqlInjection => 0,
+            Self::Xxe => 611,
+            Self::Jwt | Self::JwtWeakAlgorithm | Self::JwtUnsafeDecode => 290,
+            Self::UnsafeMemory => 119,
+            Self::BufferOverflow => 120,
+            Self::FormatString => 134,
             Self::Unknown => 0,        // Unknown/Uncategorized
         }
     }

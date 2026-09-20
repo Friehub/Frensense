@@ -122,7 +122,7 @@ impl Engine {
                 continue;
             }
 
-            let similarity = frensense_engine::minhash::jaccard_similarity_sorted(
+            let similarity = crate::engine::minhash::jaccard_similarity_sorted(
                 &f1.ngram_hashes,
                 &f2.ngram_hashes,
             );

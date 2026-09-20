@@ -1019,6 +1019,10 @@ impl LanguageSpec for TypeScriptSpec {
     fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
         JS_SEMANTIC_CATEGORIES
     }
+
+    fn known_motif_members(&self) -> &'static [(&'static str, &'static str)] {
+        JS_MOTIF_MEMBERS
+    }
 }
 
 // ── JavaScript spec ────────────────────────────────────────────────────────────
@@ -1170,6 +1174,10 @@ impl LanguageSpec for JavaScriptSpec {
     fn known_semantic_categories(&self) -> &'static [(&'static str, &'static [&'static str])] {
         JS_SEMANTIC_CATEGORIES
     }
+
+    fn known_motif_members(&self) -> &'static [(&'static str, &'static str)] {
+        JS_MOTIF_MEMBERS
+    }
 }
 
 // ── Shared JS/TS param classification ─────────────────────────────────────────
@@ -1212,11 +1220,11 @@ fn classify_js_param(name: Option<&str>, ann: Option<&str>) -> Option<TaintOrigi
     match name? {
         "req" | "request" | "ctx" | "context" | "event" | "c" | "e" | "socket" | "ws"
         | "incomingMsg" | "httpReq" => Some(TaintOrigin::UserInput),
-        "env" | "config" | "settings" => Some(TaintOrigin::EnvVariable),
+        "env" | "config" | "settings" => Some(TaintOrigin::Environment),
         "filePath" | "filepath" | "filename" | "fileName" | "dir" | "directory" => {
             Some(TaintOrigin::FileSystem)
         }
-        "response" | "reply" => Some(TaintOrigin::ExternalService),
+        "response" | "reply" => Some(TaintOrigin::Network),
         _ => None,
     }
 }
@@ -1299,7 +1307,6 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("findOneAndReplace", crate::spec::SinkLabel::NoSqlInjection),
     ("replaceOne", crate::spec::SinkLabel::NoSqlInjection),
     ("bulkWrite", crate::spec::SinkLabel::NoSqlInjection),
-    ("set", crate::spec::SinkLabel::NoSqlInjection),
     ("hget", crate::spec::SinkLabel::NoSqlInjection),
     ("hset", crate::spec::SinkLabel::NoSqlInjection),
     ("del", crate::spec::SinkLabel::NoSqlInjection),
@@ -1360,7 +1367,6 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("readFileSync", crate::spec::SinkLabel::PathTraversal),
     ("createReadStream", crate::spec::SinkLabel::PathTraversal),
     ("writeFile", crate::spec::SinkLabel::PathTraversal),
-    ("join", crate::spec::SinkLabel::PathTraversal),
     ("unlink", crate::spec::SinkLabel::PathTraversal),
     ("stat", crate::spec::SinkLabel::PathTraversal),
     ("access", crate::spec::SinkLabel::PathTraversal),
@@ -1371,9 +1377,6 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("http.get", crate::spec::SinkLabel::Ssrf),
     ("https.get", crate::spec::SinkLabel::Ssrf),
     ("got", crate::spec::SinkLabel::Ssrf),
-    ("get", crate::spec::SinkLabel::Ssrf),
-    ("post", crate::spec::SinkLabel::Ssrf),
-    ("request", crate::spec::SinkLabel::Ssrf),
     ("node-fetch", crate::spec::SinkLabel::Ssrf),
     // Open Redirect
     ("redirect", crate::spec::SinkLabel::OpenRedirect),
@@ -1386,26 +1389,17 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("document.writeln", crate::spec::SinkLabel::XssDom),
     ("dangerouslySetInnerHTML", crate::spec::SinkLabel::XssDom),
     // MongoDB / ORM
-    ("update", crate::spec::SinkLabel::NoSqlInjection),
     ("updateOne", crate::spec::SinkLabel::NoSqlInjection),
     ("updateMany", crate::spec::SinkLabel::NoSqlInjection),
-    ("insert", crate::spec::SinkLabel::NoSqlInjection),
     ("insertOne", crate::spec::SinkLabel::NoSqlInjection),
     ("insertMany", crate::spec::SinkLabel::NoSqlInjection),
-    ("delete", crate::spec::SinkLabel::NoSqlInjection),
     ("deleteOne", crate::spec::SinkLabel::NoSqlInjection),
     ("deleteMany", crate::spec::SinkLabel::NoSqlInjection),
-    ("find", crate::spec::SinkLabel::NoSqlInjection),
     ("findOne", crate::spec::SinkLabel::NoSqlInjection),
     ("findAll", crate::spec::SinkLabel::NoSqlInjection),
     // Storage Write
-    ("put", crate::spec::SinkLabel::StorageWrite),
     ("setItem", crate::spec::SinkLabel::StorageWrite),
     // Log Leak
-    ("log", crate::spec::SinkLabel::LogLeak),
-    ("error", crate::spec::SinkLabel::LogLeak),
-    ("info", crate::spec::SinkLabel::LogLeak),
-    ("debug", crate::spec::SinkLabel::LogLeak),
     // SSTI - Template engine renders
     ("ejs.render", crate::spec::SinkLabel::TemplateSsti),
     ("ejs.renderFile", crate::spec::SinkLabel::TemplateSsti),
@@ -1676,4 +1670,25 @@ static JS_SEMANTIC_CATEGORIES: &[(&str, &[&str])] = &[
         "financial_calc",
         &["price", "priceSnapshot", "total", "amount", "balance"],
     ),
+];
+
+static JS_MOTIF_MEMBERS: &[(&str, &str)] = &[
+    ("req.body", "UserInputSource"),
+    ("req.query", "UserInputSource"),
+    ("req.params", "UserInputSource"),
+    ("req.headers", "UserInputSource"),
+    ("req.cookies", "UserInputSource"),
+    ("request.body", "UserInputSource"),
+    ("request.query", "UserInputSource"),
+    ("request.params", "UserInputSource"),
+    ("body", "UserInputSource"),
+    ("query", "UserInputSource"),
+    ("params", "UserInputSource"),
+    ("userInput", "UserInputSource"),
+    ("input", "UserInputSource"),
+    ("data", "UserInputSource"),
+    ("formData", "UserInputSource"),
+    ("searchParams", "UserInputSource"),
+    ("URLSearchParams", "UserInputSource"),
+    ("exec", "CommandExecutionSink"),
 ];

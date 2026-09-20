@@ -47,13 +47,7 @@ pub fn classify_param_origin_with_spec(
 ) -> Option<TaintOrigin> {
     if let Some(s) = spec {
         if let Some(origin) = s.classify_param_taint(Some(name), None) {
-            return Some(match origin {
-                frensense_lang::TaintOrigin::UserInput => TaintOrigin::UserInput,
-                frensense_lang::TaintOrigin::EnvVariable => TaintOrigin::Environment,
-                frensense_lang::TaintOrigin::FileSystem => TaintOrigin::FileSystem,
-                frensense_lang::TaintOrigin::Database => TaintOrigin::Database,
-                frensense_lang::TaintOrigin::ExternalService => TaintOrigin::Network,
-            });
+            return Some(origin);
         }
     }
     classify_param_origin_heuristic(name)
@@ -197,41 +191,7 @@ pub fn classify_param_name_in_context_with_spec(
     None
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TaintOrigin {
-    UserInput,
-    Environment,
-    Database,
-    Network,
-    FileSystem,
-    Custom(String),
-}
-
-impl std::fmt::Display for TaintOrigin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UserInput => write!(f, "user_input"),
-            Self::Environment => write!(f, "environment"),
-            Self::Database => write!(f, "database"),
-            Self::Network => write!(f, "network"),
-            Self::FileSystem => write!(f, "file_system"),
-            Self::Custom(s) => write!(f, "{s}"),
-        }
-    }
-}
-
-impl From<&str> for TaintOrigin {
-    fn from(s: &str) -> Self {
-        match s {
-            "user_input" | "user" => Self::UserInput,
-            "environment" | "env" => Self::Environment,
-            "database" | "db" => Self::Database,
-            "network" | "net" => Self::Network,
-            "file_system" | "fs" => Self::FileSystem,
-            _ => Self::Custom(s.to_string()),
-        }
-    }
-}
+pub use frensense_lang::spec::TaintOrigin;
 
 #[derive(Debug, Clone)]
 pub struct TaintRegistry {
