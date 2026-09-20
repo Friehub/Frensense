@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **Hybrid AST/PDG Data Flow Fingerprinting**: Fully wired `ProgramDependenceGraph` into `extract_flow_paths` to generate dynamic flow hashes, compressing sequential node kinds via Run-Length Encoding to support varied path lengths.
+- **OWASP Juice Shop Validation**: Confirmed engine precision of 45.11% and file recall of 35.14% on Juice Shop benchmark (1334 total advisories).
+- **Juice Shop Corpus Match**: Added `CORPUS_JUICE_SHOP_SQLI` positive and negative patterns to the corpus training set.
 - **JS Spec Expansion**: Added comprehensive support for modern JS/TS frameworks (Next.js, Bun, Hono, Koa, Apollo GraphQL).
 - **Expanded Sinks**: Added extensive sinks across DOM XSS, SSRF, NoSQLi, GraphQL injection, JWT weaknesses, and Prototype Pollution.
 - **NodeGoat Benchmark Ease-of-Use**: Added `make bench-nodegoat` target to standard build process for rapid regression testing.
@@ -16,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Noise Gate Bypass**: Added a high-confidence bypass (`weighted_score > 0.70`) to the noise gate in `scorer.rs` to properly evaluate single-call vulnerabilities.
 
 ### Fixed
+- **Platt Calibration Score Bug**: Fixed `load_calibration().unwrap_or_default()` in `engine/project/mod.rs` to correctly handle absent calibrations, preventing `compose_confidence` from aggressively zeroing valid findings below the `0.55` hard threshold.
 - **AST Query Depth**: Removed artificial depth limitations in `call_query` within `javascript.rs`, allowing the engine to spot function calls deeply nested inside loops, conditionals, and callbacks.
 - **Arrow Function Symbol Capture**: Broadened `symbol_query` to accurately capture boundaries for inline arrow functions passed to routers.
 - **Member Access Taint Propagation**: Fixed a bug where data flow analysis flattened away `MemberAccess` nodes, by explicitly treating the object base as a `Use` in `def_use.rs` (e.g. `req.body.id` now properly tracks back to `req`).

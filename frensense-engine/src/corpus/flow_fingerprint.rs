@@ -85,6 +85,16 @@ pub fn extract_flow_paths(
         &mut path_hashes,
     );
 
+    traverse_pdg(
+        body,
+        source,
+        &tainted_vars,
+        lookup,
+        import_map,
+        spec,
+        &mut path_hashes,
+    );
+
     let mut vec: Vec<u64> = path_hashes.into_iter().collect();
     vec.sort_unstable();
     vec
@@ -657,5 +667,123 @@ function handler() {
 "#;
         let tainted = tainted_vars(code);
         assert_eq!(tainted.get("msg").map(|(s, _)| *s), Some("UserInputSource"));
+    }
+}
+
+
+fn traverse_pdg(
+    body: Node<'_>,
+    source: &str,
+    tainted: &FxHashMap<String, (&'static str, Vec<&'static str>)>,
+    lookup: &FxHashMap<String, &'static str>,
+    import_map: Option<&crate::import_resolver::ImportMap>,
+    spec: Option<&dyn LanguageSpec>,
+    out: &mut FxHashSet<u64>,
+) {
+    let ext = spec.and_then(|s| s.extensions().first().copied()).unwrap_or("");
+    let cfg = crate::cfg::build_cfg(body, source, ext);
+    let def_use = crate::cfg::def_use::compute_def_use(&cfg, source, spec);
+    let pdg = crate::data_flow::pdg::build_pdg(&cfg, &def_use, source, spec);
+
+    // Map ID -> Node
+    let mut node_map = rustc_hash::FxHashMap::default();
+    for block in &cfg.blocks {
+        for n in &block.nodes {
+            node_map.insert(n.id(), *n);
+        }
+    }
+
+    // Find sources
+    let mut source_nodes = Vec::new();
+    for def in &def_use.definitions {
+        let var_name = &source[def.start_byte..def.end_byte];
+        if let Some((src_motif, _)) = tainted.get(var_name) {
+            source_nodes.push((def.node, *src_motif));
+        }
+    }
+
+    // Traverse
+    for (src_id, src_motif) in source_nodes {
+        let mut stack = vec![(src_id, vec![src_id])];
+        let mut visited = rustc_hash::FxHashSet::default();
+        visited.insert(src_id);
+
+        while let Some((curr_id, path)) = stack.pop() {
+            // Check if curr is sink
+            if let Some(&node) = node_map.get(&curr_id) {
+                let is_call = spec.map_or(node.kind() == "call_expression", |s| {
+                    matches!(s.classify(node.kind()), frensense_lang::spec::NodeRole::Call { .. })
+                });
+
+                if is_call {
+                    let callee_field = spec.and_then(|s| match s.classify(node.kind()) {
+                        frensense_lang::spec::NodeRole::Call { callee_field, .. } => Some(callee_field),
+                        _ => None,
+                    });
+                    if let Some(func) = node.child_by_field_name(callee_field.unwrap_or("function")) {
+                        let call_name = &source[func.start_byte()..func.end_byte()];
+                        let mut sink_motif = lookup.get(call_name).copied().or_else(|| {
+                            call_name
+                                .rfind("::")
+                                .or_else(|| call_name.rfind('.'))
+                                .and_then(|p| lookup.get(&call_name[p + 1..]).copied())
+                        });
+
+                        if sink_motif.is_none() {
+                            if let Some(imap) = import_map {
+                                if let Some(receiver) = call_name.split('.').next() {
+                                    if let Some(pkg) = imap.resolve(receiver) {
+                                        if let Some(cat) = crate::semantic::package_sink_category(pkg) {
+                                            sink_motif = match cat {
+                                                crate::corpus::source_sink::SinkCategory::SqlInjection => Some(SQL_SINK_LABEL),
+                                                crate::corpus::source_sink::SinkCategory::NoSqlInjection => Some(NOSQL_SINK_LABEL),
+                                                crate::corpus::source_sink::SinkCategory::CommandInjection => Some(COMMAND_EXEC_SINK_LABEL),
+                                                crate::corpus::source_sink::SinkCategory::Ssrf => Some(SSRF_SINK_LABEL),
+                                                crate::corpus::source_sink::SinkCategory::PathTraversal => Some(FS_SINK_LABEL),
+                                                _ => None,
+                                            };
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(sm) = sink_motif {
+                            // Valid sink found! Extract node kinds along the path.
+                            let mut labels = vec![src_motif];
+                            let mut last_kind = "";
+                            for &pid in path.iter().skip(1) {
+                                if let Some(&pnode) = node_map.get(&pid) {
+                                    let kind = pnode.kind();
+                                    // Path Compression: Skip repeating node kinds
+                                    if kind != last_kind {
+                                        labels.push(kind);
+                                        last_kind = kind;
+                                    }
+                                }
+                            }
+                            labels.push("PDG_FLOW");
+                            labels.push(sm);
+
+                            out.insert(crate::corpus::flow_fingerprint::FlowPath { labels }.hash());
+                        }
+                    }
+                }
+            }
+
+            // Continue traversal (DFS)
+            if let Some(outs) = pdg.outgoing.get(&curr_id) {
+                for (next, kind) in outs {
+                    if let crate::data_flow::pdg::PDGEdge::DataDependence { .. } = kind {
+                        if !visited.contains(next) {
+                            visited.insert(*next);
+                            let mut new_path = path.clone();
+                            new_path.push(*next);
+                            stack.push((*next, new_path));
+                        }
+                    }
+                }
+            }
+        }
     }
 }

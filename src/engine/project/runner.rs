@@ -595,7 +595,6 @@ fn run_corpus_scan(
 
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
                 // Apply per-category or global calibration to the raw pattern score.
-                println!("DEBUG: m.score={}, category={}", m.score, category);
                 let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = calibration {
