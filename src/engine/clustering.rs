@@ -92,7 +92,7 @@ pub fn cluster_functions(
         .iter()
         .map(|fp| {
             crate::engine::minhash::minhash_signature(
-                &fp.ngram_hashes,
+                &fp.api_calls,
                 crate::engine::minhash::DEFAULT_NUM_HASHES,
             )
         })
@@ -112,8 +112,7 @@ pub fn cluster_functions(
             if j <= i {
                 continue; // each unordered pair considered once
             }
-            let sim =
-                crate::engine::minhash::signature_similarity(&signatures[i], &signatures[j]);
+            let sim = crate::engine::minhash::signature_similarity(&signatures[i], &signatures[j]);
             if sim >= similarity_threshold {
                 uf.union(i, j);
             }

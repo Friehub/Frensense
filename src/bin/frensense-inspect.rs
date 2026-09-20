@@ -8,7 +8,6 @@
 //! With --bundle <path>, loads from the given file.
 
 use frensense_engine::corpus::bundle::load_bundle;
-use frensense_engine::pattern::scorer::ScorerConfig;
 use std::path::PathBuf;
 
 fn main() {
@@ -151,17 +150,8 @@ fn main() {
 
     for pat in &bundle.patterns {
         for fp in pat.positives.iter().chain(pat.negatives.iter()) {
-            if !fp.ngram_hashes.is_empty() {
-                dim_counts[0] += 1;
-            }
             if !fp.skeleton_hashes.is_empty() {
                 dim_counts[1] += 1;
-            }
-            if !fp.signature_ngrams.is_empty() {
-                dim_counts[2] += 1;
-            }
-            if !fp.param_type_ngrams.is_empty() {
-                dim_counts[3] += 1;
             }
             if !fp.type_usages.is_empty() {
                 dim_counts[4] += 1;
@@ -210,27 +200,6 @@ fn main() {
 
     // Current engine config
     println!("\n--- Current Engine Config ---");
-    let config = ScorerConfig::default();
-    println!("  cross_lingual_penalty: {}", config.cross_lingual_penalty);
-    println!("  semantic_zero_penalty: {}", config.semantic_zero_penalty);
-    println!("  semantic_match_boost: {}", config.semantic_match_boost);
-    println!(
-        "  noise_gate_strong_signal: {}",
-        config.noise_gate_strong_signal
-    );
-    println!(
-        "  noise_gate_moderate_signal: {}",
-        config.noise_gate_moderate_signal
-    );
-    println!(
-        "  noise_gate_min_moderate_dims: {}",
-        config.noise_gate_min_moderate_dims
-    );
-    println!(
-        "  context_mismatch_penalty: {}",
-        config.context_mismatch_penalty
-    );
-
     println!("\n--- Default Scoring Weights ---");
     let weights = [
         0.10, 0.20, 0.08, 0.04, 0.03, 0.10, 0.08, 0.06, 0.12, 0.06, 0.10, 0.03, 0.02, 0.04, 0.04,

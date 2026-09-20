@@ -2,11 +2,8 @@ pub mod pdg;
 // SPDX-License-Identifier: MIT
 
 pub mod alias;
-pub mod confidence;
 pub mod cross_file;
-pub mod engine;
 pub mod normalization;
-pub mod pii;
 pub mod propagators;
 pub mod reaching_defs;
 pub mod resolver;
@@ -14,8 +11,6 @@ pub mod sanitizer;
 pub mod taint_metrics;
 
 pub use alias::AliasTracker;
-pub use engine::DataFlowEngine;
-pub use engine::FunctionTaintSummary;
 pub use propagators::PropagatorRegistry;
 pub use reaching_defs::DefState;
 pub use resolver::ResolvedFunction;

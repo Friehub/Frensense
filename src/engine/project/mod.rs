@@ -81,9 +81,7 @@ pub struct Engine {
     scorer_noise_gate_moderate: Option<f64>,
     scorer_noise_gate_strong: Option<f64>,
     scorer_context_mismatch_penalty: Option<f64>,
-
     // Full scorer config (built from individual fields + defaults)
-    pub scorer_config: frensense_engine::pattern::scorer::ScorerConfig,
 }
 
 impl Engine {
@@ -139,7 +137,6 @@ impl Engine {
             scorer_noise_gate_moderate: None,
             scorer_noise_gate_strong: None,
             scorer_context_mismatch_penalty: None,
-            scorer_config: frensense_engine::pattern::scorer::ScorerConfig::default(),
         }
     }
 
@@ -223,38 +220,6 @@ impl Engine {
 
     /// Build the full ScorerConfig from individual CLI fields + defaults.
     /// Call this after all setter methods and before running the engine.
-    pub fn build_scorer_config(&mut self) {
-        let mut config = frensense_engine::pattern::scorer::ScorerConfig::default();
-        if let Some(v) = self.scorer_cross_lingual_penalty {
-            config.cross_lingual_penalty = v;
-        }
-        if let Some(v) = self.scorer_semantic_zero_penalty {
-            config.semantic_zero_penalty = v;
-        }
-        if let Some(v) = self.scorer_semantic_match_boost {
-            config.semantic_match_boost = v;
-        }
-        if let Some(v) = self.scorer_noise_gate_moderate {
-            config.noise_gate_moderate_signal = v;
-        }
-        if let Some(v) = self.scorer_noise_gate_strong {
-            config.noise_gate_strong_signal = v;
-        }
-        if let Some(v) = self.scorer_context_mismatch_penalty {
-            config.context_mismatch_penalty = v;
-        }
-        self.scorer_config = config;
-    }
-
-    pub fn set_taint_verified_boost(&mut self, val: f64) {
-        self.scorer_config.taint_verified_boost = val;
-    }
-    pub fn set_cross_file_taint_boost(&mut self, val: f64) {
-        self.scorer_config.cross_file_taint_boost = val;
-    }
-    pub fn set_taint_boost_cap(&mut self, val: f64) {
-        self.scorer_config.taint_boost_cap = val;
-    }
 
     pub fn load_calibration(&mut self) {
         use crate::engine::confidence_calibration::load_calibration;

@@ -173,15 +173,6 @@ fn main() -> Result<()> {
     }
 
     // Apply taint/verification configuration
-    if let Some(val) = options.taint_verified_boost {
-        engine.set_taint_verified_boost(val);
-    }
-    if let Some(val) = options.cross_file_taint_boost {
-        engine.set_cross_file_taint_boost(val);
-    }
-    if let Some(val) = options.taint_boost_cap {
-        engine.set_taint_boost_cap(val);
-    }
 
     if let Some(lang_arg) = &options.language_filter {
         if let Some(exts) = frensense::parser::ParserRegistry::extensions_for(lang_arg) {

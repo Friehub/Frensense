@@ -22,7 +22,6 @@ pub struct DataFlowAnalyzer<'a, 'ctx> {
     pub(crate) current_tree: &'a tree_sitter::Tree,
     pub(crate) current_file_path: &'a Path,
     pub(crate) root: Node<'a>,
-    pub(crate) data_flow_engine: Option<&'ctx frensense_engine::data_flow::DataFlowEngine>,
     pub(crate) alias_tracker: RefCell<frensense_engine::data_flow::AliasTracker>,
     pub(crate) sanitize_re: Option<Regex>,
     pub(crate) chains: frensense_engine::cfg::def_use::DefUseChain,
@@ -43,7 +42,6 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
             current_tree: context.tree,
             current_file_path: context.file_path,
             root,
-            data_flow_engine: None,
             alias_tracker: RefCell::new(frensense_engine::data_flow::AliasTracker::new()),
             sanitize_re: None,
             chains,
@@ -51,11 +49,7 @@ impl<'a, 'ctx> DataFlowAnalyzer<'a, 'ctx> {
     }
 
     #[must_use]
-    pub fn with_engine(
-        mut self,
-        engine: &'ctx frensense_engine::data_flow::DataFlowEngine,
-    ) -> Self {
-        self.data_flow_engine = Some(engine);
+    pub fn with_engine(self) -> Self {
         self
     }
 

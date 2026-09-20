@@ -181,7 +181,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
         let required_origins = extract_origins(&name, &pos);
         let required_package_categories = extract_package_categories(&pos);
         let mitigating_sanitizer = extract_sanitizer(&name);
-        
+
         let mut pos_flow_hashes = std::collections::HashSet::new();
         for p in &pos {
             for &h in &p.data_flow_path_hashes {
@@ -194,7 +194,7 @@ pub fn load_corpus(corpus_dir: &Path) -> Result<(Vec<CorpusPattern>, Vec<LoadWar
             }
         }
         let discriminating_flow_hashes: Vec<u64> = pos_flow_hashes.into_iter().collect();
-        
+
         patterns.push(CorpusPattern {
             id: name.clone(),
             positives: pos,
@@ -584,25 +584,39 @@ fn validate(input: &str) -> bool {
     }
 }
 
-
-fn extract_sink_labels(name: &str, pos: &[frensense_engine::fingerprint::FunctionFingerprint]) -> Vec<frensense_lang::spec::SinkLabel> {
+fn extract_sink_labels(
+    name: &str,
+    pos: &[frensense_engine::fingerprint::FunctionFingerprint],
+) -> Vec<frensense_lang::spec::SinkLabel> {
     let mut labels = std::collections::HashSet::new();
     // Use the keyword heuristic from pattern ID to bootstrap
-    if name.contains("sql_injection") { labels.insert(frensense_lang::spec::SinkLabel::SqlInjection); }
-    if name.contains("command_injection") { labels.insert(frensense_lang::spec::SinkLabel::CommandInjection); }
-    if name.contains("xss") { labels.insert(frensense_lang::spec::SinkLabel::Xss); }
-    if name.contains("ssrf") { labels.insert(frensense_lang::spec::SinkLabel::Ssrf); }
-    if name.contains("path_traversal") { labels.insert(frensense_lang::spec::SinkLabel::PathTraversal); }
-    if name.contains("open_redirect") { labels.insert(frensense_lang::spec::SinkLabel::OpenRedirect); }
-    
+    if name.contains("sql_injection") {
+        labels.insert(frensense_lang::spec::SinkLabel::SqlInjection);
+    }
+    if name.contains("command_injection") {
+        labels.insert(frensense_lang::spec::SinkLabel::CommandInjection);
+    }
+    if name.contains("xss") {
+        labels.insert(frensense_lang::spec::SinkLabel::Xss);
+    }
+    if name.contains("ssrf") {
+        labels.insert(frensense_lang::spec::SinkLabel::Ssrf);
+    }
+    if name.contains("path_traversal") {
+        labels.insert(frensense_lang::spec::SinkLabel::PathTraversal);
+    }
+    if name.contains("open_redirect") {
+        labels.insert(frensense_lang::spec::SinkLabel::OpenRedirect);
+    }
+
     // Supplement with actual AST calls from positive examples
     for spec in frensense_lang::registry::all_specs() {
         for (sink_name, label) in spec.known_sink_names() {
             for p in pos {
                 if p.raw_call_names.iter().any(|c| {
                     c == sink_name
-                    || c.ends_with(&format!(".{sink_name}"))
-                    || c.ends_with(&format!(":{sink_name}"))
+                        || c.ends_with(&format!(".{sink_name}"))
+                        || c.ends_with(&format!(":{sink_name}"))
                 }) {
                     labels.insert(*label);
                 }
@@ -612,9 +626,12 @@ fn extract_sink_labels(name: &str, pos: &[frensense_engine::fingerprint::Functio
     labels.into_iter().collect()
 }
 
-fn extract_origins(_name: &str, pos: &[frensense_engine::fingerprint::FunctionFingerprint]) -> Vec<frensense_engine::data_flow::TaintOrigin> {
+fn extract_origins(
+    _name: &str,
+    pos: &[frensense_engine::fingerprint::FunctionFingerprint],
+) -> Vec<frensense_engine::data_flow::TaintOrigin> {
     let mut origins = std::collections::HashSet::new();
-    
+
     for spec in frensense_lang::registry::all_specs() {
         for p in pos {
             for param in &p.param_names {
@@ -627,7 +644,9 @@ fn extract_origins(_name: &str, pos: &[frensense_engine::fingerprint::FunctionFi
     origins.into_iter().collect()
 }
 
-fn extract_package_categories(pos: &[frensense_engine::fingerprint::FunctionFingerprint]) -> Vec<frensense_lang::spec::PackageCategory> {
+fn extract_package_categories(
+    pos: &[frensense_engine::fingerprint::FunctionFingerprint],
+) -> Vec<frensense_lang::spec::PackageCategory> {
     let mut cats = std::collections::HashSet::new();
     for spec in frensense_lang::registry::all_specs() {
         for p in pos {
@@ -642,8 +661,13 @@ fn extract_package_categories(pos: &[frensense_engine::fingerprint::FunctionFing
 }
 
 fn extract_sanitizer(name: &str) -> Option<frensense_lang::spec::SanitizerKind> {
-    if name.contains("sql_injection") { Some(frensense_lang::spec::SanitizerKind::SqlParameterize) }
-    else if name.contains("xss") { Some(frensense_lang::spec::SanitizerKind::HtmlEscape) }
-    else if name.contains("command_injection") { Some(frensense_lang::spec::SanitizerKind::Full) }
-    else { None }
+    if name.contains("sql_injection") {
+        Some(frensense_lang::spec::SanitizerKind::SqlParameterize)
+    } else if name.contains("xss") {
+        Some(frensense_lang::spec::SanitizerKind::HtmlEscape)
+    } else if name.contains("command_injection") {
+        Some(frensense_lang::spec::SanitizerKind::Full)
+    } else {
+        None
+    }
 }

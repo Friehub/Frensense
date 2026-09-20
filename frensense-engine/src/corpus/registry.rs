@@ -4,8 +4,7 @@ use crate::corpus::pattern::CorpusPattern;
 use crate::corpus::source_sink::CorpusSourceSinkRegistry;
 use crate::data_flow::taint_metrics::TaintMetrics;
 use crate::data_flow::{TaintOrigin, TaintRegistry};
-use crate::fingerprint::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
-use crate::pattern::scorer::ScorerConfig;
+use crate::fingerprint::FunctionFingerprint;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -44,13 +43,10 @@ pub struct PatternRegistry {
     label_index: Option<FxHashMap<u64, Vec<usize>>>,
     threshold: f64,
     threshold_overrides: std::collections::HashMap<String, f64>,
-    idf_weights: FxHashMap<u64, f32>,
-    api_idf_weights: FxHashMap<u64, f32>,
     /// Auto-derived semantic filter suggestions (import + call exclusivity).
+    pub api_idf_weights: rustc_hash::FxHashMap<u64, f32>,
     pub auto_filter_stats: Option<crate::auto_filter::AutoFilterStats>,
     source_sink: CorpusSourceSinkRegistry,
-    /// Configurable scoring parameters.
-    pub scorer_config: ScorerConfig,
 }
 
 impl PatternRegistry {
@@ -62,22 +58,10 @@ impl PatternRegistry {
             label_index: None,
             threshold,
             threshold_overrides: std::collections::HashMap::new(),
-            idf_weights: FxHashMap::default(),
-            api_idf_weights: FxHashMap::default(),
+            api_idf_weights: rustc_hash::FxHashMap::default(),
             auto_filter_stats: None,
             source_sink: CorpusSourceSinkRegistry::default(),
-            scorer_config: ScorerConfig::default(),
         }
-    }
-
-    /// Set custom scorer configuration.
-    pub fn set_scorer_config(&mut self, config: ScorerConfig) {
-        self.scorer_config = config;
-    }
-
-    /// Get a reference to the current scorer configuration.
-    pub fn scorer_config(&self) -> &ScorerConfig {
-        &self.scorer_config
     }
 
     /// Compute auto-derived semantic filter suggestions from corpus files.
@@ -148,37 +132,12 @@ impl PatternRegistry {
             });
         }
 
-        self.apply_ngram_idf();
         // compute_api_idf skipped when weights came from the bundle
         if self.api_idf_weights.is_empty() {
             self.compute_api_idf();
         }
         self.build_index();
         Ok(count)
-    }
-
-    /// Compute and apply n-gram IDF weights to all corpus fingerprints.
-    fn apply_ngram_idf(&mut self) {
-        let all_positives: Vec<FunctionFingerprint> = self
-            .patterns
-            .iter()
-            .flat_map(|p| p.positives.iter().cloned())
-            .collect();
-
-        if all_positives.is_empty() {
-            return;
-        }
-
-        self.idf_weights = compute_idf_weights(&all_positives);
-
-        for pattern in &mut self.patterns {
-            for fp in &mut pattern.positives {
-                apply_idf_weights(fp, &self.idf_weights);
-            }
-            for fp in &mut pattern.negatives {
-                apply_idf_weights(fp, &self.idf_weights);
-            }
-        }
     }
 
     /// Compute API-call IDF weights from corpus patterns and store in `self.api_idf_weights`.
@@ -212,16 +171,6 @@ impl PatternRegistry {
         self.threshold_overrides.insert(category, threshold);
     }
 
-    fn threshold_for_pattern(&self, pattern_id: &str) -> f64 {
-        // Extract category from pattern naming convention: {lang}_{category}_{name}
-        // e.g., "rust_sec_cmd_injection" → "sec", "ts_llm_console_log" → "llm"
-        let category = pattern_id.split('_').nth(1).unwrap_or("");
-        self.threshold_overrides
-            .get(category)
-            .copied()
-            .unwrap_or(self.threshold)
-    }
-
     fn build_index(&mut self) {
         if self.patterns.is_empty() {
             return;
@@ -234,15 +183,24 @@ impl PatternRegistry {
         for (i, pattern) in self.patterns.iter().enumerate() {
             // Index semantic labels
             for sink_label in &pattern.sink_labels {
-                label_index.entry(hash_string(&format!("{:?}", sink_label))).or_default().push(i);
+                label_index
+                    .entry(hash_string(&format!("{:?}", sink_label)))
+                    .or_default()
+                    .push(i);
             }
             for origin in &pattern.required_origins {
-                label_index.entry(hash_string(&format!("{:?}", origin))).or_default().push(i);
+                label_index
+                    .entry(hash_string(&format!("{:?}", origin)))
+                    .or_default()
+                    .push(i);
             }
             for cat in &pattern.required_package_categories {
-                label_index.entry(hash_string(&format!("{:?}", cat))).or_default().push(i);
+                label_index
+                    .entry(hash_string(&format!("{:?}", cat)))
+                    .or_default()
+                    .push(i);
             }
-        
+
             for fp in &pattern.positives {
                 // Index exact API call segments
                 for api_hash in &fp.api_call_segments {
@@ -272,7 +230,7 @@ impl PatternRegistry {
         let source = ctx.source;
         let actual_context = ctx.actual_context;
         let spec = ctx.spec;
-        
+
         // Label candidates disconnected from gating
         // They are preserved in the pattern struct for contextual scoring later,
         // but no longer force unrelated functions into the candidate pool.
@@ -321,10 +279,7 @@ impl PatternRegistry {
         }
 
         // Apply IDF weights to candidate fingerprint for scoring
-        let mut weighted_fp = fp.clone();
-        if !self.idf_weights.is_empty() {
-            apply_idf_weights(&mut weighted_fp, &self.idf_weights);
-        }
+        // (Unused)
 
         // Pre-compute TaintMetrics once per function (not per candidate).
         let taint_metrics: Option<(TaintMetrics, TaintOrigin)> = func_node.and_then(|fn_node| {
@@ -366,7 +321,7 @@ impl PatternRegistry {
                             .into_iter()
                             .find(|o| !matches!(o, TaintOrigin::UserInput));
                         return Some((
-                            TaintMetrics::compute(&reg, fn_node, src, &weighted_fp.function_name),
+                            TaintMetrics::compute(&reg, fn_node, src, &fp.function_name),
                             dominant.unwrap_or(TaintOrigin::UserInput),
                         ));
                     }
@@ -383,11 +338,10 @@ impl PatternRegistry {
                     pattern,
                     idx,
                     has_flow_match,
-                    &weighted_fp,
+                    fp,
                     func_node,
                     source,
                     ctx.file_path,
-                    fp,
                     actual_context,
                     &taint_metrics,
                     spec,
@@ -395,7 +349,7 @@ impl PatternRegistry {
             })
             .collect();
 
-                matches.sort_by(|a, b| {
+        matches.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -410,95 +364,103 @@ impl PatternRegistry {
         pattern: &CorpusPattern,
         _pattern_idx: usize,
         has_flow_match: bool,
-        weighted_fp: &FunctionFingerprint,
+        fp: &FunctionFingerprint,
         func_node: Option<tree_sitter::Node<'a>>,
         source: Option<&'a str>,
         ctx_file_path: Option<&'a std::path::Path>,
-        _fp: &FunctionFingerprint,
-        actual_context: Option<&'a crate::context::FileContext>,
+        _actual_context: Option<&'a crate::context::FileContext>,
         taint_metrics: &Option<(TaintMetrics, TaintOrigin)>,
         spec: Option<&'a dyn frensense_lang::spec::LanguageSpec>,
     ) -> Option<PatternMatch> {
-        let mut base_score: f64 = 0.0;
-        
-        // 1. Base score (up to 0.4): Fingerprint Jaccard similarity (api_calls + api_call_segments)
-        // weighted_fp already has IDF weights applied. We need to compare it to the pattern's positives.
-        let mut best_jaccard = 0.0;
-        for pos in &pattern.positives {
-            let mut intersection = 0.0;
-            let mut union = 0.0;
-            
-            // Collect all unique tokens from both
-            let mut all_tokens = std::collections::HashSet::new();
-            for call in &weighted_fp.api_calls { all_tokens.insert(*call); }
-            for call in &weighted_fp.api_call_segments { all_tokens.insert(*call); }
-            for call in &pos.api_calls { all_tokens.insert(*call); }
-            for call in &pos.api_call_segments { all_tokens.insert(*call); }
-            
-            for token in all_tokens {
-                let weight = self.idf_weights.get(&token).copied().unwrap_or(1.0) as f64;
-                let in_candidate = weighted_fp.api_calls.contains(&token) || weighted_fp.api_call_segments.contains(&token);
-                let in_pos = pos.api_calls.contains(&token) || pos.api_call_segments.contains(&token);
-                
-                if in_candidate && in_pos {
-                    intersection += weight;
-                    union += weight;
-                } else if in_candidate || in_pos {
-                    union += weight;
-                }
-            }
-            
-            let jaccard = if union > 0.0 { intersection / union } else { 0.0 };
-            if jaccard > best_jaccard {
-                best_jaccard = jaccard;
-            }
-        }
-        // base_score is kept as pure jaccard here
-        base_score = best_jaccard;
-        
-        // 2. Semantic match
-        let mut semantic_score: f64 = 0.0;
-        let mut derived_sink_labels = std::collections::HashSet::new();
-        let mut derived_origins = std::collections::HashSet::new();
-        
-        if let Some(sp) = spec {
-            for (sink_name, label) in sp.known_sink_names() {
-                if weighted_fp.raw_call_names.iter().any(|c| c.contains(sink_name)) {
-                    derived_sink_labels.insert(*label);
-                }
-            }
-            for param in &weighted_fp.param_names {
-                if let Some(o) = sp.classify_param_taint(Some(param), None) {
-                    derived_origins.insert(o);
-                }
-            }
-        }
-        
-        if pattern.sink_labels.iter().any(|l| derived_sink_labels.contains(l)) {
-            semantic_score += 0.3;
-        }
-        
-        if pattern.required_origins.iter().any(|o| derived_origins.contains(o)) {
-            semantic_score += 0.3;
-        }
-        
-        // Bonus for SemanticFilter passing
+        // 1. SemanticFilter gate (hard)
         if let Some(ref filter) = pattern.semantic_filter {
+            let file_path_str = ctx_file_path.and_then(|p| p.to_str());
             let passed = if let (Some(n), Some(s)) = (func_node, source) {
-                filter.matches(n, s, None, None, spec)
+                filter.matches(n, s, file_path_str, None, spec)
             } else {
                 true // assume pass if no AST context available
             };
-            if passed {
-                semantic_score += 0.2;
+            if !passed {
+                return None;
             }
         }
-        
-        // Calculate flow_score based on discriminating_flow_hashes
-        let mut best_flow_ratio = 0.0;
-        let candidate_flow_hashes: std::collections::HashSet<_> = weighted_fp.data_flow_path_hashes.iter().copied().collect();
+
+        // 2. Flow hash gate (hard)
+        if !pattern.discriminating_flow_hashes.is_empty()
+            && fp.data_flow_path_hashes.is_empty()
+            && fp.tainted_api_calls.is_empty()
+        {
+            return None;
+        }
+
+        // 3. Negative jaccard gate (hard)
+        let compute_jaccard = |fp1: &FunctionFingerprint, fp2: &FunctionFingerprint| -> f64 {
+            let mut intersection = 0.0;
+            let mut union = 0.0;
+
+            let mut all_tokens = std::collections::HashSet::new();
+            for call in &fp1.api_calls {
+                all_tokens.insert(*call);
+            }
+            for call in &fp1.api_call_segments {
+                all_tokens.insert(*call);
+            }
+            for call in &fp2.api_calls {
+                all_tokens.insert(*call);
+            }
+            for call in &fp2.api_call_segments {
+                all_tokens.insert(*call);
+            }
+
+            for token in all_tokens {
+                let weight = self.api_idf_weights.get(&token).copied().unwrap_or(1.0) as f64;
+                let in_1 = fp1.api_calls.contains(&token) || fp1.api_call_segments.contains(&token);
+                let in_2 = fp2.api_calls.contains(&token) || fp2.api_call_segments.contains(&token);
+
+                if in_1 && in_2 {
+                    intersection += weight;
+                    union += weight;
+                } else if in_1 || in_2 {
+                    union += weight;
+                }
+            }
+            if union > 0.0 {
+                intersection / union
+            } else {
+                0.0
+            }
+        };
+
+        let mut pos_jaccard = 0.0;
+        for pos in &pattern.positives {
+            let jaccard = compute_jaccard(fp, pos);
+            if jaccard > pos_jaccard {
+                pos_jaccard = jaccard;
+            }
+        }
+
+        let mut neg_jaccard = 0.0_f64;
+        for neg in &pattern.negatives {
+            let neg_j = compute_jaccard(fp, neg);
+            if neg_j > neg_jaccard {
+                neg_jaccard = neg_j;
+            }
+        }
+
+        if neg_jaccard >= pos_jaccard && neg_jaccard > 0.0 {
+            return None;
+        }
+
+        let jaccard_margin = (pos_jaccard - neg_jaccard).max(0.0);
+        let base_score = pos_jaccard * (0.5 + 0.5 * jaccard_margin);
+
+        // 4. Minimum flow ratio (hard)
+        let mut flow_ratio = 0.0;
+        let mut candidate_flow_hashes: std::collections::HashSet<_> =
+            fp.data_flow_path_hashes.iter().copied().collect();
+        candidate_flow_hashes.extend(fp.tainted_api_calls.iter().copied());
         let c_len = candidate_flow_hashes.len() as f64;
-        
+
         if !pattern.discriminating_flow_hashes.is_empty() {
             let p_len = pattern.discriminating_flow_hashes.len() as f64;
             let mut matches = 0.0;
@@ -508,58 +470,78 @@ impl PatternRegistry {
                 }
             }
             if p_len > 0.0 {
-                best_flow_ratio = matches / p_len.max(c_len);
+                flow_ratio = matches / p_len.max(c_len);
             }
-        } else if has_flow_match {
-            // Fallback for patterns that matched the flow index but have no discriminating hashes (e.g. empty negs)
-            best_flow_ratio = 1.0;
-        }
-        
-        let flow_score = best_flow_ratio;
-        
-        // Final score weighting
-        // If there's no flow score, but we have strong semantic/base matches, allow it to pass for structural patterns
-        // But flow_score strongly dominates.
-        let mut total_score = if !pattern.discriminating_flow_hashes.is_empty() || has_flow_match {
-            (flow_score * 0.6) + (base_score * 0.25) + (semantic_score * 0.15)
+
+            if flow_ratio < 0.2 {
+                return None;
+            }
         } else {
-            (base_score * 0.6) + (semantic_score * 0.4) // Fallback for purely structural/config patterns with no data flow
-        };
-        
-        // Reject if there is no evidence signal at all.
-        if total_score == 0.0 {
-            return None;
+            flow_ratio = if has_flow_match { 1.0 } else { 0.0 };
         }
-        
-        // Wire TaintConfidenceAdjuster - only run if score is reasonably high to avoid costly PDG rebuilding
-        if total_score >= 0.5 {
-            if let Some(s) = source {
-                let file_path = ctx_file_path.unwrap_or_else(|| std::path::Path::new("unknown"));
-                let line = func_node.map(|n| n.start_position().row as u32).unwrap_or(0);
-                
-                // Extract the specific sink call for line_content if possible, 
-                // otherwise just use the function name
-                let line_content = weighted_fp.api_calls.iter().next().map(|&h| h.to_string()).unwrap_or_default();
-                
-                total_score = crate::data_flow::confidence::TaintConfidenceAdjuster::adjust_confidence(
-                    s,
-                    file_path,
-                    line,
-                    &line_content,
-                    total_score as f32,
-                    &self.source_sink,
-                    None // local_tainted_vars
-                ) as f64;
+
+        // Sink relevance
+        let mut sink_relevance: f64 = 0.0;
+        let mut derived_sink_labels = std::collections::HashSet::new();
+        let mut derived_origins = std::collections::HashSet::new();
+
+        if let Some(sp) = spec {
+            for (sink_name, label) in sp.known_sink_names() {
+                if fp.raw_call_names.iter().any(|c| c.contains(sink_name)) {
+                    derived_sink_labels.insert(*label);
+                }
+            }
+            for param in &fp.param_names {
+                if let Some(o) = sp.classify_param_taint(Some(param), None) {
+                    derived_origins.insert(o);
+                }
             }
         }
 
-        // 3. Sanitizer mitigation
-        let has_validation_name = taint_metrics.as_ref().map_or(false, |(tm, _)| tm.has_validation_name);
-        if has_validation_name && pattern.mitigating_sanitizer.is_some() {
-            total_score = total_score.min(0.5); // Cap at 0.5 to prevent match
+        if pattern
+            .sink_labels
+            .iter()
+            .any(|l| derived_sink_labels.contains(l))
+        {
+            sink_relevance += 0.5; // Scale to 1.0 total max
         }
-        
-        let thres = self.threshold_overrides.get(&pattern.id).copied().unwrap_or(self.threshold);
+        if pattern
+            .required_origins
+            .iter()
+            .any(|o| derived_origins.contains(o))
+        {
+            sink_relevance += 0.5;
+        }
+
+        // 5. Compute base score
+        let mut total_score = if !pattern.discriminating_flow_hashes.is_empty() {
+            (flow_ratio * 0.55) + (base_score * 0.30) + (sink_relevance * 0.15)
+        } else {
+            (base_score * 0.60) + (sink_relevance * 0.40)
+        };
+
+        if total_score == 0.0 {
+            return None;
+        }
+
+        // 6. Source confidence multiplier
+        let source_confidence = if fp.has_confirmed_source { 1.0 } else { 0.65 };
+        total_score *= source_confidence;
+
+        // 7. Sanitizer mitigation (hard)
+        let has_validation_name = taint_metrics
+            .as_ref()
+            .map_or(false, |(tm, _)| tm.has_validation_name);
+        if has_validation_name && pattern.mitigating_sanitizer.is_some() {
+            return None;
+        }
+
+        // 8. Threshold check
+        let thres = self
+            .threshold_overrides
+            .get(&pattern.id)
+            .copied()
+            .unwrap_or(self.threshold);
         if total_score >= thres {
             Some(PatternMatch {
                 pattern_id: pattern.id.clone(),
@@ -572,7 +554,9 @@ impl PatternRegistry {
                 owasp: pattern.owasp.clone(),
                 severity: pattern.severity.clone(),
                 runtime_probe: pattern.runtime_probe.clone(),
-                taint_branch_ratio: taint_metrics.as_ref().map(|(tm, _)| tm.taint_branch_ratio as f64),
+                taint_branch_ratio: taint_metrics
+                    .as_ref()
+                    .map(|(tm, _)| tm.taint_branch_ratio as f64),
                 has_validation_name,
             })
         } else {
@@ -580,7 +564,6 @@ impl PatternRegistry {
         }
     }
 }
-
 
 fn hash_string(s: &str) -> u64 {
     use std::hash::{Hash, Hasher};

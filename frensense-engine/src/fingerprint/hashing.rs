@@ -45,25 +45,6 @@ pub(super) fn token_ngrams_positional(tokens: &[String], window_size: usize) -> 
     vec
 }
 
-pub(super) fn token_ngrams(tokens: &[String], window_size: usize) -> FxHashSet<u64> {
-    if tokens.len() < window_size {
-        return FxHashSet::default();
-    }
-    let mut hashes = FxHashSet::default();
-    for i in 0..=(tokens.len().saturating_sub(window_size)) {
-        let mut fx_hasher = FxHasher::default();
-        tokens[i..i + window_size].hash(&mut fx_hasher);
-        hashes.insert(fx_hasher.finish());
-    }
-    hashes
-}
-
-pub(super) fn token_ngrams_sorted(tokens: &[String], window_size: usize) -> Vec<u64> {
-    let mut vec: Vec<u64> = token_ngrams(tokens, window_size).into_iter().collect();
-    vec.sort_unstable();
-    vec
-}
-
 pub(super) fn split_name_segments(name: &str) -> Vec<String> {
     let mut segments: Vec<String> = Vec::new();
     let mut current = String::new();

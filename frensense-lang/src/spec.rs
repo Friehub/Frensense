@@ -196,11 +196,11 @@ pub enum SinkLabel {
 /// Broad origin of tainted data.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum TaintOrigin {
-    UserInput,       // HTTP request body/query/path/header
-    Environment,     // process.env / os.environ / std::env
-    FileSystem,      // file read whose path came from user
-    Database,        // query result that may contain injection
-    Network, // IPC / downstream API response
+    UserInput,   // HTTP request body/query/path/header
+    Environment, // process.env / os.environ / std::env
+    FileSystem,  // file read whose path came from user
+    Database,    // query result that may contain injection
+    Network,     // IPC / downstream API response
     Custom(String),
 }
 

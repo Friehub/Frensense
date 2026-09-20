@@ -16,7 +16,7 @@ pub struct CorpusPattern {
     pub owasp: Option<String>,
     pub severity: Option<String>,
     pub runtime_probe: Option<String>,
-    
+
     pub sink_labels: Vec<frensense_lang::spec::SinkLabel>,
     pub required_origins: Vec<crate::data_flow::TaintOrigin>,
     pub required_package_categories: Vec<frensense_lang::spec::PackageCategory>,
@@ -40,7 +40,7 @@ impl From<crate::corpus::bundle::BundlePattern> for CorpusPattern {
             owasp: b.owasp,
             severity: b.severity,
             runtime_probe: b.runtime_probe,
-            
+
             sink_labels: b.sink_labels,
             required_origins: b.required_origins,
             required_package_categories: b.required_package_categories,
@@ -66,7 +66,7 @@ impl From<CorpusPattern> for crate::corpus::bundle::BundlePattern {
             owasp: c.owasp,
             severity: c.severity,
             runtime_probe: c.runtime_probe,
-            
+
             sink_labels: c.sink_labels,
             required_origins: c.required_origins,
             required_package_categories: c.required_package_categories,

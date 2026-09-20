@@ -37,10 +37,7 @@ impl Engine {
         }
 
         // Precompute n-gram set sizes for fast early-exit checks
-        let ngram_sizes: Vec<usize> = fingerprints
-            .iter()
-            .map(|fp| fp.ngram_hashes.len())
-            .collect();
+        let ngram_sizes: Vec<usize> = fingerprints.iter().map(|fp| fp.api_calls.len()).collect();
 
         // Group by file path so we compare within files first
         let mut by_file: std::collections::HashMap<&str, Vec<usize>> =
@@ -53,7 +50,7 @@ impl Engine {
         let mut similarity_map: std::collections::HashMap<u64, Vec<usize>> =
             std::collections::HashMap::new();
         for (idx, fp) in fingerprints.iter().enumerate() {
-            for &hash in &fp.ngram_hashes {
+            for &hash in &fp.api_calls {
                 similarity_map.entry(hash).or_default().push(idx);
             }
         }
@@ -77,7 +74,7 @@ impl Engine {
             .collect();
         for (i, f1) in fingerprints.iter().enumerate() {
             let mut candidates = std::collections::HashSet::new();
-            for &hash in &f1.ngram_hashes {
+            for &hash in &f1.api_calls {
                 if let Some(indices) = similarity_map.get(&hash) {
                     for &j in indices {
                         if j > i && file_of[i] != file_of[j] {
@@ -122,10 +119,8 @@ impl Engine {
                 continue;
             }
 
-            let similarity = crate::engine::minhash::jaccard_similarity_sorted(
-                &f1.ngram_hashes,
-                &f2.ngram_hashes,
-            );
+            let similarity =
+                crate::engine::minhash::jaccard_similarity_sorted(&f1.api_calls, &f2.api_calls);
 
             if similarity >= threshold {
                 let sim_pct = similarity * 100.0;

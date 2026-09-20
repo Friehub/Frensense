@@ -11,43 +11,12 @@ use super::ast_walkers::{
     extract_literal_patterns, extract_motif_hashes, extract_property_accesses,
     extract_semantic_markers, extract_tainted_calls,
 };
-use super::hashing::{
-    normalize_token, split_name_segments, token_ngrams_positional, token_ngrams_sorted,
-};
+use super::hashing::{normalize_token, split_name_segments, token_ngrams_positional};
 use super::types::FunctionFingerprint;
 
 // ---------------------------------------------------------------------------
 // Signature helpers (live here because they use body_field / params_field)
 // ---------------------------------------------------------------------------
-
-fn extract_signature_tokens(node: Node<'_>, source: &str, body_field: &str) -> Vec<String> {
-    let start = node.start_byte();
-    let end = node
-        .child_by_field_name(body_field)
-        .map_or(node.end_byte(), |b| b.start_byte());
-    source[start..end]
-        .split_whitespace()
-        .filter(|t| !t.is_empty())
-        .map(String::from)
-        .collect()
-}
-
-fn extract_param_types(node: Node<'_>, source: &str, params_field: &str) -> Vec<String> {
-    let mut types = Vec::new();
-    if let Some(params) = node.child_by_field_name(params_field) {
-        let mut cursor = params.walk();
-        loop {
-            let n = cursor.node();
-            if let Some(type_node) = n.child_by_field_name("type") {
-                types.push(source[type_node.start_byte()..type_node.end_byte()].to_string());
-            }
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-    }
-    types
-}
 
 // ---------------------------------------------------------------------------
 // Main extraction
@@ -215,8 +184,6 @@ pub fn extract_fingerprints_with_nodes<'a>(
 
                     let total_bytes = body.end_byte() - body.start_byte();
                     let comment_bytes = count_comment_bytes(body, source_code);
-                    let sig_tokens = extract_signature_tokens(node, source_code, body_field);
-                    let param_types = extract_param_types(node, source_code, params_field);
                     let name_segments = split_name_segments(&function_name);
 
                     // Multi-scale n-grams: window sizes 3, 5, and 8
@@ -319,12 +286,13 @@ pub fn extract_fingerprints_with_nodes<'a>(
                     );
                     let motif_hashes =
                         extract_motif_hashes(&raw_call_names, &crate::corpus::motifs::MOTIF_LOOKUP);
-                    let data_flow_path_hashes = crate::corpus::flow_fingerprint::extract_flow_paths(
-                        body,
-                        source_code,
-                        import_map,
-                        Some(spec),
-                    );
+                    let (data_flow_path_hashes, has_confirmed_source) =
+                        crate::corpus::flow_fingerprint::extract_flow_paths(
+                            body,
+                            source_code,
+                            import_map,
+                            Some(spec),
+                        );
                     let argument_call_types =
                         extract_argument_call_types(body, source_code, Some(spec));
                     let literal_pattern_hashes =
@@ -359,19 +327,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                         function_name,
                         line: node.start_position().row + 1,
                         language: language.clone(),
-                        ngram_hashes: multi_scale_hashes.clone(),
-                        weighted_ngram_hashes: multi_scale_hashes
-                            .into_iter()
-                            .map(|h| (h, 1.0))
-                            .collect(),
-                        signature_ngrams: token_ngrams_sorted(
-                            &sig_tokens,
-                            3.min(sig_tokens.len().max(1)),
-                        ),
-                        param_type_ngrams: token_ngrams_sorted(
-                            &param_types,
-                            2.min(param_types.len().max(1)),
-                        ),
+
                         name_segments,
                         type_usages: {
                             let mut tu = collect_type_usages(body, source_code);
@@ -408,6 +364,7 @@ pub fn extract_fingerprints_with_nodes<'a>(
                             source_code,
                             &path.to_string_lossy(),
                         ),
+                        has_confirmed_source,
                     };
 
                     fingerprints.push((fp, node));

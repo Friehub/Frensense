@@ -87,7 +87,7 @@ impl ProjectProfile {
             let lang_profile = profile.languages.entry(fp.language.clone()).or_default();
             lang_profile.total_functions += 1;
 
-            for &hash in &fp.ngram_hashes {
+            for &hash in &fp.api_calls {
                 let entry =
                     lang_profile
                         .body_ngram_freq
@@ -103,9 +103,9 @@ impl ProjectProfile {
                         .push(format!("{}:{}", fp.function_name, fp.line));
                 }
             }
-            lang_profile.total_ngrams += fp.ngram_hashes.len();
+            lang_profile.total_ngrams += fp.api_calls.len();
 
-            for &hash in &fp.signature_ngrams {
+            for &hash in &fp.api_call_segments {
                 let entry = lang_profile
                     .signature_ngram_freq
                     .entry(hash)
@@ -121,7 +121,7 @@ impl ProjectProfile {
                 }
             }
 
-            for &hash in &fp.param_type_ngrams {
+            for &hash in &fp.property_accesses {
                 let entry =
                     lang_profile
                         .param_type_freq
@@ -179,10 +179,10 @@ impl ProjectProfile {
                         body_ngram_freq: FxHashMap::default(),
                         total_ngrams: 0,
                     });
-            for &hash in &fp.ngram_hashes {
+            for &hash in &fp.api_calls {
                 *file_profile.body_ngram_freq.entry(hash).or_insert(0) += 1;
             }
-            file_profile.total_ngrams += fp.ngram_hashes.len();
+            file_profile.total_ngrams += fp.api_calls.len();
         }
 
         profile
@@ -201,34 +201,34 @@ impl ProjectProfile {
         let mut unseen_features = 0usize;
         let mut details = Vec::new();
 
-        for &hash in &fp.ngram_hashes {
+        for &hash in &fp.api_calls {
             total_features += 1;
             if !lang_profile.body_ngram_freq.contains_key(&hash) {
                 unseen_features += 1;
             }
         }
-        if !fp.ngram_hashes.is_empty() {
-            let ratio = unseen_features as f64 / fp.ngram_hashes.len() as f64;
+        if !fp.api_calls.is_empty() {
+            let ratio = unseen_features as f64 / fp.api_calls.len() as f64;
             if ratio > 0.5 {
                 details.push(format!(
                     "Body patterns: {:.0}% unfamiliar ({} unseen / {} total)",
                     ratio * 100.0,
                     unseen_features,
-                    fp.ngram_hashes.len()
+                    fp.api_calls.len()
                 ));
             }
         }
 
         let mut sig_unseen = 0usize;
-        for &hash in &fp.signature_ngrams {
+        for &hash in &fp.api_call_segments {
             total_features += 1;
             if !lang_profile.signature_ngram_freq.contains_key(&hash) {
                 unseen_features += 1;
                 sig_unseen += 1;
             }
         }
-        if !fp.signature_ngrams.is_empty() {
-            let ratio = sig_unseen as f64 / fp.signature_ngrams.len() as f64;
+        if !fp.api_call_segments.is_empty() {
+            let ratio = sig_unseen as f64 / fp.api_call_segments.len() as f64;
             if ratio > 0.5 {
                 details.push(format!(
                     "Signature patterns: {:.0}% unfamiliar",
@@ -322,15 +322,15 @@ impl ProjectProfile {
             return 0.0;
         }
         let mut unseen: usize = 0;
-        for &hash in &fp.ngram_hashes {
+        for &hash in &fp.api_calls {
             if !file_profile.body_ngram_freq.contains_key(&hash) {
                 unseen += 1;
             }
         }
-        if fp.ngram_hashes.is_empty() {
+        if fp.api_calls.is_empty() {
             return 0.0;
         }
-        unseen as f64 / fp.ngram_hashes.len() as f64
+        unseen as f64 / fp.api_calls.len() as f64
     }
 
     #[cfg(feature = "serialize")]

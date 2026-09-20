@@ -10,4 +10,4 @@ mod hashing;
 mod types;
 
 pub use extraction::{extract_fingerprints, extract_fingerprints_with_nodes};
-pub use types::{FunctionFingerprint, apply_idf_weights, compute_idf_weights};
+pub use types::FunctionFingerprint;

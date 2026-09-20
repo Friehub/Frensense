@@ -62,7 +62,7 @@ impl Default for CompositionConfig {
             taint_unconfirmed_penalty: TAINT_UNCONFIRMED_PENALTY,
             high_branch_ratio_threshold: HIGH_BRANCH_RATIO_THRESHOLD,
             high_branch_ratio_suppression_factor: HIGH_BRANCH_RATIO_SUPPRESSION_FACTOR,
-            min_corpus_unconfirmed: 0.55,
+            min_corpus_unconfirmed: 0.30,
         }
     }
 }
@@ -133,7 +133,7 @@ pub fn compose_confidence(
     }
 
     if signals.corpus_match && !signals.taint_flow && score < config.min_corpus_unconfirmed {
-        score = 0.0;
+        score = score;
     }
 
     score.min(1.0)

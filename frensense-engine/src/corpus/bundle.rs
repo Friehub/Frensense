@@ -27,7 +27,7 @@ pub struct BundlePattern {
     pub severity: Option<String>,
     #[serde(default)]
     pub runtime_probe: Option<String>,
-    
+
     #[serde(default)]
     pub sink_labels: Vec<frensense_lang::spec::SinkLabel>,
     #[serde(default)]

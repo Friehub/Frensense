@@ -145,7 +145,7 @@ impl SinkCategory {
             Self::UnsafeMemory => 119,
             Self::BufferOverflow => 120,
             Self::FormatString => 134,
-            Self::Unknown => 0,        // Unknown/Uncategorized
+            Self::Unknown => 0, // Unknown/Uncategorized
         }
     }
 

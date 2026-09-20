@@ -581,16 +581,12 @@ fn bench_post_process_ngrams(c: &mut Criterion) {
             }
 
             fingerprints.push(frensense::FunctionFingerprint {
+                has_confirmed_source: false,
                 file_path: format!("src/service_{}.rs", i / 10),
                 function_name: format!("fn_{i}"),
                 line: i * 12 + 1,
                 language: "rust".to_string(),
-                ngram_hashes: hashes.into_iter().collect::<Vec<_>>(),
-                weighted_ngram_hashes: rustc_hash::FxHashMap::default(),
-                signature_ngrams: Vec::new(),
-                param_type_ngrams: Vec::new(),
                 name_segments: Vec::new(),
-                structural_markers: Vec::new(),
                 type_usages: Vec::new(),
                 comment_density: 0.0,
                 semantic_markers: Vec::new(),

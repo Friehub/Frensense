@@ -10,9 +10,7 @@ use crate::semantics::provider::{RustHirMap, per_file_provider};
 use crate::semantics::symbols::SymbolRegistry;
 use crate::{Advisory, FileId, Result};
 use frensense_engine::data_flow::alias::AliasTracker;
-use frensense_engine::data_flow::{FunctionTaintSummary, TaintOrigin, TaintRegistry};
 use rayon::prelude::*;
-use rustc_hash::FxHashMap;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -334,7 +332,6 @@ fn run_corpus_scan(
     root: &Path,
     snapshots: &[FileSnapshot],
     symbols: &crate::semantics::symbols::SymbolRegistry,
-    data_flow: &frensense_engine::data_flow::DataFlowEngine,
     file_trees: &rustc_hash::FxHashMap<
         String,
         (
@@ -364,29 +361,6 @@ fn run_corpus_scan(
         registry.set_threshold_override(category.clone(), *threshold);
     }
 
-    // Apply scorer configuration from CLI flags
-    {
-        let mut config = frensense_engine::pattern::scorer::ScorerConfig::default();
-        if let Some(val) = engine.scorer_cross_lingual_penalty {
-            config.cross_lingual_penalty = val;
-        }
-        if let Some(val) = engine.scorer_semantic_zero_penalty {
-            config.semantic_zero_penalty = val;
-        }
-        if let Some(val) = engine.scorer_semantic_match_boost {
-            config.semantic_match_boost = val;
-        }
-        if let Some(val) = engine.scorer_noise_gate_moderate {
-            config.noise_gate_moderate_signal = val;
-        }
-        if let Some(val) = engine.scorer_noise_gate_strong {
-            config.noise_gate_strong_signal = val;
-        }
-        if let Some(val) = engine.scorer_context_mismatch_penalty {
-            config.context_mismatch_penalty = val;
-        }
-        registry.set_scorer_config(config);
-    }
     let mut corpus_loaded = false;
 
     #[cfg(feature = "fingerprinting")]
@@ -595,7 +569,7 @@ fn run_corpus_scan(
 
                 let category = m.pattern_id.split('_').nth(1).unwrap_or("default");
                 // Apply per-category or global calibration to the raw pattern score.
-                let mut confidence = if let Some(ref per_cat_cal) = per_category_calibration {
+                let confidence = if let Some(ref per_cat_cal) = per_category_calibration {
                     per_cat_cal.calibrate(m.score, category)
                 } else if let Some(ref params) = calibration {
                     params.calibrate(m.score)
@@ -632,7 +606,6 @@ fn run_corpus_scan(
                             &snap_i.tree,
                             &snap_i.path,
                             symbols,
-                            data_flow,
                             file_trees,
                             registry.source_sink_registry(),
                             npm_deps,
@@ -647,8 +620,6 @@ fn run_corpus_scan(
                     if verification.verified {
                         taint_verified = true;
                         taint_detail = verification.detail;
-                        confidence = (confidence * engine.scorer_config.taint_verified_boost)
-                            .min(engine.scorer_config.taint_boost_cap);
                     }
 
                     // Cross-file taint boost: if intra-procedural didn't verify,
@@ -674,8 +645,6 @@ fn run_corpus_scan(
                                     taints[0].sink_file, taints[0].sink_symbol,
                                     taints[0].path_length,
                                 );
-                                confidence = (confidence * engine.scorer_config.cross_file_taint_boost)
-                                    .min(engine.scorer_config.taint_boost_cap);
                             }
                         }
                     }
@@ -698,7 +667,7 @@ fn run_corpus_scan(
                 improvement = improvement.replace("{{source}}", src_str);
                 improvement = improvement.replace("{{sink}}", snk_str);
 
-                if !taint_verified && m.score < engine.scorer_config.score_suppression_floor {
+                if !taint_verified  {
                     continue;
                 }
 
@@ -762,7 +731,7 @@ fn run_corpus_scan(
 fn compute_fp_hash(fp: &frensense_engine::fingerprint::FunctionFingerprint) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = rustc_hash::FxHasher::default();
-    fp.ngram_hashes.hash(&mut hasher);
+    fp.api_calls.hash(&mut hasher);
     fp.api_calls.hash(&mut hasher);
     fp.control_flow_hashes.hash(&mut hasher);
     hasher.finish()
@@ -773,10 +742,9 @@ fn compute_fp_hash(fp: &frensense_engine::fingerprint::FunctionFingerprint) -> u
 /// mode - the engine uses compiler info + name heuristics to trace taint
 /// through the full code and reports verified flows.
 fn run_standalone_taint(
-    engine: &Engine,
+    __engine: &Engine,
     snapshots: &[FileSnapshot],
     symbols: &crate::semantics::symbols::SymbolRegistry,
-    data_flow: &frensense_engine::data_flow::DataFlowEngine,
     file_trees: &rustc_hash::FxHashMap<
         String,
         (
@@ -846,7 +814,6 @@ fn run_standalone_taint(
                                 &snap.tree,
                                 &snap.path,
                                 symbols,
-                                data_flow,
                                 file_trees,
                                 source_sink,
                                 npm_deps,
@@ -941,7 +908,7 @@ fn run_standalone_taint(
                                             taints[0].path_length,
                                         ),
                                     )
-                                    .with_confidence(engine.scorer_config.cross_file_taint_boost)
+
                                     .with_line(line)
                                     .with_content(fn_name.to_string())
                                     .with_enclosing_symbol(fn_name.to_string())
@@ -1024,193 +991,6 @@ struct TaintVerification {
 /// them in the `DataFlowEngine`. This enables `is_node_tainted` to resolve
 /// same-file callees and check whether they propagate taint to their return,
 /// rather than relying solely on the "any arg is tainted" heuristic.
-fn precompute_taint_summaries_for_file(
-    tree: &tree_sitter::Tree,
-    source: &str,
-    _ext: &str,
-    file_path: &str,
-    data_flow: &mut frensense_engine::data_flow::DataFlowEngine,
-) {
-    use tree_sitter::Node;
-    fn node_uses_tainted_var(node: Node, source: &str, registry: &TaintRegistry) -> bool {
-        match node.kind() {
-            "identifier" => {
-                let name = &source[node.start_byte()..node.end_byte()];
-                registry.is_tainted(name)
-            }
-            "member_expression" | "field_expression" => {
-                if let Some(object) = node.child_by_field_name("object").or_else(|| node.child(0)) {
-                    node_uses_tainted_var(object, source, registry)
-                } else {
-                    false
-                }
-            }
-            "call_expression" => {
-                if let Some(args_list) = node.child_by_field_name("arguments") {
-                    let mut c = args_list.walk();
-                    for arg in args_list.children(&mut c) {
-                        if !matches!(arg.kind(), "(" | ")" | ",")
-                            && node_uses_tainted_var(arg, source, registry)
-                        {
-                            return true;
-                        }
-                    }
-                }
-                false
-            }
-            "template_string" | "template_literal" => {
-                let mut c = node.walk();
-                if c.goto_first_child() {
-                    loop {
-                        let child = c.node();
-                        if matches!(child.kind(), "template_substitution" | "interpolation")
-                            && node_uses_tainted_var(child, source, registry)
-                        {
-                            return true;
-                        }
-                        if !c.goto_next_sibling() {
-                            break;
-                        }
-                    }
-                }
-                false
-            }
-            _ => {
-                let mut c = node.walk();
-                if c.goto_first_child() {
-                    loop {
-                        if node_uses_tainted_var(c.node(), source, registry) {
-                            return true;
-                        }
-                        if !c.goto_next_sibling() {
-                            break;
-                        }
-                    }
-                }
-                false
-            }
-        }
-    }
-    let root = tree.root_node();
-    let function_kinds: &[&str] = &[
-        "function_declaration",
-        "method_definition",
-        "arrow_function",
-        "function_item",
-        "function_definition",
-    ];
-    let mut cursor = root.walk();
-    loop {
-        let node = cursor.node();
-        if function_kinds.contains(&node.kind()) {
-            let fn_name = node
-                .child_by_field_name("name")
-                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-                .map_or("", |s| s);
-            if !fn_name.is_empty() {
-                let mut registry = TaintRegistry::default();
-                let mut param_names: Vec<String> = Vec::new();
-                if let Some(params_node) = node
-                    .child_by_field_name("parameters")
-                    .or_else(|| node.child_by_field_name("formal_parameters"))
-                {
-                    let mut pc = params_node.walk();
-                    for param in params_node.children(&mut pc) {
-                        if matches!(param.kind(), "(" | ")" | "," | ";" | "self") {
-                            continue;
-                        }
-                        let mut pname = String::new();
-                        if let Some(pat) = param.child_by_field_name("pattern") {
-                            pname = source[pat.start_byte()..pat.end_byte()].to_string();
-                        } else if param.kind() == "identifier" {
-                            pname = source[param.start_byte()..param.end_byte()].to_string();
-                        }
-                        if !pname.is_empty() {
-                            param_names.push(pname.clone());
-                            // Seed every param as UserInput - we want to answer
-                            // "does this function propagate taint if any param is tainted?"
-                            registry.taint(&pname, TaintOrigin::UserInput);
-                        }
-                    }
-                }
-                let mut propagates_return = false;
-                let mut return_origins = Vec::new();
-                if let Some(body) = node.child_by_field_name("body") {
-                    let mut bc = body.walk();
-                    if bc.goto_first_child() {
-                        loop {
-                            let child = bc.node();
-                            if child.kind() == "return_statement" {
-                                let ret_val = child
-                                    .child_by_field_name("value")
-                                    .or_else(|| {
-                                        let mut rc = child.walk();
-                                        if rc.goto_first_child() {
-                                            let first = rc.node();
-                                            if first.kind() == "return" && rc.goto_next_sibling() {
-                                                return Some(rc.node());
-                                            }
-                                        }
-                                        None
-                                    })
-                                    .or_else(|| child.child(1));
-                                if let Some(rv) = ret_val {
-                                    if node_uses_tainted_var(rv, source, &registry) {
-                                        propagates_return = true;
-                                        return_origins.push(TaintOrigin::UserInput);
-                                    }
-                                }
-                            }
-                            if matches!(child.kind(), "variable_declarator" | "lexical_declaration")
-                            {
-                                if let Some(name_node) = child
-                                    .child_by_field_name("name")
-                                    .or_else(|| child.child_by_field_name("pattern"))
-                                    && let Some(value_node) = child.child_by_field_name("value")
-                                {
-                                    if node_uses_tainted_var(value_node, source, &registry) {
-                                        let mut nc = name_node.walk();
-                                        for n_child in name_node.children(&mut nc) {
-                                            if n_child.kind() == "identifier" {
-                                                let n = source
-                                                    [n_child.start_byte()..n_child.end_byte()]
-                                                    .to_string();
-                                                registry.taint(&n, TaintOrigin::UserInput);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if !bc.goto_next_sibling() {
-                                break;
-                            }
-                        }
-                    }
-                }
-                data_flow.cache_summary(
-                    file_path,
-                    fn_name,
-                    FunctionTaintSummary {
-                        propagates_return,
-                        tainted_params: FxHashMap::default(),
-                        return_origins,
-                    },
-                );
-            }
-        }
-        if cursor.goto_first_child() {
-            continue;
-        }
-        loop {
-            if cursor.goto_next_sibling() {
-                break;
-            }
-            if !cursor.goto_parent() {
-                return;
-            }
-        }
-    }
-}
 
 /// Verify that taint actually flows from source to sink in a function.
 ///
@@ -1226,7 +1006,6 @@ fn verify_taint_flow(
     tree: &tree_sitter::Tree,
     file_path: &Path,
     symbols: &crate::semantics::symbols::SymbolRegistry,
-    data_flow: &frensense_engine::data_flow::DataFlowEngine,
     file_trees: &rustc_hash::FxHashMap<
         String,
         (
@@ -1256,7 +1035,6 @@ fn verify_taint_flow(
         tree,
         &file_path_str,
         symbols,
-        data_flow,
         file_trees,
         source_sink,
         deps,
@@ -1320,7 +1098,6 @@ impl Engine {
     /// May panic if internal assertions fail.
     /// Returns an error if file reading, parsing, or auditing fails.
     pub fn run_files(&mut self, root: &Path, files: &[PathBuf]) -> Result<Vec<Advisory>> {
-        self.build_scorer_config();
         let _config = self.initialize_auditor_and_config(root);
         self.file_cache = cache::FileCache::load(
             root,
@@ -1339,25 +1116,6 @@ impl Engine {
         let mut all_advisories =
             self.perform_parallel_audit(&file_ids, &snapshot_map, &mut symbols, &file_trees)?;
 
-        // Create DataFlowEngine for cross-file taint verification
-        let mut data_flow = frensense_engine::data_flow::DataFlowEngine::new();
-
-        // Pre-compute function taint summaries for same-file callee resolution
-        for snap in &snapshots {
-            if is_test_file(&snap.path) {
-                continue;
-            }
-            let ext = snap.path.extension().and_then(|s| s.to_str()).unwrap_or("");
-            let fp = snap.path.to_string_lossy();
-            precompute_taint_summaries_for_file(
-                &snap.tree,
-                &snap.content,
-                ext,
-                &fp,
-                &mut data_flow,
-            );
-        }
-
         // Shared dependency resolver - created once, used by both stages
         let mut dep_resolver =
             frensense_engine::deps::DependencyResolver::with_check_deps(self.check_deps);
@@ -1373,7 +1131,6 @@ impl Engine {
             root,
             &snapshots,
             &symbols,
-            &data_flow,
             &file_trees,
             &mut all_advisories,
             &npm_deps,
@@ -1403,7 +1160,6 @@ impl Engine {
                 self,
                 &snapshots,
                 &symbols,
-                &data_flow,
                 &file_trees,
                 &source_sink,
                 &npm_deps,
@@ -1518,7 +1274,6 @@ impl Engine {
                 format!("path does not exist: {}", root.display()),
             )));
         }
-        self.build_scorer_config();
         self.file_cache = cache::FileCache::load(
             root,
             self.language_filter.as_deref(),
@@ -1542,24 +1297,6 @@ impl Engine {
         self.run_profile_analysis(&snapshots, &mut all_advisories);
 
         self.load_calibration();
-        // Create DataFlowEngine for cross-file taint verification
-        let mut data_flow = frensense_engine::data_flow::DataFlowEngine::new();
-
-        // Pre-compute function taint summaries for same-file callee resolution
-        for snap in &snapshots {
-            if is_test_file(&snap.path) {
-                continue;
-            }
-            let ext = snap.path.extension().and_then(|s| s.to_str()).unwrap_or("");
-            let fp = snap.path.to_string_lossy();
-            precompute_taint_summaries_for_file(
-                &snap.tree,
-                &snap.content,
-                ext,
-                &fp,
-                &mut data_flow,
-            );
-        }
 
         // Shared dependency resolver - created once, used by both stages
         let mut dep_resolver =
@@ -1578,7 +1315,6 @@ impl Engine {
             root,
             &snapshots,
             &symbols,
-            &data_flow,
             &file_trees,
             &mut all_advisories,
             &npm_deps,
@@ -1606,7 +1342,6 @@ impl Engine {
                 self,
                 &snapshots,
                 &symbols,
-                &data_flow,
                 &file_trees,
                 &source_sink,
                 &npm_deps,

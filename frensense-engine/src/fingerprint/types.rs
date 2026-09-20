@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-use rustc_hash::FxHashMap;
-
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct FunctionFingerprint {
@@ -9,10 +7,6 @@ pub struct FunctionFingerprint {
     pub function_name: String,
     pub line: usize,
     pub language: String,
-    pub ngram_hashes: Vec<u64>,
-    pub weighted_ngram_hashes: FxHashMap<u64, f32>,
-    pub signature_ngrams: Vec<u64>,
-    pub param_type_ngrams: Vec<u64>,
     pub name_segments: Vec<String>,
     pub type_usages: Vec<String>,
     pub comment_density: f64,
@@ -62,31 +56,7 @@ pub struct FunctionFingerprint {
     /// Export handler kind from file-level export patterns.
     #[cfg_attr(feature = "serialize", serde(default))]
     pub export_handler_kind: Option<crate::export_matcher::ExportHandlerKind>,
-}
-
-/// Compute IDF weights for n-grams across a fingerprint corpus.
-pub fn compute_idf_weights(fingerprints: &[FunctionFingerprint]) -> FxHashMap<u64, f32> {
-    let n = fingerprints.len() as f32;
-    if n == 0.0 {
-        return FxHashMap::default();
-    }
-    let mut doc_freq: FxHashMap<u64, f32> = FxHashMap::default();
-    for fp in fingerprints {
-        for &hash in &fp.ngram_hashes {
-            *doc_freq.entry(hash).or_insert(0.0) += 1.0;
-        }
-    }
-    doc_freq
-        .into_iter()
-        .map(|(hash, df)| (hash, (n / df).ln()))
-        .collect()
-}
-
-/// Apply IDF weights to a fingerprint's `weighted_ngram_hashes`.
-pub fn apply_idf_weights(fingerprint: &mut FunctionFingerprint, idf_weights: &FxHashMap<u64, f32>) {
-    for (hash, weight) in &mut fingerprint.weighted_ngram_hashes {
-        if let Some(&idf) = idf_weights.get(hash) {
-            *weight = idf;
-        }
-    }
+    /// Whether any assigned variable was confirmed to originate from a known source
+    #[cfg_attr(feature = "serialize", serde(default))]
+    pub has_confirmed_source: bool,
 }

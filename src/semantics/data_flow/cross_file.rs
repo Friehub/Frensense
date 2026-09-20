@@ -13,7 +13,6 @@ use crate::semantics::data_flow::TaintOrigin;
 use crate::semantics::data_flow::TaintRegistry;
 use crate::semantics::symbols::SymbolRegistry;
 use frensense_engine::corpus::source_sink::{CorpusSourceSinkRegistry, extract_param_info};
-use frensense_engine::data_flow::DataFlowEngine;
 use frensense_engine::data_flow::DefState;
 use frensense_engine::data_flow::resolver::{SymbolEntry, resolve_fn_definition};
 use frensense_engine::semantic::SemanticProvider;
@@ -77,7 +76,6 @@ pub struct CrossFileVerifier<'a> {
     /// "which definitions reach this point and are they tainted?"
     defs: frensense_engine::data_flow::DefState,
     _symbols: &'a SymbolRegistry,
-    data_flow: &'a DataFlowEngine,
     file_trees: &'a rustc_hash::FxHashMap<
         String,
         (
@@ -105,7 +103,6 @@ impl<'a> CrossFileVerifier<'a> {
         tree: &'a tree_sitter::Tree,
         file_path: &str,
         symbols: &'a SymbolRegistry,
-        data_flow: &'a DataFlowEngine,
         file_trees: &'a rustc_hash::FxHashMap<
             String,
             (
@@ -125,7 +122,6 @@ impl<'a> CrossFileVerifier<'a> {
             registry: TaintRegistry::default(),
             defs: frensense_engine::data_flow::DefState::new(),
             _symbols: symbols,
-            data_flow,
             file_trees,
             _visited: HashSet::new(),
             max_depth: 10,
@@ -1352,11 +1348,7 @@ impl<'a> CrossFileVerifier<'a> {
         );
 
         if let Some(rf) = resolved {
-            if rf.file_path == *caller_file {
-                if let Some(summary) = self.data_flow.get_summary(caller_file, fn_name) {
-                    return summary.propagates_return;
-                }
-            }
+            if rf.file_path == *caller_file {}
         }
         false
     }
