@@ -266,8 +266,128 @@ pub mod tests {
         let config = TaintConfig { sources, sinks, sanitizers: FxHashSet::default() };
         let mut engine = TaintEngine::new(&ir, &heap, &config);
         
+        assert_eq!(engine.alerts.len(), 1, "Failed to catch wildcard array element alias taint!");
+    }
+
+    #[test]
+    fn test_sanitizers_and_weak_updates() {
+        // Simulates:
+        // let arr = [];
+        // arr[0] = getSource();        // arr[0] is tainted
+        // arr[dynamic] = "clean";      // Should NOT clean arr[0] (Weak Update)
+        // let val = arr[0];            // Still tainted
+        // let safe = escapeHtml(val);  // Sanitized!
+        // db.execute(val);             // ALERT
+        // db.execute(safe);            // NO ALERT
+
+        let mut ir = FunctionIR::new("test_sanitizers".into());
+        let b = ir.entry_block;
+        let mem_0 = ir.initial_memory_state;
+
+        // arr = Allocate
+        let arr = ir.new_var(dummy_meta("arr"));
+        let mem_1 = ir.new_var(mem_meta("mem_1"));
+        ir.push_instruction(b, Instruction::Allocate { dest: arr, mem_out: mem_1, mem_in: mem_0, kind: AllocationKind::Array });
+
+        // malicious = getSource()
+        let malicious = ir.new_var(dummy_meta("malicious"));
+        let mem_2 = ir.new_var(mem_meta("mem_2"));
+        ir.push_instruction(b, Instruction::CallStatic { dest: Some(malicious), mem_out: mem_2, mem_in: mem_1, func: "getSource".into(), args: vec![] });
+
+        // arr[0] = malicious
+        let mem_3 = ir.new_var(mem_meta("mem_3"));
+        ir.push_instruction(b, Instruction::StoreElement { 
+            mem_out: mem_3, mem_in: mem_2, base: arr, index: Operand::IntLiteral(0), src: Operand::Var(malicious) 
+        });
+
+        // arr[dynamic] = "clean" (Weak Update - should NOT erase arr[0] taint)
+        let dyn_idx = ir.new_var(dummy_meta("dynamic_index"));
+        let mem_4 = ir.new_var(mem_meta("mem_4"));
+        ir.push_instruction(b, Instruction::StoreElement { 
+            mem_out: mem_4, mem_in: mem_3, base: arr, index: Operand::Var(dyn_idx), src: Operand::StringLiteral("clean".into()) 
+        });
+
+        // val = arr[0]
+        let val = ir.new_var(dummy_meta("val"));
+        ir.push_instruction(b, Instruction::LoadElement { dest: val, mem_in: mem_4, base: arr, index: Operand::IntLiteral(0) });
+
+        // safe = escapeHtml(val)
+        let safe = ir.new_var(dummy_meta("safe"));
+        let mem_5 = ir.new_var(mem_meta("mem_5"));
+        ir.push_instruction(b, Instruction::CallStatic { dest: Some(safe), mem_out: mem_5, mem_in: mem_4, func: "escapeHtml".into(), args: vec![Operand::Var(val)] });
+
+        // db.execute(val) -> ALERTS
+        let mem_6 = ir.new_var(mem_meta("mem_6"));
+        ir.push_instruction(b, Instruction::CallStatic { dest: None, mem_out: mem_6, mem_in: mem_5, func: "db.execute".into(), args: vec![Operand::Var(val)] });
+
+        // db.execute(safe) -> NO ALERT
+        let mem_7 = ir.new_var(mem_meta("mem_7"));
+        ir.push_instruction(b, Instruction::CallStatic { dest: None, mem_out: mem_7, mem_in: mem_6, func: "db.execute".into(), args: vec![Operand::Var(safe)] });
+
+        let mut heap = PointsToAnalysis::new();
+        heap.analyze(&ir);
+
+        let mut sources = FxHashSet::default(); sources.insert("getSource".into());
+        let mut sinks = FxHashSet::default(); sinks.insert("db.execute".into());
+        let mut sanitizers = FxHashSet::default(); sanitizers.insert("escapeHtml".into());
+        
+        let config = TaintConfig { sources, sinks, sanitizers };
+        let mut engine = TaintEngine::new(&ir, &heap, &config);
+        
         engine.run();
 
-        assert_eq!(engine.alerts.len(), 1, "Failed to catch wildcard array element alias taint!");
+        assert_eq!(engine.alerts.len(), 1, "Expected exactly 1 alert. Weak update shouldn't clean the array, and sanitizer should protect the second call.");
+        assert!(engine.alerts[0].contains("db.execute"), "Alert should be on the unsanitized val.");
+    }
+
+    #[test]
+    fn test_nested_control_flow_ssa() {
+        // Simulates:
+        // let x = 0;
+        // if (cond1) {
+        //     while (cond2) {
+        //         x = 1;
+        //     }
+        // }
+        // let y = x;
+        // Proves SSABuilder Dominance Frontiers can handle nested loops and branches perfectly.
+        
+        let mut ir = FunctionIR::new("test_nested".into());
+        let b_entry = ir.entry_block;
+        let b_if_true = ir.new_block();
+        let b_while_header = ir.new_block();
+        let b_while_body = ir.new_block();
+        let b_while_exit = ir.new_block();
+        let b_merge = ir.new_block();
+
+        ir.add_edge(b_entry, b_if_true);
+        ir.add_edge(b_entry, b_merge); // if false, jump straight to merge
+        
+        ir.add_edge(b_if_true, b_while_header);
+        ir.add_edge(b_while_header, b_while_body);
+        ir.add_edge(b_while_body, b_while_header); // loop back
+        ir.add_edge(b_while_header, b_while_exit);
+        ir.add_edge(b_while_exit, b_merge);
+
+        // x_0 = 0
+        let x = ir.new_var(dummy_meta("x"));
+        ir.push_instruction(b_entry, Instruction::Assign { dest: x, src: Operand::IntLiteral(0) });
+        
+        // Loop body: x_1 = 1
+        ir.push_instruction(b_while_body, Instruction::Assign { dest: x, src: Operand::IntLiteral(1) });
+        
+        // Merge: y = x
+        let y = ir.new_var(dummy_meta("y"));
+        ir.push_instruction(b_merge, Instruction::Assign { dest: y, src: Operand::Var(x) });
+
+        let ssa_ir = SSABuilder::new(ir).build();
+
+        // There should be a Phi node in b_while_header to merge x_0 (from entry) and x_1 (from loop body)
+        let while_header_phis = &ssa_ir.blocks[&b_while_header].phis;
+        assert_eq!(while_header_phis.len(), 1, "Expected Phi node in while header");
+
+        // There should be a Phi node in b_merge to merge x_0 (from entry/if false) and the x from the while loop
+        let merge_phis = &ssa_ir.blocks[&b_merge].phis;
+        assert_eq!(merge_phis.len(), 1, "Expected Phi node in if-merge block");
     }
 }
