@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 
 //! Implementation 2 - [`OxcProvider`]: exact JavaScript / TypeScript
 //! resolution via the Oxc compiler.
@@ -929,12 +931,8 @@ mod tests {
             function_name: String::new(),
             line: 0,
             language: String::new(),
-            ngram_hashes: Vec::new(),
-            weighted_ngram_hashes: Default::default(),
-            signature_ngrams: Vec::new(),
-            param_type_ngrams: Vec::new(),
             name_segments: Vec::new(),
-            structural_markers: Vec::new(),
+            has_confirmed_source: false,
             type_usages: Vec::new(),
             comment_density: 0.0,
             semantic_markers: Vec::new(),

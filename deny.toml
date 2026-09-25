@@ -23,6 +23,7 @@ allow = [
   "Unicode-3.0",
   "BSL-1.0",
   "Zlib",
+  "GPL-3.0-only",
   "Apache-2.0 WITH LLVM-exception"
 ]
 confidence-threshold = 0.8

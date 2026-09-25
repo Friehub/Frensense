@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Frensense benchmark runner — builds a Precision/Recall curve over a threshold sweep.
+# Frensense benchmark runner, builds a Precision/Recall curve over a threshold sweep.
 #
 # Usage:
 #   ./run_frensense.sh               # default: nodegoat fixtures, v0.5.0 results dir
@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "${BASE_DIR}/.." && pwd)"
 
 FRENSENSE_BIN="${REPO_ROOT}/target/release/frensense"
 
-# Benchmark dataset — synthetic NodeGoat-derived fixtures (committed in the repo)
+# Benchmark dataset, synthetic NodeGoat-derived fixtures (committed in the repo)
 DATASET_DIR="${BASE_DIR}/datasets/nodegoat"
 
 # Ground-truth labels for the evaluation script
@@ -43,7 +43,7 @@ if [[ ! -d "$DATASET_DIR" ]]; then
 fi
 
 if [[ ! -f "$LABELS_JSON" ]]; then
-    echo "WARN: ground-truth labels not found at ${LABELS_JSON} — evaluation step will be skipped"
+    echo "WARN: ground-truth labels not found at ${LABELS_JSON}, evaluation step will be skipped"
 fi
 
 mkdir -p "$RESULTS_DIR"
@@ -52,7 +52,7 @@ FILE_COUNT=$(find "$DATASET_DIR" -type f \( -name "*.ts" -o -name "*.js" \) | wc
 LOC=$(find "$DATASET_DIR" -type f \( -name "*.ts" -o -name "*.js" \) -exec wc -l {} + | tail -1 | awk '{print $1}')
 
 echo "=========================================="
-echo "Frensense Benchmark  —  ${VERSION}"
+echo "Frensense Benchmark ,  ${VERSION}"
 echo "  Binary : ${FRENSENSE_BIN}"
 echo "  Dataset: ${DATASET_DIR} (${FILE_COUNT} files, ~${LOC} LOC)"
 echo "  Results: ${RESULTS_DIR}"
@@ -90,7 +90,7 @@ for threshold in 0.20 0.30 0.40 0.50 0.60 0.70; do
             --json-file "$json_file" \
             --threshold "$threshold" \
             --output "${RESULTS_DIR}/metrics_threshold_${threshold}.json" \
-            2>/dev/null || echo "  (evaluate.py failed — check script)"
+            2>/dev/null || echo "  (evaluate.py failed, check script)"
     fi
 done
 

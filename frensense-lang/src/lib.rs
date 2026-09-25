@@ -1,6 +1,8 @@
 #![allow(clippy::all)]
 #![allow(dead_code, unreachable_patterns, unreachable_code)]
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! # frensense-lang
 //!
 //! Per-language AST knowledge for the frensense static analysis engine.
@@ -31,7 +33,7 @@
 //!
 //! Every engine subsystem now calls the spec once:
 //!
-//! ```rust
+//! ```rust,ignore
 //! use frensense_lang::registry::spec_for_ext;
 //! use frensense_lang::spec::NodeRole;
 //!
@@ -65,11 +67,11 @@
 //! ### 1. `fingerprint.rs` - function detection
 //!
 //! **Before:**
-//! ```rust
+//! ```rust,ignore
 //! if matches!(kind, "function_item" | "function_declaration" | "method_definition" | "arrow_function")
 //! ```
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! if spec.is_function_node(kind) { … }
 //! // or for the full match with field names:
 //! if let NodeRole::Function { name_field, params_field, body_field, .. } = spec.classify(kind) { … }
@@ -77,7 +79,7 @@
 //!
 //! **Region wrapping:**
 //! **Before:**
-//! ```rust
+//! ```rust,ignore
 //! let code = match lang {
 //!     Language::Rust   => format!("fn _region() {{\n{}\n}}", src),
 //!     Language::Python => { let indented = …; format!("def _region():\n{}", indented) }
@@ -85,14 +87,14 @@
 //! };
 //! ```
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! let code = spec.wrap_region(src);
 //! ```
 //!
 //! ### 2. `corpus/flow_fingerprint.rs` - taint propagation
 //!
 //! **Before:**
-//! ```rust
+//! ```rust,ignore
 //! if kind == "variable_declarator" || kind == "assignment_expression" {
 //!     let name  = node.child_by_field_name("name").or_else(|| node.child_by_field_name("left"));
 //!     let value = node.child_by_field_name("value").or_else(|| node.child_by_field_name("right"));
@@ -103,7 +105,7 @@
 //! "member_expression" => { … }
 //! ```
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! match spec.classify(node.kind()) {
 //!     NodeRole::Declaration { name_field, value_field }
 //!     | NodeRole::Assignment { lhs_field: name_field, rhs_field: value_field } => {
@@ -123,7 +125,7 @@
 //! ### 3. `cfg/mod.rs` - CFG construction
 //!
 //! **Before:**
-//! ```rust
+//! ```rust,ignore
 //! match kind {
 //!     "if_statement" | "if_expression" | "ternary_expression" => { … }
 //!     "try_statement" => { … }
@@ -133,7 +135,7 @@
 //! }
 //! ```
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! match spec.classify(node.kind()) {
 //!     NodeRole::Branch          => { /* add branch edges */ }
 //!     NodeRole::Loop            => { /* add back-edge */ }
@@ -154,7 +156,7 @@
 //! ### 4. `cfg/def_use.rs` - def-use chains
 //!
 //! **Before:**
-//! ```rust
+//! ```rust,ignore
 //! match kind {
 //!     "let_declaration" | "lexical_declaration" | "variable_declaration" => { … }
 //!     "assignment_expression" | "assignment" => { … }
@@ -163,7 +165,7 @@
 //! // extract_ref_names used "member_expression" (wrong for Go/Python/Rust)
 //! ```
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! match spec.classify(kind) {
 //!     NodeRole::Declaration { name_field, value_field } => { … }
 //!     NodeRole::Assignment  { lhs_field, rhs_field }   => { … }
@@ -181,7 +183,7 @@
 //! **Before:** only `import_statement` (ESM) and `require()` (CJS).
 //!
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! // Call once per file. Replaces the manual walk in import_resolver.rs.
 //! let imports: Vec<Import> = spec.extract_imports(root_node, source);
 //! for import in imports {
@@ -194,7 +196,7 @@
 //! ### 6. `parser.rs` - tree-sitter queries
 //!
 //! **Before:**
-//! ```rust
+//! ```rust,ignore
 //! pub fn call_query_for_ext(ext: &str) -> Option<&'static str> {
 //!     match ext {
 //!         "rs" => Some("…"),
@@ -206,7 +208,7 @@
 //! }
 //! ```
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! let call_query = spec_for_ext(ext).and_then(|s| s.call_query());
 //! ```
 //! Go now has a full call query; Python's is improved to cover class methods.
@@ -218,7 +220,7 @@
 //!
 //! **After:** use `spec.extract_imports()` to build the import map, then
 //! `spec.package_category(pkg)` to classify the package:
-//! ```rust
+//! ```rust,ignore
 //! fn classify_sink(&self, call_text: &str, _resolved: Option<&str>) -> Option<SinkCategory> {
 //!     let receiver = call_text.split('.').next()?;
 //!     let pkg      = self.import_map.resolve(receiver)?;
@@ -239,7 +241,7 @@
 //! **Before:** Express-only static arrays.
 //!
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! // Context detection - replaces ROUTE_ENV_KEYWORDS static array
 //! let hints = spec.route_context_hints();
 //! let is_route_context = hints.iter().any(|h| file_source.contains(h));
@@ -258,7 +260,7 @@
 //! skipped, so motif hashes were never computed for those languages.
 //!
 //! **After:**
-//! ```rust
+//! ```rust,ignore
 //! match spec.classify(node.kind()) {
 //!     NodeRole::Call { callee_field, .. } => {
 //!         let callee = node.child_by_field_name(callee_field)?;
@@ -278,7 +280,7 @@ pub mod registry;
 pub mod spec;
 
 // Convenient re-exports
-pub use registry::{spec_for_ext, spec_for_path, LanguageRegistry};
+pub use registry::{all_specs, spec_for_ext, spec_for_path, LanguageRegistry};
 pub use spec::{
     Import, LanguageSpec, NodeRole, PackageCategory, PropagatorRule, SanitizerKind, TaintOrigin,
 };

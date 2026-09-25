@@ -31,11 +31,11 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.16.1
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v4.3.0
         with:
           fetch-depth: 0
 
@@ -100,22 +100,22 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.16.1
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v4.3.0
         with:
           ref: ${{ needs.prepare.outputs.tag_name }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@f1f314fca9dfce2769ece7d933488f076716723e # v4.4.0
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable
         with:
           targets: ${{ matrix.settings.target }}
 
@@ -126,12 +126,14 @@ jobs:
         run: cargo build --release --target ${{ matrix.settings.target }}
 
       - name: Build FRC Bundle
-        if: matrix.settings.host == 'ubuntu-latest'
+        # The corpus is proprietary and not in the public repo; skip unless
+        # corpus/targets exists (private release runners only).
+        if: matrix.settings.host == 'ubuntu-latest' && hashFiles('corpus/targets/**') != ''
         run: cargo run --release -p frensense-bundler --bin frensense-bundler -- -c corpus/targets -o frensense-corpus.frc
 
       - name: Upload FRC Artifact
-        if: matrix.settings.host == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        if: matrix.settings.host == 'ubuntu-latest' && hashFiles('corpus/targets/**') != ''
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v4.6.2
         with:
           name: frensense-corpus
           path: frensense-corpus.frc
@@ -148,7 +150,7 @@ jobs:
           echo "CLI smoke test passed"
 
       - name: Upload CLI Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v4.6.2
         with:
           name: cli-${{ matrix.settings.target }}
           path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
@@ -164,11 +166,11 @@ jobs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.16.1
         with:
           egress-policy: audit
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fdafc3f9f2e2a522dc1d230e6a03de57a1e71c95 # v4.3.0
         with:
           path: artifacts
       - name: Generate hashes
@@ -185,7 +187,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: ${{ needs.generate-hashes.outputs.hashes }}
       upload-assets: true
@@ -200,14 +202,14 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.16.1
         with:
           egress-policy: audit
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v4.3.0
         with:
           ref: ${{ needs.prepare.outputs.tag_name }}
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable
       - name: Publish frensense
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
@@ -241,22 +243,22 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.16.1
         with:
           egress-policy: audit
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v4.3.0
         with:
           ref: ${{ needs.prepare.outputs.tag_name }}
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@f1f314fca9dfce2769ece7d933488f076716723e # v4.4.0
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fdafc3f9f2e2a522dc1d230e6a03de57a1e71c95 # v4.3.0
         with:
           path: artifacts
 
@@ -268,7 +270,7 @@ jobs:
           mkdir -p dist/binaries
 
           # CLI binaries (platform-named for the postinstall resolver)
-          # The .frc corpus is embedded in the binary via include_bytes! — no need to ship it
+          # The .frc corpus is embedded in the binary via include_bytes!, no need to ship it
           cp artifacts/cli-x86_64-unknown-linux-gnu/frensense    ./dist/binaries/frensense-linux-x64
           cp artifacts/cli-x86_64-apple-darwin/frensense          ./dist/binaries/frensense-macos-x64
           cp artifacts/cli-aarch64-apple-darwin/frensense          ./dist/binaries/frensense-macos-arm64
@@ -339,14 +341,14 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.16.1
         with:
           egress-policy: audit
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v4.3.0
         with:
           ref: ${{ needs.prepare.outputs.tag_name }}
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fdafc3f9f2e2a522dc1d230e6a03de57a1e71c95 # v4.3.0
         with:
           path: artifacts
       - name: Prepare binaries for release
@@ -358,9 +360,8 @@ jobs:
             if [[ "$target" == *"windows"* ]]; then ext=".exe"; fi
             cp "${dir}frensense${ext}" "release-binaries/frensense-${target}${ext}"
           done
-          cp artifacts/frensense-corpus/frensense-corpus.frc release-binaries/
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@26994186c0ac3ef5cae75ac16aa32e8153525f77 # v2.4.2
         with:
           tag_name: ${{ needs.prepare.outputs.tag_name }}
           files: release-binaries/*

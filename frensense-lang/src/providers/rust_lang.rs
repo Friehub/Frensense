@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! Rust [`LanguageSpec`] implementation.
 
 use tree_sitter::Node;
@@ -260,6 +262,26 @@ fn rust_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     }
 }
 
+// ── Sink signatures (per-slot danger) ──────────────────────────────────────
+
+/// Per-slot sink knowledge for Rust. Rust's DB drivers all take the SQL
+/// string in slot 0 and bind parameters from slot 1 on: rusqlite
+/// `execute(sql, params)`, sqlx `query(sql).bind(...)`. A tainted slot 0 is
+/// string-formatted SQL (injection); tainted later slots are the safe
+/// binding channel. Matched by last segment at the call site.
+static RUST_SINK_SIGNATURES: &[(&str, &[usize], bool)] = &[
+    // ── rusqlite / tokio-postgres / mysql_async: execute(sql, params) ──
+    ("execute", &[0], true),
+    // ── sqlx: query/query_as(sql) + fetch_*, builder takes SQL in slot 0 ──
+    ("query", &[0], true),
+    ("query_as", &[0], true),
+    ("fetch", &[0], true),
+    ("fetch_one", &[0], true),
+    ("fetch_all", &[0], true),
+    // ── diesel / generic prepare ──
+    ("prepare", &[0], true),
+];
+
 // ── Propagators ───────────────────────────────────────────────────────────────
 
 static RUST_PROPAGATORS: &[PropagatorRule] = &[
@@ -487,6 +509,12 @@ impl LanguageSpec for RustSpec {
         classify_rust(kind)
     }
 
+    // tree-sitter-rust: `field_expression` property children are
+    // `field_identifier`, a named field, not a computed index.
+    fn is_property_kind(&self, kind: &str) -> bool {
+        kind == "field_identifier"
+    }
+
     fn wrap_region(&self, code: &str) -> String {
         format!("fn _region() {{\n{}\n}}", code)
     }
@@ -530,6 +558,10 @@ impl LanguageSpec for RustSpec {
         // Axum/Actix: parameter names matter less than types; type-based
         // detection via classify_param_taint is the primary mechanism.
         &["req", "request"]
+    }
+
+    fn known_sink_signatures(&self) -> &'static [(&'static str, &'static [usize], bool)] {
+        RUST_SINK_SIGNATURES
     }
 
     fn known_sink_names(&self) -> &'static [(&'static str, crate::spec::SinkLabel)] {
@@ -578,13 +610,11 @@ impl LanguageSpec for RustSpec {
             ("post", crate::spec::SinkLabel::Ssrf),
             ("send", crate::spec::SinkLabel::Ssrf),
             ("request", crate::spec::SinkLabel::Ssrf),
-            ("fetch", crate::spec::SinkLabel::Ssrf),
             // Open Redirect
             ("redirect", crate::spec::SinkLabel::OpenRedirect),
             // XSS
             ("innerHTML", crate::spec::SinkLabel::XssDom),
             ("outerHTML", crate::spec::SinkLabel::XssDom),
-            ("document.write", crate::spec::SinkLabel::XssDom),
             ("dangerouslySetInnerHTML", crate::spec::SinkLabel::XssDom),
             // SSTI
             ("render", crate::spec::SinkLabel::TemplateSsti),
@@ -646,8 +676,6 @@ impl LanguageSpec for RustSpec {
             // XXE
             ("DOMParser", crate::spec::SinkLabel::Xxe),
             // JWT
-            ("jwt.verify", crate::spec::SinkLabel::Jwt),
-            ("jwt.decode", crate::spec::SinkLabel::Jwt),
             ("jwt.sign", crate::spec::SinkLabel::Jwt),
         ]
     }
@@ -679,6 +707,14 @@ impl LanguageSpec for RustSpec {
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         rust_classify_sanitizer(call)
+    }
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        &[
+            "escape_html",
+            "urlencoding::encode",
+            "shell_words::quote",
+            "atoi",
+        ]
     }
 
     fn route_context_hints(&self) -> &'static [&'static str] {

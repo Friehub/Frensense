@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //!
 //! The [`LanguageSpec`] trait is the single contract every language must
 //! satisfy. All engine subsystems (fingerprint, CFG, def-use, flow-fingerprint,
@@ -89,7 +91,12 @@ pub enum NodeRole {
     Await,
 
     // ── Structural ────────────────────────────────────────────────────────
-    Block,      // { … } / indented block
+    Block, // { … } / indented block
+    /// Value-context composite literal: JS/TS `object` used as a value (not a
+    /// statement block), `array`, `object_pattern` in expression position.
+    /// All children are value-producers; taint in ANY child taints the whole
+    /// composite (may-analysis merge, the conservative direction).
+    Composite,
     Import,     // import / use / require
     Export,     // export (JS/TS only)
     Identifier, // bare name reference
@@ -133,6 +140,12 @@ pub enum SanitizerKind {
     SqlParameterize,
     /// NoSQL sanitization - defeats NoSQL injection only.
     NoSqlParameterize,
+    /// Session-store accessor trust: `store.get(token)` returns a
+    /// server-issued session object (undefined for unknown tokens), so
+    /// identity fields read off the result are not attacker-controlled.
+    /// Receiver-aware: only applies when the receiver root is a declared
+    /// session store.
+    SessionTrust,
     /// Path canonicalization - defeats path traversal only.
     PathNormalize,
 }
@@ -289,7 +302,7 @@ pub trait LanguageSpec: Send + Sync + 'static {
     /// The returned variant carries the field names needed by the caller so
     /// no second lookup is required.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// match spec.classify(node.kind()) {
     ///     NodeRole::Call { callee_field, args_field } => {
     ///         let callee = node.child_by_field_name(callee_field);
@@ -300,6 +313,27 @@ pub trait LanguageSpec: Send + Sync + 'static {
     /// }
     /// ```
     fn classify(&self, kind: &str) -> NodeRole;
+
+    /// Is this node kind a *property-name* (a named field access) rather
+    /// than a computed index?
+    ///
+    /// Used by the lowering to distinguish `obj.field` (LoadField, the name
+    /// matters for member-path source matching and sink method resolution)
+    /// from `obj[expr]` (LoadElement). The default heuristic recognizes the
+    /// common JS/TS kinds; languages whose attribute/selector property nodes
+    /// have different grammar kinds MUST override this:
+    ///
+    /// - Python `attribute`: the property child is a plain `identifier`
+    /// - Go `selector_expression` / Rust `field_expression`: `field_identifier`
+    ///
+    /// A wrong answer silently turns method calls into CallPointer sites and
+    /// loses sink matching entirely.
+    fn is_property_kind(&self, kind: &str) -> bool {
+        kind.contains("property")
+            || kind == "property_identifier"
+            || kind == "shorthand_property_identifier"
+            || kind == "private_property_identifier"
+    }
 
     /// Returns `true` if this node is the entry node for a function definition.
     ///
@@ -405,6 +439,21 @@ pub trait LanguageSpec: Send + Sync + 'static {
         &[]
     }
 
+    /// Per-argument-slot danger facts for sinks whose argument positions
+    /// carry different semantics.
+    ///
+    /// Returns `(call_name, dangerous_slots, binding_args_safe)` where
+    /// `dangerous_slots` lists the argument positions whose taint is an
+    /// alert (empty = every slot dangerous) and `binding_args_safe` marks
+    /// non-dangerous slots as the API's safe binding channel (e.g. the
+    /// params array of a parameterized `query(sql, params)`).
+    ///
+    /// Without this, sinks like `jwt.verify(token, secret)` alert on slot 1
+    /// (the developer-controlled secret), a structural false positive.
+    fn known_sink_signatures(&self) -> &'static [(&'static str, &'static [usize], bool)] {
+        &[]
+    }
+
     /// Known taint source accessor patterns.
     ///
     /// e.g. `"req.body"`, `"request.args"`, `"r.URL.Query"`.
@@ -428,6 +477,24 @@ pub trait LanguageSpec: Send + Sync + 'static {
 
     /// Is this call a sanitizer?  Returns the strength if so.
     fn classify_sanitizer(&self, call_name: &str) -> Option<SanitizerKind>;
+
+    /// Static list of sanitizer call names for this language.
+    ///
+    /// Used to build the engine's [`TaintConfig`] sanitizer set and the
+    /// [`FactTable`](..) sanitizer facts without probing `classify_sanitizer`
+    /// with every identifier in a file. Keep in sync with
+    /// [`classify_sanitizer`](Self::classify_sanitizer).
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    /// Receiver roots of trusted session stores (`authenticatedUsers` for
+    /// `authenticatedUsers.get(token)`). The engine treats values derived
+    /// from a session accessor's return as server-issued, not
+    /// attacker-controlled. Empty by default.
+    fn known_session_roots(&self) -> &'static [&'static str] {
+        &[]
+    }
 
     // ── Context hints ─────────────────────────────────────────────────────
 

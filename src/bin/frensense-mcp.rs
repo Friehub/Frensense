@@ -1,5 +1,7 @@
 #![allow(clippy::all)]
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! `Frensense` MCP Server - stdin/stdout JSON-RPC bridge.
 //!
 //! Thin entry point that delegates to the `frensense::mcp` module.
@@ -11,11 +13,7 @@ use std::io::{self, BufRead};
 
 fn main() {
     eprintln!("frensense-mcp v{FRENSENSE_VERSION} starting");
-    eprintln!(
-        "frensense-mcp: cwd={:?}, has_rust={}",
-        std::env::current_dir().ok(),
-        cfg!(feature = "rust")
-    );
+    eprintln!("frensense-mcp: cwd={:?}", std::env::current_dir().ok());
 
     let stdin = io::stdin();
     let reader = stdin.lock();

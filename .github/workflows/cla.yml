@@ -1,0 +1,45 @@
+name: CLA Assistant
+
+# Automates CLA signing for external contributions using the
+# contributor-assistant GitHub Action (https://github.com/contributor-assistant/github-action).
+# Signatures are stored as JSON files on the `cla-signatures` branch.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  cla:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CLA Assistant
+        # Run on PR open/sync, on the "recheck" comment, or when a contributor
+        # posts the signing comment.
+        if: |
+          github.event_name == 'pull_request_target' ||
+          github.event.comment.body == 'recheck' ||
+          github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A fine-grained PAT with contents:write on the cla-signatures branch.
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_SIGNATURES_TOKEN }}
+        with:
+          # The CLA document contributors sign.
+          path-to-document: 'https://github.com/Friehub/Frensense/blob/fix/release-v4/CLA.md'
+          # Where signed entries (login + timestamp + CLA version) are stored.
+          path-to-signatures: 'signatures/cla.json'
+          branch: 'cla-signatures'
+          # never block maintainers or bots
+          allowlist: 'Friehub,dependabot[bot],github-actions[bot]'
+          # Re-request signatures when CLA.md version changes.
+          signed-commit-message: 'CLA signed by $contributorString'
+          custom-not-signed-pr-message: 'Thanks for your contribution! Please sign our CLA (CLA.md) by commenting the signing line below, one click, once ever.'
+          custom-signed-pr-message: 'CLA signed, thank you!'

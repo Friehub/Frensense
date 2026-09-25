@@ -1,12 +1,12 @@
 [package]
 name = "gensense"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Friehub Developers"]
 edition = "2024"
 description = "Deprecated. The project has been renamed to frensense. Please install frensense instead."
 repository = "https://github.com/Friehub/frensense"
 homepage = "https://friehub.github.io/frensense/"
-license = "MIT"
+license = "GPL-3.0-only"
 publish = true
 
 [[bin]]
@@ -14,4 +14,4 @@ name = "gensense"
 path = "src/main.rs"
 
 [dependencies]
-frensense = { path = "../", version = "0.6.0" }
+frensense = { path = "../", version = "0.7.0" }

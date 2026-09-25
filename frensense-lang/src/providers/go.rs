@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! Go [`LanguageSpec`] implementation.
 //!
 //! Covers:
@@ -285,6 +287,30 @@ fn go_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     }
 }
 
+// ── Sink signatures (per-slot danger) ──────────────────────────────────────
+
+/// Per-slot sink knowledge for Go. Go's dominant FP class without this:
+/// `database/sql` parameterized queries, db.Query("SELECT … WHERE id = ?",
+/// userInput) binds safely; only a tainted slot 0 (the query string) is an
+/// injection. Signature names are matched by LAST segment at the call site
+/// (method CallVirtual name / CallStatic func), so "Query" covers any
+/// receiver (db.Query, tx.Query, stmt.QueryContext).
+static GO_SINK_SIGNATURES: &[(&str, &[usize], bool)] = &[
+    // ── database/sql: Query/Exec(sql, args...) ──
+    ("Query", &[0], true),
+    ("QueryRow", &[0], true),
+    ("QueryContext", &[0], true),
+    ("Exec", &[0], true),
+    ("ExecContext", &[0], true),
+    ("Prepare", &[0], true),
+    ("PrepareContext", &[0], true),
+    // ── sqlx (dotted names match by last segment): get/select cost slot 0 ──
+    // (sqlx Get(dest, query, args), dest slot 0 is an out-param, but a
+    // tainted dest is an injection only via the query; keep slot 1 only.)
+    // ── D1 (Cloudflare Workers Go-style bindings) ──
+    ("prepare", &[0], true),
+];
+
 // ── Propagators ───────────────────────────────────────────────────────────────
 
 static GO_PROPAGATORS: &[PropagatorRule] = &[
@@ -492,6 +518,12 @@ impl LanguageSpec for GoSpec {
         classify_go(kind)
     }
 
+    // tree-sitter-go: `selector_expression` property children are
+    // `field_identifier`, a named field, not a computed index.
+    fn is_property_kind(&self, kind: &str) -> bool {
+        kind == "field_identifier"
+    }
+
     /// Go-specific: detect `if err != nil { return … }`.
     fn is_error_guard<'tree>(&self, node: Node<'tree>, source: &str) -> bool {
         go_is_error_guard(node, source)
@@ -537,6 +569,10 @@ impl LanguageSpec for GoSpec {
     fn request_param_names(&self) -> &'static [&'static str] {
         // Convention: r=*http.Request, w=http.ResponseWriter, c=*gin.Context
         &["r", "req", "c", "ctx", "w"]
+    }
+
+    fn known_sink_signatures(&self) -> &'static [(&'static str, &'static [usize], bool)] {
+        GO_SINK_SIGNATURES
     }
 
     fn known_sink_names(&self) -> &'static [(&'static str, crate::spec::SinkLabel)] {
@@ -597,7 +633,6 @@ impl LanguageSpec for GoSpec {
             // XSS
             ("innerHTML", crate::spec::SinkLabel::XssDom),
             ("outerHTML", crate::spec::SinkLabel::XssDom),
-            ("document.write", crate::spec::SinkLabel::XssDom),
             ("document.writeln", crate::spec::SinkLabel::XssDom),
             ("dangerouslySetInnerHTML", crate::spec::SinkLabel::XssDom),
             // SSTI - Template engine renders
@@ -608,8 +643,6 @@ impl LanguageSpec for GoSpec {
                 crate::spec::SinkLabel::TemplateSsti,
             ),
             ("ejs.render", crate::spec::SinkLabel::TemplateSsti),
-            ("pug.compile", crate::spec::SinkLabel::TemplateSsti),
-            ("handlebars.compile", crate::spec::SinkLabel::TemplateSsti),
             ("nunjucks.render", crate::spec::SinkLabel::TemplateSsti),
             ("marko.render", crate::spec::SinkLabel::TemplateSsti),
             ("eta.render", crate::spec::SinkLabel::TemplateSsti),
@@ -639,8 +672,6 @@ impl LanguageSpec for GoSpec {
             // XXE
             ("DOMParser", crate::spec::SinkLabel::Xxe),
             // JWT
-            ("jwt.verify", crate::spec::SinkLabel::Jwt),
-            ("jwt.decode", crate::spec::SinkLabel::Jwt),
             ("jwt.sign", crate::spec::SinkLabel::Jwt),
             // Cloudflare Workers / Prisma
             ("c.redirect", crate::spec::SinkLabel::OpenRedirect),
@@ -729,6 +760,19 @@ impl LanguageSpec for GoSpec {
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         go_classify_sanitizer(call)
+    }
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        &[
+            "EscapeString",
+            "EscapeHTML",
+            "QueryEscape",
+            "PathEscape",
+            "template.HTMLEscapeString",
+            "url.QueryEscape",
+            "strconv.Atoi",
+            "Sanitize",
+            "EscapeText",
+        ]
     }
 
     fn route_context_hints(&self) -> &'static [&'static str] {

@@ -1,23 +1,14 @@
-pub mod minhash;
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 
-pub mod ast_diff;
-pub mod auditor;
-pub mod clustering;
-pub mod composition;
-pub mod confidence_calibration;
-pub mod findings;
-pub mod learn;
-pub mod negative_miner;
-pub mod per_category_calibration;
+//! The consumer engine: a thin driver over `frensense_engine::scan`.
+//!
+//! There is no rule framework, no fingerprint matching, no confidence
+//! scoring. The engine collects files, lowers them through the shared
+//! harness, and turns flow verdicts into advisories, compiler-style.
+
+pub mod files;
 pub mod project;
-pub mod source;
-pub mod suppression;
 
-pub use auditor::FrensenseAuditor;
 pub use project::Engine;
-pub use suppression::{SuppressConfig, Suppression, is_suppressed};
-
-// Re-export from engine crate for backward compatibility
-pub use frensense_engine::fingerprint::FunctionFingerprint;
-pub use frensense_engine::profile::ProjectProfile;

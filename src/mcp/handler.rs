@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! MCP request dispatcher.
 
 use super::audit::{run_audit, run_audit_streamed, tool_definition};
@@ -48,11 +50,6 @@ pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                 .unwrap_or(".")
                 .to_string();
 
-            let fix_auto = args
-                .get("fix_auto")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-
             let severity_threshold = args
                 .get("severity_threshold")
                 .and_then(Value::as_str)
@@ -63,29 +60,12 @@ pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 
             let language = args.get("language").and_then(Value::as_str);
 
-            let rules: Option<Vec<String>> =
-                args.get("rules").and_then(Value::as_array).map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                });
-
-            let rules_slice = rules.as_deref();
-
             if stream {
-                run_audit_streamed(
-                    req.id,
-                    &path,
-                    fix_auto,
-                    &severity_threshold,
-                    language,
-                    rules_slice,
-                );
+                run_audit_streamed(req.id, &path, &severity_threshold, language);
                 return rpc_no_response();
             }
 
-            let result_data =
-                run_audit(&path, fix_auto, &severity_threshold, language, rules_slice);
+            let result_data = run_audit(&path, &severity_threshold, language);
 
             let result = json!({
                 "content": [

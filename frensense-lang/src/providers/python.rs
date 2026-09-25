@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! Python [`LanguageSpec`] implementation.
 //!
 //! Key differences from JS/TS that broke the engine before this crate:
@@ -381,6 +383,33 @@ fn python_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
     }
 }
 
+// ── Sink signatures (per-slot danger) ──────────────────────────────────────────
+
+/// Per-slot sink knowledge for Python. Mirrors JS_SINK_SIGNATURES: restrict
+/// alerts to the argument positions whose taint is actually exploitable.
+///
+/// Python's dominant false-positive class without this: parameterized DB
+/// access, `cursor.execute(sql, (user_id,))` taints only slot 0 (the SQL
+/// string); slot 1 is the binding channel that *neutralizes* injection.
+static PY_SINK_SIGNATURES: &[(&str, &[usize], bool)] = &[
+    // ── DB-API / sqlite3 / psycopg / mysql-connector: execute(sql, params) ──
+    ("execute", &[0], true),
+    ("executemany", &[0], true), // executemany(sql, seq_of_params)
+    // ── Django raw SQL: raw(sql, params) / extra(select, params) ──
+    ("raw", &[0], true),
+    // Django extra(): kwargs are interpolated into SQL, only the first
+    // positional (select) is the query; params still bind. Conservative:
+    // restrict to slot 0 (extra's where/tables kwargs flow by keyword, not
+    // position, so positional slots 1+ are the params tuple).
+    ("extra", &[0], true),
+    // ── SQLAlchemy: query / prepare / raw_sql ──
+    ("query", &[0], true),
+    ("prepare", &[0], true),
+    // ── Jinja2: render is the sink; render_template(sql_string, ctx), slot
+    // 0 is the template, ctx is a binding namespace ──
+    ("render_template", &[0], true),
+];
+
 // ── Propagators ───────────────────────────────────────────────────────────────
 
 static PYTHON_PROPAGATORS: &[PropagatorRule] = &[
@@ -593,6 +622,14 @@ impl LanguageSpec for PythonSpec {
         classify_python(kind)
     }
 
+    // tree-sitter-python: `attribute` nodes hold the property name in a plain
+    // `identifier` child. The default JS heuristic misclassifies it as a
+    // computed index, turning `cursor.execute(...)` into CallPointer and
+    // losing the sink name.
+    fn is_property_kind(&self, kind: &str) -> bool {
+        kind == "identifier"
+    }
+
     /// Python `with open(path) as f:` - extracts the path argument.
     fn context_manager_call<'s>(&self, node: Node<'_>, source: &'s str) -> Option<&'s str> {
         python_context_manager_call(node, source)
@@ -650,6 +687,10 @@ impl LanguageSpec for PythonSpec {
         &["request", "req", "r"]
     }
 
+    fn known_sink_signatures(&self) -> &'static [(&'static str, &'static [usize], bool)] {
+        PY_SINK_SIGNATURES
+    }
+
     fn known_sink_names(&self) -> &'static [(&'static str, crate::spec::SinkLabel)] {
         &[
             // Code Execution
@@ -702,7 +743,6 @@ impl LanguageSpec for PythonSpec {
             // XSS
             ("innerHTML", crate::spec::SinkLabel::XssDom),
             ("outerHTML", crate::spec::SinkLabel::XssDom),
-            ("document.write", crate::spec::SinkLabel::XssDom),
             ("dangerouslySetInnerHTML", crate::spec::SinkLabel::XssDom),
             // SSTI - Template engine renders
             ("render_template", crate::spec::SinkLabel::TemplateSsti),
@@ -713,8 +753,6 @@ impl LanguageSpec for PythonSpec {
             ("from_string", crate::spec::SinkLabel::TemplateSsti),
             ("render", crate::spec::SinkLabel::TemplateSsti),
             ("ejs.render", crate::spec::SinkLabel::TemplateSsti),
-            ("pug.compile", crate::spec::SinkLabel::TemplateSsti),
-            ("handlebars.compile", crate::spec::SinkLabel::TemplateSsti),
             ("nunjucks.render", crate::spec::SinkLabel::TemplateSsti),
             ("marko.render", crate::spec::SinkLabel::TemplateSsti),
             ("eta.render", crate::spec::SinkLabel::TemplateSsti),
@@ -753,8 +791,6 @@ impl LanguageSpec for PythonSpec {
             // XXE
             ("DOMParser", crate::spec::SinkLabel::Xxe),
             // JWT
-            ("jwt.verify", crate::spec::SinkLabel::Jwt),
-            ("jwt.decode", crate::spec::SinkLabel::Jwt),
             ("jwt.sign", crate::spec::SinkLabel::Jwt),
             // MongoDB / ORM operators
             ("$where", crate::spec::SinkLabel::NoSqlInjection),
@@ -775,7 +811,10 @@ impl LanguageSpec for PythonSpec {
         &[
             // Flask
             "request.args",
+            "request.args.get",
+            "request.args.getlist",
             "request.form",
+            "request.form.get",
             "request.json",
             "request.data",
             "request.values",
@@ -815,6 +854,29 @@ impl LanguageSpec for PythonSpec {
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         python_classify_sanitizer(call)
+    }
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        &[
+            "escape",
+            "html_escape",
+            "quote",
+            "quote_plus",
+            "sanitize",
+            "validate_email",
+            "bleach",
+            "clean",
+            "escape_html",
+            "quoteattr",
+            "markupsafe.escape",
+            "bleach.clean",
+            "int",
+            "float",
+            "bool",
+            "shlex.quote",
+            "urllib.parse.quote",
+            "html.escape",
+            "paramstyle",
+        ]
     }
 
     fn route_context_hints(&self) -> &'static [&'static str] {

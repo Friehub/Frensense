@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! JavaScript and TypeScript [`LanguageSpec`] implementations.
 //!
 //! Both share the same AST grammar (TypeScript is a superset of JavaScript in
@@ -56,8 +58,15 @@ fn classify_js(kind: &str) -> NodeRole {
         },
 
         // ── Calls ────────────────────────────────────────────────────────
-        "call_expression" | "new_expression" => NodeRole::Call {
+        "call_expression" => NodeRole::Call {
             callee_field: "function",
+            args_field: "arguments",
+        },
+        // tree-sitter-javascript names the callee of `new X(...)` field
+        // "constructor", not "function", sharing the call_expression arm
+        // made every `new X(...)` expression lower to nothing.
+        "new_expression" => NodeRole::Call {
+            callee_field: "constructor",
             args_field: "arguments",
         },
         "member_expression" => NodeRole::MemberAccess {
@@ -81,7 +90,11 @@ fn classify_js(kind: &str) -> NodeRole {
         "await_expression" => NodeRole::Await,
 
         // ── Structural ───────────────────────────────────────────────────
-        "statement_block" | "object" => NodeRole::Block,
+        "statement_block" => NodeRole::Block,
+        // Value-context object/array literals: `{ key: val }`, `[a, b]`, and
+        // spread payloads. NOT statement blocks, all children are
+        // value-producers, and taint in any child taints the whole composite.
+        "object" | "array" | "parenthesized_expression" => NodeRole::Composite,
         "import_statement" => NodeRole::Import,
         "export_statement" => NodeRole::Export,
         "identifier" | "property_identifier" | "shorthand_property_identifier" => {
@@ -341,6 +354,54 @@ fn js_classify_sanitizer(call: &str) -> Option<SanitizerKind> {
         _ => None,
     }
 }
+
+static JS_SANITIZER_NAMES: &[&str] = &[
+    "escape",
+    "escapeHtml",
+    "escapeHTML",
+    "encodeHTML",
+    "sanitizeHtml",
+    "sanitize",
+    "clean",
+    "purify",
+    "stripTags",
+    "stripHtml",
+    "bleach",
+    "xssFilter",
+    "filterXSS",
+    "inHTMLData",
+    "inDoubleQuotedAttr",
+    "encodeURIComponent",
+    "encodeURI",
+    "encode",
+    "parseInt",
+    "parseFloat",
+    "Number",
+    "BigInt",
+    "toFixed",
+    "toPrecision",
+    "shellescape",
+    "shellQuote",
+    "escapeShellArg",
+    "quoteForShell",
+    "isUUID",
+    "isEmail",
+    "isAlphanumeric",
+    "isNumeric",
+    "isInt",
+    "isFloat",
+    "isISO8601",
+    "isValid",
+    "sqlEscape",
+    "escapeId",
+    "format",
+    "literal",
+    "raw",
+    "sanitizeFilter",
+    "mongoSanitize",
+    "sanitizeValue",
+    "basename",
+];
 
 static JS_PROPAGATORS: &[PropagatorRule] = &[
     // String methods - receiver taints return
@@ -869,14 +930,22 @@ impl LanguageSpec for TypeScriptSpec {
     }
 
     fn request_param_names(&self) -> &'static [&'static str] {
+        // NOTE: deliberately excludes framework app objects (`app`, `server`,
+        // `io`) and function handles (`handler`, `fn`), these are never user
+        // input, and treating them as sources made every Express route
+        // registration (`app.post(path, mw...)`) a phantom source→sink flow.
         &[
-            "req", "request", "ctx", "context", "event", "c", "e", "r", "h", "app", "handler",
-            "input", "args", "parent", "info",
+            "req", "request", "ctx", "context", "event", "c", "e", "r", "input", "args", "parent",
+            "info",
         ]
     }
 
     fn known_sink_names(&self) -> &'static [(&'static str, crate::spec::SinkLabel)] {
         JS_SINK_NAMES
+    }
+
+    fn known_sink_signatures(&self) -> &'static [(&'static str, &'static [usize], bool)] {
+        JS_SINK_SIGNATURES
     }
 
     fn known_source_patterns(&self) -> &'static [&'static str] {
@@ -889,6 +958,10 @@ impl LanguageSpec for TypeScriptSpec {
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         js_classify_sanitizer(call)
+    }
+
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        JS_SANITIZER_NAMES
     }
 
     fn route_context_hints(&self) -> &'static [&'static str] {
@@ -1097,6 +1170,10 @@ impl LanguageSpec for JavaScriptSpec {
         JS_SINK_NAMES
     }
 
+    fn known_sink_signatures(&self) -> &'static [(&'static str, &'static [usize], bool)] {
+        JS_SINK_SIGNATURES
+    }
+
     fn known_source_patterns(&self) -> &'static [&'static str] {
         JS_SOURCE_PATTERNS
     }
@@ -1107,6 +1184,10 @@ impl LanguageSpec for JavaScriptSpec {
 
     fn classify_sanitizer(&self, call: &str) -> Option<SanitizerKind> {
         js_classify_sanitizer(call)
+    }
+
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        JS_SANITIZER_NAMES
     }
 
     fn route_context_hints(&self) -> &'static [&'static str] {
@@ -1307,6 +1388,8 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("findOneAndReplace", crate::spec::SinkLabel::NoSqlInjection),
     ("replaceOne", crate::spec::SinkLabel::NoSqlInjection),
     ("bulkWrite", crate::spec::SinkLabel::NoSqlInjection),
+    ("update", crate::spec::SinkLabel::NoSqlInjection), // mongoose Model.update
+    ("remove", crate::spec::SinkLabel::NoSqlInjection), // mongoose Model.remove
     ("hget", crate::spec::SinkLabel::NoSqlInjection),
     ("hset", crate::spec::SinkLabel::NoSqlInjection),
     ("del", crate::spec::SinkLabel::NoSqlInjection),
@@ -1362,6 +1445,7 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("queryRaw", crate::spec::SinkLabel::SqlInjection),
     ("raw", crate::spec::SinkLabel::SqlInjection),
     ("prepare", crate::spec::SinkLabel::SqlInjection),
+    ("run", crate::spec::SinkLabel::SqlInjection), // sqlite3/knex .run()
     // Path Traversal
     ("readFile", crate::spec::SinkLabel::PathTraversal),
     ("readFileSync", crate::spec::SinkLabel::PathTraversal),
@@ -1396,6 +1480,8 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("deleteOne", crate::spec::SinkLabel::NoSqlInjection),
     ("deleteMany", crate::spec::SinkLabel::NoSqlInjection),
     ("findOne", crate::spec::SinkLabel::NoSqlInjection),
+    ("find", crate::spec::SinkLabel::NoSqlInjection), // collection.find / mongoose find
+    ("findById", crate::spec::SinkLabel::NoSqlInjection),
     ("findAll", crate::spec::SinkLabel::NoSqlInjection),
     // Storage Write
     ("setItem", crate::spec::SinkLabel::StorageWrite),
@@ -1446,15 +1532,9 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("setPrototypeOf", crate::spec::SinkLabel::PrototypePollution),
     // XXE
     ("DOMParser", crate::spec::SinkLabel::Xxe),
-    // JWT
-    ("jwt.verify", crate::spec::SinkLabel::Jwt),
-    ("jwt.decode", crate::spec::SinkLabel::Jwt),
+    // JWT: jwt.sign kept (tainted payload signed into a token is worth
+    // flagging); verify/decode removed, they are validators, not sinks.
     ("jwt.sign", crate::spec::SinkLabel::Jwt),
-    ("jsonwebtoken.verify", crate::spec::SinkLabel::Jwt),
-    ("jsonwebtoken.decode", crate::spec::SinkLabel::Jwt),
-    ("jsonwebtoken.sign", crate::spec::SinkLabel::Jwt),
-    ("JWT.verify", crate::spec::SinkLabel::Jwt),
-    ("JWT.decode", crate::spec::SinkLabel::Jwt),
     // Cloudflare Workers / Prisma
     ("c.redirect", crate::spec::SinkLabel::OpenRedirect),
     ("env.KV.put", crate::spec::SinkLabel::StorageWrite),
@@ -1478,6 +1558,63 @@ static JS_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     ("D1Database.prepare", crate::spec::SinkLabel::SqlInjection),
     ("DurableObjectStub.fetch", crate::spec::SinkLabel::Ssrf),
     ("Queue.send", crate::spec::SinkLabel::Ssrf),
+];
+
+/// Per-slot danger facts for sinks whose argument positions carry different
+/// semantics. `(call, dangerous_slots, binding_args_safe)`.
+///
+/// Without these, `jwt.verify(token, secret)` alerts on slot 1 (the
+/// developer-controlled secret) and `query(sql, params)` alerts on the
+/// *parameterized* values, the two largest structural FP classes.
+/// Empty `dangerous_slots` = every slot dangerous (the default when a call
+/// has no entry here).
+static JS_SINK_SIGNATURES: &[(&'static str, &'static [usize], bool)] = &[
+    // ── Crypto / auth: slot 1 is a developer-controlled key/secret ──
+    // NOTE: jwt.verify/jwt.decode are deliberately NOT here and NOT in the
+    // sink table: verification APIs consume tainted tokens *by design*,
+    // they validate, they don't execute. Treating them as sinks made every
+    // auth middleware a false positive.
+    ("decrypt", &[0], false), // crypto.decrypt(ciphertext, key)
+    ("privateDecrypt", &[0], false),
+    ("createDecipheriv", &[0, 1], false),
+    // ── Parameterized SQL: slot 1+ is the binding channel (safe) ──
+    ("query", &[0], true),   // pool.query(sql, params)
+    ("execute", &[0], true), // mysql2 / prepare(sql, params)
+    ("raw", &[0], true),     // sequelize
+    ("any", &[0], true),     // pg-promise
+    ("one", &[0], true),
+    ("none", &[0], true),
+    ("all", &[0], true), // sqlite .all(sql, params), dangerous in mongo context, but param binding dominates
+    ("get", &[0], true), // sqlite .get(sql, params)
+    ("run", &[0], true), // sqlite .run(sql, params)
+    // ── HTTP fetch: slot 1 is the request-options/init object ──
+    // (fetch(url, init): taint in init.method/body IS dangerous, but the
+    //  options object is also where SSRF host overrides live; leave all-args
+    //  dangerous, SSRF via options is real. Only restrict clear cases.)
+    ("createHmac", &[1], false),     // createHmac(algo, key)
+    ("createCipheriv", &[2], false), // createCipheriv(algo, key, iv)
+    ("scrypt", &[0], false),         // scrypt(password, salt), slot 0 is the credential
+    ("pbkdf2", &[0], false),
+    // ── IDOR-class finders: taint inside an object-literal QUERY payload ──
+    // (`findOne({ where: { id: taint } })`) is an access-control concern
+    // (which rows), not an injection (the driver parameterizes values).
+    // Classified separately by the engine via `idor_keys`; kept dangerous at
+    // slot 0 so the flow is still reported, just as a lower-class finding.
+    ("findOne", &[0], false),
+    ("findOneAndUpdate", &[0], false),
+    ("findOneAndDelete", &[0], false),
+    ("findOneAndReplace", &[0], false),
+    ("findByIdAndUpdate", &[0], false),
+    ("findByIdAndDelete", &[0], false),
+    ("find", &[0], false),
+    ("findAll", &[0], false),
+    ("update", &[0], false),
+    ("updateOne", &[0], false),
+    ("updateMany", &[0], false),
+    ("deleteOne", &[0], false),
+    ("deleteMany", &[0], false),
+    ("destroy", &[0], false),
+    ("count", &[0], false),
 ];
 
 static JS_SOURCE_PATTERNS: &[&str] = &[
@@ -1530,7 +1667,10 @@ static JS_SOURCE_PATTERNS: &[&str] = &[
     "event.body",
     "event.queryStringParameters",
     "event.pathParameters",
-    "process.env",
+    // NOTE: `process.env` deliberately NOT a source: env vars are
+    // developer-controlled config, not attacker input. Treating them as
+    // sources was the largest FP class in the Juice Shop baseline.
+    // `process.argv` stays: CLI arguments are genuinely user-controlled.
     "process.argv",
     // Hardened for object destructuring: const { body, query, params } = req
     "body",

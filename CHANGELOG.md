@@ -5,6 +5,75 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.7.0-preview.1] - 2026-09-26
+
+First public preview of the v0.7.0 redesign, and the release where Frensense
+transitions to an open-core model.
+
+### Licence
+
+- **MIT → GPL-3.0-only**: the engine is now free software. All source files
+  carry `SPDX-License-Identifier: GPL-3.0-only` headers, all crate manifests
+  declare `license = "GPL-3.0-only"`, and a full GPL-3.0 `LICENSE` is included.
+  Commercial licences for redistribution without GPL obligations remain
+  available (https://friehub.com/licensing).
+- **Open-core split**: the analysis *engine* is open; the `.frc` knowledge
+  bundles are the product.
+- **Contributor licensing**: contributions are accepted under GPL-3.0 with a
+  lightweight CLA (see `CONTRIBUTING.md` and `CLA.md`) so Friehub can continue
+  to sell commercial licences. CLA signing is automated by a GitHub Action.
+
+### Removed (packaging)
+
+- The security corpus (`corpus/`), benchmark internals, ground-truth label
+  sets, and corpus-authoring scripts are no longer tracked in the public
+  repository. They remain the proprietary knowledge layer.
+- The compiled engine binary was removed from version control; releases ship
+  via CI artifacts only.
+- CI now skips corpus-dependent regression and FRC-bundle steps when the
+  private corpus is absent (public clones stay green).
+
+### Added
+- **Compiler-mode dataflow engine**: the scanner now lowers every file to a
+  lightweight IR and builds a full program graph, def-use chains, call graph,
+  Steensgaard points-to with two-phase constraint solving, heap modelling, and
+  an SVFG (Sparse Value-Flow Graph), replacing the previous fingerprint
+  similarity heuristics with exact reachability queries.
+- **Two-phase points-to analysis**: constraint-based alias resolution with a
+  second propagation phase for precise call-site-sensitive flow.
+- **Taint-path reporting**: findings now include the concrete source→sink path
+  through the program graph, not just a confidence score.
+- **Multi-language sink model**: unified sink/source modelling across
+  TypeScript/JavaScript, Python, Go, and Rust with per-language providers
+  (Oxc for JS/TS, rust-analyzer HIR for Rust).
+- **Session-trust and guard-bypass analysis**: new checkers for authentication
+  guard bypass and session-trust violations on the SVFG.
+- **Memory SSA backend**: a dedicated SSA construction pass over the memory
+  model for precise def-use resolution.
+
+### Changed
+- **Version alignment**: all workspace crates unified to `0.7.0`.
+- **Engine purity enforced**: `frensense-engine` contains analysis mechanisms
+  only; all learned knowledge is injected via `SeedFacts` / `.frc` bundles.
+
+### Fixed
+- **Cross-file taint**: inter-procedural taint now resolves through the
+  call graph instead of heuristic name matching, eliminating phantom flows
+  from flattened member accesses (e.g. `req.body.id`).
+
+### Notes
+
+- This is a **preview**: the knowledge-bundle format and CLI surface may still
+  change before the stable `0.7.0` release.
+- Benchmarks are being rebuilt for public release; private baselines are not
+  part of this repository.
+
+## [0.6.1] - Unreleased (pre-redesign; superseded by 0.7.0)
+> Incremental post-0.6.0 work on the fingerprint-scoring architecture. The
+> 0.7.0 dataflow redesign replaced this architecture, and several files
+> referenced below (scorer.rs, calibration, PDG fingerprinting) no longer
+> exist. Preserved for historical tracking.
 ### Added
 - **Hybrid AST/PDG Data Flow Fingerprinting**: Fully wired `ProgramDependenceGraph` into `extract_flow_paths` to generate dynamic flow hashes, compressing sequential node kinds via Run-Length Encoding to support varied path lengths.
 - **OWASP Juice Shop Validation**: Confirmed engine precision of 45.11% and file recall of 35.14% on Juice Shop benchmark (1334 total advisories).

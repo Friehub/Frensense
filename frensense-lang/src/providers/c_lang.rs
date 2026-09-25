@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2024-2026 Friehub. All rights reserved.
+// Commercial use requires a separate license: https://friehub.com/licensing
 //! C [`LanguageSpec`] implementation.
 //!
 //! Covers C99/C11 tree-sitter grammar node kinds.
@@ -192,7 +194,6 @@ static C_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     // XSS
     ("innerHTML", crate::spec::SinkLabel::XssDom),
     ("outerHTML", crate::spec::SinkLabel::XssDom),
-    ("document.write", crate::spec::SinkLabel::XssDom),
     ("dangerouslySetInnerHTML", crate::spec::SinkLabel::XssDom),
     // SSTI
     ("render", crate::spec::SinkLabel::TemplateSsti),
@@ -222,8 +223,6 @@ static C_SINK_NAMES: &[(&'static str, crate::spec::SinkLabel)] = &[
     // XXE
     ("DOMParser", crate::spec::SinkLabel::Xxe),
     // JWT
-    ("jwt.verify", crate::spec::SinkLabel::Jwt),
-    ("jwt.decode", crate::spec::SinkLabel::Jwt),
     ("jwt.sign", crate::spec::SinkLabel::Jwt),
     // MongoDB / ORM
     ("update", crate::spec::SinkLabel::NoSqlInjection),
@@ -371,6 +370,9 @@ impl LanguageSpec for CSpec {
             "atoi" | "atol" | "atof" | "strtol" | "strtoul" => Some(SanitizerKind::Full),
             _ => None,
         }
+    }
+    fn known_sanitizer_names(&self) -> &'static [&'static str] {
+        &["atoi", "atol", "atof", "strtol", "strtoul"]
     }
 
     fn test_context_hints(&self) -> &'static [&'static str] {

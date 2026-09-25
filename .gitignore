@@ -78,3 +78,64 @@ corpus/archived/
 
 # npm tarballs
 *.tgz
+
+# ── Proprietary: never push ─────────────────────────────────────────
+# Corpus (the learning asset, positive/negative families, manifests)
+corpus/by-vuln/
+corpus/targets/
+corpus/facts/
+corpus/semantic_filters.toml
+corpus/baselines/
+corpus-facts.frc
+
+# Compiled knowledge bundles
+*.frc
+
+# Strategy/engineering docs (README, LICENSE, CHANGELOG only are public)
+docs/*.md
+*.md
+!README.md
+!LICENSE*
+!CHANGELOG.md
+!CONTRIBUTING.md
+!CLA.md
+
+# Benchmark scorecards and probe artifacts
+benchmark/scorecard.json
+benchmark/owasp_scorecard.json
+
+# Unreleased crate
+frensense-runtime/
+
+# Benchmark target app
+juice-shop/
+
+# Agent workspace
+.freebuff/
+dist/binaries/
+
+# Ground-truth label sets (private benchmark knowledge)
+scripts/juiceshop-ground-truth.json
+scripts/nodegoat-ground-truth.json
+
+# Corpus / benchmark authoring tooling (private)
+scripts/benchmark_suite.py
+scripts/migrate_corpus.py
+scripts/benchmark_juice_shop.py
+scripts/benchmark_nodegoat.py
+scripts/fix-corpus-fps.py
+scripts/corpus_check.py
+scripts/classify_findings.py
+scripts/extract_fps.py
+scripts/extract_19_fps.py
+scripts/generate_corpus.js
+scripts/generate_m2m8_variants.py
+scripts/inject_context.py
+scripts/compute_metrics.py
+scripts/swarm_seeder.ts
+scripts/train_calibration.py
+scripts/__pycache__/
+frensense-bench/runners/run_juiceshop.sh
+
+# Benchmark internals (scorecards, OWASP baselines, cases)
+benchmark/
