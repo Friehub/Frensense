@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload FRC Artifact
         if: matrix.settings.host == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: frensense-corpus
           path: frensense-corpus.frc
@@ -148,7 +148,7 @@ jobs:
           echo "CLI smoke test passed"
 
       - name: Upload CLI Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cli-${{ matrix.settings.target }}
           path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.bin_name }}
